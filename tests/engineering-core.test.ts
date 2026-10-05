@@ -4,6 +4,7 @@ import {EngineeringAgent} from "../src/core/agent.js";
 import {CapabilityRegistry} from "../src/capabilities/registry.js";
 import {CapabilityRouter} from "../src/capabilities/router.js";
 import {MockCADProvider} from "../src/providers/mock-cad.js";
+import {NumericalAnalysisProvider} from "../src/providers/numerical.js";
 
 describe("shaft calculation",()=>{
   it("calculates 5 kW at 1500 rpm",()=>{
@@ -20,6 +21,14 @@ describe("engineering agent benchmark",()=>{
   });
 });
 describe("capability routing",()=>{
+  it("routes numerical analysis through a provider",async()=>{
+    const registry=new CapabilityRegistry(); registry.register(new NumericalAnalysisProvider());
+    const agent=new EngineeringAgent(new CapabilityRouter(registry));
+    const result=await agent.executeCapability({
+      capability:"ANALYSIS.SHAFT_TORQUE",input:{powerKw:5,speedRpm:1500},risk:"LOW"
+    });
+    expect(result.success).toBe(true); expect(result.provider).toBe("numerical-analysis");
+  });
   it("routes CAD work to a provider",async()=>{
     const registry=new CapabilityRegistry(); registry.register(new MockCADProvider());
     const result=await new CapabilityRouter(registry).execute({
