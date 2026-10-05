@@ -1,4 +1,4 @@
-import {EngineeringIntent, ProjectState} from "./types.js";
+import {EngineeringIntent, ProjectState, CapabilityRequest} from "./types.js";
 import {createProject,recordEvent} from "../state/project.js";
 import {shaftTorque} from "../engineering/calculations.js";
 import {CapabilityRouter} from "../capabilities/router.js";
@@ -14,7 +14,7 @@ export class EngineeringAgent {
     return {raw,goal:"shaft design",knownInputs,missingInputs,
       requestedCapabilities:["ANALYSIS.SHAFT_TORQUE","CAD.CREATE_PART"]};
   }
-  start(raw:string):{project:ProjectState;intent:EngineeringIntent;torque?:ReturnType<typeof shaftTorque>}{
+  start(raw:string):{project:ProjectState;intent:EngineeringIntent;torque?:ReturnType<typeof shaftTorque>}{    
     const intent=this.understand(raw), project=createProject(intent.goal);
     if(intent.knownInputs.powerKw && intent.knownInputs.speedRpm){
       const torque=shaftTorque(Number(intent.knownInputs.powerKw),Number(intent.knownInputs.speedRpm));
@@ -26,5 +26,10 @@ export class EngineeringAgent {
     }
     project.openQuestions=intent.missingInputs;
     return {project,intent};
+  }
+
+  async executeCapability(request:CapabilityRequest){
+    const result=await this.router.execute(request);
+    return result;
   }
 }
