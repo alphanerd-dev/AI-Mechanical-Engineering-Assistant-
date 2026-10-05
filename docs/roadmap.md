@@ -1,7 +1,7 @@
 # Roadmap
 
-- V1.1 — Engineering core + mock providers
-- V1.2 — Numerical analysis provider (Python/Wolfram)
+- V1.1 — Engineering core + mock providers — DONE
+- V1.2 — Numerical analysis provider — IN PROGRESS
 - V1.3 — Real Onshape MCP provider adapters
 - V1.4 — Persistent engineering memory
 - V1.5 — Research engine
