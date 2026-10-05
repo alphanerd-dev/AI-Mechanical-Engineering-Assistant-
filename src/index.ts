@@ -1,10 +1,15 @@
 import {CapabilityRegistry} from "./capabilities/registry.js";
 import {CapabilityRouter} from "./capabilities/router.js";
 import {MockCADProvider} from "./providers/mock-cad.js";
+import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
+registry.register(new NumericalAnalysisProvider());
 registry.register(new MockCADProvider());
-const agent=new EngineeringAgent(new CapabilityRouter(registry));
+
+const router=new CapabilityRouter(registry);
+const agent=new EngineeringAgent(router);
 const result=agent.start("Design a shaft that transmits 5 kW at 1500 rpm.");
+
 console.log(JSON.stringify(result,null,2));
