@@ -264,4 +264,53 @@ describe("verification plans",()=>{
     expect(result.status).toBe("INCOMPLETE");
     expect(result.blockedDependencyIds).toEqual(["REQ-2"]);
   });
+
+  it("uses a verification plan when one is supplied for a requirement",async()=>{
+    const now=new Date().toISOString();
+    const project={
+      id:"project-plan",name:"Planned verification",stage:"VERIFICATION",status:"ACTIVE" as const,
+      requirements:[
+        {id:"REQ-1",name:"Target",priority:"MUST" as const,status:"OPEN" as const},
+        {id:"REQ-2",name:"Dependency",priority:"MUST" as const,status:"SATISFIED" as const}
+      ],
+      assumptions:[],openQuestions:[],unresolvedRisks:[],events:[],evidenceIds:["dep"]
+    };
+    const evidence=[
+      {id:"target-calc",type:"CALCULATION" as const,claim:"Target calculation",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:now},
+      {id:"dep",type:"GEOMETRY_CHECK" as const,claim:"Dependency geometry",status:"VERIFIED" as const,requirementIds:["REQ-2"],timestamp:now}
+    ];
+    const traceability=new RequirementTraceability();
+    traceability.addRequirement({id:"REQ-1",name:"Target",statement:"Target",kind:"ENGINEERING",priority:"MUST",status:"OPEN"});
+    traceability.addRequirement({id:"REQ-2",name:"Dependency",statement:"Dependency",kind:"ENGINEERING",priority:"MUST",status:"SATISFIED"});
+    traceability.trace({fromId:"REQ-2",toId:"REQ-1",relation:"CONSTRAINS"});
+
+    const blocked=await verifyEngineeringProject({
+      project,evidence,artifacts:[],
+      verificationPlans:{
+        "REQ-1":{
+          id:"VP-PLAN",requirementId:"REQ-1",
+          gates:[{type:"CALCULATION",minimum:1},{type:"CAD",minimum:1}],
+          dependencyRequirementIds:["REQ-2"]
+        }
+      },
+      traceability
+    });
+    expect(blocked.status).toBe("INCOMPLETE");
+    expect(blocked.requirements[0]?.status).toBe("INCOMPLETE");
+
+    const passedEvidence=[...evidence,{id:"cad",type:"GEOMETRY_CHECK" as const,claim:"Target CAD",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:now}];
+    const passed=await verifyEngineeringProject({
+      project,evidence:passedEvidence,artifacts:[],
+      verificationPlans:{
+        "REQ-1":{
+          id:"VP-PLAN",requirementId:"REQ-1",
+          gates:[{type:"CALCULATION",minimum:1},{type:"CAD",minimum:1}],
+          dependencyRequirementIds:["REQ-2"]
+        }
+      },
+      traceability
+    });
+    expect(passed.status).toBe("PASS");
+    expect(passed.requirements[0]?.status).toBe("PASS");
+  });
 });
