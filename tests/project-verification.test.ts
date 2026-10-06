@@ -209,6 +209,21 @@ describe("verification plans",()=>{
     },[target,dependency],project);
     expect(passed.status).toBe("PASS");
     expect(passed.blockedDependencyIds).toEqual([]);
+
+    const traceability=new RequirementTraceability();
+    traceability.addRequirement({id:"REQ-1",name:"Target",statement:"Target",kind:"ENGINEERING",priority:"MUST",status:"OPEN"});
+    traceability.addRequirement({id:"REQ-2",name:"Dependency",statement:"Dependency",kind:"ENGINEERING",priority:"MUST",status:"SATISFIED"});
+    traceability.trace({fromId:"REQ-2",toId:"REQ-1",relation:"CONSTRAINS"});
+    const traced=await executeVerificationPlan({
+      id:"VP-DEP-TRACE",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],dependencyRequirementIds:["REQ-2"]
+    },[target,dependency],project,traceability);
+    expect(traced.status).toBe("PASS");
+
+    const untraced=await executeVerificationPlan({
+      id:"VP-DEP-UNTRACED",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],dependencyRequirementIds:["REQ-2"]
+    },[target,dependency],project,new RequirementTraceability());
+    expect(untraced.status).toBe("INCOMPLETE");
+    expect(untraced.blockedDependencyIds).toEqual(["REQ-2"]);
   });
 
   it("rejects dependency evidence that is not part of the project evidence set",async()=>{
