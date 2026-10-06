@@ -166,6 +166,19 @@ Notes:
 - V1.14 adds a provider-neutral queue/handoff foundation on top of the existing execution engine.
 - The queue is a reference in-memory implementation; an external broker, durable job persistence, retries across process restarts, and distributed workers remain production-infrastructure work.
 
+## V1.15 — Engineering Workspace persistence foundations
+- [x] Versioned workspace snapshot contract
+- [x] Optimistic project-revision protection
+- [x] Provider-neutral project state store interface
+- [x] Immutable in-memory reference store
+- [x] JSON snapshot serialization/deserialization
+- [x] Fail-closed snapshot schema/date/revision validation
+
+Notes:
+- V1.15 establishes the persistence boundary without selecting a database or filesystem backend.
+- Snapshots are cloned on write/read to prevent accidental state mutation across the storage boundary.
+- Durable database, object storage, migrations, multi-user conflict resolution, and production authorization remain later infrastructure work.
+
 ## V2.0 — Bounded autonomous engineering workspace
 - [ ] Project memory persistence
 - [ ] Multi-agent specialist delegation
