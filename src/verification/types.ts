@@ -10,6 +10,7 @@ export interface VerificationPlan{
   gates:VerificationEvidenceGate[];
   minimumTotalEvidence?:number;
   approvalRequired?:boolean;
+  approvalGranted?:boolean;
   description?:string;
   requiredMethods?:string[];
   acceptanceCriteria?:string[];
