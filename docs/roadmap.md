@@ -45,11 +45,11 @@
 - [x] Requirement linkage fields
 - [x] Engineering-memory evidence boundary
 - [x] Mock research provider and tests
-- [ ] Academic MCP/provider
+- [x] Academic MCP/provider
 - [ ] Manufacturer/component database provider
-- [ ] Controlled web retrieval provider
-- [ ] Research result -> project memory ingestion
-- [ ] Evidence-backed research API/UI
+- [x] Controlled web retrieval provider
+- [x] Research result -> verified project memory ingestion
+- [x] Evidence-backed research verification API/UI
 
 ## V1.6 — Simulation
 - [ ] Static structural analysis
