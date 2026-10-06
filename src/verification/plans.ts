@@ -25,7 +25,7 @@ export function executeVerificationPlan(
   evidence:EvidenceRecord[],
   project?:ProjectState,
   traceability?:RequirementTraceability
-):Promise<VerificationPlanResult>{
+):VerificationPlanResult{
   const result=new EngineeringVerificationEngine().verify({
     requirementId:plan.requirementId,
     evidence,
