@@ -1,4 +1,5 @@
 import {InformationStatus} from "../core/types.js";
+import {CADGeometryMetrics} from "./metrics.js";
 
 export type CADArtifactKind="SOURCE"|"SOLID"|"STEP"|"STL"|"THREE_MF"|"DRAWING";
 
@@ -18,11 +19,8 @@ export interface CADArtifact {
   createdAt:string;
 }
 
-export interface GeometryValidation {
+export interface GeometryValidation extends CADGeometryMetrics{
   valid:boolean;
-  solidCount?:number;
-  volumeMm3?:number;
-  boundingBoxMm?:{x:number;y:number;z:number};
   warnings:string[];
   checkedBy:string;
 }

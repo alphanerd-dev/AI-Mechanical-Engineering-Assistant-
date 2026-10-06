@@ -205,11 +205,18 @@ Notes:
 - The open provider is preferred before the Ansys provider in capability routing for the baseline static-structural capability.
 
 ## V1.19 — CAD validation / regression / diff
-- [ ] Geometry regression metrics
-- [ ] CAD artifact diffing
-- [ ] Wall-thickness validation
-- [ ] DFM geometry checks
-- [ ] Automated CAD judging/compare loop
+- [x] Geometry regression metrics
+- [x] CAD artifact diffing
+- [x] Wall-thickness validation
+- [x] DFM geometry checks
+- [x] Automated CAD judging/compare loop
+
+Notes:
+- V1.19 adds a deterministic geometry-analysis layer over measured CAD snapshots.
+- Missing geometry measurements are reported as INCOMPLETE; the system never invents a metric.
+- Regression tolerances, wall-thickness limits, and DFM rules are explicit inputs.
+- CAD judging is deterministic and criteria-driven; it does not substitute for engineering verification or human design approval.
+- Actual measurement runtimes remain provider-owned (for example OCCT/FreeCAD/CADGate-style services).
 
 ## V1.20 — Constraint solving + tolerance
 - [ ] Unit-aware constraint solver integration

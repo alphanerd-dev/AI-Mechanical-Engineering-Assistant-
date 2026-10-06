@@ -18,10 +18,12 @@ import {EngineeringOrchestratorProvider} from "./providers/orchestrator.js";
 import {GmshProvider} from "./providers/gmsh.js";
 import {CalculixProvider} from "./providers/calculix.js";
 import {EngineeringAgent} from "./core/agent.js";
+import {CADAnalysisProvider} from "./providers/cad-analysis.js";
 
 export * from "./state/persistence.js";
 export * from "./artifacts/persistence.js";
 export * from "./fea/index.js";
+export * from "./cad/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
@@ -33,6 +35,7 @@ registry.register(new CrossValidationProvider());
 registry.register(new EngineeringVerificationProvider());
 registry.register(new ManufacturingProvider());
 registry.register(new MockCADProvider());
+registry.register(new CADAnalysisProvider());
 
 registry.register(new GmshProvider({
   generateMesh:async()=>({

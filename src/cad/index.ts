@@ -4,3 +4,8 @@ export * from './acceptance.js';
 export * from './artifact-bridge.js';
 export * from './artifact-manifest.js';
 export * from './self-correction.js';
+export * from './metrics.js';
+export * from './regression.js';
+export * from './diff.js';
+export * from './dfm.js';
+export * from './judge.js';
