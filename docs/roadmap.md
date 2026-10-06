@@ -24,25 +24,32 @@
 - [x] Artifact/evidence model
 - [x] Next.js + React + TypeScript workspace shell
 - [x] Server-side Engineering Core API boundary
-- [x] CI workflow added
-- [ ] CI verification of the complete stack
+
+## V1.4 — Engineering execution layer
 - [x] Execution job contract
 - [x] Unit-aware TypeScript execution boundary
 - [x] Server-side execution API boundary
-
-## V1.4 — Engineering execution layer
-- [ ] Isolated Python worker
-- [ ] SymPy/SciPy/Pint execution
-- [ ] Unit-aware calculation contracts
+- [x] Controlled Python numerical worker
+- [x] Worker allowlist and timeout policy
+- [x] Container hardening baseline
+- [ ] CI verification of the complete stack
+- [ ] Production job queue + artifact handoff
+- [ ] SymPy/SciPy/Pint worker integration
 - [ ] Wolfram provider boundary
-- [ ] Job status + artifact handoff
 
 ## V1.5 — Research intelligence
+- [x] Provider-independent research contracts
+- [x] Source provenance model
+- [x] Source authority ranking
+- [x] Research finding extraction contract
+- [x] Requirement linkage fields
+- [x] Engineering-memory evidence boundary
+- [x] Mock research provider and tests
 - [ ] Academic MCP/provider
-- [ ] Manufacturer/component database
-- [ ] Source provenance
-- [ ] Research evidence extraction
-- [ ] Engineering-memory ingestion
+- [ ] Manufacturer/component database provider
+- [ ] Controlled web retrieval provider
+- [ ] Research result -> project memory ingestion
+- [ ] Evidence-backed research API/UI
 
 ## V1.6 — Simulation
 - [ ] Static structural analysis
@@ -64,7 +71,7 @@
 
 ## V1.9 — Integrated engineering orchestrator
 - [ ] Requirement gates
-- [ ] Research → analysis → CAD progression
+- [ ] Research -> analysis -> CAD progression
 - [ ] Failure/rework loop
 - [ ] Traceability graph
 - [ ] Human approval gates
