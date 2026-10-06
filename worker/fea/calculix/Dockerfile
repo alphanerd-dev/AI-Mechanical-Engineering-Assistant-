@@ -19,6 +19,7 @@ RUN apt-get update \
        libxinerama1 \
        libxi6 \
        libfontconfig1 \
+       libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir "gmsh==${GMSH_VERSION}"
