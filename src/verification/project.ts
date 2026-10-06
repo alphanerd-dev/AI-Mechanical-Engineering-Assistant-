@@ -1,13 +1,19 @@
-import {EvidenceRecord,EngineeringArtifact} from "../artifacts/engineering-artifacts.js";
+import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
 import {ProjectState} from "../core/types.js";
 import {RequirementTraceability} from "../requirements/traceability.js";
 import {ProjectVerificationStatus,VerificationPlan} from "./types.js";
 import {executeVerificationPlan} from "./plans.js";
 
-export interface VerificationArtifactProvenance{\n  id:string;\n  evidenceIds:string[];\n  requirementIds?:string[];\n}\n\nexport interface EngineeringProjectVerificationRequest{
+export interface VerificationArtifactProvenance{
+  id:string;
+  evidenceIds:string[];
+  requirementIds?:string[];
+}
+
+export interface EngineeringProjectVerificationRequest{
   project:ProjectState;
   evidence:EvidenceRecord[];
-  artifacts:(EngineeringArtifact|VerificationArtifactProvenance)[];
+  artifacts:VerificationArtifactProvenance[];
   requirementEvidence?:Record<string,string[]>;
   verificationPlans?:Record<string,VerificationPlan>;
   traceability?:RequirementTraceability;
@@ -29,7 +35,7 @@ export interface EngineeringProjectVerificationReport{
 
 function evidenceHasValidArtifactProvenance(
   evidence:EvidenceRecord,
-  artifactsById:Map<string,EngineeringArtifact>
+  artifactsById:Map<string,VerificationArtifactProvenance>
 ):boolean{
   if(!evidence.artifactIds || evidence.artifactIds.length===0) return true;
   return evidence.artifactIds.every(artifactId=>{
@@ -40,7 +46,7 @@ function evidenceHasValidArtifactProvenance(
 
 function provenanceValidEvidence(
   evidence:EvidenceRecord[],
-  artifacts:EngineeringArtifact[]
+  artifacts:VerificationArtifactProvenance[]
 ):EvidenceRecord[]{
   const artifactsById=new Map(artifacts.map(artifact=>[artifact.id,artifact]));
   return evidence.filter(item=>evidenceHasValidArtifactProvenance(item,artifactsById));
