@@ -147,3 +147,31 @@ export class EngineeringVerificationEngine {
     return {requirementId:request.requirementId,status:"INCOMPLETE",evidenceIds:relevant.map(e=>e.id),verifiedEvidenceIds:verified.map(e=>e.id),satisfiedGates,unmetGates,reason:relevant.length===0?"No evidence is explicitly attributed to this requirement.":unmetGates.length>0?"Evidence exists, but one or more required verification gates are incomplete.":"Evidence exists, but the requirement does not yet have sufficient VERIFIED evidence."};
   }
 }
+
+
+export interface VerificationPlan {
+  id:string;
+  requirementId:string;
+  gates:VerificationEvidenceGate[];
+  minimumTotalEvidence?:number;
+  approvalRequired?:boolean;
+  description?:string;
+}
+
+export interface VerificationPlanResult extends EngineeringVerificationResult {
+  planId:string;
+  approvalRequired:boolean;
+}
+
+export async function executeVerificationPlan(
+  plan:VerificationPlan,
+  evidence:EvidenceRecord[]
+):Promise<VerificationPlanResult>{
+  const result=await new EngineeringVerificationEngine().verify({
+    requirementId:plan.requirementId,
+    evidence,
+    minimumEvidence:plan.minimumTotalEvidence,
+    gates:plan.gates
+  });
+  return {...result,planId:plan.id,approvalRequired:plan.approvalRequired??false};
+}
