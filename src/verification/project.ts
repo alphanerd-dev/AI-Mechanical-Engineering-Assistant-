@@ -4,10 +4,10 @@ import {RequirementTraceability} from "../requirements/traceability.js";
 import {ProjectVerificationStatus,VerificationPlan} from "./types.js";
 import {executeVerificationPlan} from "./plans.js";
 
-export interface EngineeringProjectVerificationRequest{
+export interface VerificationArtifactProvenance{\n  id:string;\n  evidenceIds:string[];\n  requirementIds?:string[];\n}\n\nexport interface EngineeringProjectVerificationRequest{
   project:ProjectState;
   evidence:EvidenceRecord[];
-  artifacts:EngineeringArtifact[];
+  artifacts:(EngineeringArtifact|VerificationArtifactProvenance)[];
   requirementEvidence?:Record<string,string[]>;
   verificationPlans?:Record<string,VerificationPlan>;
   traceability?:RequirementTraceability;
