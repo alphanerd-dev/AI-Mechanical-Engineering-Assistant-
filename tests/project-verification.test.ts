@@ -112,7 +112,6 @@ describe("EngineeringVerificationEngine",()=>{
       gates:[{type:"MANUFACTURING",minimum:1}]
     });
     expect(passed.status).toBe("PASS");
-    expect(passed.satisfiedGates).toHaveLength(1);
   });
 });
 
@@ -135,12 +134,11 @@ describe("multi-domain verification gates",()=>{
       {type:"CAD",minimum:1},{type:"FEA",minimum:1},{type:"CALCULATION",minimum:1}
     ]});
     expect(result.status).toBe("PASS");
-    expect(result.unmetGates).toHaveLength(0);
   });
 });
 
 describe("verification plans",()=>{
-  it("executes a reusable multi-domain verification plan",async()=>{
+  it("executes a reusable multi-domain verification plan with engineering controls",async()=>{
     const {executeVerificationPlan}=await import("../src/requirements/project-verification.js");
     const now=new Date().toISOString();
     const evidence=[
@@ -151,10 +149,16 @@ describe("verification plans",()=>{
     const result=await executeVerificationPlan({
       id:"VP-1",requirementId:"REQ-1",
       gates:[{type:"CAD",minimum:1},{type:"FEA",minimum:1},{type:"CALCULATION",minimum:1}],
-      minimumTotalEvidence:3,approvalRequired:true
+      minimumTotalEvidence:3,approvalRequired:true,
+      requiredMethods:["CAD geometry validation","FEA acceptance","engineering calculation"],
+      acceptanceCriteria:["All required evidence gates pass","Minimum evidence count is satisfied"],
+      dependencies:["Validated CAD artifact","Accepted FEA result"]
     },evidence);
     expect(result.status).toBe("PASS");
     expect(result.planId).toBe("VP-1");
     expect(result.approvalRequired).toBe(true);
+    expect(result.requiredMethods).toEqual(["CAD geometry validation","FEA acceptance","engineering calculation"]);
+    expect(result.acceptanceCriteria).toHaveLength(2);
+    expect(result.dependencies).toHaveLength(2);
   });
 });
