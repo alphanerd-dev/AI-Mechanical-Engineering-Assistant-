@@ -18,10 +18,10 @@ export function nextPLMRevisionVersion(baseVersion:string):string{
 export function transitionPLMRevision(revision:PLMRevision,target:PLMRevisionStatus):PLMRevision{
   const validation=validatePLMRevision(revision);
   if(!validation.valid) throw new Error(validation.errors.join(" "));
-  if(!transitions[revision.status].includes(target))
-    throw new Error(`Invalid PLM revision transition: ${revision.status} -> ${target}.`);
   if(target==="APPLIED"&&revision.status!=="APPROVED")
     throw new Error("A PLM revision must be approved before it can be applied.");
+  if(!transitions[revision.status].includes(target))
+    throw new Error(`Invalid PLM revision transition: ${revision.status} -> ${target}.`);
   const updatedAt=new Date().toISOString();
   return {...structuredClone(revision),status:target,updatedAt};
 }
