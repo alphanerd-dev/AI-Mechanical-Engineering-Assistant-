@@ -6,6 +6,7 @@ import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {UnitComputationProvider} from "./providers/computation-units.js";
 import {PythonComputationProvider} from "./providers/computation-python.js";
 import {PythonProcessClient} from "./execution/python-worker.js";
+import {CrossValidationProvider} from "./providers/computation-cross-check.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
@@ -13,6 +14,7 @@ registry.registerCatalog(ENGINEERING_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 registry.register(new PythonComputationProvider(new PythonProcessClient()));
+registry.register(new CrossValidationProvider());
 registry.register(new MockCADProvider());
 
 const router=new CapabilityRouter(registry);
