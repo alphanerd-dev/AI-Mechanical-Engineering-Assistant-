@@ -181,7 +181,7 @@ describe("verification plans",()=>{
     expect(approved.status).toBe("PASS");
   });
 
-  it("blocks a plan when a declared requirement dependency is not verified",async()=>{
+  it("requires dependencies to exist and be satisfied in the same project",async()=>{
     const {executeVerificationPlan}=await import("../src/requirements/project-verification.js");
     const now=new Date().toISOString();
     const target={id:"target",type:"CALCULATION" as const,claim:"Target verified",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:now};
@@ -189,16 +189,48 @@ describe("verification plans",()=>{
 
     const blocked=await executeVerificationPlan({
       id:"VP-DEP",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],
-      dependencyRequirementIds:["REQ-3"]
+      dependencyRequirementIds:["REQ-2"]
     },[target,dependency]);
     expect(blocked.status).toBe("INCOMPLETE");
-    expect(blocked.blockedDependencyIds).toEqual(["REQ-3"]);
+    expect(blocked.blockedDependencyIds).toEqual(["REQ-2"]);
+
+    const project={
+      id:"project-1",name:"Verification project",stage:"VERIFICATION",status:"ACTIVE" as const,
+      requirements:[
+        {id:"REQ-1",name:"Target",priority:"MUST" as const,status:"OPEN" as const},
+        {id:"REQ-2",name:"Dependency",priority:"MUST" as const,status:"SATISFIED" as const}
+      ],
+      assumptions:[],openQuestions:[],unresolvedRisks:[],events:[],evidenceIds:["dep"]
+    };
 
     const passed=await executeVerificationPlan({
       id:"VP-DEP",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],
       dependencyRequirementIds:["REQ-2"]
-    },[target,dependency]);
+    },[target,dependency],project);
     expect(passed.status).toBe("PASS");
     expect(passed.blockedDependencyIds).toEqual([]);
+  });
+
+  it("rejects dependency evidence that is not part of the project evidence set",async()=>{
+    const {executeVerificationPlan}=await import("../src/requirements/project-verification.js");
+    const now=new Date().toISOString();
+    const target={id:"target-foreign",type:"CALCULATION" as const,claim:"Target verified",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:now};
+    const dependency={id:"dep-foreign",type:"GEOMETRY_CHECK" as const,claim:"Dependency verified elsewhere",status:"VERIFIED" as const,requirementIds:["REQ-2"],timestamp:now};
+    const project={
+      id:"project-2",name:"Verification project",stage:"VERIFICATION",status:"ACTIVE" as const,
+      requirements:[
+        {id:"REQ-1",name:"Target",priority:"MUST" as const,status:"OPEN" as const},
+        {id:"REQ-2",name:"Dependency",priority:"MUST" as const,status:"SATISFIED" as const}
+      ],
+      assumptions:[],openQuestions:[],unresolvedRisks:[],events:[],evidenceIds:[]
+    };
+
+    const result=await executeVerificationPlan({
+      id:"VP-FOREIGN",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],
+      dependencyRequirementIds:["REQ-2"]
+    },[target,dependency],project);
+
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.blockedDependencyIds).toEqual(["REQ-2"]);
   });
 });
