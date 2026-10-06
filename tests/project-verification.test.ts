@@ -53,3 +53,40 @@ describe("project verification",()=>{
     expect(verifyProjectRequirements(project,memory,traceability).status).toBe("FAIL");
   });
 });
+
+
+describe("EngineeringVerificationEngine",()=>{
+  it("passes only on explicitly attributed verified evidence",async()=>{
+    const {EngineeringVerificationEngine}=await import("../src/requirements/project-verification.js");
+    const engine=new EngineeringVerificationEngine();
+    const result=await engine.verify({
+      requirementId:"REQ-1",
+      evidence:[
+        {id:"unrelated",type:"SIMULATION",claim:"Verified",status:"VERIFIED",requirementIds:["REQ-2"],timestamp:new Date().toISOString()},
+        {id:"related",type:"SIMULATION",claim:"Verified",status:"VERIFIED",requirementIds:["REQ-1"],timestamp:new Date().toISOString()}
+      ]
+    });
+    expect(result.status).toBe("PASS");
+    expect(result.verifiedEvidenceIds).toEqual(["related"]);
+  });
+
+  it("does not treat calculated evidence as verified",async()=>{
+    const {EngineeringVerificationEngine}=await import("../src/requirements/project-verification.js");
+    const result=await new EngineeringVerificationEngine().verify({
+      requirementId:"REQ-1",
+      evidence:[{id:"calc",type:"CALCULATION",claim:"Calculated",status:"CALCULATED",requirementIds:["REQ-1"],timestamp:new Date().toISOString()}]
+    });
+    expect(result.status).toBe("INCOMPLETE");
+  });
+
+  it("supports explicit evidence-count gates",async()=>{
+    const {EngineeringVerificationEngine}=await import("../src/requirements/project-verification.js");
+    const evidence=Array.from({length:2},(_,i)=>({
+      id:"e"+i,type:"HUMAN_REVIEW" as const,claim:"Verified",status:"VERIFIED" as const,
+      requirementIds:["REQ-1"],timestamp:new Date().toISOString()
+    }));
+    const engine=new EngineeringVerificationEngine();
+    expect((await engine.verify({requirementId:"REQ-1",evidence,minimumEvidence:2})).status).toBe("PASS");
+    expect((await engine.verify({requirementId:"REQ-1",evidence:evidence.slice(0,1),minimumEvidence:2})).status).toBe("INCOMPLETE");
+  });
+});
