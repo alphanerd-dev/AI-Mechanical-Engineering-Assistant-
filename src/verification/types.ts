@@ -11,4 +11,9 @@ export interface EngineeringVerificationReport {
   blockingReasons:string[];
   warnings:string[];
 }
-export interface VerificationContext { project:ProjectState; evidence:EvidenceRecord[]; artifacts:EngineeringArtifact[]; }
+export interface VerificationContext {
+  project:ProjectState;
+  evidence:EvidenceRecord[];
+  artifacts:EngineeringArtifact[];
+  requirementEvidence?:Record<string,string[]>;
+}
