@@ -1,23 +1,41 @@
-# Controlled Python Engineering Worker
+# Python Engineering Worker
 
-Protocol: one JSON request on stdin and one JSON response on stdout.
+The Python worker is an allowlisted numerical execution service for the Engineering Core.
 
-Allowlisted capabilities:
-- ANALYSIS.SHAFT_TORQUE
-- ANALYSIS.SHAFT_SIZE
-- UNITS.CONVERT
-- UNITS.CHECK_DIMENSIONS
-- MATH.SYMBOLIC_SOLVE
-- MATH.NUMERICAL_SOLVE
-- MATH.OPTIMIZE
+## Local reference service
 
-Providers:
-- Pint for unit conversion and dimensional analysis
-- SymPy for bounded symbolic solving
-- NumPy/SciPy for bounded numerical solving and optimization
+Install dependencies:
 
-The worker does not execute arbitrary Python source, shell commands, or model-generated scripts.
+```bash
+python -m pip install -r requirements.txt
+```
 
-Security status: this is a process-level worker, not yet a production sandbox. Production deployment should place it behind a job queue and isolated container/worker runtime with CPU, memory, filesystem, network and timeout controls. Treat worker output as untrusted until schema and engineering validation pass.
+Start the HTTP service:
 
-Mathematical correctness does not establish engineering correctness; assumptions, inputs, models, boundary conditions, material data and validation evidence remain separate concerns.
+```bash
+PYTHONPATH=worker/python python worker/python/service.py
+```
+
+It exposes:
+
+- `POST /v1/jobs` — submit an allowlisted computation
+- `GET /v1/jobs/{id}` — inspect execution status
+
+Set `WORKER_API_TOKEN` to require a bearer token. The default in-memory job store is intentionally a reference implementation, not production durability.
+
+## Production boundary
+
+Run the worker separately from the Next.js/Engineering Core process. The production deployment should provide:
+
+- container or VM isolation
+- CPU, memory, process and filesystem limits
+- network egress policy
+- authentication between Core and worker
+- durable queue/job storage
+- artifact storage
+- execution timeout/cancellation enforcement
+- structured audit/evidence persistence
+
+The worker must remain capability-allowlisted. It must never become an arbitrary Python execution endpoint.
+
+Mathematical correctness does not establish engineering correctness; assumptions, inputs, models and validation evidence remain separate concerns.
