@@ -30,8 +30,13 @@ jobs:
           rm -rf .cad-smoke
           mkdir -p .cad-smoke
           chmod 777 .cad-smoke
-          response=$(python worker/cad/build123d/smoke_request.py | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=64m -e CAD_ARTIFACT_DIR=/artifacts -v "$PWD/.cad-smoke:/artifacts:rw" ai-mechanical-engineering-assistant-build123d:0.13.0)
-          python -c 'import json,sys; r=json.loads(sys.argv[1]); assert r["success"] is True; assert all(r.get(k) for k in ("solidArtifactPath","stepArtifactPath","stlArtifactPath","threeMfArtifactPath")); print("build123d smoke response validated")' "$response"
+          set +e
+          python worker/cad/build123d/smoke_request.py | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=64m -e CAD_ARTIFACT_DIR=/artifacts -v "$PWD/.cad-smoke:/artifacts:rw" ai-mechanical-engineering-assistant-build123d:0.13.0 > .cad-smoke/response.json
+          status=$?
+          set -e
+          cat .cad-smoke/response.json
+          test "$status" -eq 0
+          python -c 'import json; r=json.load(open(".cad-smoke/response.json")); assert r["success"] is True; assert all(r.get(k) for k in ("solidArtifactPath","stepArtifactPath","stlArtifactPath","threeMfArtifactPath")); print("build123d smoke response validated")'
           test -s .cad-smoke/part.brep
           test -s .cad-smoke/part.step
           test -s .cad-smoke/part.stl
