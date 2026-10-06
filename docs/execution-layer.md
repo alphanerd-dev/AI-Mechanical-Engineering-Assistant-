@@ -46,4 +46,10 @@ Workers need:
 
 The repository currently includes a deterministic TypeScript numerical adapter. It proves the job contract without pretending that Python execution is already available.
 
-Next milestone: implement a real isolated Python worker for approved numerical capabilities.
+## V1.4.1 Controlled Python worker
+
+The repository now includes `worker/python/worker.py` and a TypeScript `PythonWorkerAdapter`. The worker uses a strict allowlist for `ANALYSIS.SHAFT_TORQUE` and `ANALYSIS.SHAFT_SIZE` and never evaluates arbitrary Python source.
+
+`PythonProcessClient` communicates over stdin/stdout with `shell: false` and enforces a process timeout. This is a real external process boundary, but it is **not yet a production sandbox**. Production deployment still requires container isolation, resource limits, filesystem/network policy, queueing and stronger schema validation.
+
+The next execution milestone is containerized worker execution plus artifact handling and validation.
