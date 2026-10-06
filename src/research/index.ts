@@ -7,3 +7,5 @@ export * from "./web-provider.js";
 export * from "./evidence.js";
 export * from "./verification.js";
 export * from "./memory-ingestion.js";
+
+export * from "./inspector.js";
