@@ -234,12 +234,6 @@ Notes:
 - Constraint satisfaction and numerical solve success do not constitute engineering safety or design approval.
 
 ## V1.21 — DFM + manufacturing intelligence
-- [ ] Measured DFM provider
-- [ ] CAM/slicing boundary
-- [ ] Manufacturing cost/time/material estimates
-- [ ] BOM generation and release workflow
-
-## V1.21 — DFM + manufacturing intelligence
 - [x] Measured DFM provider
 - [x] CAM/slicing boundary
 - [x] Manufacturing cost/time/material estimates
@@ -254,10 +248,17 @@ Notes:
 - CAM/slicing is a provider boundary only; the unconfigured boundary reports UNAVAILABLE and never claims a toolpath or slice artifact.
 
 ## V1.22 — Stronger digital thread / product model
-- [ ] Product model object graph
-- [ ] Cross-record referential integrity
-- [ ] Persistent engineering decision records
-- [ ] Expanded requirement/artifact/revision lineage
+- [x] Product model object graph
+- [x] Cross-record referential integrity
+- [x] Persistent engineering decision records
+- [x] Expanded requirement/artifact/revision lineage
+
+Notes:
+- V1.22 adds a provider-neutral project-scoped product model over the existing requirements, artifacts, revisions, manufacturing, evidence, and change objects.
+- Typed links require both endpoints to be registered and to belong to the same project; self-links and duplicate link ids are rejected.
+- Engineering decisions are versioned records with optimistic revision advancement and explicit approval metadata when marked APPROVED.
+- Product-model snapshots are validated for duplicate nodes, unregistered references, project-boundary violations, timestamps, and approved-decision metadata.
+- The persistence layer remains an in-memory reference implementation; durable database persistence and multi-user conflict resolution remain future workspace work.
 
 ## V1.23 — Dynamics / Chrono / Pinocchio
 - [ ] Chrono provider

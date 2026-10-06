@@ -3,6 +3,7 @@ import {CapabilityRouter} from "./capabilities/router.js";
 import {ENGINEERING_CAPABILITIES} from "./capabilities/catalog.js";
 import {V1_20_CAPABILITIES} from "./capabilities/v1-20.js";
 import {V1_21_CAPABILITIES} from "./capabilities/v1-21.js";
+import {V1_22_CAPABILITIES} from "./capabilities/v1-22.js";
 import {MockCADProvider} from "./providers/mock-cad.js";
 import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {UnitComputationProvider} from "./providers/computation-units.js";
@@ -17,6 +18,7 @@ import {MultibodyDynamicsProvider} from "./providers/dynamics.js";
 import {RoboticsProvider} from "./providers/robotics.js";
 import {SimulationComparisonProvider} from "./providers/simulation-comparison.js";
 import {DigitalThreadProvider} from "./providers/digital-thread.js";
+import {ProductModelProvider} from "./providers/product-model.js";
 import {OdooPLMProvider} from "./providers/odoo-plm.js";
 import {EngineeringOrchestratorProvider} from "./providers/orchestrator.js";
 import {GmshProvider} from "./providers/gmsh.js";
@@ -32,11 +34,13 @@ export * from "./cad/index.js";
 export * from "./constraints/index.js";
 export * from "./tolerance/index.js";
 export * from "./manufacturing/index.js";
+export * from "./product-model/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
 registry.registerCatalog(V1_20_CAPABILITIES);
 registry.registerCatalog(V1_21_CAPABILITIES);
+registry.registerCatalog(V1_22_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -49,6 +53,7 @@ registry.register(new CAMBoundaryProvider());
 registry.register(new MockCADProvider());
 registry.register(new CADAnalysisProvider());
 registry.register(new ConstraintEngineeringProvider());
+registry.register(new ProductModelProvider());
 
 registry.register(new GmshProvider({
   generateMesh:async()=>({
