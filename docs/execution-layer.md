@@ -53,3 +53,8 @@ The repository now includes `worker/python/worker.py` and a TypeScript `PythonWo
 `PythonProcessClient` communicates over stdin/stdout with `shell: false` and enforces a process timeout. This is a real external process boundary, but it is **not yet a production sandbox**. Production deployment still requires container isolation, resource limits, filesystem/network policy, queueing and stronger schema validation.
 
 The next execution milestone is containerized worker execution plus artifact handling and validation.
+
+
+## V1.4.2 Worker hardening baseline
+
+Added a reference container and worker policy. The Python worker is intended to run non-root with a read-only filesystem, no network, dropped Linux capabilities, no-new-privileges, CPU/memory/process limits and an application-level capability/timeout allowlist. The TypeScript adapter now rejects requests that violate the Python numerical worker policy before starting the process.
