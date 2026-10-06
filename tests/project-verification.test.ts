@@ -69,7 +69,7 @@ describe("project verification",()=>{
     const artifact={
       id:"artifact-1",kind:"CAD_SOLID" as const,name:"Validated solid",
       validationStatus:"PASS" as const,informationStatus:"VERIFIED" as const,
-      evidenceIds:[],requirementIds:["REQ-1"],createdAt:now
+      evidenceIds:[] as string[],requirementIds:["REQ-1"],createdAt:now
     };
 
     const missing=verifyEngineeringProject({project,evidence:[evidence],artifacts:[]});
