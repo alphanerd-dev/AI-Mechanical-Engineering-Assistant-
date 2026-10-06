@@ -14,6 +14,7 @@ import {RoboticsProvider} from "./providers/robotics.js";
 import {SimulationComparisonProvider} from "./providers/simulation-comparison.js";
 import {DigitalThreadProvider} from "./providers/digital-thread.js";
 import {OdooPLMProvider} from "./providers/odoo-plm.js";
+import {EngineeringOrchestratorProvider} from "./providers/orchestrator.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
@@ -41,6 +42,8 @@ registry.register(new OdooPLMProvider({
 }));
 
 const router=new CapabilityRouter(registry);
+registry.register(new EngineeringOrchestratorProvider(router));
+
 const agent=new EngineeringAgent(router);
 const result=agent.start("Design a shaft that transmits 5 kW at 1500 rpm.");
 console.log(JSON.stringify(result,null,2));

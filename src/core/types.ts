@@ -4,7 +4,7 @@ export type CapabilityRisk="LOW"|"MEDIUM"|"HIGH"|"CRITICAL";
 export type CapabilityStatus="EXPERIMENTAL"|"PILOT"|"VERIFIED"|"BLOCKED"|"DEPRECATED";
 export type EngineeringDomain=
   "cad"|"analysis"|"simulation"|"research"|"plm"|"manufacturing"|"validation"|
-  "computation"|"requirements"|"dynamics"|"robotics"|"ecad"|"vision"|"thermal"|"fluids"|"materials";
+  "computation"|"requirements"|"dynamics"|"robotics"|"ecad"|"vision"|"thermal"|"fluids"|"materials"|"orchestration";
 
 export interface Requirement {
   id:string; name:string; value?:number|string; unit?:string; tolerance?:number|string;

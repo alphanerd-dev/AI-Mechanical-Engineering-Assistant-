@@ -143,12 +143,16 @@ Notes:
 - Revision application is fail-closed: a revision must pass validation and approval before it can be marked applied.
 
 ## V1.13 — Integrated engineering orchestrator
-- [ ] Requirement gates
-- [ ] Research -> computation -> analysis -> CAD -> manufacturing progression
-- [ ] Failure/rework loop
-- [ ] Traceability graph
-- [ ] Human approval gates
-- [ ] Cross-domain capability routing
+- [x] Requirement gates
+- [x] Research -> computation -> analysis -> CAD -> manufacturing progression
+- [x] Failure/rework loop
+- [x] Traceability graph
+- [x] Human approval gates
+- [x] Cross-domain capability routing
+
+Notes:
+- V1.13 is the workflow-control foundation: capabilities remain deterministic/provider-owned while the orchestrator controls order, prerequisites, approvals, bounded retries, evidence acceptance, and requirement-to-artifact traceability.
+- It does not claim autonomous engineering judgment; unsafe or unverified results remain blocked or explicitly unverified.
 
 ## V2.0 — Bounded autonomous engineering workspace
 - [ ] Project memory persistence
