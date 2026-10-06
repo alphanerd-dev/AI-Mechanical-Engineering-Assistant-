@@ -1,10 +1,12 @@
 import {CapabilityRegistry} from "./capabilities/registry.js";
 import {CapabilityRouter} from "./capabilities/router.js";
+import {ENGINEERING_CAPABILITIES} from "./capabilities/catalog.js";
 import {MockCADProvider} from "./providers/mock-cad.js";
 import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
+registry.registerCatalog(ENGINEERING_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new MockCADProvider());
 
