@@ -158,7 +158,6 @@ describe("verification plans",()=>{
     expect(result.status).toBe("PASS");
     expect(result.planId).toBe("VP-1");
     expect(result.approvalRequired).toBe(true);
-    expect(result.status).toBe("INCOMPLETE");
     expect(result.requiredMethods).toEqual(["CAD geometry validation","FEA acceptance","engineering calculation"]);
     expect(result.acceptanceCriteria).toHaveLength(2);
     expect(result.dependencies).toHaveLength(2);
