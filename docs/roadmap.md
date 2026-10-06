@@ -261,10 +261,17 @@ Notes:
 - The persistence layer remains an in-memory reference implementation; durable database persistence and multi-user conflict resolution remain future workspace work.
 
 ## V1.23 — Dynamics / Chrono / Pinocchio
-- [ ] Chrono provider
-- [ ] Pinocchio provider
-- [ ] CAD -> robotics asset runtime integration
-- [ ] Cross-solver dynamics validation
+- [x] Chrono provider
+- [x] Pinocchio provider
+- [x] CAD -> robotics asset runtime integration
+- [x] Cross-solver dynamics validation
+
+Notes:
+- V1.23 adds provider boundaries for Project Chrono multibody simulation and Pinocchio inverse rigid-body dynamics.
+- Chrono and Pinocchio are deliberately separate capabilities because their numerical roles differ; Pinocchio is not treated as a generic time-integration simulator.
+- Cross-solver comparison requires explicit numeric criteria and explicit absolute and/or relative tolerances. Matching summary values does not imply trajectory equivalence.
+- CAD-derived robotics assets must preserve source CAD lineage and pass the existing robotics topology validation before runtime loading.
+- The default application entrypoint contains fail-closed runtime stubs; no solver result or runtime handle is claimed without a configured executor.
 
 ## V1.24 — System simulation / OpenModelica
 - [ ] OpenModelica provider

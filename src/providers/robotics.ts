@@ -25,8 +25,16 @@ export class RoboticsProvider implements RoboticsProviderContract{
     if(request.capability==="ROBOTICS.CONVERT_CAD_ASSET"){
       const input=request.input as unknown as CADToRoboticsRequest;
       if(!input.sourceArtifactId?.trim()) return {capability:request.capability,provider:this.id,success:false,error:"sourceArtifactId is required."};
+      if(!input.targetFormat) return {capability:request.capability,provider:this.id,success:false,error:"targetFormat is required."};
       try{
         const asset=await this.converter.convertCAD(input);
+        if(asset.sourceCadArtifactId!==input.sourceArtifactId)
+          return {capability:request.capability,provider:this.id,success:false,error:"Converted robotics asset must preserve source CAD artifact lineage."};
+        if(asset.format!==input.targetFormat)
+          return {capability:request.capability,provider:this.id,success:false,error:"Converted robotics asset format does not match the requested target format."};
+        const validation=validateRoboticsAsset(asset);
+        if(!validation.valid)
+          return {capability:request.capability,provider:this.id,success:false,error:validation.errors.join("; ")};
         return {capability:request.capability,provider:this.id,success:true,output:asset,artifactIds:[asset.id]};
       }catch(error){
         return {capability:request.capability,provider:this.id,success:false,error:String(error)};

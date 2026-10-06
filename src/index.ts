@@ -4,6 +4,7 @@ import {ENGINEERING_CAPABILITIES} from "./capabilities/catalog.js";
 import {V1_20_CAPABILITIES} from "./capabilities/v1-20.js";
 import {V1_21_CAPABILITIES} from "./capabilities/v1-21.js";
 import {V1_22_CAPABILITIES} from "./capabilities/v1-22.js";
+import {V1_23_CAPABILITIES} from "./capabilities/v1-23.js";
 import {MockCADProvider} from "./providers/mock-cad.js";
 import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {UnitComputationProvider} from "./providers/computation-units.js";
@@ -15,7 +16,11 @@ import {ManufacturingProvider} from "./providers/manufacturing.js";
 import {ManufacturingIntelligenceProvider} from "./providers/manufacturing-intelligence.js";
 import {CAMBoundaryProvider} from "./providers/cam-boundary.js";
 import {MultibodyDynamicsProvider} from "./providers/dynamics.js";
+import {ChronoDynamicsProvider} from "./providers/dynamics-chrono.js";
+import {PinocchioDynamicsProvider} from "./providers/dynamics-pinocchio.js";
+import {DynamicsComparisonProvider} from "./providers/dynamics-comparison.js";
 import {RoboticsProvider} from "./providers/robotics.js";
+import {RoboticsRuntimeProvider} from "./providers/robotics-runtime.js";
 import {SimulationComparisonProvider} from "./providers/simulation-comparison.js";
 import {DigitalThreadProvider} from "./providers/digital-thread.js";
 import {ProductModelProvider} from "./providers/product-model.js";
@@ -35,12 +40,15 @@ export * from "./constraints/index.js";
 export * from "./tolerance/index.js";
 export * from "./manufacturing/index.js";
 export * from "./product-model/index.js";
+export * from "./dynamics/index.js";
+export * from "./robotics/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
 registry.registerCatalog(V1_20_CAPABILITIES);
 registry.registerCatalog(V1_21_CAPABILITIES);
 registry.registerCatalog(V1_22_CAPABILITIES);
+registry.registerCatalog(V1_23_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -83,6 +91,16 @@ registry.register(new CalculixProvider({
   })
 }));
 
+registry.register(new ChronoDynamicsProvider({
+  simulate:async()=>{throw new Error("Project Chrono runtime is not configured for this entrypoint.");}
+}));
+registry.register(new PinocchioDynamicsProvider({
+  inverseDynamics:async()=>{throw new Error("Pinocchio runtime is not configured for this entrypoint.");}
+}));
+registry.register(new DynamicsComparisonProvider());
+registry.register(new RoboticsRuntimeProvider({
+  load:async()=>{throw new Error("Robotics runtime is not configured for this entrypoint.");}
+}));
 registry.register(new MultibodyDynamicsProvider({
   simulate:async()=>{throw new Error("Multibody dynamics solver is not configured for this entrypoint.");}
 }));
