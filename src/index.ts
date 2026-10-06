@@ -7,6 +7,7 @@ import {UnitComputationProvider} from "./providers/computation-units.js";
 import {PythonComputationProvider} from "./providers/computation-python.js";
 import {PythonWorkerClient} from "./execution/python-worker.js";
 import {CrossValidationProvider} from "./providers/computation-cross-check.js";
+import {EngineeringVerificationProvider} from "./providers/engineering-verification.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
@@ -16,6 +17,7 @@ registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
 registry.register(new PythonComputationProvider(pythonWorkerClient));
 registry.register(new CrossValidationProvider());
+registry.register(new EngineeringVerificationProvider());
 registry.register(new MockCADProvider());
 
 const router=new CapabilityRouter(registry);
