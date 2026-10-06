@@ -20,20 +20,25 @@ export async function executeVerificationPlan(
     )
   );
 
-  const status=blockedDependencyIds.length>0
+  const approvalRequired=plan.approvalRequired??false;
+  const approvalGranted=plan.approvalGranted??false;
+  const blockedByApproval=approvalRequired&&!approvalGranted;
+  const status=blockedDependencyIds.length>0||blockedByApproval
     ?"INCOMPLETE"
     :result.status;
 
   const reason=blockedDependencyIds.length>0
     ?"Verification is blocked by unmet requirement dependencies: "+blockedDependencyIds.join(", ")+"."
-    :result.reason;
+    :blockedByApproval
+      ?"Verification requires explicit human approval before it can PASS."
+      :result.reason;
 
   return {
     ...result,
     status,
     reason,
     planId:plan.id,
-    approvalRequired:plan.approvalRequired??false,
+    approvalRequired,
     requiredMethods:plan.requiredMethods??[],
     acceptanceCriteria:plan.acceptanceCriteria??[],
     dependencies:plan.dependencies??[],
