@@ -179,7 +179,6 @@ def parse_dat(path: pathlib.Path):
             saw_reaction = True
             continue
         if not line:
-            mode = None
             continue
         if mode is None:
             continue

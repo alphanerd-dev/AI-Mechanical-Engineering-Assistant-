@@ -25,12 +25,15 @@ class WorkerTests(unittest.TestCase):
 
     def test_parse_dat_extracts_normalized_values(self):
         sample="""displacements (vx,vy,vz) for set NALL and time 1.0
+
  1 0.0 0.3 0.4
 
 reaction forces (fx,fy,fz) for set FIXED and time 1.0
+
  1 0.0 100.0 0.0
 
 stresses (elem, integ.pnt.,sxx,syy,szz,sxy,sxz,syz) for set EALL and time 1.0
+
  1 1 100.0 0.0 0.0 0.0 0.0 0.0
 
 """
