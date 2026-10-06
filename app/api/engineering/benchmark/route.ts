@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { CapabilityRegistry } from "../../../../src/capabilities/registry.js";
-import { CapabilityRouter } from "../../../../src/capabilities/router.js";
-import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog.js";
-import { NumericalAnalysisProvider } from "../../../../src/providers/numerical.js";
-import { EngineeringAgent } from "../../../../src/core/agent.js";
+import { CapabilityRegistry } from "../../../../src/capabilities/registry";
+import { CapabilityRouter } from "../../../../src/capabilities/router";
+import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog";
+import { NumericalAnalysisProvider } from "../../../../src/providers/numerical";
+import { EngineeringAgent } from "../../../../src/core/agent";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     project: result.project,
     intent: result.intent,
-    calculation: result.calculation,
+    torque: result.torque,
     gates: { cad: "BLOCKED_UNTIL_CRITICAL_INPUTS_RESOLVED" },
   });
 }

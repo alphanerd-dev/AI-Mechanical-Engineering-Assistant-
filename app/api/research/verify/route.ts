@@ -1,5 +1,5 @@
 import {NextResponse} from "next/server";
-import {verifyResearchFinding} from "../../../../src/research/verification.js";
+import {verifyResearchFinding} from "../../../../src/research/verification";
 
 export async function POST(request:Request){
   try{

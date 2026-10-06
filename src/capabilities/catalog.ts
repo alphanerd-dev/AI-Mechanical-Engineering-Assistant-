@@ -1,4 +1,4 @@
-import {CapabilityDefinition} from "../core/types.js";
+import {CapabilityDefinition} from "../core/types";
 
 export const ENGINEERING_CAPABILITIES:CapabilityDefinition[]=[
   {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"Calculate transmitted shaft torque",inputs:["powerKw","speedRpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical-analysis"],status:"VERIFIED"},

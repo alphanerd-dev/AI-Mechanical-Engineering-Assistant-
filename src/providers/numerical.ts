@@ -1,7 +1,7 @@
-import {CapabilityRequest,CapabilityResult} from "../core/types.js";
-import {shaftTorque} from "../engineering/calculations.js";
-import {sizeSolidShaft} from "../engineering/shaft-design.js";
-import {CapabilityProvider} from "../capabilities/registry.js";
+import {CapabilityRequest,CapabilityResult} from "../core/types";
+import {shaftTorque} from "../engineering/calculations";
+import {sizeSolidShaft} from "../engineering/shaft-design";
+import {CapabilityProvider} from "../capabilities/registry";
 
 export class NumericalAnalysisProvider implements CapabilityProvider {
   id="numerical-analysis";

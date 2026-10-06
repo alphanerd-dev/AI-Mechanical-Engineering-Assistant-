@@ -1,6 +1,6 @@
-import { ExecutionBackendAdapter } from "./executor.js";
-import { ExecutionRequest, ExecutionResult } from "./types.js";
-import { shaftTorque } from "../engineering/calculations.js";
+import { ExecutionBackendAdapter } from "./executor";
+import { ExecutionRequest, ExecutionResult } from "./types";
+import { shaftTorque } from "../engineering/calculations";
 
 export class SafeNumericalAdapter implements ExecutionBackendAdapter {
   readonly id = "execution.typescript-safe";

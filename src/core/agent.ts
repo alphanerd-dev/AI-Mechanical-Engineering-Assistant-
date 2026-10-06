@@ -1,7 +1,7 @@
-import {EngineeringIntent, ProjectState, CapabilityRequest} from "./types.js";
-import {createProject,recordEvent} from "../state/project.js";
-import {shaftTorque} from "../engineering/calculations.js";
-import {CapabilityRouter} from "../capabilities/router.js";
+import {EngineeringIntent, ProjectState, CapabilityRequest} from "./types";
+import {createProject,recordEvent} from "../state/project";
+import {shaftTorque} from "../engineering/calculations";
+import {CapabilityRouter} from "../capabilities/router";
 
 export class EngineeringAgent {
   constructor(private router:CapabilityRouter){}

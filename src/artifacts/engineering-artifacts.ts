@@ -1,4 +1,4 @@
-import {InformationStatus} from "../core/types.js";
+import {InformationStatus} from "../core/types";
 
 export type ArtifactKind="CAD_SOURCE"|"CAD_SOLID"|"STEP"|"STL"|"FEA_MODEL"|"FEA_RESULT"|"RESEARCH_EVIDENCE"|"PLM_RECORD";
 

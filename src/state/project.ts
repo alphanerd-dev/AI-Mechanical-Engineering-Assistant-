@@ -1,4 +1,4 @@
-import {ProjectState, Requirement, EngineeringEvent} from "../core/types.js";
+import {ProjectState, Requirement, EngineeringEvent} from "../core/types";
 
 export function createProject(name:string):ProjectState {
   return {id:crypto.randomUUID(),name,stage:"PROBLEM",status:"ACTIVE",requirements:[],

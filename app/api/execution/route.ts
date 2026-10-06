@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { ExecutionEngine, SafeNumericalAdapter } from "../../../src/execution/index.js";
+import { ExecutionEngine } from "../../../src/execution/executor";
+import { SafeNumericalAdapter } from "../../../src/execution/safe-numerical";
 
 export const runtime = "nodejs";
 
