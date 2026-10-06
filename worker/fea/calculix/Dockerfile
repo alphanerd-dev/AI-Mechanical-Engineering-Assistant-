@@ -13,6 +13,7 @@ RUN apt-get update \
        calculix-ccx=${CALCULIX_VERSION} \
        libgl1 \
        libglu1-mesa \
+       libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir "gmsh==${GMSH_VERSION}"
