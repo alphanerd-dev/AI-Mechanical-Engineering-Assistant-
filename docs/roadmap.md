@@ -67,7 +67,8 @@
 - [x] CAD worker execution contract and safety boundary
 - [x] CAD geometry acceptance gate
 - [x] CAD worker provider + capability routing
-- [ ] build123d runtime
+- [x] build123d worker protocol + transport adapter
+- [ ] provisioned build123d runtime image
 - [ ] CadQuery runtime
 - [ ] OCCT/FreeCAD geometry validation runtime
 - [ ] CAD code critique/self-correction loop
