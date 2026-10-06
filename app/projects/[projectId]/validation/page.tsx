@@ -1,0 +1,3 @@
+import Link from "next/link";
+export default function ValidationPage(){return <main className="shell"><Link href="/projects/demo">← Project</Link><header className="moduleHead"><p className="eyebrow">EVIDENCE & VALIDATION</p><h1>Engineering evidence</h1><p className="muted">No success claim without evidence.</p></header><section className="panel"><Status name="Torque calculation" kind="CALCULATION" state="VERIFIED" /><Status name="Requirements completeness" kind="HUMAN REVIEW" state="BLOCKED" /><Status name="Geometry validation" kind="GEOMETRY CHECK" state="PENDING" /></section></main>}
+function Status({name,kind,state}:{name:string;kind:string;state:string}){return <div className="evidence"><div><b>{name}</b><small>{kind}</small></div><strong>{state}</strong></div>}
