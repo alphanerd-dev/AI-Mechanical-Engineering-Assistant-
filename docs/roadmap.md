@@ -64,9 +64,12 @@
 - [ ] Mesh convergence evidence from real multi-mesh solves
 
 ## V1.7 — CAD execution
+- [x] CAD worker execution contract and safety boundary
+- [x] CAD geometry acceptance gate
+- [x] CAD worker provider + capability routing
 - [ ] build123d runtime
 - [ ] CadQuery runtime
-- [ ] OCCT/FreeCAD geometry validation
+- [ ] OCCT/FreeCAD geometry validation runtime
 - [ ] CAD code critique/self-correction loop
 - [ ] STEP/STL/3MF artifact pipeline
 
