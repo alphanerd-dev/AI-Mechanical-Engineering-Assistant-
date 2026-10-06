@@ -35,7 +35,7 @@ describe("engineering verification integration",()=>{
     expect(verified.verified).toBe(true);
     expect(project.requirements[0].status).toBe("SATISFIED");
 
-    const report=verifyEngineeringProject({project,evidence:[fea.evidence!,cad.evidence],artifacts:[cad.engineering,fea.resultArtifact],requirementEvidence:memory.requirementEvidenceMap(project.id)});
+    const report=verifyEngineeringProject({project,evidence:[fea.evidence!,cad.evidence],artifacts:[cad.cad,cad.engineering,fea.resultArtifact],requirementEvidence:memory.requirementEvidenceMap(project.id)});
     expect(report.status).toBe("PASS");
     expect(report.requirements[0].status).toBe("PASS");
   });
