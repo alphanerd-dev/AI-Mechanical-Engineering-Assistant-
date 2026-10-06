@@ -122,11 +122,15 @@
 - [ ] BOM generation and manufacturing release workflow
 
 ## V1.11 — Dynamics, robotics & digital engineering
-- [ ] Multibody dynamics provider
-- [ ] CAD -> URDF/MJCF/USD capability boundary
-- [ ] Robotics asset validation
-- [ ] Simulation-to-simulation comparison
-- [ ] Digital-thread foundations
+- [x] Multibody dynamics provider
+- [x] CAD -> URDF/MJCF/USD capability boundary
+- [x] Robotics asset validation
+- [x] Simulation-to-simulation comparison
+- [x] Digital-thread foundations
+
+Notes:
+- V1.11 provides provider contracts and deterministic validation boundaries.
+- Solver runtimes, CAD-to-robotics converters, persistent digital-thread storage, and production robotics/simulation backends remain provider/runtime work beyond this milestone.
 
 ## V1.12 — PLM/PDM
 - [ ] OdooPLM provider

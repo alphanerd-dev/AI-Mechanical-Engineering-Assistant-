@@ -19,6 +19,16 @@ export interface SimulationProvider extends EngineeringProvider {
   execute(request:CapabilityRequest):Promise<CapabilityResult>;
 }
 
+export interface DynamicsProvider extends EngineeringProvider {
+  descriptor:ProviderDescriptor & {domain:"dynamics"};
+  execute(request:CapabilityRequest):Promise<CapabilityResult>;
+}
+
+export interface RoboticsProvider extends EngineeringProvider {
+  descriptor:ProviderDescriptor & {domain:"robotics"};
+  execute(request:CapabilityRequest):Promise<CapabilityResult>;
+}
+
 export interface PLMProvider extends EngineeringProvider {
   descriptor:ProviderDescriptor & {domain:"plm"};
   execute(request:CapabilityRequest):Promise<CapabilityResult>;

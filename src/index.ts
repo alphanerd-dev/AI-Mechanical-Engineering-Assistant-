@@ -9,6 +9,10 @@ import {PythonWorkerClient} from "./execution/python-worker.js";
 import {CrossValidationProvider} from "./providers/computation-cross-check.js";
 import {EngineeringVerificationProvider} from "./providers/engineering-verification.js";
 import {ManufacturingProvider} from "./providers/manufacturing.js";
+import {MultibodyDynamicsProvider} from "./providers/dynamics.js";
+import {RoboticsProvider} from "./providers/robotics.js";
+import {SimulationComparisonProvider} from "./providers/simulation-comparison.js";
+import {DigitalThreadProvider} from "./providers/digital-thread.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
@@ -21,6 +25,15 @@ registry.register(new CrossValidationProvider());
 registry.register(new EngineeringVerificationProvider());
 registry.register(new ManufacturingProvider());
 registry.register(new MockCADProvider());
+
+registry.register(new MultibodyDynamicsProvider({
+  simulate:async()=>{throw new Error("Multibody dynamics solver is not configured for this entrypoint.");}
+}));
+registry.register(new RoboticsProvider({
+  convertCAD:async()=>{throw new Error("CAD-to-robotics converter is not configured for this entrypoint.");}
+}));
+registry.register(new SimulationComparisonProvider());
+registry.register(new DigitalThreadProvider());
 
 const router=new CapabilityRouter(registry);
 const agent=new EngineeringAgent(router);
