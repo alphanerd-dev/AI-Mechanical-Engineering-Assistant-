@@ -41,4 +41,40 @@ jobs:
           test -s .cad-smoke/part.step
           test -s .cad-smoke/part.stl
           test -s .cad-smoke/part.3mf
+      - name: Build pinned open FEA runtime
+        run: docker build --tag ai-mechanical-engineering-assistant-fea:1.18 --file worker/fea/calculix/Dockerfile worker
+      - name: Test open FEA worker
+        run: docker run --rm --entrypoint python ai-mechanical-engineering-assistant-fea:1.18 /app/test_worker.py
+      - name: Smoke test open FEA runtime
+        shell: bash
+        run: |
+          rm -rf .fea-smoke
+          mkdir -p .fea-smoke
+          chmod 777 .fea-smoke
+          set +e
+          python worker/fea/calculix/smoke_request.py | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,nosuid,size=64m -e FEA_ARTIFACT_DIR=/artifacts -v "$PWD/.fea-smoke:/artifacts:rw" ai-mechanical-engineering-assistant-fea:1.18 > .fea-smoke/response.json
+          status=$?
+          set -e
+          cat .fea-smoke/response.json
+          test "$status" -eq 0
+          python - <<'PY'
+          import json
+          r=json.load(open(".fea-smoke/response.json"))
+          assert r["success"] is True
+          assert r["analysis"]=="STATIC_STRUCTURAL"
+          assert r["converged"] is True
+          assert r["solver"]=="calculix"
+          assert r["solverVersion"]=="2.20"
+          assert r["mesh"]["nodeCount"]>0
+          assert r["mesh"]["elementCount"]>0
+          assert r["mesh"]["elementType"]=="C3D4"
+          assert r["maxVonMisesStressMpa"]>=0
+          assert r["maxDisplacementMm"]>=0
+          assert len(r["artifacts"])>=4
+          print("open FEA smoke response validated")
+          PY
+          test -s .fea-smoke/v1_18_cantilever.inp
+          test -s .fea-smoke/v1_18_cantilever.dat
+          test -s .fea-smoke/v1_18_cantilever.frd
+          test -s .fea-smoke/v1_18_cantilever.sta
       - run: npm run build

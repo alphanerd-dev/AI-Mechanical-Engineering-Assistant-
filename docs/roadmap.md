@@ -78,7 +78,7 @@
 - [ ] Real isolated PyMechanical worker runtime
 - [ ] Persistent artifact storage
 - [ ] Mesh convergence evidence from real multi-mesh solves
-- [ ] Open CalculiX/Gmsh provider
+- [x] Open CalculiX/Gmsh provider foundation
 
 ## V1.7 — CAD execution
 - [x] CAD worker execution contract and safety boundary
@@ -87,11 +87,11 @@
 - [x] build123d worker protocol + transport adapter
 - [x] CAD artifact manifest normalization
 - [x] bounded CAD execution/validation correction loop
-- [ ] provisioned build123d runtime image
+- [x] provisioned build123d runtime image
 - [ ] CadQuery runtime
 - [ ] OCCT/FreeCAD geometry validation runtime
 - [ ] CAD code critique/self-correction loop
-- [ ] STEP/STL/3MF artifact pipeline
+- [x] STEP/STL/3MF artifact pipeline
 
 ## V1.8 — Requirements, constraints & MBSE
 - [x] Structured engineering requirements
@@ -162,10 +162,6 @@ Notes:
 - [x] Provenance-preserving handoff store
 - [x] Fail-closed artifact acceptance rules
 
-Notes:
-- V1.14 adds a provider-neutral queue/handoff foundation on top of the existing execution engine.
-- The queue is a reference in-memory implementation; an external broker, durable job persistence, retries across process restarts, and distributed workers remain production-infrastructure work.
-
 ## V1.15 — Engineering Workspace persistence foundations
 - [x] Versioned workspace snapshot contract
 - [x] Optimistic project-revision protection
@@ -173,11 +169,6 @@ Notes:
 - [x] Immutable in-memory reference store
 - [x] JSON snapshot serialization/deserialization
 - [x] Fail-closed snapshot schema/date/revision validation
-
-Notes:
-- V1.15 establishes the persistence boundary without selecting a database or filesystem backend.
-- Snapshots are cloned on write/read to prevent accidental state mutation across the storage boundary.
-- Durable database, object storage, migrations, multi-user conflict resolution, and production authorization remain later infrastructure work.
 
 ## V1.16 — Engineering artifact registry persistence foundations
 - [x] Provider-neutral artifact record contract
@@ -187,12 +178,6 @@ Notes:
 - [x] Fail-closed artifact record validation
 - [x] Reference in-memory artifact store
 
-Notes:
-- V1.16 persists artifact metadata and lifecycle state without choosing object storage or a database.
-- Artifact content remains external to the metadata registry; URIs/backends identify where content is stored or produced.
-- Revision protection prevents stale artifact metadata updates from silently overwriting newer state.
-- Durable object storage, content-addressed blobs, migrations, authorization, and cross-record referential-integrity enforcement remain later infrastructure work.
-
 ## V1.17 — Provisioned build123d execution path
 - [x] Explicit CAD artifact manifest contract
 - [x] Artifact path confinement and existence checks
@@ -201,10 +186,60 @@ Notes:
 - [x] Runtime smoke test producing BREP/STEP/STL/3MF
 - [x] CI verification of the provisioned CAD runtime
 
+## V1.18 — Open FEA execution
+- [x] Provider-neutral Gmsh mesh contract
+- [x] Provider-neutral CalculiX static-structural contract
+- [x] Fail-closed FEA execution validation
+- [x] FEA artifact/evidence bridge
+- [x] Pinned Gmsh 4.15.2 + CalculiX 2.20 reference runtime
+- [x] Deterministic Gmsh -> CalculiX smoke benchmark
+- [x] CI verification of the real open FEA toolchain
+- [ ] Generic CAD artifact -> Gmsh mesh ingestion
+- [ ] Real multi-mesh convergence evidence
+- [ ] PyVista/native result post-processing
+- [ ] Production FEA worker transport
+
 Notes:
-- V1.17 converts the build123d boundary from protocol-only infrastructure into a reproducible reference runtime that can emit inspectable CAD artifacts.
-- The generated program remains outside the Next.js process and the outer container is responsible for network/filesystem/resource isolation.
-- A successful worker run is still not an engineering verdict; geometry acceptance and independent validation remain separate gates.
+- V1.18 proves the open solver path without treating solver convergence as design safety.
+- The deterministic benchmark is a runtime/CI gate, not a generic engineering verdict.
+- The open provider is preferred before the Ansys provider in capability routing for the baseline static-structural capability.
+
+## V1.19 — CAD validation / regression / diff
+- [ ] Geometry regression metrics
+- [ ] CAD artifact diffing
+- [ ] Wall-thickness validation
+- [ ] DFM geometry checks
+- [ ] Automated CAD judging/compare loop
+
+## V1.20 — Constraint solving + tolerance
+- [ ] Unit-aware constraint solver integration
+- [ ] Tolerance stack engine
+- [ ] ISO fits/callout support
+- [ ] Constraint-backed design-space exploration
+
+## V1.21 — DFM + manufacturing intelligence
+- [ ] Measured DFM provider
+- [ ] CAM/slicing boundary
+- [ ] Manufacturing cost/time/material estimates
+- [ ] BOM generation and release workflow
+
+## V1.22 — Stronger digital thread / product model
+- [ ] Product model object graph
+- [ ] Cross-record referential integrity
+- [ ] Persistent engineering decision records
+- [ ] Expanded requirement/artifact/revision lineage
+
+## V1.23 — Dynamics / Chrono / Pinocchio
+- [ ] Chrono provider
+- [ ] Pinocchio provider
+- [ ] CAD -> robotics asset runtime integration
+- [ ] Cross-solver dynamics validation
+
+## V1.24 — System simulation / OpenModelica
+- [ ] OpenModelica provider
+- [ ] Parameter sweep capability
+- [ ] Sensitivity analysis
+- [ ] Co-simulation boundary
 
 ## V2.0 — Bounded autonomous engineering workspace
 - [ ] Project memory persistence

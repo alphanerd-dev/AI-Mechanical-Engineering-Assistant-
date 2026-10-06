@@ -15,10 +15,13 @@ import {SimulationComparisonProvider} from "./providers/simulation-comparison.js
 import {DigitalThreadProvider} from "./providers/digital-thread.js";
 import {OdooPLMProvider} from "./providers/odoo-plm.js";
 import {EngineeringOrchestratorProvider} from "./providers/orchestrator.js";
+import {GmshProvider} from "./providers/gmsh.js";
+import {CalculixProvider} from "./providers/calculix.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 export * from "./state/persistence.js";
 export * from "./artifacts/persistence.js";
+export * from "./fea/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
@@ -30,6 +33,34 @@ registry.register(new CrossValidationProvider());
 registry.register(new EngineeringVerificationProvider());
 registry.register(new ManufacturingProvider());
 registry.register(new MockCADProvider());
+
+registry.register(new GmshProvider({
+  generateMesh:async()=>({
+    success:false,
+    provider:"open.gmsh",
+    providerVersion:"4.15.2",
+    format:"CALCULIX_INP",
+    elementType:"C3D4",
+    nodeCount:0,
+    elementCount:0,
+    nodeSets:[],
+    warnings:["Gmsh worker transport is not configured for this entrypoint."],
+    error:"Gmsh worker transport is not configured for this entrypoint."
+  })
+}));
+
+registry.register(new CalculixProvider({
+  runStaticStructural:async()=>({
+    analysis:"STATIC_STRUCTURAL",
+    solver:"calculix",
+    solverVersion:"2.20",
+    converged:false,
+    exitCode:-1,
+    mesh:{nodeCount:0,elementCount:0,elementType:"C3D4"},
+    artifacts:[],
+    warnings:["CalculiX worker transport is not configured for this entrypoint."]
+  })
+}));
 
 registry.register(new MultibodyDynamicsProvider({
   simulate:async()=>{throw new Error("Multibody dynamics solver is not configured for this entrypoint.");}
