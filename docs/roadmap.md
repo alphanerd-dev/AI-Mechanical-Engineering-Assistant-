@@ -3,7 +3,7 @@
 ## Product architecture
 - General-purpose engineering platform; Mechanical Engineering is the initial domain, not the permanent product boundary.
 - User/project context must remain separate from the reusable Engineering Core.
-- AI models orchestrate engineering capabilities; deterministic providers perform calculations, simulation, CAD, and other technical operations.
+- AI models orchestrate engineering capabilities; deterministic providers perform calculations, simulation, CAD, manufacturing, and other technical operations.
 - Critical results require explicit validation/evidence before being treated as verified.
 
 ## V1.1 — Engineering core + mock providers
@@ -41,14 +41,14 @@
 - [x] General engineering domain/provider types
 - [x] Computation capability contracts
 - [x] Computation provenance model
-- [ ] CI verification of the complete stack
+- [x] CI verification of the complete stack
 - [ ] Production job queue + artifact handoff
-- [ ] Pint integration
-- [ ] SymPy integration
-- [ ] NumPy/SciPy integration
-- [ ] Dimensional-analysis validation
-- [ ] Symbolic -> numerical computation pipeline
-- [ ] Calculation cross-validation
+- [x] Pint integration
+- [x] SymPy integration
+- [x] NumPy/SciPy integration
+- [x] Dimensional-analysis validation
+- [x] Symbolic -> numerical computation pipeline
+- [x] Calculation cross-validation
 - [ ] Wolfram provider boundary
 - [ ] SageMath provider boundary
 
@@ -93,34 +93,49 @@
 - [ ] STEP/STL/3MF artifact pipeline
 
 ## V1.8 — Requirements, constraints & MBSE
-- [ ] Structured engineering requirements
-- [ ] Unit-aware constraint model
-- [ ] Requirement -> calculation/CAD/test traceability
-- [ ] SysML/MBSE provider boundary
-- [ ] Constraint solving/optimization provider
+- [x] Structured engineering requirements
+- [x] Unit-aware constraint model
+- [x] Requirement -> calculation/CAD/test traceability
+- [x] SysML/MBSE provider boundary
+- [x] Constraint solving/optimization provider
 
-## V1.9 — Manufacturing engineering
-- [ ] DFM capability layer
+## V1.9 — Engineering verification & evidence integrity
+- [x] Requirement-level verification engine
+- [x] Reusable verification plans
+- [x] Evidence gates by engineering method
+- [x] Dependency-aware verification
+- [x] Requirement traceability cycle protection
+- [x] Explicit human approval gate
+- [x] Evidence artifact provenance validation
+- [x] CAD/FEA evidence integration into project verification
+
+## V1.10 — Manufacturing engineering
+- [x] Manufacturing process-plan boundary
+- [x] Process sequencing and predecessor validation
+- [x] Manufacturing inspection acceptance
+- [x] Manufacturing artifact/evidence linkage
+- [x] Manufacturing capability-provider boundary
+- [x] Routed manufacturing capabilities
+- [ ] DFM rule library
 - [ ] Tolerance-stack capability
-- [ ] Manufacturing process planning boundary
 - [ ] CAM/slicing provider boundary
-- [ ] BOM and manufacturing evidence linkage
+- [ ] BOM generation and manufacturing release workflow
 
-## V1.10 — Dynamics, robotics & digital engineering
+## V1.11 — Dynamics, robotics & digital engineering
 - [ ] Multibody dynamics provider
 - [ ] CAD -> URDF/MJCF/USD capability boundary
 - [ ] Robotics asset validation
 - [ ] Simulation-to-simulation comparison
 - [ ] Digital-thread foundations
 
-## V1.11 — PLM/PDM
+## V1.12 — PLM/PDM
 - [ ] OdooPLM provider
 - [ ] Revision/change workflows
 - [ ] Engineering change impact analysis
 
-## V1.12 — Integrated engineering orchestrator
+## V1.13 — Integrated engineering orchestrator
 - [ ] Requirement gates
-- [ ] Research -> computation -> analysis -> CAD progression
+- [ ] Research -> computation -> analysis -> CAD -> manufacturing progression
 - [ ] Failure/rework loop
 - [ ] Traceability graph
 - [ ] Human approval gates

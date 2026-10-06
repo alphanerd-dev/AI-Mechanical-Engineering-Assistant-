@@ -8,6 +8,8 @@ An artifact can be:
 - STEP/STL
 - FEA model/result
 - research evidence
+- manufacturing process plan
+- manufacturing inspection record
 - PLM record
 
 Evidence records explain why a value or artifact should be trusted.
@@ -24,14 +26,18 @@ Use:
 
 A release-critical claim should not be treated as VERIFIED merely because an LLM generated it.
 
+## Manufacturing evidence
+
+Manufacturing checks use the dedicated MANUFACTURING_CHECK evidence type. A manufacturing measurement becomes VERIFIED only when its configured acceptance limits are satisfied and the resulting evidence is explicitly linked to the relevant manufacturing artifacts and requirements.
+
 ## Example
 
 ```json
 {
-  "kind": "STEP",
+  "kind": "MANUFACTURING_RECORD",
   "validationStatus": "PASS",
   "informationStatus": "VERIFIED",
-  "backend": "cad.occt",
-  "evidenceIds": ["geometry-check-001"]
+  "backend": "manufacturing-core",
+  "evidenceIds": ["inspection-check-001"]
 }
 ```

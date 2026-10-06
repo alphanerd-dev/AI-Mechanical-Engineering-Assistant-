@@ -8,6 +8,7 @@ import {PythonComputationProvider} from "./providers/computation-python.js";
 import {PythonWorkerClient} from "./execution/python-worker.js";
 import {CrossValidationProvider} from "./providers/computation-cross-check.js";
 import {EngineeringVerificationProvider} from "./providers/engineering-verification.js";
+import {ManufacturingProvider} from "./providers/manufacturing.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
@@ -18,6 +19,7 @@ const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,output
 registry.register(new PythonComputationProvider(pythonWorkerClient));
 registry.register(new CrossValidationProvider());
 registry.register(new EngineeringVerificationProvider());
+registry.register(new ManufacturingProvider());
 registry.register(new MockCADProvider());
 
 const router=new CapabilityRouter(registry);
