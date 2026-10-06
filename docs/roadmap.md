@@ -219,10 +219,19 @@ Notes:
 - Actual measurement runtimes remain provider-owned (for example OCCT/FreeCAD/CADGate-style services).
 
 ## V1.20 — Constraint solving + tolerance
-- [ ] Unit-aware constraint solver integration
-- [ ] Tolerance stack engine
-- [ ] ISO fits/callout support
-- [ ] Constraint-backed design-space exploration
+- [x] Unit-aware constraint solver integration
+- [x] Tolerance stack engine
+- [x] ISO fits/callout support
+- [x] Constraint-backed design-space exploration
+
+Notes:
+- V1.20 adds a provider-neutral deterministic constraint/tolerance layer.
+- Constraint solving currently supports fully determined linear equality systems with explicit units, finite bounds, and explicit inequality checks.
+- Design-space exploration is deterministic bounded grid enumeration with an explicit sample ceiling; hitting the ceiling returns INCOMPLETE.
+- Worst-case tolerance stacking performs explicit unit conversion and supports signed/coefficient contributors.
+- RSS requires explicit one-sigma inputs and does not infer statistical distributions from tolerance limits.
+- ISO 286 fit designations are recorded only when explicit deviations are supplied; authoritative fit-table lookup remains a future standards-backed provider.
+- Constraint satisfaction and numerical solve success do not constitute engineering safety or design approval.
 
 ## V1.21 — DFM + manufacturing intelligence
 - [ ] Measured DFM provider
