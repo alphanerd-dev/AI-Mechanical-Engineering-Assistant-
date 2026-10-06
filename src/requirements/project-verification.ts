@@ -56,3 +56,54 @@ export function verifyProjectRequirements(
 
   return {projectId:project.id,status,requirements,verifiedCount,incompleteCount,failedCount};
 }
+
+
+export interface EngineeringVerificationRequest {
+  requirementId:string;
+  evidence:import("../artifacts/engineering-artifacts.js").EvidenceRecord[];
+  minimumEvidence?:number;
+}
+
+export interface EngineeringVerificationResult {
+  requirementId:string;
+  status:ProjectVerificationStatus;
+  evidenceIds:string[];
+  verifiedEvidenceIds:string[];
+  reason:string;
+}
+
+export class EngineeringVerificationEngine {
+  async verify(request:EngineeringVerificationRequest):Promise<EngineeringVerificationResult>{
+    if(!request.requirementId.trim()){
+      return {requirementId:request.requirementId,status:"FAIL",evidenceIds:[],verifiedEvidenceIds:[],reason:"Requirement ID is required."};
+    }
+    const relevant=request.evidence.filter(e=>e.requirementIds?.includes(request.requirementId));
+    const verified=relevant.filter(e=>e.status==="VERIFIED");
+    const minimum=request.minimumEvidence??1;
+    if(verified.length>=minimum){
+      return {
+        requirementId:request.requirementId,
+        status:"PASS",
+        evidenceIds:relevant.map(e=>e.id),
+        verifiedEvidenceIds:verified.map(e=>e.id),
+        reason:"Requirement has sufficient explicitly attributed VERIFIED evidence."
+      };
+    }
+    if(relevant.length===0){
+      return {
+        requirementId:request.requirementId,
+        status:"INCOMPLETE",
+        evidenceIds:[],
+        verifiedEvidenceIds:[],
+        reason:"No evidence is explicitly attributed to this requirement."
+      };
+    }
+    return {
+      requirementId:request.requirementId,
+      status:"INCOMPLETE",
+      evidenceIds:relevant.map(e=>e.id),
+      verifiedEvidenceIds:verified.map(e=>e.id),
+      reason:"Evidence exists, but the requirement does not yet have sufficient VERIFIED evidence."
+    };
+  }
+}
