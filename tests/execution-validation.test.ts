@@ -1,0 +1,5 @@
+import {describe,it,expect} from "vitest";
+import {ExecutionEngine,InMemoryExecutionJobStore} from "../src/execution/executor.js";
+import {validateComputationOutput} from "../src/execution/computation-validation.js";
+describe("execution lifecycle",()=>{it("persists succeeded jobs",async()=>{const store=new InMemoryExecutionJobStore();const e=new ExecutionEngine([{id:"test",canExecute:()=>true,execute:async()=>({success:true,outputs:{status:"CALCULATED",value:4},warnings:[],artifactIds:[]})}],store);const j=await e.run({id:"job-1",capability:"TEST",backend:"typescript-safe",inputs:{},requestedOutputs:[],timeoutMs:1000});expect(j.status).toBe("SUCCEEDED");expect((store.get("job-1") as any).status).toBe("SUCCEEDED");});});
+describe("computation validation",()=>{it("passes finite calculated output",()=>{const v=validateComputationOutput({status:"CALCULATED",value:4});expect(v.level).toBe("PASS");expect(v.status).toBe("VERIFIED");});it("rejects non-finite values",()=>{const v=validateComputationOutput({status:"CALCULATED",value:Infinity});expect(v.level).toBe("FAIL");});});
