@@ -5,6 +5,7 @@ import {ENGINEERING_CAPABILITIES} from "../src/capabilities/catalog.js";
 import {OcctProvider} from "../src/providers/occt.js";
 import {PyMechanicalProvider} from "../src/providers/pymechanical.js";
 import {OdooPlmProvider} from "../src/providers/odooplm.js";
+import {PyMechanicalWorkerProvider} from "../src/providers/pymechanical-worker.js";
 
 describe("capability catalog",()=>{
   it("contains risk, provider and status metadata",()=>{
@@ -21,6 +22,11 @@ describe("provider adapters",()=>{
   it("maps PyMechanical static structural analysis",async()=>{
     const p=new PyMechanicalProvider({call:async(op)=>({operation:op,converged:true})});
     const r=await p.execute({capability:"ANALYSIS.STATIC_STRUCTURAL",risk:"HIGH",input:{}});
+    expect(r.success).toBe(true);
+  });
+  it("maps the isolated PyMechanical worker boundary",async()=>{
+    const p=new PyMechanicalWorkerProvider({runStaticStructural:async()=>({converged:true,maxStressMpa:100,maxDisplacementMm:0.2,warnings:[]})});
+    const r=await p.execute({capability:"ANALYSIS.STATIC_STRUCTURAL",risk:"HIGH",input:{artifactId:"a1",material:{name:"steel",yieldStrengthMpa:250},loads:[],constraints:[],mesh:{elementSizeMm:5}}});
     expect(r.success).toBe(true);
   });
   it("maps OdooPLM revision workflow",async()=>{
