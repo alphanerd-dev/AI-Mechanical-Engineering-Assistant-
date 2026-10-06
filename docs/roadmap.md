@@ -179,6 +179,20 @@ Notes:
 - Snapshots are cloned on write/read to prevent accidental state mutation across the storage boundary.
 - Durable database, object storage, migrations, multi-user conflict resolution, and production authorization remain later infrastructure work.
 
+## V1.16 — Engineering artifact registry persistence foundations
+- [x] Provider-neutral artifact record contract
+- [x] Project-scoped artifact registry
+- [x] Immutable artifact metadata snapshots
+- [x] Optimistic artifact-revision protection
+- [x] Fail-closed artifact record validation
+- [x] Reference in-memory artifact store
+
+Notes:
+- V1.16 persists artifact metadata and lifecycle state without choosing object storage or a database.
+- Artifact content remains external to the metadata registry; URIs/backends identify where content is stored or produced.
+- Revision protection prevents stale artifact metadata updates from silently overwriting newer state.
+- Durable object storage, content-addressed blobs, migrations, authorization, and cross-record referential-integrity enforcement remain later infrastructure work.
+
 ## V2.0 — Bounded autonomous engineering workspace
 - [ ] Project memory persistence
 - [ ] Multi-agent specialist delegation
