@@ -160,5 +160,28 @@ describe("verification plans",()=>{
     expect(result.requiredMethods).toEqual(["CAD geometry validation","FEA acceptance","engineering calculation"]);
     expect(result.acceptanceCriteria).toHaveLength(2);
     expect(result.dependencies).toHaveLength(2);
+    expect(result.dependencyRequirementIds).toEqual([]);
+    expect(result.blockedDependencyIds).toEqual([]);
+  });
+
+  it("blocks a plan when a declared requirement dependency is not verified",async()=>{
+    const {executeVerificationPlan}=await import("../src/requirements/project-verification.js");
+    const now=new Date().toISOString();
+    const target={id:"target",type:"CALCULATION" as const,claim:"Target verified",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:now};
+    const dependency={id:"dep",type:"GEOMETRY_CHECK" as const,claim:"Dependency verified",status:"VERIFIED" as const,requirementIds:["REQ-2"],timestamp:now};
+
+    const blocked=await executeVerificationPlan({
+      id:"VP-DEP",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],
+      dependencyRequirementIds:["REQ-3"]
+    },[target,dependency]);
+    expect(blocked.status).toBe("INCOMPLETE");
+    expect(blocked.blockedDependencyIds).toEqual(["REQ-3"]);
+
+    const passed=await executeVerificationPlan({
+      id:"VP-DEP",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],
+      dependencyRequirementIds:["REQ-2"]
+    },[target,dependency]);
+    expect(passed.status).toBe("PASS");
+    expect(passed.blockedDependencyIds).toEqual([]);
   });
 });
