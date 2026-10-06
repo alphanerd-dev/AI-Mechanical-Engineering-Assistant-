@@ -55,7 +55,6 @@ describe("project verification",()=>{
   });
 });
 
-
 describe("EngineeringVerificationEngine",()=>{
   it("passes only on explicitly attributed verified evidence",async()=>{
     const {EngineeringVerificationEngine}=await import("../src/requirements/project-verification.js");
@@ -90,8 +89,32 @@ describe("EngineeringVerificationEngine",()=>{
     expect((await engine.verify({requirementId:"REQ-1",evidence,minimumEvidence:2})).status).toBe("PASS");
     expect((await engine.verify({requirementId:"REQ-1",evidence:evidence.slice(0,1),minimumEvidence:2})).status).toBe("INCOMPLETE");
   });
-});
 
+  it("requires dedicated manufacturing check evidence for manufacturing gates",async()=>{
+    const {EngineeringVerificationEngine}=await import("../src/requirements/project-verification.js");
+    const engine=new EngineeringVerificationEngine();
+    const humanReview:EvidenceRecord={
+      id:"review-1",type:"HUMAN_REVIEW",claim:"Engineer reviewed the part",
+      status:"VERIFIED",requirementIds:["REQ-1"],timestamp:new Date().toISOString()
+    };
+    const incomplete=await engine.verify({
+      requirementId:"REQ-1",evidence:[humanReview],
+      gates:[{type:"MANUFACTURING",minimum:1}]
+    });
+    expect(incomplete.status).toBe("INCOMPLETE");
+
+    const manufacturingCheck:EvidenceRecord={
+      id:"mfg-1",type:"MANUFACTURING_CHECK",claim:"Dimensional inspection passed",
+      status:"VERIFIED",method:"CMM inspection",requirementIds:["REQ-1"],timestamp:new Date().toISOString()
+    };
+    const passed=await engine.verify({
+      requirementId:"REQ-1",evidence:[humanReview,manufacturingCheck],
+      gates:[{type:"MANUFACTURING",minimum:1}]
+    });
+    expect(passed.status).toBe("PASS");
+    expect(passed.satisfiedGates).toHaveLength(1);
+  });
+});
 
 describe("multi-domain verification gates",()=>{
   it("requires every requested evidence domain",async()=>{
@@ -115,7 +138,6 @@ describe("multi-domain verification gates",()=>{
     expect(result.unmetGates).toHaveLength(0);
   });
 });
-
 
 describe("verification plans",()=>{
   it("executes a reusable multi-domain verification plan",async()=>{
