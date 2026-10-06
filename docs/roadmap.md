@@ -133,9 +133,14 @@ Notes:
 - Solver runtimes, CAD-to-robotics converters, persistent digital-thread storage, and production robotics/simulation backends remain provider/runtime work beyond this milestone.
 
 ## V1.12 — PLM/PDM
-- [ ] OdooPLM provider
-- [ ] Revision/change workflows
-- [ ] Engineering change impact analysis
+- [x] OdooPLM provider boundary
+- [x] Revision/change workflow guards
+- [x] Engineering change impact analysis
+
+Notes:
+- The OdooPLM adapter normalizes PLM items and revisions behind an explicit client boundary.
+- Live Odoo credentials, transport, and durable server-side persistence remain integration/runtime work.
+- Revision application is fail-closed: a revision must pass validation and approval before it can be marked applied.
 
 ## V1.13 — Integrated engineering orchestrator
 - [ ] Requirement gates

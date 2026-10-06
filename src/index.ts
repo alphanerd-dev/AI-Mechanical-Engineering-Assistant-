@@ -13,6 +13,7 @@ import {MultibodyDynamicsProvider} from "./providers/dynamics.js";
 import {RoboticsProvider} from "./providers/robotics.js";
 import {SimulationComparisonProvider} from "./providers/simulation-comparison.js";
 import {DigitalThreadProvider} from "./providers/digital-thread.js";
+import {OdooPLMProvider} from "./providers/odoo-plm.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 const registry=new CapabilityRegistry();
@@ -34,6 +35,10 @@ registry.register(new RoboticsProvider({
 }));
 registry.register(new SimulationComparisonProvider());
 registry.register(new DigitalThreadProvider());
+registry.register(new OdooPLMProvider({
+  queryItem:async()=>undefined,
+  createRevision:async()=>{throw new Error("Odoo PLM client is not configured for this entrypoint.");}
+}));
 
 const router=new CapabilityRouter(registry);
 const agent=new EngineeringAgent(router);

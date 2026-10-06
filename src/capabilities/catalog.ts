@@ -31,5 +31,6 @@ export const ENGINEERING_CAPABILITIES:CapabilityDefinition[]=[
   {id:"MANUFACTURING.EVALUATE_INSPECTION",domain:"manufacturing",purpose:"Evaluate a measured manufacturing characteristic against explicit acceptance limits",inputs:["criterion","result"],outputs:["inspection_acceptance"],risk:"MEDIUM",providers:["manufacturing-core"],status:"PILOT"},
   {id:"DIGITAL_THREAD.LINK",domain:"validation",purpose:"Record an explicit traceable relationship between engineering objects",inputs:["link"],outputs:["digital_thread_link"],risk:"MEDIUM",providers:["digital-thread.core"],status:"PILOT"},
   {id:"PLM.QUERY_ITEM",domain:"plm",purpose:"Query engineering item and lifecycle information",inputs:["itemId"],outputs:["plm_item"],risk:"LOW",providers:["plm.odooplm"],status:"EXPERIMENTAL"},
-  {id:"PLM.CREATE_REVISION",domain:"plm",purpose:"Create or prepare an engineering revision",inputs:["itemId","changeDescription"],outputs:["revision"],risk:"HIGH",providers:["plm.odooplm"],status:"EXPERIMENTAL"}
+  {id:"PLM.CREATE_REVISION",domain:"plm",purpose:"Create or prepare an engineering revision",inputs:["itemId","changeDescription"],outputs:["revision"],risk:"HIGH",providers:["plm.odooplm"],status:"EXPERIMENTAL"},
+  {id:"PLM.ANALYZE_CHANGE_IMPACT",domain:"plm",purpose:"Analyze direct and parent-item impacts of an engineering change",inputs:["changeRequest","items"],outputs:["impact_analysis"],risk:"HIGH",providers:["plm.odooplm"],status:"PILOT"}
 ];
