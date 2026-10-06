@@ -12,3 +12,4 @@ export * from "./inspector.js";
 export * from "./workflow.js";
 export * from "./claim-evidence.js";
 export * from "./claim-evidence-record.js";
+export * from "./verified-ingestion.js";
