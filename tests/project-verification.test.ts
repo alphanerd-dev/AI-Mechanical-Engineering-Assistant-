@@ -54,6 +54,37 @@ describe("project verification",()=>{
     memory.save(project);
     expect(verifyProjectRequirements(project,memory,traceability).status).toBe("FAIL");
   });
+
+  it("rejects evidence with missing or unlinked artifact provenance",()=>{
+    const now=new Date().toISOString();
+    const project={
+      id:"project-provenance",name:"Provenance verification",stage:"VERIFICATION",status:"ACTIVE" as const,
+      requirements:[{id:"REQ-1",name:"Strength",priority:"MUST" as const,status:"OPEN" as const}],
+      assumptions:[],openQuestions:[],unresolvedRisks:[],events:[],evidenceIds:["e-valid"]
+    };
+    const evidence={
+      id:"e-valid",type:"GEOMETRY_CHECK" as const,claim:"Geometry validated",status:"VERIFIED" as const,
+      artifactIds:["artifact-1"],requirementIds:["REQ-1"],timestamp:now
+    };
+    const artifact={
+      id:"artifact-1",kind:"CAD_SOLID" as const,name:"Validated solid",
+      validationStatus:"PASS" as const,informationStatus:"VERIFIED" as const,
+      evidenceIds:[],requirementIds:["REQ-1"],createdAt:now
+    };
+
+    const missing=verifyEngineeringProject({project,evidence:[evidence],artifacts:[]});
+    expect(missing.status).toBe("INCOMPLETE");
+    expect(missing.requirements[0]?.evidenceIds).toEqual([]);
+
+    const unlinked=verifyEngineeringProject({project,evidence:[evidence],artifacts:[artifact]});
+    expect(unlinked.status).toBe("INCOMPLETE");
+
+    artifact.evidenceIds=["e-valid"];
+    const linked=verifyEngineeringProject({project,evidence:[evidence],artifacts:[artifact]});
+    expect(linked.status).toBe("PASS");
+    expect(linked.requirements[0]?.evidenceIds).toEqual(["e-valid"]);
+  });
+
 });
 
 describe("EngineeringVerificationEngine",()=>{
