@@ -1,9 +1,26 @@
 {
-  "name":"ai-mechanical-engineering-assistant",
-  "version":"0.1.0",
-  "private":true,
-  "description":"Portable AI Mechanical R&D Engineering core.",
-  "type":"module",
-  "scripts":{"build":"tsc","test":"vitest run","dev":"tsx src/index.ts"},
-  "devDependencies":{"@types/node":"^22.0.0","tsx":"^4.19.0","typescript":"^5.6.0","vitest":"^2.1.0"}
+  "name": "ai-mechanical-engineering-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable AI Mechanical R&D Engineering core.",
+  "type": "module",
+  "scripts": {
+    "build": "next build && tsc --noEmit",
+    "test": "vitest run",
+    "dev": "next dev",
+    "core": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
 }
