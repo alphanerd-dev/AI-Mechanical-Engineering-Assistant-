@@ -27,11 +27,32 @@ export interface EngineeringProjectVerificationReport{
   requirements:EngineeringProjectVerificationRequirement[];
 }
 
+function evidenceHasValidArtifactProvenance(
+  evidence:EvidenceRecord,
+  artifactsById:Map<string,EngineeringArtifact>
+):boolean{
+  if(!evidence.artifactIds || evidence.artifactIds.length===0) return true;
+  return evidence.artifactIds.every(artifactId=>{
+    const artifact=artifactsById.get(artifactId);
+    return Boolean(artifact && artifact.evidenceIds.includes(evidence.id));
+  });
+}
+
+function provenanceValidEvidence(
+  evidence:EvidenceRecord[],
+  artifacts:EngineeringArtifact[]
+):EvidenceRecord[]{
+  const artifactsById=new Map(artifacts.map(artifact=>[artifact.id,artifact]));
+  return evidence.filter(item=>evidenceHasValidArtifactProvenance(item,artifactsById));
+}
+
 export function verifyEngineeringProject(
   request:EngineeringProjectVerificationRequest
 ):EngineeringProjectVerificationReport{
+  const provenanceValid=provenanceValidEvidence(request.evidence,request.artifacts);
+
   const requirements=request.project.requirements.map(requirement=>{
-    const relevant=request.evidence.filter(e=>e.requirementIds?.includes(requirement.id));
+    const relevant=provenanceValid.filter(e=>e.requirementIds?.includes(requirement.id));
     const verified=relevant.filter(e=>e.status==="VERIFIED");
     const artifactIds=request.artifacts.filter(a=>a.requirementIds?.includes(requirement.id)).map(a=>a.id);
     if(requirement.status==="BLOCKED"){
