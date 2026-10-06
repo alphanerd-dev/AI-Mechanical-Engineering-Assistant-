@@ -3,6 +3,7 @@ import {EngineeringMemory} from "../src/memory/memory-store.js";
 import {createProject} from "../src/state/project.js";
 import {RequirementTraceability} from "../src/requirements/traceability.js";
 import {verifyProjectRequirements} from "../src/requirements/project-verification.js";
+import {verifyEngineeringProject} from "../src/verification/project.js";
 import {EvidenceRecord} from "../src/artifacts/engineering-artifacts.js";
 
 function setup(){
