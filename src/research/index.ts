@@ -9,3 +9,4 @@ export * from "./verification.js";
 export * from "./memory-ingestion.js";
 
 export * from "./inspector.js";
+export * from "./workflow.js";
