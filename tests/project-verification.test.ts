@@ -106,7 +106,7 @@ describe("multi-domain verification gates",()=>{
     expect(result.status).toBe("INCOMPLETE");
     expect(result.unmetGates).toHaveLength(1);
 
-    evidence.push({id:"calc",type:"CALCULATION",claim:"Calculation passed",status:"VERIFIED",requirementIds:["REQ-1"],timestamp:new Date().toISOString()});
+    evidence.push({id:"calc",type:"CALCULATION",claim:"Calculation passed",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:new Date().toISOString()});
     result=await engine.verify({requirementId:"REQ-1",evidence,gates:[
       {type:"CAD",minimum:1},{type:"FEA",minimum:1},{type:"CALCULATION",minimum:1}
     ]});
