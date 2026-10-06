@@ -29,7 +29,7 @@ export interface EngineeringProjectVerificationReport{
 
 export function verifyEngineeringProject(
   request:EngineeringProjectVerificationRequest
-):Promise<EngineeringProjectVerificationReport>{
+):EngineeringProjectVerificationReport{
   const requirements=request.project.requirements.map(requirement=>{
     const relevant=request.evidence.filter(e=>e.requirementIds?.includes(requirement.id));
     const verified=relevant.filter(e=>e.status==="VERIFIED");
