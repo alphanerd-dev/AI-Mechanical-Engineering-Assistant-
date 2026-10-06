@@ -14,6 +14,11 @@ RUN apt-get update \
        libgl1 \
        libglu1-mesa \
        libxrender1 \
+       libxcursor1 \
+       libxft2 \
+       libxinerama1 \
+       libxi6 \
+       libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir "gmsh==${GMSH_VERSION}"
