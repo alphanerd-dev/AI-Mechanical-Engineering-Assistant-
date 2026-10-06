@@ -1,10 +1,28 @@
 import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
+import {ProjectState} from "../core/types.js";
 import {EngineeringVerificationEngine} from "./engine.js";
 import {VerificationPlan,VerificationPlanResult} from "./types.js";
 
+function dependencyIsSatisfied(
+  dependencyId:string,
+  project:ProjectState|undefined,
+  evidence:EvidenceRecord[]
+):boolean{
+  if(!project) return false;
+  const requirement=project.requirements.find(item=>item.id===dependencyId);
+  if(!requirement||requirement.status!=="SATISFIED") return false;
+  const projectEvidenceIds=new Set(project.evidenceIds??[]);
+  return evidence.some(
+    item=>item.status==="VERIFIED"&&
+      item.requirementIds?.includes(dependencyId)&&
+      projectEvidenceIds.has(item.id)
+  );
+}
+
 export async function executeVerificationPlan(
   plan:VerificationPlan,
-  evidence:EvidenceRecord[]
+  evidence:EvidenceRecord[],
+  project?:ProjectState
 ):Promise<VerificationPlanResult>{
   const result=await new EngineeringVerificationEngine().verify({
     requirementId:plan.requirementId,
@@ -15,9 +33,7 @@ export async function executeVerificationPlan(
 
   const dependencyRequirementIds=plan.dependencyRequirementIds??[];
   const blockedDependencyIds=dependencyRequirementIds.filter(
-    dependencyId=>!evidence.some(
-      item=>item.status==="VERIFIED"&&item.requirementIds?.includes(dependencyId)
-    )
+    dependencyId=>!dependencyIsSatisfied(dependencyId,project,evidence)
   );
 
   const approvalRequired=plan.approvalRequired??false;
@@ -28,7 +44,7 @@ export async function executeVerificationPlan(
     :result.status;
 
   const reason=blockedDependencyIds.length>0
-    ?"Verification is blocked by unmet requirement dependencies: "+blockedDependencyIds.join(", ")+"."
+    ?"Verification is blocked by unmet or project-unverified requirement dependencies: "+blockedDependencyIds.join(", ")+"."
     :blockedByApproval
       ?"Verification requires explicit human approval before it can PASS."
       :result.reason;
