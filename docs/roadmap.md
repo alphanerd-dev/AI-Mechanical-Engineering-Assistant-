@@ -56,9 +56,12 @@
 - [x] PyMechanical execution-provider boundary
 - [x] FEA model/result types
 - [x] Simulation validation gates
-- [ ] Real isolated PyMechanical worker
-- [ ] FEA artifact persistence/evidence bridge
-- [ ] Mesh convergence and factor-of-safety checks
+- [x] Simulation acceptance gate (FoS + optional mesh convergence)
+- [x] FEA artifact/evidence contracts
+- [x] Simulation evidence -> EngineeringMemory/ProjectState bridge
+- [ ] Real isolated PyMechanical worker runtime
+- [ ] Persistent artifact storage
+- [ ] Mesh convergence evidence from real multi-mesh solves
 
 ## V1.7 — CAD execution
 - [ ] build123d runtime
