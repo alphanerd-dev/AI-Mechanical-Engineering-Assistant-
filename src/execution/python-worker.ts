@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { ExecutionBackendAdapter } from "./executor.js";
 import { ExecutionRequest, ExecutionResult } from "./types.js";
+import { PYTHON_NUMERICAL_WORKER_POLICY, validateWorkerRequest } from "./worker-policy.js";
 
 export interface PythonWorkerClient {
   run(request: ExecutionRequest): Promise<ExecutionResult>;
@@ -84,6 +85,10 @@ export class PythonWorkerAdapter implements ExecutionBackendAdapter {
   }
 
   execute(request: ExecutionRequest): Promise<ExecutionResult> {
+    const errors = validateWorkerRequest(PYTHON_NUMERICAL_WORKER_POLICY, request.capability, request.timeoutMs);
+    if (errors.length > 0) {
+      return Promise.resolve({ success: false, outputs: {}, warnings: errors, artifactIds: [] });
+    }
     return this.client.run(request);
   }
 }
