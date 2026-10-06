@@ -13,12 +13,31 @@ export async function executeVerificationPlan(
     gates:plan.gates
   });
 
+  const dependencyRequirementIds=plan.dependencyRequirementIds??[];
+  const blockedDependencyIds=dependencyRequirementIds.filter(
+    dependencyId=>!evidence.some(
+      item=>item.status==="VERIFIED"&&item.requirementIds?.includes(dependencyId)
+    )
+  );
+
+  const status=blockedDependencyIds.length>0
+    ?"INCOMPLETE"
+    :result.status;
+
+  const reason=blockedDependencyIds.length>0
+    ?"Verification is blocked by unmet requirement dependencies: "+blockedDependencyIds.join(", ")+"."
+    :result.reason;
+
   return {
     ...result,
+    status,
+    reason,
     planId:plan.id,
     approvalRequired:plan.approvalRequired??false,
     requiredMethods:plan.requiredMethods??[],
     acceptanceCriteria:plan.acceptanceCriteria??[],
-    dependencies:plan.dependencies??[]
+    dependencies:plan.dependencies??[],
+    dependencyRequirementIds,
+    blockedDependencyIds
   };
 }
