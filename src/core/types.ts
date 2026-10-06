@@ -17,6 +17,7 @@ export interface ProjectState {
   id:string; name:string; stage:string; status:"ACTIVE"|"BLOCKED"|"COMPLETE";
   requirements:Requirement[]; assumptions:string[]; openQuestions:string[];
   unresolvedRisks:string[]; events:EngineeringEvent[]; nextAction?:string;
+  evidenceIds?:string[];
 }
 
 export interface EngineeringIntent {
