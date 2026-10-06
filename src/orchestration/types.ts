@@ -5,7 +5,7 @@ export type EngineeringWorkflowStage=
   "REQUIREMENTS"|"RESEARCH"|"COMPUTATION"|"ANALYSIS"|"CAD"|"SIMULATION"|
   "DYNAMICS"|"ROBOTICS"|"MANUFACTURING"|"VALIDATION"|"PLM";
 
-export type EngineeringWorkflowStepStatus="PENDING"|"RUNNING"|"SUCCESS"|"FAILED"|"BLOCKED"|"SKIPPED";
+export type EngineeringWorkflowStepStatus="PENDING"|"RUNNING"|"SUCCESS"|"FAILED"|"BLOCKED"|"SKIPPED"|"INCOMPLETE";
 export type EngineeringWorkflowStatus="COMPLETE"|"FAILED"|"BLOCKED"|"INCOMPLETE";
 export type EngineeringResultTrust="UNVERIFIED"|"EVIDENCE_BACKED";
 
