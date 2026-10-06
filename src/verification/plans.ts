@@ -20,13 +20,13 @@ function dependencyIsSatisfied(
   );
 }
 
-export async function executeVerificationPlan(
+export function executeVerificationPlan(
   plan:VerificationPlan,
   evidence:EvidenceRecord[],
   project?:ProjectState,
   traceability?:RequirementTraceability
 ):Promise<VerificationPlanResult>{
-  const result=await new EngineeringVerificationEngine().verify({
+  const result=new EngineeringVerificationEngine().verify({
     requirementId:plan.requirementId,
     evidence,
     minimumEvidence:plan.minimumTotalEvidence,
