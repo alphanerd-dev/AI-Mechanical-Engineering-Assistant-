@@ -7,7 +7,7 @@ function evidenceMatchesType(evidence:EvidenceRecord,type:VerificationEvidenceTy
   if(type==="CALCULATION") return evidence.type==="CALCULATION";
   if(type==="RESEARCH") return evidence.type==="SOURCE";
   if(type==="MEASUREMENT") return evidence.type==="MEASUREMENT";
-  if(type==="MANUFACTURING") return evidence.type==="HUMAN_REVIEW";
+  if(type==="MANUFACTURING") return evidence.type==="MANUFACTURING_CHECK";
   return true;
 }
 
