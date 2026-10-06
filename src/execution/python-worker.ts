@@ -1,6 +1,6 @@
 import {ExecutionBackendAdapter} from "./executor.js";
 import {ExecutionRequest,ExecutionResult} from "./types.js";
-import {PYTHON_NUMERICAL_WORKER_POLICY,validateWorkerRequest} from "./worker-policy.js";
+import {PYTHON_NUMERICAL_WORKER_POLICY,validateWorkerRequest} from "./worker-policy";
 export interface PythonWorkerClient{run(request:ExecutionRequest):Promise<ExecutionResult>;}
 export class PythonWorkerAdapter implements ExecutionBackendAdapter{
  readonly id="execution.python-worker";

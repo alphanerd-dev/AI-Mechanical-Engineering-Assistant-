@@ -1,5 +1,5 @@
 import {ExecutionRequest,ExecutionResult} from "./types.js";
-import {HttpExecutionWorkerService} from "./worker-service.js";
+import {HttpExecutionWorkerService} from "./worker-service";
 import {PythonWorkerClient} from "./python-worker.js";
 
 export interface HttpPythonWorkerOptions { pollIntervalMs?:number; maxPolls?:number; }
