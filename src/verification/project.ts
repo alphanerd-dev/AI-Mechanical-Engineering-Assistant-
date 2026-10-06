@@ -27,10 +27,10 @@ export interface EngineeringProjectVerificationReport{
   requirements:EngineeringProjectVerificationRequirement[];
 }
 
-export async function verifyEngineeringProject(
+export function verifyEngineeringProject(
   request:EngineeringProjectVerificationRequest
 ):Promise<EngineeringProjectVerificationReport>{
-  const requirements=await Promise.all(request.project.requirements.map(async requirement=>{
+  const requirements=request.project.requirements.map(requirement=>{
     const relevant=request.evidence.filter(e=>e.requirementIds?.includes(requirement.id));
     const verified=relevant.filter(e=>e.status==="VERIFIED");
     const artifactIds=request.artifacts.filter(a=>a.requirementIds?.includes(requirement.id)).map(a=>a.id);
@@ -40,7 +40,7 @@ export async function verifyEngineeringProject(
 
     const plan=request.verificationPlans?.[requirement.id];
     if(plan){
-      const result=await executeVerificationPlan(
+      const result=executeVerificationPlan(
         plan,
         request.evidence,
         request.project,
@@ -59,7 +59,7 @@ export async function verifyEngineeringProject(
       return {requirementId:requirement.id,status:"INCOMPLETE" as const,evidenceIds:[],artifactIds,reason:"No VERIFIED evidence is explicitly attributed to this requirement."};
     }
     return {requirementId:requirement.id,status:"PASS" as const,evidenceIds:verified.map(e=>e.id),artifactIds,reason:"Requirement has explicitly attributed VERIFIED evidence."};
-  }));
+  });
 
   const status:ProjectVerificationStatus=requirements.some(r=>r.status==="FAIL")
     ?"FAIL":requirements.some(r=>r.status==="INCOMPLETE")?"INCOMPLETE":"PASS";
