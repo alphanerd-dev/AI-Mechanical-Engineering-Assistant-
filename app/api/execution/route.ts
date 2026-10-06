@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ExecutionEngine } from "../../../src/execution/executor";
+import { ExecutionEngine, ExecutionBackendAdapter } from "../../../src/execution/executor";
 import { SafeNumericalAdapter } from "../../../src/execution/safe-numerical";
 import { PythonWorkerAdapter } from "../../../src/execution/python-worker";
 import { HttpPythonWorkerClient } from "../../../src/execution/http-python-worker";
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const capability = typeof body.capability === "string" ? body.capability : "";
   const backend = body.backend === "python-worker" ? "python-worker" : "typescript-safe";
 
-  const adapters = [new SafeNumericalAdapter()];
+  const adapters:ExecutionBackendAdapter[] = [new SafeNumericalAdapter()];
   if (backend === "python-worker" && process.env.PYTHON_WORKER_URL) {
     adapters.push(new PythonWorkerAdapter(
       new HttpPythonWorkerClient(
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         fetch,
         process.env.PYTHON_WORKER_API_TOKEN
       )
-    ) as never);
+    ));
   }
 
   const engine = new ExecutionEngine(adapters);
