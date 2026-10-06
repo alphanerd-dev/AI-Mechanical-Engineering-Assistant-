@@ -15,6 +15,7 @@ export interface EngineeringArtifact {
   validationStatus:"UNVALIDATED"|"PASS"|"FAIL";
   informationStatus:InformationStatus;
   evidenceIds:string[];
+  requirementIds?:string[];
   createdAt:string;
 }
 
@@ -27,5 +28,6 @@ export interface EvidenceRecord {
   value?:unknown;
   status:InformationStatus;
   artifactIds?:string[];
+  requirementIds?:string[];
   timestamp:string;
 }
