@@ -42,7 +42,8 @@
 - [x] Computation capability contracts
 - [x] Computation provenance model
 - [x] CI verification of the complete stack
-- [ ] Production job queue + artifact handoff
+- [x] Production job queue contract + reference in-memory queue
+- [x] Artifact handoff contract + fail-closed provenance checks
 - [x] Pint integration
 - [x] SymPy integration
 - [x] NumPy/SciPy integration
@@ -153,6 +154,17 @@ Notes:
 Notes:
 - V1.13 is the workflow-control foundation: capabilities remain deterministic/provider-owned while the orchestrator controls order, prerequisites, approvals, bounded retries, evidence acceptance, and requirement-to-artifact traceability.
 - It does not claim autonomous engineering judgment; unsafe or unverified results remain blocked or explicitly unverified.
+
+## V1.14 — Execution reliability & artifact handoff
+- [x] Bounded execution queue with configurable concurrency
+- [x] Duplicate-job protection
+- [x] Artifact handoff contract
+- [x] Provenance-preserving handoff store
+- [x] Fail-closed artifact acceptance rules
+
+Notes:
+- V1.14 adds a provider-neutral queue/handoff foundation on top of the existing execution engine.
+- The queue is a reference in-memory implementation; an external broker, durable job persistence, retries across process restarts, and distributed workers remain production-infrastructure work.
 
 ## V2.0 — Bounded autonomous engineering workspace
 - [ ] Project memory persistence

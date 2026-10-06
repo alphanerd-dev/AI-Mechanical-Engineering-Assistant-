@@ -1,31 +1,72 @@
-import {ExecutionRequest,ExecutionResult} from "./types.js";
+import {ExecutionEngine} from "./executor.js";
+import {ExecutionJob,ExecutionRequest} from "./types.js";
 
-export type QueueMessageStatus="QUEUED"|"RUNNING"|"SUCCEEDED"|"FAILED"|"CANCELLED";
-
-export interface ExecutionQueueMessage {
-  id:string;
+interface QueueEntry{
   request:ExecutionRequest;
-  attempts:number;
-  enqueuedAt:string;
+  resolve:(job:ExecutionJob)=>void;
+  reject:(error:unknown)=>void;
 }
 
-export interface ExecutionQueue {
-  enqueue(message:ExecutionQueueMessage):Promise<void>;
-  dequeue():Promise<ExecutionQueueMessage|undefined>;
-  acknowledge(id:string,result:ExecutionResult):Promise<void>;
-  fail(id:string,error:string):Promise<void>;
+export interface ExecutionQueueOptions{
+  concurrency?:number;
 }
 
-/** In-memory contract implementation for tests; production should use a durable queue. */
-export class InMemoryExecutionQueue implements ExecutionQueue {
-  private readonly messages:ExecutionQueueMessage[]=[];
-  private readonly completed=new Map<string,ExecutionResult>();
-  private readonly failed=new Map<string,string>();
+export class ExecutionQueue{
+  private readonly concurrency:number;
+  private active=0;
+  private readonly pending:QueueEntry[]=[];
+  private readonly activeIds=new Set<string>();
 
-  async enqueue(message:ExecutionQueueMessage){this.messages.push(structuredClone(message));}
-  async dequeue(){return this.messages.shift();}
-  async acknowledge(id:string,result:ExecutionResult){this.completed.set(id,structuredClone(result));}
-  async fail(id:string,error:string){this.failed.set(id,error);}
-  getCompleted(id:string){return this.completed.get(id);}
-  getFailed(id:string){return this.failed.get(id);}
+  constructor(private readonly engine:ExecutionEngine,options:ExecutionQueueOptions={}){
+    const concurrency=options.concurrency??2;
+    if(!Number.isInteger(concurrency)||concurrency<1){
+      throw new Error("Execution queue concurrency must be a positive integer.");
+    }
+    this.concurrency=concurrency;
+  }
+
+  enqueue(request:ExecutionRequest):Promise<ExecutionJob>{
+    if(this.activeIds.has(request.id)||this.pending.some(item=>item.request.id===request.id)){
+      return Promise.reject(new Error(`Execution job is already queued or running: ${request.id}.`));
+    }
+
+    return new Promise<ExecutionJob>((resolve,reject)=>{
+      this.pending.push({request,resolve,reject});
+      this.pump();
+    });
+  }
+
+  get(id:string):ExecutionJob|undefined{
+    return this.engine.getJob(id);
+  }
+
+  queuedCount():number{
+    return this.pending.length;
+  }
+
+  activeCount():number{
+    return this.active;
+  }
+
+  private pump():void{
+    while(this.active<this.concurrency&&this.pending.length>0){
+      const entry=this.pending.shift()!;
+      this.active++;
+      this.activeIds.add(entry.request.id);
+      void this.process(entry);
+    }
+  }
+
+  private async process(entry:QueueEntry):Promise<void>{
+    try{
+      const job=await this.engine.run(entry.request);
+      entry.resolve(job);
+    }catch(error){
+      entry.reject(error);
+    }finally{
+      this.active--;
+      this.activeIds.delete(entry.request.id);
+      this.pump();
+    }
+  }
 }
