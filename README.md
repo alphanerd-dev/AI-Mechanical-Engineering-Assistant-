@@ -4,20 +4,35 @@ Portable AI-native engineering intelligence for mechanical R&D.
 
 The system is designed around the engineering lifecycle:
 
-**Problem → Requirements → Research → Analysis → Design → CAD → Manufacturing → Test → Validation → Iteration**
+**Problem → Requirements → Research → Analysis → Design → CAD → Simulation → Manufacturing → Test → Validation → Iteration → Release**
 
-## V1.1 Engineering Core
+## Architecture
 
-This first implementation provides:
-- structured engineering intent and project state
-- requirements and engineering events
-- capability registry and provider-independent routing
-- mock CAD provider
-- shaft-design calculation benchmark
-- validation hooks
-- traceability-oriented memory
+The Engineering Core is provider-independent. It requests capabilities such as geometry validation, static structural analysis, or PLM revision management and routes those capabilities to adapters.
 
-The CAD layer is intentionally provider-agnostic. Real Onshape MCP adapters will be added after the core is stable.
+Current architectural boundaries include:
+- **CAD/geometry:** OCCT, build123d, CadQuery, FreeCAD, Onshape
+- **Simulation:** Python/numerical analysis and Ansys Mechanical via PyMechanical
+- **PLM/PDM:** OdooPLM
+- **Evidence:** structured engineering artifacts and provenance records
+
+External systems are represented as adapters. This repository does not claim that a provider is installed, authenticated, licensed, or reachable merely because an adapter exists.
+
+## V1.3
+
+V1.3 introduces:
+- rich capability definitions with risk/status/provider metadata
+- provider SDK contracts for CAD, simulation, and PLM
+- engineering artifact and evidence models
+- OCCT geometry-provider boundary
+- PyMechanical simulation-provider boundary
+- OdooPLM PLM-provider boundary
+- provider-priority routing
+
+See:
+- `docs/provider-architecture.md`
+- `docs/artifacts-and-evidence.md`
+- `docs/roadmap.md`
 
 ## Benchmark
 
@@ -32,5 +47,3 @@ npm install
 npm test
 npm run build
 ```
-
-See `docs/architecture.md` and `docs/roadmap.md`.
