@@ -1,5 +1,7 @@
-export type InformationStatus = "KNOWN"|"ASSUMED"|"ESTIMATED"|"CALCULATED"|"MEASURED"|"VERIFIED";
-export type RequirementPriority = "MUST"|"SHOULD"|"COULD";
+export type InformationStatus="KNOWN"|"ASSUMED"|"ESTIMATED"|"CALCULATED"|"MEASURED"|"VERIFIED";
+export type RequirementPriority="MUST"|"SHOULD"|"COULD";
+export type CapabilityRisk="LOW"|"MEDIUM"|"HIGH"|"CRITICAL";
+export type CapabilityStatus="EXPERIMENTAL"|"PILOT"|"VERIFIED"|"BLOCKED"|"DEPRECATED";
 
 export interface Requirement {
   id:string; name:string; value?:number|string; unit?:string; tolerance?:number|string;
@@ -23,9 +25,25 @@ export interface EngineeringIntent {
 }
 
 export interface CapabilityRequest {
-  capability:string; input:Record<string,unknown>; risk:"LOW"|"MEDIUM"|"HIGH"|"CRITICAL";
+  capability:string; input:Record<string,unknown>; risk:CapabilityRisk;
 }
 
 export interface CapabilityResult {
   capability:string; provider:string; success:boolean; output?:unknown; error?:string;
+  evidenceIds?:string[]; artifactIds?:string[];
+}
+
+export interface CapabilityDefinition {
+  id:string;
+  domain:"cad"|"analysis"|"simulation"|"research"|"plm"|"manufacturing"|"validation";
+  purpose:string;
+  inputs:string[];
+  outputs:string[];
+  preconditions?:string[];
+  postconditions?:string[];
+  risk:CapabilityRisk;
+  providers:string[];
+  status:CapabilityStatus;
+  validator?:string;
+  fallback?:string[];
 }
