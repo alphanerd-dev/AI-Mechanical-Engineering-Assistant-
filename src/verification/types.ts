@@ -14,6 +14,7 @@ export interface VerificationPlan{
   requiredMethods?:string[];
   acceptanceCriteria?:string[];
   dependencies?:string[];
+  dependencyRequirementIds?:string[];
 }
 export interface VerificationPlanResult extends EngineeringVerificationResult{
   planId:string;
@@ -21,4 +22,6 @@ export interface VerificationPlanResult extends EngineeringVerificationResult{
   requiredMethods:string[];
   acceptanceCriteria:string[];
   dependencies:string[];
+  dependencyRequirementIds:string[];
+  blockedDependencyIds:string[];
 }
