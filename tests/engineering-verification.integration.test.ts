@@ -6,7 +6,7 @@ import {bridgeSimulationEvidence} from "../src/simulation/evidence-bridge.js";
 import {evaluateEngineeringAcceptance} from "../src/simulation/engineering-acceptance.js";
 import {verifyRequirementWithEvidence} from "../src/requirements/verification.js";
 import {RequirementTraceability} from "../src/requirements/traceability.js";
-import {verifyEngineeringProject} from "../src/verification/engine.js";
+import {verifyEngineeringProject} from "../src/verification/project.js";
 
 describe("engineering verification integration",()=>{
   it("traces a requirement from CAD and FEA evidence into project verification",()=>{
