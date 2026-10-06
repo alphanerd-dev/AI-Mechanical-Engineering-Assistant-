@@ -1,62 +1,63 @@
 #!/usr/bin/env python3
-"""Controlled numerical worker: one JSON request in, one JSON response out."""
-import json
-import math
-import sys
+"""Allowlisted engineering computation worker. No arbitrary Python execution."""
+import json, math, sys
 
-def number(inputs, name, positive=False, nonnegative=False):
-    value = inputs.get(name)
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+try:
+    import pint
+    import sympy as sp
+except ImportError:
+    pint = None
+    sp = None
+
+UREG = pint.UnitRegistry() if pint else None
+
+def finite(x, name):
+    if isinstance(x, bool) or not isinstance(x, (int,float)) or not math.isfinite(x):
         raise ValueError(f"{name} must be a finite number")
-    if positive and value <= 0:
-        raise ValueError(f"{name} must be > 0")
-    if nonnegative and value < 0:
-        raise ValueError(f"{name} must be >= 0")
-    return float(value)
+    return float(x)
 
-def shaft_torque(inputs):
-    p = number(inputs, "powerKw", positive=True)
-    n = number(inputs, "speedRpm", positive=True)
-    t = 9550.0 * p / n
-    return {"powerKw": p, "speedRpm": n, "torqueNm": t,
-            "torque": {"value": t, "unit": "N*m"},
-            "equation": "T = 9550 P(kW) / n(rpm)", "status": "CALCULATED"}
+def units_convert(i):
+    if UREG is None: raise RuntimeError("Pint is not installed in the worker image")
+    q = finite(i["value"],"value") * UREG(i["fromUnit"])
+    out = q.to(i["toUnit"])
+    return {"value": float(out.magnitude), "unit": str(out.units), "status":"CALCULATED"}
 
-def shaft_size(inputs):
-    p = number(inputs, "powerKw", positive=True)
-    n = number(inputs, "speedRpm", positive=True)
-    tau = number(inputs, "allowableStressMpa", positive=True)
-    m = number(inputs, "bendingMomentNm", nonnegative=True)
-    kb = number(inputs, "kb", positive=True)
-    kt = number(inputs, "kt", positive=True)
-    t = 9550.0 * p / n
-    te = math.sqrt((kb * m) ** 2 + (kt * t) ** 2)
-    d_mm = (16.0 * te / (math.pi * tau)) ** (1.0 / 3.0) * 1000.0
-    return {"torqueNm": t, "equivalentTorqueNm": te, "diameterMm": d_mm,
-            "status": "PRELIMINARY",
-            "warning": "Preliminary sizing only; verify load cases, fatigue, stress concentrations, deflection, critical speed, keys/couplings, tolerances and standards."}
+def units_check(i):
+    if UREG is None: raise RuntimeError("Pint is not installed in the worker image")
+    qs=i.get("quantities")
+    if not isinstance(qs,list) or not qs: raise ValueError("quantities must be a non-empty list")
+    parsed=[finite(q["value"],"value")*UREG(q["unit"]) for q in qs]
+    compatible=all(q.dimensionality == parsed[0].dimensionality for q in parsed)
+    return {"compatible":compatible,"dimensions":[str(q.dimensionality) for q in parsed],"status":"CALCULATED"}
 
-OPERATIONS = {"ANALYSIS.SHAFT_TORQUE": shaft_torque, "ANALYSIS.SHAFT_SIZE": shaft_size}
+def symbolic_solve(i):
+    if sp is None: raise RuntimeError("SymPy is not installed in the worker image")
+    equation=i.get("equation"); variable=i.get("variable")
+    if not isinstance(equation,str) or not isinstance(variable,str): raise ValueError("equation and variable are required")
+    if not variable.replace("_","").isalnum() or not variable[0].isalpha(): raise ValueError("invalid variable")
+    if len(equation)>500: raise ValueError("equation exceeds safety limit")
+    allowed=set("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_+-*/().=^ ")
+    if any(c not in allowed for c in equation): raise ValueError("unsupported equation syntax")
+    x=sp.Symbol(variable)
+    left,right=equation.split("=",1)
+    expr=sp.sympify(left,locals={variable:x})-sp.sympify(right,locals={variable:x})
+    sols=sp.solve(expr,x)
+    if len(sols)>20: raise ValueError("too many solutions")
+    return {"variable":variable,"solutions":[str(s) for s in sols],"status":"CALCULATED"}
 
+OPS={
+ "UNITS.CONVERT":units_convert,
+ "UNITS.CHECK_DIMENSIONS":units_check,
+ "MATH.SYMBOLIC_SOLVE":symbolic_solve,
+}
 def main():
-    line = sys.stdin.readline()
-    if not line:
-        raise ValueError("No JSON request received")
-    request = json.loads(line)
-    capability = request.get("capability")
-    inputs = request.get("inputs")
-    if not isinstance(capability, str) or not isinstance(inputs, dict):
-        raise ValueError("Request requires string capability and object inputs")
-    operation = OPERATIONS.get(capability)
-    if operation is None:
-        raise ValueError(f"Unsupported capability: {capability}")
-    print(json.dumps({"success": True, "outputs": operation(inputs), "warnings": [], "artifactIds": []},
-                     separators=(",", ":")), flush=True)
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        print(json.dumps({"success": False, "outputs": {}, "warnings": [str(exc)], "artifactIds": []},
-                         separators=(",", ":")), flush=True)
+    req=json.loads(sys.stdin.readline())
+    cap=req.get("capability"); inputs=req.get("inputs",{})
+    if cap not in OPS: raise ValueError(f"Unsupported capability: {cap}")
+    out=OPS[cap](inputs)
+    print(json.dumps({"success":True,"outputs":out,"warnings":[],"artifactIds":[]},separators=(",",":")),flush=True)
+if __name__=="__main__":
+    try: main()
+    except Exception as e:
+        print(json.dumps({"success":False,"outputs":{},"warnings":[str(e)],"artifactIds":[]},separators=(",",":")),flush=True)
         sys.exit(1)
