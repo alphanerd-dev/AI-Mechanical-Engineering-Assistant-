@@ -20,3 +20,6 @@ The computation layer provides deterministic, auditable numerical operations beh
 - Wolfram: external independent calculation/verification provider.
 
 The current TypeScript unit provider is deliberately small and deterministic. It is a development boundary, not a replacement for Pint.
+## V1.4 execution hardening
+
+Execution requests now carry project/correlation context and completed jobs retain evidence identifiers. An in-memory job store provides the interface for a later persistent queue. Computation output passes through a validation gate before it can be treated as verified evidence. Production deployment must replace the in-memory store with durable infrastructure and isolate worker processes with explicit resource limits.
