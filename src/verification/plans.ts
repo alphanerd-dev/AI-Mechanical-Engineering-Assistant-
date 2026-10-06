@@ -1,5 +1,6 @@
 import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
 import {ProjectState} from "../core/types.js";
+import {RequirementTraceability} from "../requirements/traceability.js";
 import {EngineeringVerificationEngine} from "./engine.js";
 import {VerificationPlan,VerificationPlanResult} from "./types.js";
 
@@ -22,7 +23,8 @@ function dependencyIsSatisfied(
 export async function executeVerificationPlan(
   plan:VerificationPlan,
   evidence:EvidenceRecord[],
-  project?:ProjectState
+  project?:ProjectState,
+  traceability?:RequirementTraceability
 ):Promise<VerificationPlanResult>{
   const result=await new EngineeringVerificationEngine().verify({
     requirementId:plan.requirementId,
@@ -32,9 +34,15 @@ export async function executeVerificationPlan(
   });
 
   const dependencyRequirementIds=plan.dependencyRequirementIds??[];
-  const blockedDependencyIds=dependencyRequirementIds.filter(
-    dependencyId=>!dependencyIsSatisfied(dependencyId,project,evidence)
-  );
+  const blockedDependencyIds=dependencyRequirementIds.filter(dependencyId=>{
+    if(!dependencyIsSatisfied(dependencyId,project,evidence)) return true;
+    if(!traceability) return false;
+    return !traceability.tracesFor(plan.requirementId).some(trace=>
+      trace.fromId===dependencyId &&
+      trace.toId===plan.requirementId &&
+      trace.relation==="CONSTRAINS"
+    );
+  });
 
   const approvalRequired=plan.approvalRequired??false;
   const approvalGranted=plan.approvalGranted??false;
@@ -44,7 +52,7 @@ export async function executeVerificationPlan(
     :result.status;
 
   const reason=blockedDependencyIds.length>0
-    ?"Verification is blocked by unmet or project-unverified requirement dependencies: "+blockedDependencyIds.join(", ")+"."
+    ?"Verification is blocked by unmet, untraced, or project-unverified requirement dependencies: "+blockedDependencyIds.join(", ")+"."
     :blockedByApproval
       ?"Verification requires explicit human approval before it can PASS."
       :result.reason;
