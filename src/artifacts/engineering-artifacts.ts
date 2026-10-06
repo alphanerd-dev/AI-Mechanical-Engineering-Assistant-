@@ -21,7 +21,7 @@ export interface EngineeringArtifact {
 
 export interface EvidenceRecord {
   id:string;
-  type:"SOURCE"|"CALCULATION"|"MEASUREMENT"|"SIMULATION"|"GEOMETRY_CHECK"|"HUMAN_REVIEW";
+  type:"SOURCE"|"CALCULATION"|"MEASUREMENT"|"SIMULATION"|"GEOMETRY_CHECK"|"MANUFACTURING_CHECK"|"HUMAN_REVIEW";
   claim:string;
   source?:string;
   method?:string;
