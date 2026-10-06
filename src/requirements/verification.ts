@@ -17,6 +17,7 @@ export function verifyRequirementWithEvidence(
   const requirement=traceability.get(requirementId);
   if(!requirement) return {requirementId,evidenceId:evidence.id,verified:false,reason:"Requirement does not exist in the traceability model."};
   if(evidence.status!=="VERIFIED") return {requirementId,evidenceId:evidence.id,verified:false,reason:"Only VERIFIED evidence can verify a requirement."};
+  if(!evidence.requirementIds?.includes(requirementId)) return {requirementId,evidenceId:evidence.id,verified:false,reason:"Evidence is not explicitly attributed to this requirement."};
   if(!project.requirements.some(r=>r.id===requirementId)) return {requirementId,evidenceId:evidence.id,verified:false,reason:"Requirement is not attached to the project."};
   memory.saveEvidence(project.id,evidence);
   memory.linkEvidence(project.id,requirementId,evidence.id);
