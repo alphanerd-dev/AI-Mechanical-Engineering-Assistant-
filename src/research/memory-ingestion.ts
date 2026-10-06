@@ -20,9 +20,10 @@ export function ingestVerifiedResearch(
   }
 
   const validRequirementIds=requirementIds.filter(id=>project.requirements.some(r=>r.id===id));
-  memory.saveEvidence(project.id,evidence);
+  const linkedEvidence: EvidenceRecord = { ...evidence, requirementIds: [...new Set([...(evidence.requirementIds ?? []), ...validRequirementIds])] };
+  memory.saveEvidence(project.id,linkedEvidence);
   project.evidenceIds ??= [];
-  project.evidenceIds.push(evidence.id);
+  project.evidenceIds.push(linkedEvidence.id);
   for(const id of validRequirementIds){
     memory.linkEvidence(project.id,id,evidence.id);
   }
@@ -33,13 +34,13 @@ export function ingestVerifiedResearch(
     actor:"research-verification",
     action:"INGEST_VERIFIED_RESEARCH",
     input:{claim:evidence.claim,requirementIds:validRequirementIds},
-    output:{evidenceId:evidence.id,status:evidence.status},
-    evidence:[evidence.id]
+    output:{evidenceId:linkedEvidence.id,status:linkedEvidence.status},
+    evidence:[linkedEvidence.id]
   });
 
   return {
     ingested:true,
-    evidenceId:evidence.id,
+    evidenceId:linkedEvidence.id,
     requirementIds:validRequirementIds,
     reason:"Verified research evidence entered project memory."
   };
