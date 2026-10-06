@@ -2,6 +2,9 @@ export type InformationStatus="KNOWN"|"ASSUMED"|"ESTIMATED"|"CALCULATED"|"MEASUR
 export type RequirementPriority="MUST"|"SHOULD"|"COULD";
 export type CapabilityRisk="LOW"|"MEDIUM"|"HIGH"|"CRITICAL";
 export type CapabilityStatus="EXPERIMENTAL"|"PILOT"|"VERIFIED"|"BLOCKED"|"DEPRECATED";
+export type EngineeringDomain=
+  "cad"|"analysis"|"simulation"|"research"|"plm"|"manufacturing"|"validation"|
+  "computation"|"requirements"|"dynamics"|"robotics"|"ecad"|"vision"|"thermal"|"fluids"|"materials";
 
 export interface Requirement {
   id:string; name:string; value?:number|string; unit?:string; tolerance?:number|string;
@@ -36,7 +39,7 @@ export interface CapabilityResult {
 
 export interface CapabilityDefinition {
   id:string;
-  domain:"cad"|"analysis"|"simulation"|"research"|"plm"|"manufacturing"|"validation";
+  domain:EngineeringDomain;
   purpose:string;
   inputs:string[];
   outputs:string[];
