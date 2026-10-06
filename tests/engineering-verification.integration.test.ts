@@ -16,7 +16,7 @@ describe("engineering verification integration",()=>{
     traceability.addRequirement({id:"REQ-STRENGTH",name:"Strength",statement:"Bracket shall satisfy the strength requirement.",kind:"ENGINEERING",priority:"MUST",status:"OPEN"});
     const memory=new EngineeringMemory(); memory.save(project);
 
-    const cad=createCADArtifactBundle(project.id,{backend:"build123d",solidArtifactPath:"/artifacts/bracket.step"}, {valid:true,solidCount:1,warnings:[],checkedBy:"occt"},["REQ-STRENGTH"]);
+    const cad=createCADArtifactBundle(project.id,{success:true,backend:"build123d",solidArtifactPath:"/artifacts/bracket.step",warnings:[]}, {valid:true,solidCount:1,warnings:[],checkedBy:"occt"},["REQ-STRENGTH"]);
     memory.saveArtifact(cad.engineering);
     expect(cad.evidence.status).toBe("VERIFIED");
 

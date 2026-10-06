@@ -14,6 +14,7 @@ export interface CADArtifact {
   validationStatus:"UNVALIDATED"|"PASS"|"FAIL";
   informationStatus:InformationStatus;
   evidenceIds:string[];
+  requirementIds?:string[];
   createdAt:string;
 }
 
