@@ -17,51 +17,35 @@ export interface EngineeringAcceptance {
   meshConvergence?: MeshConvergenceCheck;
   blockingReasons: string[];
   warnings: string[];
+  missingEvidence: string[];
 }
 
 export function evaluateEngineeringAcceptance(input: EngineeringAcceptanceInput): EngineeringAcceptance {
   const blockingReasons: string[] = [];
   const warnings: string[] = [];
+  const missingEvidence: string[] = [];
 
   if (!input.validation.pass) blockingReasons.push("Simulation validation failed.");
 
-  const factorOfSafety = checkFactorOfSafety(
-    input.yieldStrengthMpa,
-    input.result.maxStressMpa,
-    input.minimumFactorOfSafety
-  );
-
+  const factorOfSafety = checkFactorOfSafety(input.yieldStrengthMpa, input.result.maxStressMpa, input.minimumFactorOfSafety);
   if (!factorOfSafety.pass) blockingReasons.push("Required factor of safety was not achieved.");
 
   let meshConvergence: MeshConvergenceCheck | undefined;
-  if (input.coarseResult && input.maximumRelativeStressChange !== undefined) {
+  const meshRequired = input.maximumRelativeStressChange !== undefined;
+
+  if (meshRequired && input.coarseResult) {
     meshConvergence = checkMeshConvergence({
       coarse: input.coarseResult,
       refined: input.result,
-      maximumRelativeStressChange: input.maximumRelativeStressChange
+      maximumRelativeStressChange: input.maximumRelativeStressChange!
     });
     if (!meshConvergence.pass) blockingReasons.push("Mesh convergence criterion was not achieved.");
+  } else if (meshRequired) {
+    missingEvidence.push("A coarse-mesh result is required to evaluate the configured mesh-convergence tolerance.");
   } else {
-    warnings.push("Mesh convergence evidence was not supplied; acceptance is incomplete for workflows requiring convergence evidence.");
+    warnings.push("Mesh convergence evidence was not requested.");
   }
 
-  const requiresMeshEvidence = input.maximumRelativeStressChange !== undefined;
-  if (requiresMeshEvidence && !meshConvergence) {
-    blockingReasons.push("A mesh-convergence tolerance was supplied without a coarse-mesh result.");
-  }
-
-  const status = blockingReasons.length > 0
-    ? "REJECTED"
-    : requiresMeshEvidence && !meshConvergence
-      ? "INCOMPLETE"
-      : "ACCEPTED";
-
-  return {
-    accepted: status === "ACCEPTED",
-    status,
-    factorOfSafety,
-    meshConvergence,
-    blockingReasons,
-    warnings
-  };
+  const status = blockingReasons.length > 0 ? "REJECTED" : missingEvidence.length > 0 ? "INCOMPLETE" : "ACCEPTED";
+  return { accepted: status === "ACCEPTED", status, factorOfSafety, meshConvergence, blockingReasons, warnings, missingEvidence };
 }
