@@ -193,6 +193,19 @@ Notes:
 - Revision protection prevents stale artifact metadata updates from silently overwriting newer state.
 - Durable object storage, content-addressed blobs, migrations, authorization, and cross-record referential-integrity enforcement remain later infrastructure work.
 
+## V1.17 — Provisioned build123d execution path
+- [x] Explicit CAD artifact manifest contract
+- [x] Artifact path confinement and existence checks
+- [x] Pinned build123d 0.13.0 reference runtime image
+- [x] Non-root CAD runtime container
+- [x] Runtime smoke test producing BREP/STEP/STL/3MF
+- [x] CI verification of the provisioned CAD runtime
+
+Notes:
+- V1.17 converts the build123d boundary from protocol-only infrastructure into a reproducible reference runtime that can emit inspectable CAD artifacts.
+- The generated program remains outside the Next.js process and the outer container is responsible for network/filesystem/resource isolation.
+- A successful worker run is still not an engineering verdict; geometry acceptance and independent validation remain separate gates.
+
 ## V2.0 — Bounded autonomous engineering workspace
 - [ ] Project memory persistence
 - [ ] Multi-agent specialist delegation
