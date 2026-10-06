@@ -1,0 +1,3 @@
+import {describe,it,expect} from "vitest";
+import {CrossValidationProvider} from "../src/providers/computation-cross-check.js";
+describe("cross validation",()=>{it("accepts agreeing results",async()=>{const r=await new CrossValidationProvider().execute({capability:"MATH.CROSS_VALIDATE",risk:"LOW",input:{calculations:[{value:10},{value:10.000001}],relativeTolerance:1e-5}});expect(r.success).toBe(true);expect((r.output as any).agreement).toBe(true);});it("rejects disagreement",async()=>{const r=await new CrossValidationProvider().execute({capability:"MATH.CROSS_VALIDATE",risk:"LOW",input:{calculations:[{value:10},{value:12}]}});expect(r.success).toBe(true);expect((r.output as any).agreement).toBe(false);});});
