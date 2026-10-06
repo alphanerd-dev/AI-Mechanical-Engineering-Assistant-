@@ -13,8 +13,14 @@ describe("research verification gate",()=>{
     expect(result.informationStatus).toBe("ASSUMED");
   });
 
-  it("promotes a finding only after an explicit verification method",()=>{
+  it("does not promote a finding from a method alone",()=>{
     const result=verifyResearchFinding({finding,method:"HUMAN_REVIEW",verifier:"engineer",notes:"Reviewed against the cited paper."});
+    expect(result.verified).toBe(false);
+    expect(result.evidence.status).toBe("ASSUMED");
+  });
+
+  it("promotes a finding when explicit supporting evidence is supplied",()=>{
+    const result=verifyResearchFinding({finding,method:"HUMAN_REVIEW",verifier:"engineer",supportingEvidence:["review:paper-123"]});
     expect(result.verified).toBe(true);
     expect(result.evidence.status).toBe("VERIFIED");
   });
