@@ -23,7 +23,7 @@ jobs:
       - name: Test build123d worker manifest
         run: python worker/cad/build123d/test_worker.py
       - name: Build pinned build123d runtime
-        run: docker build --tag ai-mechanical-engineering-assistant-build123d:0.13.0 worker/cad/build123d
+        run: docker build --tag ai-mechanical-engineering-assistant-build123d:0.13.0 --file worker/cad/build123d/Dockerfile worker/cad
       - name: Smoke test build123d runtime
         shell: bash
         run: |
