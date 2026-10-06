@@ -26,6 +26,9 @@
 - [x] Server-side Engineering Core API boundary
 - [x] CI workflow added
 - [ ] CI verification of the complete stack
+- [x] Execution job contract
+- [x] Unit-aware TypeScript execution boundary
+- [x] Server-side execution API boundary
 
 ## V1.4 — Engineering execution layer
 - [ ] Isolated Python worker
