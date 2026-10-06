@@ -1,6 +1,13 @@
 import {CapabilityDefinition} from "../core/types";
 
 export const ENGINEERING_CAPABILITIES:CapabilityDefinition[]=[
+  {id:"REQUIREMENT.CREATE",domain:"requirements",purpose:"Create a structured engineering requirement",inputs:["id","name","statement","priority"],outputs:["requirement"],risk:"LOW",providers:["engineering-core"],status:"PILOT"},
+  {id:"REQUIREMENT.TRACE",domain:"requirements",purpose:"Trace requirements across system and engineering levels",inputs:["fromId","toId","relation"],outputs:["trace"],risk:"LOW",providers:["engineering-core"],status:"PILOT"},
+  {id:"REQUIREMENT.VERIFY",domain:"requirements",purpose:"Record evidence that a requirement has been verified",inputs:["requirementId","method","evidenceIds"],outputs:["verification"],risk:"MEDIUM",providers:["engineering-core"],status:"EXPERIMENTAL"},
+  {id:"CONSTRAINT.EVALUATE",domain:"requirements",purpose:"Evaluate a bounded engineering constraint against explicit values",inputs:["constraint","values"],outputs:["satisfied","residual"],risk:"MEDIUM",providers:["engineering-core","computation.pint-sympy-scipy"],status:"PILOT"},
+  {id:"CONSTRAINT.SOLVE",domain:"requirements",purpose:"Solve a bounded engineering constraint system",inputs:["constraints","variables","bounds"],outputs:["solution"],risk:"MEDIUM",providers:["computation.pint-sympy-scipy"],status:"EXPERIMENTAL"},
+  {id:"SYSTEM.DEFINE",domain:"requirements",purpose:"Define an engineering system and its decomposition",inputs:["systemId","name"],outputs:["system_model"],risk:"LOW",providers:["engineering-core"],status:"PILOT"},
+  {id:"SYSTEM.ALLOCATE_REQUIREMENT",domain:"requirements",purpose:"Allocate an engineering requirement to a system element",inputs:["requirementId","elementId"],outputs:["allocation"],risk:"LOW",providers:["engineering-core"],status:"PILOT"},
   {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"Calculate transmitted shaft torque",inputs:["powerKw","speedRpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical-analysis"],status:"VERIFIED"},
   {id:"ANALYSIS.SHAFT_SIZE",domain:"analysis",purpose:"Preliminarily size a solid shaft",inputs:["powerKw","speedRpm","bendingMomentNm","allowableShearStressMpa"],outputs:["minimumDiameterMm"],risk:"MEDIUM",providers:["numerical-analysis"],status:"PILOT"},
   {id:"UNITS.CONVERT",domain:"computation",purpose:"Convert an engineering quantity between compatible units",inputs:["value","fromUnit","toUnit"],outputs:["value","unit"],risk:"LOW",providers:["computation.pint-sympy-scipy"],status:"PILOT"},
