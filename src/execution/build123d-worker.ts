@@ -1,4 +1,4 @@
-import {CADExecutionRequest,CADExecutionResult,CADWorkerExecutor} from '../../src/cad/execution.js';
+import {CADExecutionRequest,CADExecutionResult,CADWorkerExecutor} from '../cad/execution.js';
 
 export interface CADWorkerTransport {
   run(request:CADExecutionRequest):Promise<CADExecutionResult>;
