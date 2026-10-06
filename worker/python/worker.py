@@ -1,63 +1,46 @@
 #!/usr/bin/env python3
 """Allowlisted engineering computation worker. No arbitrary Python execution."""
 import json, math, sys
-
-try:
-    import pint
-    import sympy as sp
-except ImportError:
-    pint = None
-    sp = None
-
-UREG = pint.UnitRegistry() if pint else None
-
-def finite(x, name):
-    if isinstance(x, bool) or not isinstance(x, (int,float)) or not math.isfinite(x):
-        raise ValueError(f"{name} must be a finite number")
+import pint, sympy as sp, numpy as np
+from scipy import optimize
+ureg=pint.UnitRegistry()
+def finite(x,n):
+    if isinstance(x,bool) or not isinstance(x,(int,float)) or not math.isfinite(x): raise ValueError(f"{n} must be finite")
     return float(x)
-
 def units_convert(i):
-    if UREG is None: raise RuntimeError("Pint is not installed in the worker image")
-    q = finite(i["value"],"value") * UREG(i["fromUnit"])
-    out = q.to(i["toUnit"])
-    return {"value": float(out.magnitude), "unit": str(out.units), "status":"CALCULATED"}
-
+    q=finite(i["value"],"value")*ureg(i["fromUnit"]); o=q.to(i["toUnit"]); return {"value":float(o.magnitude),"unit":str(o.units),"status":"CALCULATED"}
 def units_check(i):
-    if UREG is None: raise RuntimeError("Pint is not installed in the worker image")
     qs=i.get("quantities")
-    if not isinstance(qs,list) or not qs: raise ValueError("quantities must be a non-empty list")
-    parsed=[finite(q["value"],"value")*UREG(q["unit"]) for q in qs]
-    compatible=all(q.dimensionality == parsed[0].dimensionality for q in parsed)
-    return {"compatible":compatible,"dimensions":[str(q.dimensionality) for q in parsed],"status":"CALCULATED"}
-
+    if not isinstance(qs,list) or not qs: raise ValueError("quantities must be non-empty")
+    p=[finite(q["value"],"value")*ureg(q["unit"]) for q in qs]
+    return {"compatible":all(q.dimensionality==p[0].dimensionality for q in p),"dimensions":[str(q.dimensionality) for q in p],"status":"CALCULATED"}
 def symbolic_solve(i):
-    if sp is None: raise RuntimeError("SymPy is not installed in the worker image")
-    equation=i.get("equation"); variable=i.get("variable")
-    if not isinstance(equation,str) or not isinstance(variable,str): raise ValueError("equation and variable are required")
-    if not variable.replace("_","").isalnum() or not variable[0].isalpha(): raise ValueError("invalid variable")
-    if len(equation)>500: raise ValueError("equation exceeds safety limit")
+    eq=i["equation"]; var=i["variable"]
+    if len(eq)>500 or len(var)>64: raise ValueError("symbolic input too large")
     allowed=set("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_+-*/().=^ ")
-    if any(c not in allowed for c in equation): raise ValueError("unsupported equation syntax")
-    x=sp.Symbol(variable)
-    left,right=equation.split("=",1)
-    expr=sp.sympify(left,locals={variable:x})-sp.sympify(right,locals={variable:x})
-    sols=sp.solve(expr,x)
+    if any(c not in allowed for c in eq): raise ValueError("unsupported equation syntax")
+    x=sp.Symbol(var); left,right=eq.split("=",1); sols=sp.solve(sp.sympify(left,locals={var:x})-sp.sympify(right,locals={var:x}),x)
     if len(sols)>20: raise ValueError("too many solutions")
-    return {"variable":variable,"solutions":[str(s) for s in sols],"status":"CALCULATED"}
-
-OPS={
- "UNITS.CONVERT":units_convert,
- "UNITS.CHECK_DIMENSIONS":units_check,
- "MATH.SYMBOLIC_SOLVE":symbolic_solve,
-}
+    return {"variable":var,"solutions":[str(s) for s in sols],"status":"CALCULATED"}
+def numerical_solve(i):
+    c=[finite(x,"coefficient") for x in i["polynomialCoefficients"]]; b=i.get("bounds",[-1e6,1e6])
+    if len(c)>20 or len(b)!=2: raise ValueError("bounded polynomial input required")
+    lo,hi=finite(b[0],"lower"),finite(b[1],"upper"); f=lambda x:float(np.polyval(c,x))
+    s=optimize.root_scalar(f,bracket=[lo,hi])
+    if not s.converged: raise ValueError("root solver did not converge")
+    return {"solution":float(s.root),"residual":abs(f(s.root)),"status":"CALCULATED","method":"scipy.root_scalar"}
+def optimize_quadratic(i):
+    c=[finite(x,"coefficient") for x in i["objectiveQuadraticCoefficients"]]; b=i["bounds"]
+    if len(c)!=3 or len(b)!=2: raise ValueError("quadratic objective and bounds required")
+    lo,hi=finite(b[0],"lower"),finite(b[1],"upper")
+    if lo>=hi: raise ValueError("invalid bounds")
+    f=lambda x:c[0]*x*x+c[1]*x+c[2]; s=optimize.minimize_scalar(f,bounds=(lo,hi),method="bounded")
+    return {"solution":float(s.x),"objectiveValue":float(s.fun),"status":"CALCULATED","method":"scipy.minimize_scalar"}
+OPS={"UNITS.CONVERT":units_convert,"UNITS.CHECK_DIMENSIONS":units_check,"MATH.SYMBOLIC_SOLVE":symbolic_solve,"MATH.NUMERICAL_SOLVE":numerical_solve,"MATH.OPTIMIZE":optimize_quadratic}
 def main():
-    req=json.loads(sys.stdin.readline())
-    cap=req.get("capability"); inputs=req.get("inputs",{})
-    if cap not in OPS: raise ValueError(f"Unsupported capability: {cap}")
-    out=OPS[cap](inputs)
-    print(json.dumps({"success":True,"outputs":out,"warnings":[],"artifactIds":[]},separators=(",",":")),flush=True)
+    r=json.loads(sys.stdin.readline()); cap=r.get("capability")
+    if cap not in OPS: raise ValueError("Unsupported capability: "+str(cap))
+    print(json.dumps({"success":True,"outputs":OPS[cap](r.get("inputs",{})),"warnings":[],"artifactIds":[]},separators=(",",":")),flush=True)
 if __name__=="__main__":
     try: main()
-    except Exception as e:
-        print(json.dumps({"success":False,"outputs":{},"warnings":[str(e)],"artifactIds":[]},separators=(",",":")),flush=True)
-        sys.exit(1)
+    except Exception as e: print(json.dumps({"success":False,"outputs":{},"warnings":[str(e)],"artifactIds":[]},separators=(",",":"))); sys.exit(1)
