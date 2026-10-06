@@ -52,7 +52,7 @@ describe("V1.24 OpenModelica system simulation",()=>{
 describe("V1.24 parameter sweep",()=>{
   it("enumerates a bounded grid deterministically",()=>{
     const enumeration=enumerateParameterSweep({
-      baseInput,
+      baseInput:{...baseInput,parameters:{}},
       variables:[{name:"gain",lower:1,upper:2,step:0.5,unit:"1"}]
     });
     expect(enumeration.status).toBe("OK");
@@ -73,7 +73,7 @@ describe("V1.24 parameter sweep",()=>{
 
   it("selects the best explicit objective",async()=>{
     const provider=new OpenModelicaProvider({
-      simulate:async input=>result(input.parameters.gain),
+      simulate:async input=>result(input.parameters.sweepGain),
       coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[]})
     });
     const response=await provider.execute({
@@ -81,12 +81,12 @@ describe("V1.24 parameter sweep",()=>{
       risk:"HIGH",
       input:{
         baseInput,
-        variables:[{name:"gain",lower:1,upper:3,step:1,unit:"1"}],
+        variables:[{name:"sweepGain",lower:1,upper:3,step:1,unit:"1"}],
         objective:{metric:"output",direction:"MINIMIZE"}
       }
     });
     expect(response.success).toBe(true);
-    expect((response.output as any).bestParameters.gain).toBe(1);
+    expect((response.output as any).bestParameters.sweepGain).toBe(1);
   });
 });
 
@@ -136,7 +136,7 @@ describe("V1.24 routed capabilities",()=>{
     registry.registerCatalog(ENGINEERING_CAPABILITIES);
     registry.registerCatalog(V1_24_CAPABILITIES);
     const provider=new OpenModelicaProvider({
-      simulate:async input=>result(input.parameters.gain),
+      simulate:async input=>result(input.parameters.sweepGain??input.parameters.gain),
       coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[]})
     });
     registry.register(provider);
@@ -145,7 +145,7 @@ describe("V1.24 routed capabilities",()=>{
     expect((await router.execute({capability:"SIMULATION.SYSTEM",risk:"HIGH",input:baseInput})).success).toBe(true);
 
     expect((await router.execute({capability:"SIMULATION.PARAMETER_SWEEP",risk:"HIGH",input:{
-      baseInput,variables:[{name:"gain",lower:1,upper:2,step:1,unit:"1"}]
+      baseInput,variables:[{name:"sweepGain",lower:1,upper:2,step:1,unit:"1"}]
     }})).success).toBe(true);
 
     expect((await router.execute({capability:"SIMULATION.SENSITIVITY",risk:"HIGH",input:{
