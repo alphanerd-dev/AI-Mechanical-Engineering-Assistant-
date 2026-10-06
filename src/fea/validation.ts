@@ -81,12 +81,14 @@ export function validateFEAExecution(
   if(!meshOk) blockingReasons.push("Mesh cardinality is invalid.");
 
   const requiresStress=requestedOutputs.includes("STRESS");
-  const stressOk=!requiresStress||Number.isFinite(result.maxVonMisesStressMpa)&&result.maxVonMisesStressMpa>=0;
+  const stressValue=result.maxVonMisesStressMpa;
+  const stressOk=!requiresStress||(typeof stressValue==="number"&&Number.isFinite(stressValue)&&stressValue>=0);
   checks.push({name:"finite_stress",pass:stressOk,message:stressOk?"Requested stress output is finite.":"Requested stress output is missing or invalid."});
   if(requiresStress&&!stressOk) blockingReasons.push("Requested stress output is missing or invalid.");
 
   const requiresDisplacement=requestedOutputs.includes("DISPLACEMENT");
-  const displacementOk=!requiresDisplacement||Number.isFinite(result.maxDisplacementMm)&&result.maxDisplacementMm>=0;
+  const displacementValue=result.maxDisplacementMm;
+  const displacementOk=!requiresDisplacement||(typeof displacementValue==="number"&&Number.isFinite(displacementValue)&&displacementValue>=0);
   checks.push({name:"finite_displacement",pass:displacementOk,message:displacementOk?"Requested displacement output is finite.":"Requested displacement output is missing or invalid."});
   if(requiresDisplacement&&!displacementOk) blockingReasons.push("Requested displacement output is missing or invalid.");
 

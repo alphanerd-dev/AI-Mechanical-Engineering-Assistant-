@@ -65,7 +65,7 @@ export interface FEAStaticStructuralRequest{
   material:FEAMaterialSpec;
   loads:FEALoadCase[];
   boundaryConditions:FEABoundaryCondition[];
-  requestedOutputs:FEARequestedOutput[];
+  requestedOutputs:readonly FEARequestedOutput[];
   timeoutMs:number;
 }
 
