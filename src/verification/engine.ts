@@ -1,17 +1,24 @@
-import {EngineeringVerificationReport,VerificationContext} from "./types.js";
-
-export function verifyEngineeringProject(context:VerificationContext):EngineeringVerificationReport{
-  const evidenceById=new Map(context.evidence.map(e=>[e.id,e]));
-  const requirements=context.project.requirements.map(requirement=>{
-    const linkedIds=(context.requirementEvidence?.[requirement.id]??[]).filter(id=>evidenceById.get(id)?.status==="VERIFIED");
-    if(requirement.status==="SATISFIED" && linkedIds.length>0)
-      return {requirementId:requirement.id,status:"PASS" as const,evidenceIds:linkedIds,reason:"Requirement is satisfied by explicitly linked verified evidence."};
-    if(requirement.status==="BLOCKED")
-      return {requirementId:requirement.id,status:"FAIL" as const,evidenceIds:linkedIds,reason:"Requirement is explicitly blocked."};
-    return {requirementId:requirement.id,status:"INCOMPLETE" as const,evidenceIds:linkedIds,reason:"No explicitly linked verified evidence establishes requirement satisfaction."};
-  });
-  const blockingReasons=requirements.filter(r=>r.status==="FAIL").map(r=>r.requirementId+": "+r.reason);
-  const warnings=requirements.filter(r=>r.status==="INCOMPLETE").map(r=>r.requirementId+": "+r.reason);
-  const status=blockingReasons.length?"FAIL":warnings.length?"INCOMPLETE":"PASS";
-  return {projectId:context.project.id,status,requirements,verifiedEvidence:context.evidence.filter(e=>e.status==="VERIFIED"),artifacts:context.artifacts,blockingReasons,warnings};
+import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
+import {EngineeringVerificationRequest,EngineeringVerificationResult,VerificationEvidenceType} from "./types.js";
+function evidenceMatchesType(evidence:EvidenceRecord,type:VerificationEvidenceType):boolean{
+  if(type==="CAD") return evidence.type==="GEOMETRY_CHECK";
+  if(type==="FEA") return evidence.type==="SIMULATION";
+  if(type==="CALCULATION") return evidence.type==="CALCULATION";
+  if(type==="RESEARCH") return evidence.type==="SOURCE";
+  if(type==="MEASUREMENT") return evidence.type==="MEASUREMENT";
+  if(type==="MANUFACTURING") return evidence.type==="HUMAN_REVIEW";
+  return true;
+}
+export class EngineeringVerificationEngine{
+  async verify(request:EngineeringVerificationRequest):Promise<EngineeringVerificationResult>{
+    if(!request.requirementId.trim()) return {requirementId:request.requirementId,status:"FAIL",evidenceIds:[],verifiedEvidenceIds:[],satisfiedGates:[],unmetGates:[],reason:"Requirement ID is required."};
+    const relevant=request.evidence.filter(e=>e.requirementIds?.includes(request.requirementId));
+    const verified=relevant.filter(e=>e.status==="VERIFIED");
+    const minimum=request.minimumEvidence??1;
+    const gates=request.gates??[];
+    const satisfiedGates=gates.filter(g=>verified.filter(e=>evidenceMatchesType(e,g.type)).length>=g.minimum);
+    const unmetGates=gates.filter(g=>!satisfiedGates.includes(g));
+    if(verified.length>=minimum&&unmetGates.length===0) return {requirementId:request.requirementId,status:"PASS",evidenceIds:relevant.map(e=>e.id),verifiedEvidenceIds:verified.map(e=>e.id),satisfiedGates,unmetGates,reason:"Requirement has sufficient explicitly attributed VERIFIED evidence and all verification gates are satisfied."};
+    return {requirementId:request.requirementId,status:"INCOMPLETE",evidenceIds:relevant.map(e=>e.id),verifiedEvidenceIds:verified.map(e=>e.id),satisfiedGates,unmetGates,reason:relevant.length===0?"No evidence is explicitly attributed to this requirement.":unmetGates.length>0?"Evidence exists, but one or more required verification gates are incomplete.":"Evidence exists, but the requirement does not yet have sufficient VERIFIED evidence."};
+  }
 }
