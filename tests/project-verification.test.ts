@@ -3,6 +3,7 @@ import {EngineeringMemory} from "../src/memory/memory-store.js";
 import {createProject} from "../src/state/project.js";
 import {RequirementTraceability} from "../src/requirements/traceability.js";
 import {verifyProjectRequirements} from "../src/requirements/project-verification.js";
+import {EvidenceRecord} from "../src/artifacts/engineering-artifacts.js";
 
 function setup(){
   const project=createProject("Verification project");
@@ -96,8 +97,8 @@ describe("multi-domain verification gates",()=>{
   it("requires every requested evidence domain",async()=>{
     const {EngineeringVerificationEngine}=await import("../src/requirements/project-verification.js");
     const engine=new EngineeringVerificationEngine();
-    const evidence=[
-      {id:"cad",type:"GEOMETRY_CHECK" as const,claim:"CAD passed",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:new Date().toISOString()},
+    const evidence: EvidenceRecord[] = [
+      {id:"cad",type:"GEOMETRY_CHECK",claim:"CAD passed",status:"VERIFIED",requirementIds:["REQ-1"],timestamp:new Date().toISOString()},
       {id:"fea",type:"SIMULATION" as const,claim:"FEA passed",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:new Date().toISOString()}
     ];
     let result=await engine.verify({requirementId:"REQ-1",evidence,gates:[
