@@ -152,16 +152,34 @@ describe("verification plans",()=>{
       minimumTotalEvidence:3,approvalRequired:true,
       requiredMethods:["CAD geometry validation","FEA acceptance","engineering calculation"],
       acceptanceCriteria:["All required evidence gates pass","Minimum evidence count is satisfied"],
-      dependencies:["Validated CAD artifact","Accepted FEA result"]
+      dependencies:["Validated CAD artifact","Accepted FEA result"],
+      approvalGranted:true
     },evidence);
     expect(result.status).toBe("PASS");
     expect(result.planId).toBe("VP-1");
     expect(result.approvalRequired).toBe(true);
+    expect(result.status).toBe("INCOMPLETE");
     expect(result.requiredMethods).toEqual(["CAD geometry validation","FEA acceptance","engineering calculation"]);
     expect(result.acceptanceCriteria).toHaveLength(2);
     expect(result.dependencies).toHaveLength(2);
     expect(result.dependencyRequirementIds).toEqual([]);
     expect(result.blockedDependencyIds).toEqual([]);
+  });
+
+  it("requires explicit approval when a plan declares approvalRequired",async()=>{
+    const {executeVerificationPlan}=await import("../src/requirements/project-verification.js");
+    const now=new Date().toISOString();
+    const evidence=[{id:"calc",type:"CALCULATION" as const,claim:"Calculation passed",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:now}];
+    const blocked=await executeVerificationPlan({
+      id:"VP-APPROVAL",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],approvalRequired:true
+    },evidence);
+    expect(blocked.status).toBe("INCOMPLETE");
+    expect(blocked.reason).toContain("human approval");
+
+    const approved=await executeVerificationPlan({
+      id:"VP-APPROVAL",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],approvalRequired:true,approvalGranted:true
+    },evidence);
+    expect(approved.status).toBe("PASS");
   });
 
   it("blocks a plan when a declared requirement dependency is not verified",async()=>{
