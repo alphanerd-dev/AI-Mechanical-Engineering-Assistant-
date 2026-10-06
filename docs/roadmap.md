@@ -68,6 +68,8 @@
 - [x] CAD geometry acceptance gate
 - [x] CAD worker provider + capability routing
 - [x] build123d worker protocol + transport adapter
+- [x] CAD artifact manifest normalization
+- [x] bounded CAD execution/validation correction loop
 - [ ] provisioned build123d runtime image
 - [ ] CadQuery runtime
 - [ ] OCCT/FreeCAD geometry validation runtime
