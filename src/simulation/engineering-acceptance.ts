@@ -1,0 +1,67 @@
+import { FEAResult, SimulationValidation } from "./types.js";
+import { FactorOfSafetyCheck, MeshConvergenceCheck, checkFactorOfSafety, checkMeshConvergence } from "./acceptance.js";
+
+export interface EngineeringAcceptanceInput {
+  result: FEAResult;
+  validation: SimulationValidation;
+  yieldStrengthMpa: number;
+  minimumFactorOfSafety: number;
+  coarseResult?: FEAResult;
+  maximumRelativeStressChange?: number;
+}
+
+export interface EngineeringAcceptance {
+  accepted: boolean;
+  status: "ACCEPTED" | "REJECTED" | "INCOMPLETE";
+  factorOfSafety: FactorOfSafetyCheck;
+  meshConvergence?: MeshConvergenceCheck;
+  blockingReasons: string[];
+  warnings: string[];
+}
+
+export function evaluateEngineeringAcceptance(input: EngineeringAcceptanceInput): EngineeringAcceptance {
+  const blockingReasons: string[] = [];
+  const warnings: string[] = [];
+
+  if (!input.validation.pass) blockingReasons.push("Simulation validation failed.");
+
+  const factorOfSafety = checkFactorOfSafety(
+    input.yieldStrengthMpa,
+    input.result.maxStressMpa,
+    input.minimumFactorOfSafety
+  );
+
+  if (!factorOfSafety.pass) blockingReasons.push("Required factor of safety was not achieved.");
+
+  let meshConvergence: MeshConvergenceCheck | undefined;
+  if (input.coarseResult && input.maximumRelativeStressChange !== undefined) {
+    meshConvergence = checkMeshConvergence({
+      coarse: input.coarseResult,
+      refined: input.result,
+      maximumRelativeStressChange: input.maximumRelativeStressChange
+    });
+    if (!meshConvergence.pass) blockingReasons.push("Mesh convergence criterion was not achieved.");
+  } else {
+    warnings.push("Mesh convergence evidence was not supplied; acceptance is incomplete for workflows requiring convergence evidence.");
+  }
+
+  const requiresMeshEvidence = input.maximumRelativeStressChange !== undefined;
+  if (requiresMeshEvidence && !meshConvergence) {
+    blockingReasons.push("A mesh-convergence tolerance was supplied without a coarse-mesh result.");
+  }
+
+  const status = blockingReasons.length > 0
+    ? "REJECTED"
+    : requiresMeshEvidence && !meshConvergence
+      ? "INCOMPLETE"
+      : "ACCEPTED";
+
+  return {
+    accepted: status === "ACCEPTED",
+    status,
+    factorOfSafety,
+    meshConvergence,
+    blockingReasons,
+    warnings
+  };
+}
