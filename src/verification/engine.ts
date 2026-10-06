@@ -1,5 +1,7 @@
-import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
-import {EngineeringVerificationRequest,EngineeringVerificationResult,VerificationEvidenceType} from "./types.js";
+import {EvidenceRecord,EngineeringArtifact} from "../artifacts/engineering-artifacts.js";
+import {ProjectState} from "../core/types.js";
+import {EngineeringVerificationRequest,EngineeringVerificationResult,ProjectVerificationStatus,VerificationEvidenceType} from "./types.js";
+
 function evidenceMatchesType(evidence:EvidenceRecord,type:VerificationEvidenceType):boolean{
   if(type==="CAD") return evidence.type==="GEOMETRY_CHECK";
   if(type==="FEA") return evidence.type==="SIMULATION";
@@ -9,6 +11,7 @@ function evidenceMatchesType(evidence:EvidenceRecord,type:VerificationEvidenceTy
   if(type==="MANUFACTURING") return evidence.type==="HUMAN_REVIEW";
   return true;
 }
+
 export class EngineeringVerificationEngine{
   async verify(request:EngineeringVerificationRequest):Promise<EngineeringVerificationResult>{
     if(!request.requirementId.trim()) return {requirementId:request.requirementId,status:"FAIL",evidenceIds:[],verifiedEvidenceIds:[],satisfiedGates:[],unmetGates:[],reason:"Requirement ID is required."};
@@ -22,11 +25,6 @@ export class EngineeringVerificationEngine{
     return {requirementId:request.requirementId,status:"INCOMPLETE",evidenceIds:relevant.map(e=>e.id),verifiedEvidenceIds:verified.map(e=>e.id),satisfiedGates,unmetGates,reason:relevant.length===0?"No evidence is explicitly attributed to this requirement.":unmetGates.length>0?"Evidence exists, but one or more required verification gates are incomplete.":"Evidence exists, but the requirement does not yet have sufficient VERIFIED evidence."};
   }
 }
-
-
-import {EvidenceRecord,EngineeringArtifact} from "../artifacts/engineering-artifacts.js";
-import {ProjectState} from "../core/types.js";
-import {ProjectVerificationStatus} from "./types.js";
 
 export interface EngineeringProjectVerificationRequest{
   project:ProjectState;
@@ -68,14 +66,3 @@ export function verifyEngineeringProject(
     ?"FAIL":requirements.some(r=>r.status==="INCOMPLETE")?"INCOMPLETE":"PASS";
   return {projectId:request.project.id,status,requirements};
 }
-
-export {EngineeringVerificationEngine} from "./engine.js";
-export {executeVerificationPlan} from "./plans.js";
-export type {
-  VerificationEvidenceType,
-  VerificationEvidenceGate,
-  EngineeringVerificationRequest,
-  EngineeringVerificationResult,
-  VerificationPlan,
-  VerificationPlanResult
-} from "./types.js";
