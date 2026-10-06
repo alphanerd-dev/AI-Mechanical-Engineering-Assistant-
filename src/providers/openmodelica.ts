@@ -1,6 +1,6 @@
 import {CapabilityRequest,CapabilityResult} from "../core/types.js";
 import {EngineeringProvider,ProviderDescriptor} from "./contracts.js";
-import {CoSimulationRequest,SystemParameterSweepRequest,SystemSimulationInput,SystemSimulationResult,SystemSensitivityRequest,CoSimulationResult,SystemParameterSweepResult} from "../system-simulation/types.js";
+import {CoSimulationRequest,SystemParameterSweepRequest,SystemSimulationInput,SystemSimulationResult,SystemSensitivityRequest,SystemSensitivityResult,CoSimulationResult,SystemParameterSweepResult} from "../system-simulation/types.js";
 import {validateParameterSweepRequest,validateSystemSimulationInput,validateSensitivityRequest,validateCoSimulationRequest} from "../system-simulation/validation.js";
 import {enumerateParameterSweep} from "../system-simulation/sweep.js";
 import {calculateCentralSensitivity} from "../system-simulation/sensitivity.js";
