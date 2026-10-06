@@ -20,3 +20,6 @@ def test_scipy_root():
 def test_scipy_optimize():
     r=run("MATH.OPTIMIZE",{"objectiveQuadraticCoefficients":[1,-4,7],"bounds":[0,5]})
     assert r["success"] and abs(r["outputs"]["solution"]-2)<1e-5
+
+if __name__ == "__main__":
+    test_pint_conversion(); test_pint_dimensions(); test_sympy(); test_scipy_root(); test_scipy_optimize(); print("worker tests passed")
