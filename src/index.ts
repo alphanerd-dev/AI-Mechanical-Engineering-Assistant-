@@ -18,6 +18,7 @@ import {EngineeringOrchestratorProvider} from "./providers/orchestrator.js";
 import {EngineeringAgent} from "./core/agent.js";
 
 export * from "./state/persistence.js";
+export * from "./artifacts/persistence.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
