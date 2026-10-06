@@ -7,7 +7,8 @@ export function createSimulationArtifacts(
   result: FEAResult,
   validation: SimulationValidation,
   solver: string,
-  solverVersion: string
+  solverVersion: string,
+  requirementIds: string[] = []
 ): { modelArtifact: EngineeringArtifact; resultArtifact: EngineeringArtifact; evidence: EvidenceRecord } {
   const now = new Date().toISOString();
   const pass = validation.pass;
@@ -21,6 +22,7 @@ export function createSimulationArtifacts(
     validationStatus: pass ? "PASS" : "FAIL",
     informationStatus: "CALCULATED",
     evidenceIds: [],
+    requirementIds: [...requirementIds],
     createdAt: now
   };
   const resultArtifact: EngineeringArtifact = {
@@ -42,6 +44,7 @@ export function createSimulationArtifacts(
     method: "solver + validation gates",
     value: { solver, solverVersion, validation },
     status: pass ? "VERIFIED" : "CALCULATED",
+    requirementIds: [...requirementIds],
     artifactIds: [modelArtifact.id, resultArtifact.id],
     timestamp: now
   };
