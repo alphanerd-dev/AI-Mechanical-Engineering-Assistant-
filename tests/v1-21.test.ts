@@ -84,6 +84,12 @@ describe("V1.21 BOM and release",()=>{
     expect(result.bom?.items[0].partNumber).toBe("PN-1");
     expect(result.bom?.items.find(x=>x.partNumber==="PN-2")?.quantity).toBe(5);
   });
+  it("blocks release when a BOM item is missing an artifact link",()=>{
+    const bom=generateManufacturingBOM("BOM-1","P-1","A",[{partNumber:"PN-1",name:"Plate",revision:"A",quantity:1,unit:"EA"}]).bom!;
+    const result=prepareManufacturingRelease({releaseId:"REL-1",processPlan:plan,bom,requiredArtifactIds:["part.step"]});
+    expect(result.status).toBe("BLOCKED");
+    expect(result.checks.bom).toBe(false);
+  });
   it("keeps a structurally ready release unreleased without human approval",()=>{
     const bom=generateManufacturingBOM("BOM-1","P-1","A",[{partNumber:"PN-1",name:"Plate",revision:"A",quantity:1,unit:"EA",artifactId:"b.step"}]).bom!;
     const result=prepareManufacturingRelease({releaseId:"REL-1",processPlan:plan,bom,requiredArtifactIds:["part.step"]});

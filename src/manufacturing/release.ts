@@ -38,6 +38,9 @@ export function prepareManufacturingRelease(request:ManufacturingReleaseRequest)
   if(plan.status!=="PASS")blockingReasons.push("Manufacturing process plan is not valid for release.");
   if(bom.status!=="PASS")blockingReasons.push("BOM is not structurally valid for release.");
 
+  const bomArtifactsLinked=request.bom.items.length>0&&request.bom.items.every(item=>Boolean(item.artifactId?.trim()));
+  if(!bomArtifactsLinked)blockingReasons.push("Every BOM item must have an explicit linked artifact before release.");
+
   const required=[...new Set(request.requiredArtifactIds.filter(Boolean))];
   const artifactsReady=request.requiredArtifactIds.length>0&&required.length===request.requiredArtifactIds.length;
   if(!artifactsReady)blockingReasons.push("At least one required artifact id is missing.");
@@ -50,7 +53,7 @@ export function prepareManufacturingRelease(request:ManufacturingReleaseRequest)
 
   const checks={
     processPlan:plan.status==="PASS",
-    bom:bom.status==="PASS",
+    bom:bom.status==="PASS"&&bomArtifactsLinked,
     artifacts:artifactsReady,
     approval:approvalReady
   };
