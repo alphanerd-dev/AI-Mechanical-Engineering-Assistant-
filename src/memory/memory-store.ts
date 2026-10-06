@@ -33,4 +33,12 @@ export class EngineeringMemory {
   evidenceForRequirement(projectId:string,requirementId:string){
     return (this.requirementEvidence.get(projectId+":"+requirementId)??[]).map(id=>this.evidence.get(id)).filter(Boolean) as EvidenceRecord[];
   }
+  requirementEvidenceMap(projectId:string){
+    const map:Record<string,string[]>={};
+    for(const [key,ids] of this.requirementEvidence.entries()){
+      const prefix=projectId+":";
+      if(key.startsWith(prefix)) map[key.slice(prefix.length)]=[...ids];
+    }
+    return map;
+  }
 }
