@@ -19,7 +19,7 @@ export class EngineeringVerificationProvider implements CapabilityProvider{
       return {capability:request.capability,provider:this.id,success:false,error:"Evidence and artifacts arrays are required."};
     }
 
-    const report=verifyEngineeringProject({
+    const report=await verifyEngineeringProject({
       project:project as ProjectState,
       evidence:evidence as EvidenceRecord[],
       artifacts:artifacts as EngineeringArtifact[],
