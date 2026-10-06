@@ -90,3 +90,27 @@ describe("EngineeringVerificationEngine",()=>{
     expect((await engine.verify({requirementId:"REQ-1",evidence:evidence.slice(0,1),minimumEvidence:2})).status).toBe("INCOMPLETE");
   });
 });
+
+
+describe("multi-domain verification gates",()=>{
+  it("requires every requested evidence domain",async()=>{
+    const {EngineeringVerificationEngine}=await import("../src/requirements/project-verification.js");
+    const engine=new EngineeringVerificationEngine();
+    const evidence=[
+      {id:"cad",type:"GEOMETRY_CHECK" as const,claim:"CAD passed",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:new Date().toISOString()},
+      {id:"fea",type:"SIMULATION" as const,claim:"FEA passed",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:new Date().toISOString()}
+    ];
+    let result=await engine.verify({requirementId:"REQ-1",evidence,gates:[
+      {type:"CAD",minimum:1},{type:"FEA",minimum:1},{type:"CALCULATION",minimum:1}
+    ]});
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.unmetGates).toHaveLength(1);
+
+    evidence.push({id:"calc",type:"CALCULATION",claim:"Calculation passed",status:"VERIFIED",requirementIds:["REQ-1"],timestamp:new Date().toISOString()});
+    result=await engine.verify({requirementId:"REQ-1",evidence,gates:[
+      {type:"CAD",minimum:1},{type:"FEA",minimum:1},{type:"CALCULATION",minimum:1}
+    ]});
+    expect(result.status).toBe("PASS");
+    expect(result.unmetGates).toHaveLength(0);
+  });
+});
