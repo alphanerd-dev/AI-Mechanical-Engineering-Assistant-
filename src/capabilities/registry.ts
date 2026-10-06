@@ -1,4 +1,4 @@
-import {CapabilityDefinition,CapabilityRequest,CapabilityResult} from "../core/types.js";
+import {CapabilityDefinition,CapabilityRequest,CapabilityResult} from "../core/types";
 
 export interface CapabilityProvider {
   id:string;

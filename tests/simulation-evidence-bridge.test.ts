@@ -5,18 +5,18 @@ import {bridgeSimulationEvidence} from "../src/simulation/evidence-bridge.js";
 import {evaluateEngineeringAcceptance} from "../src/simulation/engineering-acceptance.js";
 
 const validation={pass:true,checks:[
-  {name:"solver_converged",pass:true},{name:"stress_finite",pass:true},
-  {name:"stress_below_yield",pass:true},{name:"displacement_finite",pass:true}
+  {name:"solver_converged",pass:true,message:"Solver converged."},{name:"stress_finite",pass:true,message:"Stress is finite."},
+  {name:"stress_below_yield",pass:true,message:"Stress is below yield."},{name:"displacement_finite",pass:true,message:"Displacement is finite."}
 ]};
 
 describe("simulation evidence bridge",()=>{
   it("stores accepted simulation evidence and updates project traceability",()=>{
     const project=createProject("Bracket validation");
     const memory=new EngineeringMemory(); memory.save(project);
-    const result={converged:true,maxStressMpa:100,maxDisplacementMm:1};
+    const result={converged:true,maxStressMpa:100,maxDisplacementMm:1,warnings:[]};
     const acceptance=evaluateEngineeringAcceptance({
       result,validation,yieldStrengthMpa:300,minimumFactorOfSafety:2,
-      coarseResult:{converged:true,maxStressMpa:105,maxDisplacementMm:1.1},
+      coarseResult:{converged:true,maxStressMpa:105,maxDisplacementMm:1.1,warnings:[]},
       maximumRelativeStressChange:0.1
     });
     const bridged=bridgeSimulationEvidence({

@@ -1,5 +1,5 @@
-import {ResearchFinding} from "./types.js";
-import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
+import {ResearchFinding} from "./types";
+import {EvidenceRecord} from "../artifacts/engineering-artifacts";
 
 export type VerificationMethod =
   | "SOURCE_INSPECTION"

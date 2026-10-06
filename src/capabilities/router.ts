@@ -1,5 +1,5 @@
-import {CapabilityRequest,CapabilityResult} from "../core/types.js";
-import {CapabilityRegistry} from "./registry.js";
+import {CapabilityRequest,CapabilityResult} from "../core/types";
+import {CapabilityRegistry} from "./registry";
 
 export class CapabilityRouter {
   constructor(private registry:CapabilityRegistry){}
