@@ -12,7 +12,7 @@ function evidenceMatchesType(evidence:EvidenceRecord,type:VerificationEvidenceTy
 }
 
 export class EngineeringVerificationEngine{
-  async verify(request:EngineeringVerificationRequest):Promise<EngineeringVerificationResult>{
+  verify(request:EngineeringVerificationRequest):EngineeringVerificationResult{
     if(!request.requirementId.trim()) return {requirementId:request.requirementId,status:"FAIL",evidenceIds:[],verifiedEvidenceIds:[],satisfiedGates:[],unmetGates:[],reason:"Requirement ID is required."};
     const relevant=request.evidence.filter(e=>e.requirementIds?.includes(request.requirementId));
     const verified=relevant.filter(e=>e.status==="VERIFIED");
