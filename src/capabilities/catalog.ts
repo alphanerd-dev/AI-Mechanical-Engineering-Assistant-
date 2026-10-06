@@ -1,6 +1,8 @@
 import {CapabilityDefinition} from "../core/types";
 
 export const ENGINEERING_CAPABILITIES:CapabilityDefinition[]=[
+  {id:"REQUIREMENT.VERIFY_WITH_EVIDENCE",domain:"validation",purpose:"Verify a requirement using explicitly linked verified evidence",inputs:["requirementId","evidenceId"],outputs:["verification"],risk:"MEDIUM",providers:["engineering-core"],status:"PILOT"},
+  {id:"ENGINEERING.VERIFY_PROJECT",domain:"validation",purpose:"Evaluate project requirements against explicit verified evidence",inputs:["projectId","requirementEvidence"],outputs:["verification_report"],risk:"HIGH",providers:["engineering-core"],status:"EXPERIMENTAL"},
   {id:"REQUIREMENT.CREATE",domain:"requirements",purpose:"Create a structured engineering requirement",inputs:["id","name","statement","priority"],outputs:["requirement"],risk:"LOW",providers:["engineering-core"],status:"PILOT"},
   {id:"REQUIREMENT.TRACE",domain:"requirements",purpose:"Trace requirements across system and engineering levels",inputs:["fromId","toId","relation"],outputs:["trace"],risk:"LOW",providers:["engineering-core"],status:"PILOT"},
   {id:"REQUIREMENT.VERIFY",domain:"requirements",purpose:"Record evidence that a requirement has been verified",inputs:["requirementId","method","evidenceIds"],outputs:["verification"],risk:"MEDIUM",providers:["engineering-core"],status:"EXPERIMENTAL"},
