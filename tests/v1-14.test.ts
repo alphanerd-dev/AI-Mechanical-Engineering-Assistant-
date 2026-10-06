@@ -52,7 +52,7 @@ describe("V1.14 execution queue and artifact handoff",()=>{
   it("enforces fail-closed artifact handoff",async()=>{
     const engine=new ExecutionEngine([new SafeNumericalAdapter()]);
     const job=await engine.run(request("HANDOFF-1"));
-    const stored=engine.getJob(job.id);
+    const stored=await engine.getJob(job.id);
     expect(stored?.status).toBe("SUCCEEDED");
     expect(()=>createExecutionArtifactHandoff(stored!)).toThrow("without artifacts to hand off");
   });

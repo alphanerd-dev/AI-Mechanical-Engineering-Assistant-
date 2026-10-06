@@ -1,5 +1,5 @@
 import {ExecutionEngine} from "./executor.js";
-import {ExecutionJob,ExecutionRequest} from "./types.js";
+import {ExecutionJob,ExecutionRequest,ExecutionResult} from "./types.js";
 
 interface QueueEntry{
   request:ExecutionRequest;
@@ -36,7 +36,7 @@ export class ExecutionQueue{
     });
   }
 
-  get(id:string):ExecutionJob|undefined{
+  async get(id:string):Promise<ExecutionJob|undefined>{
     return this.engine.getJob(id);
   }
 

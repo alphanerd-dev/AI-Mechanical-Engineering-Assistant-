@@ -45,5 +45,7 @@ export class ExecutionEngine{
    await this.store.save(failed);return failed;
   }
  }
- getJob(id:string){return this.store.get(id);}
+ async getJob(id:string):Promise<ExecutionJob|undefined>{
+  return this.store.get(id);
+ }
 }
