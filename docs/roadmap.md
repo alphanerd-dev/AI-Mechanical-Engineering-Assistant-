@@ -52,10 +52,13 @@
 - [x] Evidence-backed research verification API/UI
 
 ## V1.6 — Simulation
-- [ ] Static structural analysis
-- [ ] PyMechanical execution worker
-- [ ] FEA model/result artifacts
-- [ ] Simulation validation gates
+- [x] Static structural capability contract
+- [x] PyMechanical execution-provider boundary
+- [x] FEA model/result types
+- [x] Simulation validation gates
+- [ ] Real isolated PyMechanical worker
+- [ ] FEA artifact persistence/evidence bridge
+- [ ] Mesh convergence and factor-of-safety checks
 
 ## V1.7 — CAD execution
 - [ ] build123d runtime
