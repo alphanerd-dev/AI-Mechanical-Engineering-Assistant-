@@ -41,7 +41,7 @@ describe("V1.24 OpenModelica system simulation",()=>{
   it("routes a deterministic system simulation through the provider",async()=>{
     const provider=new OpenModelicaProvider({
       simulate:async input=>result(input.parameters.gain*2),
-      coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[]})
+      coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[],message:"test co-simulation result"})
     });
     const response=await provider.execute({capability:"SIMULATION.SYSTEM",risk:"HIGH",input:baseInput});
     expect(response.success).toBe(true);
@@ -74,7 +74,7 @@ describe("V1.24 parameter sweep",()=>{
   it("selects the best explicit objective",async()=>{
     const provider=new OpenModelicaProvider({
       simulate:async input=>result(input.parameters.sweepGain),
-      coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[]})
+      coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[],message:"test co-simulation result"})
     });
     const response=await provider.execute({
       capability:"SIMULATION.PARAMETER_SWEEP",
@@ -137,7 +137,7 @@ describe("V1.24 routed capabilities",()=>{
     registry.registerCatalog(V1_24_CAPABILITIES);
     const provider=new OpenModelicaProvider({
       simulate:async input=>result(input.parameters.sweepGain??input.parameters.gain),
-      coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[]})
+      coSimulate:async input=>({status:"COMPLETED" as const,participants:input.participants.map(x=>x.id),steps:10,warnings:[],message:"test co-simulation result"})
     });
     registry.register(provider);
     const router=new CapabilityRouter(registry);
