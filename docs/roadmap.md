@@ -239,6 +239,20 @@ Notes:
 - [ ] Manufacturing cost/time/material estimates
 - [ ] BOM generation and release workflow
 
+## V1.21 — DFM + manufacturing intelligence
+- [x] Measured DFM provider
+- [x] CAM/slicing boundary
+- [x] Manufacturing cost/time/material estimates
+- [x] BOM generation and release workflow
+
+Notes:
+- V1.21 adds a manufacturing-domain intelligence layer over the measured CAD/DFM and manufacturing-process foundations.
+- DFM evaluation consumes explicit measured geometry metrics and explicit process rules; no default manufacturability limits are invented.
+- Manufacturing economics are deterministic estimates based only on explicit material quantities, scrap, operation times, machine rates, labor rates, and currency labels.
+- BOM generation aggregates identical part/revision lines deterministically and requires structurally valid identity, quantity, and unit data.
+- Release preparation is fail-closed: structural readiness can produce READY, but RELEASED requires an explicit human approval record.
+- CAM/slicing is a provider boundary only; the unconfigured boundary reports UNAVAILABLE and never claims a toolpath or slice artifact.
+
 ## V1.22 — Stronger digital thread / product model
 - [ ] Product model object graph
 - [ ] Cross-record referential integrity
