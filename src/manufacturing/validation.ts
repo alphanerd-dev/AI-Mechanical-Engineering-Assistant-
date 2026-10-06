@@ -62,6 +62,10 @@ function resolveLimits(criterion:ManufacturingInspectionCriterion):{lower?:numbe
     return {error:"Inspection limits must be finite numbers."};
   if(criterion.tolerance!==undefined&&criterion.tolerance<0)
     return {error:"Tolerance cannot be negative."};
+  if(hasNominal!==hasTolerance)
+    return {error:"Nominal and tolerance must be supplied together."};
+  if(hasNominal&&hasTolerance&&(hasLower||hasUpper))
+    return {error:"Do not mix nominal/tolerance limits with explicit lower/upper limits."};
 
   if(hasNominal&&hasTolerance){
     const lower=criterion.nominal!-criterion.tolerance!;

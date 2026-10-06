@@ -62,6 +62,15 @@ describe("manufacturing inspection",()=>{
     expect(result.status).toBe("INCOMPLETE");
     expect(result.reason).toContain("exactly match");
   });
+
+  it("rejects conflicting limit definitions",()=>{
+    const result=evaluateManufacturingInspection(
+      {id:"DIM-2",name:"Thickness",characteristic:"thickness",unit:"mm",nominal:10,tolerance:0.1,lowerLimit:9,upperLimit:11,method:"CMM"},
+      {id:"INS-4",criterionId:"DIM-2",measuredValue:10,unit:"mm"}
+    );
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.reason).toContain("Do not mix");
+  });
 });
 
 describe("manufacturing evidence bridge",()=>{
@@ -87,6 +96,7 @@ describe("manufacturing evidence bridge",()=>{
     expect(memory.getArtifact(bridged.processArtifact.id)?.evidenceIds).toEqual([bridged.evidence!.id]);
     expect(memory.getArtifact(bridged.inspectionArtifact.id)?.evidenceIds).toEqual([bridged.evidence!.id]);
     expect(project.evidenceIds).toContain(bridged.evidence!.id);
+    expect(memory.get(project.id)?.evidenceIds).toContain(bridged.evidence!.id);
   });
 
   it("blocks evidence creation when inspection is rejected",()=>{

@@ -98,6 +98,8 @@ export function bridgeManufacturingEvidence(input:ManufacturingEvidenceBridgeInp
   input.memory.saveArtifact(processArtifact);
   input.memory.saveArtifact(inspectionArtifact);
   input.memory.saveEvidence(input.project.id,evidence);
+  input.project.evidenceIds ??=[];
+  if(!input.project.evidenceIds.includes(evidence.id)) input.project.evidenceIds.push(evidence.id);
 
   for(const requirementId of input.plan.requirementIds)
     input.memory.linkEvidence(input.project.id,requirementId,evidence.id);
