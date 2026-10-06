@@ -1,7 +1,8 @@
 import {describe,expect,it} from "vitest";
 import {ExecutionEngine,ExecutionQueue,createExecutionArtifactHandoff,InMemoryExecutionArtifactHandoffStore,SafeNumericalAdapter} from "../src/execution/index.js";
-import {ExecutionBackendAdapter,ExecutionResult} from "../src/execution/executor.js";
-import {ExecutionRequest} from "../src/execution/types.js";
+import {ExecutionBackendAdapter} from "../src/execution/executor.js";
+import {ExecutionResult,ExecutionRequest} from "../src/execution/types.js";
+
 
 function request(id:string):ExecutionRequest{
   return {
