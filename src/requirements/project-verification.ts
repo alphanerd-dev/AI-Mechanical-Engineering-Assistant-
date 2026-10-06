@@ -1,6 +1,7 @@
 import {ProjectState} from "../core/types.js";
 import {EngineeringMemory} from "../memory/memory-store.js";
 import {RequirementTraceability} from "./traceability.js";
+import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
 
 export type ProjectVerificationStatus="PASS"|"INCOMPLETE"|"FAIL";
 
@@ -60,7 +61,7 @@ export function verifyProjectRequirements(
 
 export interface EngineeringVerificationRequest {
   requirementId:string;
-  evidence:import("../artifacts/engineering-artifacts.js").EvidenceRecord[];
+  evidence:EvidenceRecord[];
   minimumEvidence?:number;
 }
 
