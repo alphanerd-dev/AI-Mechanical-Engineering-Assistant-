@@ -23,12 +23,23 @@ export interface ExecutionWorkerService {
 
 /** HTTP adapter for a separately deployed worker service. */
 export class HttpExecutionWorkerService implements ExecutionWorkerService {
-  constructor(private readonly baseUrl:string,private readonly fetchImpl:typeof fetch=fetch){}
+  constructor(
+    private readonly baseUrl:string,
+    private readonly fetchImpl:typeof fetch=fetch,
+    private readonly apiToken?:string
+  ){}
+
+  private headers(){
+    return {
+      "content-type":"application/json",
+      ...(this.apiToken?{"authorization":`Bearer ${this.apiToken}`}:{}),
+    };
+  }
 
   async submit(request:ExecutionRequest):Promise<WorkerSubmitResponse>{
     const response=await this.fetchImpl(new URL("/v1/jobs",this.baseUrl),{
       method:"POST",
-      headers:{"content-type":"application/json"},
+      headers:this.headers(),
       body:JSON.stringify(request)
     });
     const body=await response.json() as WorkerSubmitResponse;
@@ -37,7 +48,9 @@ export class HttpExecutionWorkerService implements ExecutionWorkerService {
   }
 
   async status(jobId:string):Promise<WorkerStatusResponse>{
-    const response=await this.fetchImpl(new URL(`/v1/jobs/${encodeURIComponent(jobId)}`,this.baseUrl));
+    const response=await this.fetchImpl(new URL(`/v1/jobs/${encodeURIComponent(jobId)}`,this.baseUrl),{
+      headers:this.headers()
+    });
     const body=await response.json() as WorkerStatusResponse;
     if(!response.ok) throw new Error(body.error??`Worker returned HTTP ${response.status}`);
     return body;
