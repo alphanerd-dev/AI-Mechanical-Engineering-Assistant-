@@ -2,8 +2,10 @@ import {ProjectState} from "../core/types.js";
 import {EngineeringMemory} from "../memory/memory-store.js";
 import {RequirementTraceability} from "./traceability.js";
 import {ProjectVerificationStatus} from "../verification/types.js";
+
 export interface RequirementVerificationReport{requirementId:string;status:ProjectVerificationStatus;evidenceIds:string[];reason:string;}
 export interface ProjectVerificationReport{projectId:string;status:ProjectVerificationStatus;requirements:RequirementVerificationReport[];verifiedCount:number;incompleteCount:number;failedCount:number;}
+
 export function verifyProjectRequirements(project:ProjectState,memory:EngineeringMemory,traceability:RequirementTraceability):ProjectVerificationReport{
   const requirements=project.requirements.map(requirement=>{
     const traced=traceability.get(requirement.id);
@@ -20,5 +22,8 @@ export function verifyProjectRequirements(project:ProjectState,memory:Engineerin
   const status:ProjectVerificationStatus=failedCount>0?"FAIL":incompleteCount>0?"INCOMPLETE":"PASS";
   return {projectId:project.id,status,requirements,verifiedCount,incompleteCount,failedCount};
 }
+
+export {verifyEngineeringProject} from "../verification/project.js";
+export type {EngineeringProjectVerificationRequest,EngineeringProjectVerificationRequirement,EngineeringProjectVerificationReport} from "../verification/project.js";
 export {EngineeringVerificationEngine,executeVerificationPlan} from "../verification/index.js";
 export type {VerificationEvidenceType,VerificationEvidenceGate,EngineeringVerificationRequest,EngineeringVerificationResult,VerificationPlan,VerificationPlanResult} from "../verification/index.js";
