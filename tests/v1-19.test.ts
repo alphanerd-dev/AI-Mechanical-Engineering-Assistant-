@@ -110,7 +110,7 @@ describe("V1.19 CAD validation/regression/diff",()=>{
 
   it("routes all V1.19 deterministic CAD analysis capabilities",async()=>{
     const provider=new CADAnalysisProvider();
-    const cases=[
+    const cases:Array<[string,Record<string,unknown>]>=[
       ["CAD.DIFF",{baseline,candidate,metrics:["volumeMm3"]}],
       ["CAD.COMPARE",{baseline,candidate,criteria:[{metric:"volumeMm3",tolerance:{absolute:10}}]}],
       ["CAD.CHECK_WALL_THICKNESS",{metrics:candidate.metrics,minimumMm:2}],
