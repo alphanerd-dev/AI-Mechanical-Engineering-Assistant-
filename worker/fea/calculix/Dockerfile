@@ -12,6 +12,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        calculix-ccx=${CALCULIX_VERSION} \
        libgl1 \
+       libglu1-mesa \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir "gmsh==${GMSH_VERSION}"
