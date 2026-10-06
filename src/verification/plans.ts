@@ -35,6 +35,7 @@ export async function executeVerificationPlan(
 
   const dependencyRequirementIds=plan.dependencyRequirementIds??[];
   const blockedDependencyIds=dependencyRequirementIds.filter(dependencyId=>{
+    if(dependencyId===plan.requirementId) return true;
     if(!dependencyIsSatisfied(dependencyId,project,evidence)) return true;
     if(!traceability) return false;
     return !traceability.tracesFor(plan.requirementId).some(trace=>
@@ -52,7 +53,7 @@ export async function executeVerificationPlan(
     :result.status;
 
   const reason=blockedDependencyIds.length>0
-    ?"Verification is blocked by unmet, untraced, or project-unverified requirement dependencies: "+blockedDependencyIds.join(", ")+"."
+    ?"Verification is blocked by unmet, self-referential, untraced, or project-unverified requirement dependencies: "+blockedDependencyIds.join(", ")+"."
     :blockedByApproval
       ?"Verification requires explicit human approval before it can PASS."
       :result.reason;
