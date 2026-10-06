@@ -274,10 +274,18 @@ Notes:
 - The default application entrypoint contains fail-closed runtime stubs; no solver result or runtime handle is claimed without a configured executor.
 
 ## V1.24 — System simulation / OpenModelica
-- [ ] OpenModelica provider
-- [ ] Parameter sweep capability
-- [ ] Sensitivity analysis
-- [ ] Co-simulation boundary
+- [x] OpenModelica provider
+- [x] Parameter sweep capability
+- [x] Sensitivity analysis
+- [x] Co-simulation boundary
+
+Notes:
+- V1.24 adds a provider-neutral Modelica system-simulation contract with an explicit OpenModelica provider boundary.
+- System simulations require explicit model source/URI, parameters, time bounds, and step size; completion requires the provider to report a completed converged result.
+- Parameter sweeps are deterministic bounded grids with an explicit sample ceiling and an explicit objective when ranking is requested.
+- Sensitivity uses central finite differences from explicit lower/base/upper simulations; no sensitivity coefficient is inferred from missing runs or unspecified perturbations.
+- Co-simulation requires at least two validated Modelica participants and explicitly aligned participant steps.
+- The default application entrypoint uses fail-closed OpenModelica stubs; no system simulation, sweep, sensitivity result, or co-simulation completion is claimed without a configured executor.
 
 ## V2.0 — Bounded autonomous engineering workspace
 - [ ] Project memory persistence

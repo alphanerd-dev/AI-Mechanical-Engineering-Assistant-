@@ -5,6 +5,7 @@ import {V1_20_CAPABILITIES} from "./capabilities/v1-20.js";
 import {V1_21_CAPABILITIES} from "./capabilities/v1-21.js";
 import {V1_22_CAPABILITIES} from "./capabilities/v1-22.js";
 import {V1_23_CAPABILITIES} from "./capabilities/v1-23.js";
+import {V1_24_CAPABILITIES} from "./capabilities/v1-24.js";
 import {MockCADProvider} from "./providers/mock-cad.js";
 import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {UnitComputationProvider} from "./providers/computation-units.js";
@@ -22,6 +23,7 @@ import {DynamicsComparisonProvider} from "./providers/dynamics-comparison.js";
 import {RoboticsProvider} from "./providers/robotics.js";
 import {RoboticsRuntimeProvider} from "./providers/robotics-runtime.js";
 import {SimulationComparisonProvider} from "./providers/simulation-comparison.js";
+import {OpenModelicaProvider} from "./providers/openmodelica.js";
 import {DigitalThreadProvider} from "./providers/digital-thread.js";
 import {ProductModelProvider} from "./providers/product-model.js";
 import {OdooPLMProvider} from "./providers/odoo-plm.js";
@@ -42,6 +44,7 @@ export * from "./manufacturing/index.js";
 export * from "./product-model/index.js";
 export * from "./dynamics/index.js";
 export * from "./robotics/index.js";
+export * from "./system-simulation/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
@@ -49,6 +52,7 @@ registry.registerCatalog(V1_20_CAPABILITIES);
 registry.registerCatalog(V1_21_CAPABILITIES);
 registry.registerCatalog(V1_22_CAPABILITIES);
 registry.registerCatalog(V1_23_CAPABILITIES);
+registry.registerCatalog(V1_24_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -108,6 +112,10 @@ registry.register(new RoboticsProvider({
   convertCAD:async()=>{throw new Error("CAD-to-robotics converter is not configured for this entrypoint.");}
 }));
 registry.register(new SimulationComparisonProvider());
+registry.register(new OpenModelicaProvider({
+  simulate:async()=>{throw new Error("OpenModelica runtime is not configured for this entrypoint.");},
+  coSimulate:async()=>{throw new Error("OpenModelica co-simulation runtime is not configured for this entrypoint.");}
+}));
 registry.register(new DigitalThreadProvider());
 registry.register(new OdooPLMProvider({
   queryItem:async()=>undefined,
