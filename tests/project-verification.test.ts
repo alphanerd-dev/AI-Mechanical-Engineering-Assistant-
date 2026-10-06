@@ -226,6 +226,22 @@ describe("verification plans",()=>{
     expect(untraced.blockedDependencyIds).toEqual(["REQ-2"]);
   });
 
+  it("rejects self-referential dependencies",async()=>{
+    const {executeVerificationPlan}=await import("../src/requirements/project-verification.js");
+    const now=new Date().toISOString();
+    const evidence={id:"self",type:"CALCULATION" as const,claim:"Target verified",status:"VERIFIED" as const,requirementIds:["REQ-1"],timestamp:now};
+    const project={
+      id:"project-self",name:"Verification project",stage:"VERIFICATION",status:"ACTIVE" as const,
+      requirements:[{id:"REQ-1",name:"Target",priority:"MUST" as const,status:"SATISFIED" as const}],
+      assumptions:[],openQuestions:[],unresolvedRisks:[],events:[],evidenceIds:["self"]
+    };
+    const result=await executeVerificationPlan({
+      id:"VP-SELF",requirementId:"REQ-1",gates:[{type:"CALCULATION",minimum:1}],dependencyRequirementIds:["REQ-1"]
+    },[evidence],project);
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.blockedDependencyIds).toEqual(["REQ-1"]);
+  });
+
   it("rejects dependency evidence that is not part of the project evidence set",async()=>{
     const {executeVerificationPlan}=await import("../src/requirements/project-verification.js");
     const now=new Date().toISOString();
