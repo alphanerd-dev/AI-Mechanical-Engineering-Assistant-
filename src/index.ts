@@ -1,6 +1,7 @@
 import {CapabilityRegistry} from "./capabilities/registry.js";
 import {CapabilityRouter} from "./capabilities/router.js";
 import {ENGINEERING_CAPABILITIES} from "./capabilities/catalog.js";
+import {V1_20_CAPABILITIES} from "./capabilities/v1-20.js";
 import {MockCADProvider} from "./providers/mock-cad.js";
 import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {UnitComputationProvider} from "./providers/computation-units.js";
@@ -19,14 +20,18 @@ import {GmshProvider} from "./providers/gmsh.js";
 import {CalculixProvider} from "./providers/calculix.js";
 import {EngineeringAgent} from "./core/agent.js";
 import {CADAnalysisProvider} from "./providers/cad-analysis.js";
+import {ConstraintEngineeringProvider} from "./providers/constraint-engineering.js";
 
 export * from "./state/persistence.js";
 export * from "./artifacts/persistence.js";
 export * from "./fea/index.js";
 export * from "./cad/index.js";
+export * from "./constraints/index.js";
+export * from "./tolerance/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
+registry.registerCatalog(V1_20_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -36,6 +41,7 @@ registry.register(new EngineeringVerificationProvider());
 registry.register(new ManufacturingProvider());
 registry.register(new MockCADProvider());
 registry.register(new CADAnalysisProvider());
+registry.register(new ConstraintEngineeringProvider());
 
 registry.register(new GmshProvider({
   generateMesh:async()=>({
