@@ -27,7 +27,7 @@ This is a prioritization heuristic, not proof of correctness. A manufacturer doc
 ## Provider boundary
 Future providers can implement the ResearchProvider contract for academic search, manufacturer catalogs and technical manuals, standards repositories, engineering web search, and internal project documents.
 
-The first implementation is a mock provider used only for contract tests. It intentionally labels its finding ASSUMED.
+Academic and web adapters now exist as provider boundaries. They intentionally label retrieved findings ASSUMED until the underlying source is inspected and the engineering claim is verified. The mock provider remains available for contract tests.
 
 ## Next integration
 Add real provider adapters while keeping the core unchanged. Candidate adapters include academic search, manufacturer documentation, and controlled web retrieval. Each adapter should normalize title, URI, publisher, source class, retrieval time, and provenance before findings enter engineering memory.
