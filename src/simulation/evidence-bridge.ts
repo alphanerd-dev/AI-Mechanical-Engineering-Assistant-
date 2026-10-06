@@ -26,7 +26,7 @@ export interface SimulationEvidenceBridgeResult {
 }
 
 export function bridgeSimulationEvidence(input: SimulationEvidenceBridgeInput): SimulationEvidenceBridgeResult {
-  const artifacts=createSimulationArtifacts(input.project.id,input.model,input.result,input.validation,input.solver,input.solverVersion);
+  const artifacts=createSimulationArtifacts(input.project.id,input.model,input.result,input.validation,input.solver,input.solverVersion,input.requirementIds??[]);
   input.memory.saveArtifact(artifacts.modelArtifact);
   input.memory.saveArtifact(artifacts.resultArtifact);
 
