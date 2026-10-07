@@ -306,4 +306,6 @@ Notes:
 - V2.0.2 connects exactly one READY task to the existing EngineeringWorkflowEngine; it does not create a second orchestrator.
 - Execution rechecks requirements, approvals, dependencies, evidence policy, bounded retries, and workflow results before transitioning the task to COMPLETED, FAILED, or BLOCKED.
 - V2.0.3 adds a provider-neutral, versioned project-memory snapshot with immutable reads/writes, optimistic revision protection, fail-closed evidence/artifact lineage, and explicit project ownership.
-- V2.0.4 adds explicit named-specialist delegation for exactly one READY task, with capability-domain authorization and HIGH risk ceilings; delegation never executes work or selects tasks autonomously.\n- V2.0 remains non-autonomous: task execution occurs only through the explicit execution capability and never bypasses validation or approval gates.
+- V2.0.4 adds explicit named-specialist delegation for exactly one READY task, with capability-domain authorization and HIGH risk ceilings; delegation never executes work or selects tasks autonomously.
+- V2.0.5 adds bounded autonomous execution through structured agent action proposals, hard step/execution/delegation ceilings, HIGH maximum risk, stale graph-revision protection, and an external AgentRuntime adapter boundary. LangGraph is the first reference runtime at the edge; the Engineering Core remains framework-independent.
+- V2.0.5 does not permit CRITICAL autonomous work, does not mark tasks VERIFIED, and does not bypass the existing task graph, approval, validation, or evidence boundaries.
