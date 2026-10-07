@@ -105,7 +105,7 @@ describe("V2.0.5 bounded autonomy",()=>{
     const report=result.output as {status:string;finalGraph:EngineeringTaskGraph;taskExecutions:number;evidenceIds:string[]};
     expect(report.status).toBe("COMPLETED");
     expect(report.taskExecutions).toBe(1);
-    expect(report.finalGraph.revision).toBe(4);
+    expect(report.finalGraph.revision).toBe(5);
     expect(report.finalGraph.tasks[0].status).toBe("COMPLETED");
     expect(report.evidenceIds).toEqual(["EV-1"]);
     expect(execute).toHaveBeenCalledTimes(1);
@@ -125,6 +125,7 @@ describe("V2.0.5 bounded autonomy",()=>{
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain("risk exceeds the bounded agent policy");
+    expect((result.output as {actions:Array<{reason:string}>}).actions[0].reason).toContain("risk exceeds the bounded agent policy");
     expect(execute).not.toHaveBeenCalled();
   });
 
