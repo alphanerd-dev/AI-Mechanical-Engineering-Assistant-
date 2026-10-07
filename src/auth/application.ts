@@ -54,7 +54,7 @@ export class ApplicationAuthenticationService{
   }
 
   private audit(timestamp:Date,action:AuditAction,outcome:AuditOutcome,subject:string,reason:string,metadata:Record<string,unknown>={}){
-    this.config.audit.append({timestamp:timestamp.toISOString(),actor:{subject,actorType:subject==="anonymous"?"SYSTEM":"USER"},action,outcome,reason,metadata});
+    this.config.audit.append({timestamp:timestamp.toISOString(),actor:{subject,actorType:subject==="anonymous"?"SYSTEM":(metadata.actorType as "AGENT"|"USER"|"SYSTEM"|undefined)??"USER"},action,outcome,reason,metadata});
   }
 }
 
