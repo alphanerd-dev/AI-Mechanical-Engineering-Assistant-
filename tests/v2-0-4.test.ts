@@ -36,6 +36,16 @@ function setup(){
   registry.registerCatalog(V2_0_4_CAPABILITIES);
   registry.registerCatalog([
     {
+      id:"ANALYSIS.CRITICAL_TEST",
+      domain:"analysis",
+      purpose:"critical test capability",
+      inputs:[],
+      outputs:[],
+      risk:"CRITICAL",
+      providers:["test-analysis"],
+      status:"PILOT"
+    },
+    {
       id:"ANALYSIS.SHAFT_TORQUE",
       domain:"analysis",
       purpose:"torque",
