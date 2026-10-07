@@ -4,7 +4,7 @@ import { CapabilityRouter } from "../../../../src/capabilities/router";
 import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog";
 import { NumericalAnalysisProvider } from "../../../../src/providers/numerical";
 import { EngineeringAgent } from "../../../../src/core/agent";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service.js";
+import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
