@@ -104,7 +104,7 @@ describe("V2.0.2 task graph execution control",()=>{
     registry.registerCatalog([
       {id:"TEST.FAIL",domain:"orchestration",purpose:"forced failure",inputs:[],outputs:[],risk:"LOW",providers:["throwing"],status:"PILOT"}
     ]);
-    registry.register({id:"throwing",capabilities:["TEST.FAIL"],async()=>{throw new Error("deterministic test failure");}});
+    registry.register({id:"throwing",capabilities:["TEST.FAIL"],execute:async()=>{throw new Error("deterministic test failure");}});
     const router=new CapabilityRouter(registry);
     const provider=new TaskGraphExecutionProvider(router);
     const result=await provider.execute({
