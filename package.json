@@ -7,6 +7,7 @@
   "scripts": {
     "build": "next build && tsc --noEmit",
     "test": "vitest run",
+    "benchmark": "tsx benchmarks/v2-0-suite.ts",
     "dev": "next dev",
     "core": "tsx src/index.ts"
   },

@@ -295,7 +295,7 @@ Notes:
 - [x] V2.0.5 bounded autonomous execution + AgentRuntime boundary
 - [ ] Production authentication and authorization
 - [x] Full audit trail
-- [ ] Benchmark suite
+- [x] Benchmark suite
 - [ ] Multi-user collaboration
 - [ ] Domain expansion beyond Mechanical Engineering
 
@@ -311,3 +311,4 @@ Notes:
 - V2.0.5 does not permit CRITICAL autonomous work, does not mark tasks VERIFIED, and does not bypass the existing task graph, approval, validation, or evidence boundaries.
 - V2.0.6 establishes a provider-neutral identity and authorization boundary with explicit roles, permissions, deny-by-default decisions, and optional project scoping. It does not claim a production login/session provider; provider binding, durable identity storage, and revocation remain follow-up work.
 - V2.0.7 establishes a provider-neutral append-only audit boundary with sequenced events, actor/resource context, outcomes, defensive reads, and tamper-evident hash-chain verification. The reference store is in-memory; durable persistence and wiring audit emissions into every execution boundary remain follow-up integration work.
+- V2.0 benchmark suite establishes deterministic cross-boundary conformance checks for task readiness, bounded execution, hard risk ceilings, specialist scope, verified-memory acceptance, authorization, and audit integrity. The suite is a regression gate, not an engineering safety verdict; performance, solver-accuracy, cross-provider, hardware, and durable benchmark storage remain later work.
