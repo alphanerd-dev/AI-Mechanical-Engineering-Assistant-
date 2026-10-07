@@ -1,0 +1,32 @@
+name: v2.0.8 lockfile generation
+
+on:
+  push:
+    branches:
+      - feat/v2-0-8-production-auth
+
+permissions:
+  contents: write
+
+jobs:
+  generate-lockfile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --package-lock-only --ignore-scripts
+      - name: Commit generated lockfile
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "Lockfile already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore(v2.0.8): generate Supabase lockfile"
+          git push
