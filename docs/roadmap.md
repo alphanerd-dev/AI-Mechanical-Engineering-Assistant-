@@ -289,6 +289,7 @@ Notes:
 
 ## V2.0 — Bounded autonomous engineering workspace
 - [x] V2.0.1 workspace + task graph foundation
+- [x] V2.0.2 task graph execution-control bridge
 - [ ] Project memory persistence
 - [ ] Multi-agent specialist delegation
 - [ ] Bounded autonomous execution
@@ -302,5 +303,6 @@ Notes:
 - V2.0.1 introduces a provider-neutral engineering workspace snapshot and explicit dependency-aware task graph.
 - Workspace revisions use optimistic concurrency protection and immutable reads/writes in the reference in-memory store.
 - Task readiness is fail-closed across dependencies, requirements, approval, and capability declaration.
-- Task transitions are explicit and bounded; V2.0.1 does not execute tasks autonomously.
-- Durable database persistence, multi-user conflict resolution, specialist delegation, and autonomous execution remain later V2.0 milestones.
+- V2.0.2 connects exactly one READY task to the existing EngineeringWorkflowEngine; it does not create a second orchestrator.
+- Execution rechecks requirements, approvals, dependencies, evidence policy, bounded retries, and workflow results before transitioning the task to COMPLETED, FAILED, or BLOCKED.
+- V2.0 remains non-autonomous: task execution occurs only through the explicit execution capability and never bypasses validation or approval gates.
