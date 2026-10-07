@@ -35,6 +35,8 @@ import {CADAnalysisProvider} from "./providers/cad-analysis.js";
 import {ConstraintEngineeringProvider} from "./providers/constraint-engineering.js";
 import {V2_0_1_CAPABILITIES} from "./capabilities/v2-0-1.js";
 import {EngineeringWorkspaceProvider} from "./providers/workspace.js";
+import {V2_0_2_CAPABILITIES} from "./capabilities/v2-0-2.js";
+import {TaskGraphExecutionProvider} from "./providers/task-execution.js";
 
 export * from "./state/persistence.js";
 export * from "./artifacts/persistence.js";
@@ -58,6 +60,7 @@ registry.registerCatalog(V1_22_CAPABILITIES);
 registry.registerCatalog(V1_23_CAPABILITIES);
 registry.registerCatalog(V1_24_CAPABILITIES);
 registry.registerCatalog(V2_0_1_CAPABILITIES);
+registry.registerCatalog(V2_0_2_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -129,6 +132,7 @@ registry.register(new OdooPLMProvider({
 }));
 
 const router=new CapabilityRouter(registry);
+registry.register(new TaskGraphExecutionProvider(router));
 registry.register(new EngineeringOrchestratorProvider(router));
 
 const agent=new EngineeringAgent(router);
