@@ -64,6 +64,7 @@ export * from "./orchestration/specialist-delegation.js";
 export * from "./orchestration/bounded-autonomy.js";
 export * from "./auth/index.js";
 export * from "./audit/index.js";
+export * from "./benchmarks/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
