@@ -30,7 +30,7 @@ export class BoundedAutonomyProvider implements EngineeringProvider{
 
     if(!runId.trim()) return {capability:request.capability,provider:this.id,success:false,error:"runId is required."};
     if(!taskGraph) return {capability:request.capability,provider:this.id,success:false,error:"A task graph is required."};
-    if(!actions) return {capability:request.capability,provider:this.id,success:false,error:"Agent actions are required."};
+    if(!actions||!Array.isArray(actions)) return {capability:request.capability,provider:this.id,success:false,error:"Agent actions must be an array."};
     if(!limits) return {capability:request.capability,provider:this.id,success:false,error:"Agent limits are required."};
 
     try{
