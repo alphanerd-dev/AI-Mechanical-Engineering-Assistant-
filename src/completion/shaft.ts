@@ -394,7 +394,7 @@ export async function completeShaftEngineeringUnit(
 
   const evidenceByProduct=produceEvidenceByProduct({
     project,
-    artifacts:[evidenceArtifact],
+    artifacts:[artifact],
     validation:"PASS",
     drafts:[
       {
