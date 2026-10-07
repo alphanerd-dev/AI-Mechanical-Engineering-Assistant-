@@ -190,18 +190,18 @@ function createCalculationArtifact(
 function failedResult(
   project:ProjectState,
   taskGraph:EngineeringTaskGraph,
-  reason:string,
-  status:"FAILED"|"BLOCKED"="FAILED"
+  reason:string
 ):EngineeringCompletionReport{
   project.status="BLOCKED";
   project.openQuestions=[reason];
-  return createBaseReport(
+  const report=createBaseReport(
     project.id,
     project,
     taskGraph,
     project.openQuestions,
     "Resolve the failed deterministic step before continuing."
-  ) as EngineeringCompletionReport & {status:"BLOCKED"};
+  );
+  return {...report,status:"FAILED"};
 }
 
 export async function completeShaftEngineeringUnit(
