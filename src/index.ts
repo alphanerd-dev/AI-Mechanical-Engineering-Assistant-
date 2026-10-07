@@ -37,6 +37,8 @@ import {V2_0_1_CAPABILITIES} from "./capabilities/v2-0-1.js";
 import {EngineeringWorkspaceProvider} from "./providers/workspace.js";
 import {V2_0_2_CAPABILITIES} from "./capabilities/v2-0-2.js";
 import {TaskGraphExecutionProvider} from "./providers/task-execution.js";
+import {V2_0_4_CAPABILITIES} from "./capabilities/v2-0-4.js";
+import {SpecialistDelegationProvider} from "./providers/specialist-delegation.js";
 
 // V1.15 project-state persistence remains available from ./state/persistence.js.
 // V2 workspace persistence and V2.0 project-memory persistence are canonical root-level contracts.
@@ -53,6 +55,8 @@ export * from "./robotics/index.js";
 export * from "./system-simulation/index.js";
 export * from "./workspace/index.js";
 export * from "./task-graph/index.js";
+export * from "./agents/specialists.js";
+export * from "./orchestration/specialist-delegation.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
@@ -63,6 +67,7 @@ registry.registerCatalog(V1_23_CAPABILITIES);
 registry.registerCatalog(V1_24_CAPABILITIES);
 registry.registerCatalog(V2_0_1_CAPABILITIES);
 registry.registerCatalog(V2_0_2_CAPABILITIES);
+registry.registerCatalog(V2_0_4_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -135,6 +140,7 @@ registry.register(new OdooPLMProvider({
 
 const router=new CapabilityRouter(registry);
 registry.register(new TaskGraphExecutionProvider(router));
+registry.register(new SpecialistDelegationProvider(registry));
 registry.register(new EngineeringOrchestratorProvider(router));
 
 const agent=new EngineeringAgent(router);
