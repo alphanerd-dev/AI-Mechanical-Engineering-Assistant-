@@ -68,19 +68,25 @@ export async function executeTaskGraphTask(
   const step=report.steps[0];
 
   if(!step){
+    const blocked=transitionTask(running,task.id,"BLOCKED");
+    const reason="Workflow engine returned no task result.";
+    const nextGraph={
+      ...blocked,
+      tasks:blocked.tasks.map(item=>item.id===task.id?{...item,blockedReason:reason}:item)
+    };
     return {
       taskId:task.id,
-      graph:running,
+      graph:nextGraph,
       workflowStep:{
         stepId:task.id,
         stage:request.stage,
         status:"INCOMPLETE",
         attempts:0,
         trust:"UNVERIFIED",
-        reason:"Workflow engine returned no task result."
+        reason
       },
       status:"INCOMPLETE",
-      reason:"Workflow engine returned no task result."
+      reason
     };
   }
 
