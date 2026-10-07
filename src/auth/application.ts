@@ -18,7 +18,7 @@ export class ApplicationAuthenticationService{
   async authenticate(credential:string,now=new Date()):Promise<SessionAuthenticationResult|null>{
     const identity=await this.config.provider.authenticate({credential});
     if(!identity){
-      this.audit(now,"AUTHENTICATION","DENIED","system","Authentication failed.","", "SYSTEM");
+      this.audit(now,"AUTHENTICATION","DENIED","system","Authentication failed.",{},"SYSTEM");
       return null;
     }
     const token=this.config.sessionManager.create(identity,this.config.sessionTtlMs,now);
