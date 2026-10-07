@@ -1,4 +1,4 @@
-import { createClient } from "../../lib/supabase/server.js";
+import { createClient } from "../../lib/supabase/server";
 import { InMemoryAuditTrail } from "../audit/trail.js";
 import { type AuditActor, type AuditAction, type AuditOutcome } from "../audit/types.js";
 import { authorize } from "./policy.js";
