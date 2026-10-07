@@ -38,7 +38,8 @@ import {EngineeringWorkspaceProvider} from "./providers/workspace.js";
 import {V2_0_2_CAPABILITIES} from "./capabilities/v2-0-2.js";
 import {TaskGraphExecutionProvider} from "./providers/task-execution.js";
 
-export * from "./state/persistence.js";
+// V1.15 project-state persistence remains available from ./state/persistence.js.
+// The V2 workspace persistence API is the canonical root-level workspace contract.
 export * from "./artifacts/persistence.js";
 export * from "./fea/index.js";
 export * from "./cad/index.js";
