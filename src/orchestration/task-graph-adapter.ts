@@ -61,7 +61,7 @@ export async function executeTaskGraphTask(
       requireEvidence:task.evidenceRequired,
       maxAttempts:task.maxAttempts
     }]
-  } as const;
+  };
 
   const workflow=new EngineeringWorkflowEngine(router);
   const report=await workflow.execute(plan,{project:request.project});
