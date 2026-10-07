@@ -8,7 +8,7 @@ describe("V2.0 benchmark suite",()=>{
     expect(report.version).toBe("2.0");
     expect(report.failed).toBe(0);
     expect(report.passRate).toBe(1);
-    expect(report.cases).toHaveLength(7);
+    expect(report.cases).toHaveLength(8);
   });
 
   it("keeps case ids unique and preserves evidence for every pass",async()=>{
