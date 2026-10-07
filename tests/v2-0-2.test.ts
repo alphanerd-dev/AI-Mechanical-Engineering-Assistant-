@@ -52,7 +52,7 @@ describe("V2.0.2 task graph execution control",()=>{
       {id:"TEST.EXEC",domain:"orchestration",purpose:"test execution",inputs:[],outputs:[],risk:"LOW",providers:["test-exec"],status:"PILOT"}
     ]);
     let calls=0;
-    registry.register({id:"test-exec",capabilities:["TEST.EXEC"],async()=>{
+    registry.register({id:"test-exec",capabilities:["TEST.EXEC"],execute:async()=>{
       calls++;
       return {capability:"TEST.EXEC",provider:"test-exec",success:true,output:{ok:true}};
     }});
@@ -80,7 +80,7 @@ describe("V2.0.2 task graph execution control",()=>{
     const registry=new CapabilityRegistry();
     registry.registerCatalog(V2_0_2_CAPABILITIES);
     registry.registerCatalog([
-      {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"torque",inputs:["powerKw","rpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical"],status:"PILOT"}
+      {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"torque",inputs:["powerKw","speedRpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical"],status:"PILOT"}
     ]);
     registry.register(new NumericalAnalysisProvider());
     const router=new CapabilityRouter(registry);
@@ -122,7 +122,7 @@ describe("V2.0.2 task graph execution control",()=>{
     const registry=new CapabilityRegistry();
     registry.registerCatalog(V2_0_2_CAPABILITIES);
     registry.registerCatalog([
-      {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"torque",inputs:["powerKw","rpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical"],status:"PILOT"}
+      {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"torque",inputs:["powerKw","speedRpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical"],status:"PILOT"}
     ]);
     registry.register(new NumericalAnalysisProvider());
     const router=new CapabilityRouter(registry);
@@ -144,7 +144,7 @@ describe("V2.0.2 task graph execution control",()=>{
     const registry=new CapabilityRegistry();
     registry.registerCatalog(V2_0_2_CAPABILITIES);
     registry.registerCatalog([
-      {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"torque",inputs:["powerKw","rpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical"],status:"PILOT"}
+      {id:"ANALYSIS.SHAFT_TORQUE",domain:"analysis",purpose:"torque",inputs:["powerKw","speedRpm"],outputs:["torqueNm"],risk:"LOW",providers:["numerical"],status:"PILOT"}
     ]);
     registry.register(new NumericalAnalysisProvider());
     const router=new CapabilityRouter(registry);
