@@ -85,7 +85,7 @@ function validateActionShape(
   router:CapabilityRouter
 ):string[]{
   const errors:string[]=[];
-  if(action.kind!=="STOP"&&!validStages.includes(action.stage??""))
+  if((action.kind==="DELEGATE_SPECIALIST"||action.kind==="EXECUTE_TASK")&&!validStages.includes(action.stage))
     errors.push("Agent action stage is invalid.");
 
   const task=taskForAction(graph,action);
@@ -191,7 +191,7 @@ export async function runBoundedAutonomy(
         return {
           ...initial,finalGraph:graph,status:"FAILED",steps:actions.length,
           taskExecutions,delegations,actions,evidenceIds,artifactIds,
-          stopReason:"Bounded agent action rejected by core policy."
+          stopReason:"Bounded agent action rejected by core policy: "+shapeErrors.join(" ")
         };
       continue;
     }
