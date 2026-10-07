@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
-import { getAuthenticationAuditTrail } from "../../../../src/auth/supabase-service.js";
+import { getAuthenticationAuditTrail } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
