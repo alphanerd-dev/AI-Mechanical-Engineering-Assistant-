@@ -9,7 +9,7 @@ import {TaskGraphExecutionProvider} from "../src/providers/task-execution.js";
 import {SpecialistDelegationProvider} from "../src/providers/specialist-delegation.js";
 import {BoundedAutonomyProvider} from "../src/providers/bounded-autonomy.js";
 import {EngineeringTask,EngineeringTaskGraph} from "../src/task-graph/types.js";
-import {AgentActionProposal,AgentRunLimits} from "../src/agents/runtime.js";
+import {AgentActionProposal,AgentRunLimits,AgentRuntimeObservation} from "../src/agents/runtime.js";
 import {LangGraphAgentRuntimeAdapter,LangGraphBridge} from "../src/agents/langgraph-adapter.js";
 
 const stamp="2026-10-07T00:00:00.000Z";
@@ -255,12 +255,12 @@ describe("V2.0.5 bounded autonomy",()=>{
 describe("LangGraph runtime adapter",()=>{
   it("keeps LangGraph behind the framework-neutral runtime contract",async()=>{
     const bridge:LangGraphBridge={
-      plan:vi.fn(async()=>[{kind:"STOP",reason:"planned"}]),
-      delegate:vi.fn(async()=>({kind:"DELEGATE_SPECIALIST",taskId:"TASK-1",specialistId:"analysis",stage:"ANALYSIS"})),
-      requestApproval:vi.fn(async()=>({kind:"REQUEST_APPROVAL",taskId:"TASK-1",reason:"review"})),
-      resume:vi.fn(async()=>[{kind:"STOP",reason:"resumed"}]),
-      observe:vi.fn(async(runId)=>({runId,status:"RUNNING",stepCount:0,taskExecutions:0,delegations:0})),
-      stop:vi.fn(async(runId,reason)=>({runId,status:"STOPPED",stepCount:0,taskExecutions:0,delegations:0,stopReason:reason}))
+      plan:vi.fn(async():Promise<readonly AgentActionProposal[]>=>[{kind:"STOP",reason:"planned"}]),
+      delegate:vi.fn(async():Promise<AgentActionProposal>=>({kind:"DELEGATE_SPECIALIST",taskId:"TASK-1",specialistId:"analysis",stage:"ANALYSIS"})),
+      requestApproval:vi.fn(async():Promise<AgentActionProposal>=>({kind:"REQUEST_APPROVAL",taskId:"TASK-1",reason:"review"})),
+      resume:vi.fn(async():Promise<readonly AgentActionProposal[]>=>[{kind:"STOP",reason:"resumed"}]),
+      observe:vi.fn(async(runId):Promise<AgentRuntimeObservation>=>({runId,status:"RUNNING",stepCount:0,taskExecutions:0,delegations:0})),
+      stop:vi.fn(async(runId,reason):Promise<AgentRuntimeObservation>=>({runId,status:"STOPPED",stepCount:0,taskExecutions:0,delegations:0,stopReason:reason}))
     };
     const runtime=new LangGraphAgentRuntimeAdapter(bridge);
     expect(await runtime.plan({runId:"R",taskGraph:graph(),limits:limits()})).toEqual([{kind:"STOP",reason:"planned"}]);
