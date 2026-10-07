@@ -6,6 +6,7 @@ import {transitionTask} from "../task-graph/validation.js";
 import {shaftTorque} from "../engineering/calculations.js";
 import {EngineeringCompletionReport,ShaftEngineeringCompletionRequest,ShaftEngineeringValidation} from "./types.js";
 import {authorize} from "../auth/policy.js";
+import {produceEvidenceByProduct} from "../evidence/by-product.js";
 
 const TORQUE_REQUIREMENT="REQ-SHAFT-TORQUE";
 const SPEED_REQUIREMENT="REQ-SHAFT-SPEED";
@@ -363,7 +364,7 @@ export async function completeShaftEngineeringUnit(
     request,
     torqueResult.output,
     sizingResult.output,
-    evidenceIds,
+    [],
     validation.passed
   );
 
@@ -375,7 +376,7 @@ export async function completeShaftEngineeringUnit(
       status:"FAILED",
       project,
       taskGraph,
-      artifacts:[artifact],
+      artifacts:[evidenceArtifact],
       evidence:[],
       verification:null,
       validation,
@@ -391,42 +392,67 @@ export async function completeShaftEngineeringUnit(
     };
   }
 
-  const now=new Date().toISOString();
-  const evidence:EvidenceRecord[]=[
-    {
-      id:evidenceIds[0],
-      type:"CALCULATION",
-      claim:"Transmitted shaft torque was calculated deterministically from explicit power and speed.",
-      method:"T = 9550 P(kW) / n(rpm)",
-      value:torqueResult.output,
-      status:"VERIFIED",
-      artifactIds:[artifact.id],
-      requirementIds:[TORQUE_REQUIREMENT,SPEED_REQUIREMENT],
-      timestamp:now
-    },
-    {
-      id:evidenceIds[1],
-      type:"CALCULATION",
-      claim:"Minimum solid-shaft diameter was calculated deterministically from explicit torque, bending moment and allowable shear stress.",
-      method:"d = [16·Te/(π·τallow)]^(1/3)",
-      value:sizingResult.output,
-      status:"VERIFIED",
-      artifactIds:[artifact.id],
-      requirementIds:[TORQUE_REQUIREMENT,SPEED_REQUIREMENT,ALLOWABLE_STRESS_REQUIREMENT,BENDING_REQUIREMENT],
-      timestamp:now
-    },
-    {
-      id:evidenceIds[2],
-      type:"CALCULATION",
-      claim:"Selected shaft diameter passed the deterministic minimum-diameter acceptance gate.",
-      method:"minimumDiameterMm <= proposedDiameterMm",
-      value:validation,
-      status:"VERIFIED",
-      artifactIds:[artifact.id],
-      requirementIds:[DIAMETER_REQUIREMENT],
-      timestamp:now
-    }
-  ];
+  const evidenceByProduct=produceEvidenceByProduct({
+    project,
+    artifacts:[evidenceArtifact],
+    validation:"PASS",
+    drafts:[
+      {
+        id:evidenceIds[0],
+        type:"CALCULATION",
+        claim:"Transmitted shaft torque was calculated deterministically from explicit power and speed.",
+        method:"T = 9550 P(kW) / n(rpm)",
+        value:torqueResult.output,
+        artifactIds:[artifact.id],
+        requirementIds:[TORQUE_REQUIREMENT,SPEED_REQUIREMENT]
+      },
+      {
+        id:evidenceIds[1],
+        type:"CALCULATION",
+        claim:"Minimum solid-shaft diameter was calculated deterministically from explicit torque, bending moment and allowable shear stress.",
+        method:"d = [16·Te/(π·τallow)]^(1/3)",
+        value:sizingResult.output,
+        artifactIds:[artifact.id],
+        requirementIds:[TORQUE_REQUIREMENT,SPEED_REQUIREMENT,ALLOWABLE_STRESS_REQUIREMENT,BENDING_REQUIREMENT]
+      },
+      {
+        id:evidenceIds[2],
+        type:"CALCULATION",
+        claim:"Selected shaft diameter passed the deterministic minimum-diameter acceptance gate.",
+        method:"minimumDiameterMm <= proposedDiameterMm",
+        value:validation,
+        artifactIds:[artifact.id],
+        requirementIds:[DIAMETER_REQUIREMENT]
+      }
+    ]
+  });
+
+  if(!evidenceByProduct.emitted){
+    project.status="BLOCKED";
+    project.openQuestions=[evidenceByProduct.reason];
+    return {
+      projectId:project.id,
+      status:"FAILED",
+      project,
+      taskGraph,
+      artifacts:evidenceByProduct.artifacts,
+      evidence:[],
+      verification:null,
+      validation,
+      approvalRequired:true,
+      approvalGranted:false,
+      missingInputs:[],
+      nextAction:"Evidence production was blocked; no unverified result will be promoted.",
+      lineage:{
+        requirementIds:project.requirements.map(item=>item.id),
+        artifactIds:evidenceByProduct.artifacts.map(item=>item.id),
+        evidenceIds:[]
+      }
+    };
+  }
+
+  const evidence=evidenceByProduct.evidence;
+  const evidenceArtifact=evidenceByProduct.artifacts[0];
 
   const reportBase:EngineeringCompletionReport={
     projectId:project.id,
@@ -485,8 +511,8 @@ export async function completeShaftEngineeringUnit(
   };
 
   evidence.push(humanEvidence);
-  artifact.evidenceIds=[...artifact.evidenceIds,humanEvidence.id];
-  artifact.informationStatus="VERIFIED";
+  artifact.evidenceIds=[...evidenceArtifact.evidenceIds,humanEvidence.id];
+  evidenceArtifact.informationStatus="VERIFIED";
   project.evidenceIds=evidence.map(item=>item.id);
 
   const verificationResult=await router.execute({
@@ -495,7 +521,7 @@ export async function completeShaftEngineeringUnit(
     input:{
       project,
       evidence,
-      artifacts:[artifact],
+      artifacts:[evidenceArtifact],
       requirementEvidence:Object.fromEntries(
         project.requirements.map(item=>[
           item.id,
@@ -514,7 +540,7 @@ export async function completeShaftEngineeringUnit(
       ...reportBase,
       approval:request.approval,
       evidence,
-      artifacts:[artifact],
+      artifacts:[evidenceArtifact],
       verification:null,
       approvalGranted:true,
       status:"FAILED",
@@ -535,7 +561,7 @@ export async function completeShaftEngineeringUnit(
       ...reportBase,
       approval:request.approval,
       evidence,
-      artifacts:[artifact],
+      artifacts:[evidenceArtifact],
       verification:verification as never,
       approvalGranted:true,
       status:"FAILED",
@@ -558,7 +584,7 @@ export async function completeShaftEngineeringUnit(
     actor:request.approval.identity.subject,
     action:"ENGINEERING_COMPLETION_APPROVED",
     input:{approvalReason:request.approval.reason},
-    output:{verification:"PASS",artifactId:artifact.id}
+    output:{verification:"PASS",artifactId:evidenceArtifact.id}
   });
 
   return {
