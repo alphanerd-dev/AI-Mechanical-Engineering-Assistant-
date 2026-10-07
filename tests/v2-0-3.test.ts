@@ -96,21 +96,16 @@ describe("V2.0.3 project memory persistence",()=>{
   });
 
   it("rejects cross-project artifact ownership",()=>{
-    const invalid=createEngineeringMemorySnapshot(project(),1,evidence,{
-      "ART-1":{...artifacts["ART-1"],projectId:"PROJECT-2"}
-    });
+    const invalid=createEngineeringMemorySnapshot(project(),1,evidence,artifacts);
+    invalid.artifacts["ART-1"].projectId="PROJECT-2";
 
     expect(()=>validateEngineeringMemorySnapshot(invalid)).toThrow("crosses project boundary");
   });
 
   it("rejects broken evidence and requirement lineage",()=>{
-    const invalid=createEngineeringMemorySnapshot(project(),1,{
-      "EVID-1":{
-        ...evidence["EVID-1"],
-        artifactIds:["MISSING-ARTIFACT"],
-        requirementIds:["MISSING-REQ"]
-      }
-    });
+    const invalid=createEngineeringMemorySnapshot(project(),1,evidence,artifacts,{"REQ-1":["EVID-1"]});
+    invalid.evidence["EVID-1"].artifactIds=["MISSING-ARTIFACT"];
+    invalid.evidence["EVID-1"].requirementIds=["MISSING-REQ"];
 
     expect(()=>validateEngineeringMemorySnapshot(invalid)).toThrow("unknown artifact");
   });
