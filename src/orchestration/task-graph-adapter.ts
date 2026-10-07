@@ -64,7 +64,27 @@ export async function executeTaskGraphTask(
   };
 
   const workflow=new EngineeringWorkflowEngine(router);
-  const report=await workflow.execute(plan,{project:request.project});
+  let report;
+  try{
+    report=await workflow.execute(plan,{project:request.project});
+  }catch(error){
+    const failed=transitionTask(running,task.id,"FAILED");
+    const reason=error instanceof Error?error.message:"Task workflow execution failed.";
+    return {
+      taskId:task.id,
+      graph:failed,
+      workflowStep:{
+        stepId:task.id,
+        stage:request.stage,
+        status:"FAILED",
+        attempts:1,
+        trust:"UNVERIFIED",
+        reason
+      },
+      status:"FAILED",
+      reason
+    };
+  }
   const step=report.steps[0];
 
   if(!step){
