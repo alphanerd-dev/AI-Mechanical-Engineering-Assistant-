@@ -45,6 +45,37 @@ describe("V2.0.2 task graph execution control",()=>{
     expect(result.error).toContain("Task must be READY");
   });
 
+  it("rechecks stale dependencies immediately before execution",async()=>{
+    const registry=new CapabilityRegistry();
+    registry.registerCatalog(V2_0_2_CAPABILITIES);
+    registry.registerCatalog([
+      {id:"TEST.EXEC",domain:"orchestration",purpose:"test execution",inputs:[],outputs:[],risk:"LOW",providers:["test-exec"],status:"PILOT"}
+    ]);
+    let calls=0;
+    registry.register({id:"test-exec",capabilities:["TEST.EXEC"],async()=>{
+      calls++;
+      return {capability:"TEST.EXEC",provider:"test-exec",success:true,output:{ok:true}};
+    }});
+    const router=new CapabilityRouter(registry);
+    const provider=new TaskGraphExecutionProvider(router);
+    const result=await provider.execute({
+      capability:"TASK_GRAPH.EXECUTE_READY",
+      risk:"HIGH",
+      input:{
+        taskGraph:graph([
+          task("dependency","READY"),
+          task("t1","READY",{capability:"TEST.EXEC",dependsOn:["dependency"]})
+        ]),
+        taskId:"t1",
+        stage:"ANALYSIS"
+      }
+    });
+    expect(result.success).toBe(false);
+    expect(calls).toBe(0);
+    const output=result.output as {status:string;graph:EngineeringTaskGraph};
+    expect(output.status).toBe("BLOCKED");
+  });
+
   it("executes a READY task through the existing workflow engine and returns COMPLETED",async()=>{
     const registry=new CapabilityRegistry();
     registry.registerCatalog(V2_0_2_CAPABILITIES);
