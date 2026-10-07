@@ -3,7 +3,7 @@ import {ProjectState} from "../core/types.js";
 import {EngineeringTaskGraph} from "../task-graph/types.js";
 import {canTransitionTask,transitionTask} from "../task-graph/validation.js";
 import {EngineeringWorkflowEngine} from "./engine.js";
-import {EngineeringWorkflowStage,EngineeringWorkflowStepResult} from "./types.js";
+import {EngineeringWorkflowReport,EngineeringWorkflowStage,EngineeringWorkflowStepResult} from "./types.js";
 
 export interface TaskGraphExecutionRequest{
   graph:EngineeringTaskGraph;
@@ -43,6 +43,29 @@ export async function executeTaskGraphTask(
     };
   }
 
+  const byId=new Map(request.graph.tasks.map(item=>[item.id,item]));
+  const staleDependencies=(task.dependsOn??[]).filter(dependencyId=>{
+    const dependency=byId.get(dependencyId);
+    return !dependency|| (dependency.status!=="COMPLETED"&&dependency.status!=="VERIFIED");
+  });
+  if(staleDependencies.length){
+    const reason=`Task dependencies are no longer complete: ${staleDependencies.join(", ")}.`;
+    return {
+      taskId:task.id,
+      graph:request.graph,
+      workflowStep:{
+        stepId:task.id,
+        stage:request.stage,
+        status:"BLOCKED",
+        attempts:0,
+        trust:"UNVERIFIED",
+        reason
+      },
+      status:"BLOCKED",
+      reason
+    };
+  }
+
   const running=transitionTask(request.graph,task.id,"RUNNING");
   const plan={
     id:`${running.id}:task:${task.id}`,
@@ -64,7 +87,7 @@ export async function executeTaskGraphTask(
   };
 
   const workflow=new EngineeringWorkflowEngine(router);
-  let report;
+  let report:EngineeringWorkflowReport;
   try{
     report=await workflow.execute(plan,{project:request.project});
   }catch(error){
