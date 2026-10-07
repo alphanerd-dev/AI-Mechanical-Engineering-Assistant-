@@ -99,7 +99,7 @@ describe("V2.0.1 workspace persistence",()=>{
     const snapshot=workspace();
     const restored=deserializeEngineeringWorkspaceSnapshot(serializeEngineeringWorkspaceSnapshot(snapshot));
     expect(restored).toEqual(snapshot);
-    expect(()=>validateEngineeringWorkspaceSnapshot({...snapshot,schemaVersion:2} as typeof snapshot))
+    expect(()=>validateEngineeringWorkspaceSnapshot({...snapshot,schemaVersion:2} as unknown as typeof snapshot))
       .toThrow("Unsupported engineering workspace schema version");
   });
 });
