@@ -15,7 +15,7 @@ export async function POST(request:Request){
     const result=await service.authenticate(credential);
     if(!result) return NextResponse.json({error:"Authentication failed."},{status:401});
     const response=NextResponse.redirect(new URL("/",request.url));
-    response.headers.append("Set-Cookie",sessionCookie(result.token,8*60*60,true));
+    response.headers.append("Set-Cookie",sessionCookie(result.token,8*60*60,process.env.NODE_ENV==="production"));
     return response;
   }catch(error){
     return NextResponse.json({error:error instanceof Error?error.message:"Authentication is not configured."},{status:503});
