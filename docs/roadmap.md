@@ -288,6 +288,7 @@ Notes:
 - The default application entrypoint uses fail-closed OpenModelica stubs; no system simulation, sweep, sensitivity result, or co-simulation completion is claimed without a configured executor.
 
 ## V2.0 — Bounded autonomous engineering workspace
+- [x] V2.0.1 workspace + task graph foundation
 - [ ] Project memory persistence
 - [ ] Multi-agent specialist delegation
 - [ ] Bounded autonomous execution
@@ -296,3 +297,10 @@ Notes:
 - [ ] Benchmark suite
 - [ ] Multi-user collaboration
 - [ ] Domain expansion beyond Mechanical Engineering
+
+Notes:
+- V2.0.1 introduces a provider-neutral engineering workspace snapshot and explicit dependency-aware task graph.
+- Workspace revisions use optimistic concurrency protection and immutable reads/writes in the reference in-memory store.
+- Task readiness is fail-closed across dependencies, requirements, approval, and capability declaration.
+- Task transitions are explicit and bounded; V2.0.1 does not execute tasks autonomously.
+- Durable database persistence, multi-user conflict resolution, specialist delegation, and autonomous execution remain later V2.0 milestones.
