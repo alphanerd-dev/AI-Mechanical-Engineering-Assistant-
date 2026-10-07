@@ -3,6 +3,7 @@ import {CapabilityRegistry} from "./registry";
 
 export class CapabilityRouter {
   constructor(private registry:CapabilityRegistry){}
+  getDefinition(capability:string){ return this.registry.getDefinition(capability); }
   async execute(request:CapabilityRequest):Promise<CapabilityResult>{
     const definition=this.registry.getDefinition(request.capability);
     if(definition?.status==="BLOCKED")
