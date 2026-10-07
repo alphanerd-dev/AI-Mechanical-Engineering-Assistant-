@@ -70,7 +70,7 @@ Those stores are deliberately not merged into one framework-specific state model
 
 `LangGraphAgentRuntimeAdapter` is a thin adapter around a `LangGraphBridge` contract. The repository does not take a hard dependency on LangGraph.
 
-This lets a real LangGraph.js implementation sit at the application/runtime edge while the TypeScript Engineering Core remains provider-neutral. LangGraph supports persistent checkpointing and resumable human-in-the-loop interrupts, which makes it a suitable first runtime for the adapter boundary. citeturn131234search0turn131234search1
+This lets a real LangGraph.js implementation sit at the application/runtime edge while the TypeScript Engineering Core remains provider-neutral. LangGraph supports persistent checkpointing and resumable human-in-the-loop interrupts, which makes it a suitable first runtime for the adapter boundary.
 
 CrewAI can later implement the same `AgentRuntime` contract without changing the Engineering Core.
 
