@@ -453,6 +453,16 @@ export async function completeShaftEngineeringUnit(
 
   const evidence=evidenceByProduct.evidence;
   const evidenceArtifact=evidenceByProduct.artifacts[0];
+  project.evidenceIds=[...evidence.map(item=>item.id)];
+  project.events.push({
+    id:"EVT-"+project.id+"-EVIDENCE",
+    timestamp:new Date().toISOString(),
+    actor:"engineering-completion",
+    action:"ENGINEERING_EVIDENCE_AUTO_GENERATED",
+    input:{artifactId:evidenceArtifact.id,validation:"PASS"},
+    output:{evidenceIds:evidence.map(item=>item.id)},
+    evidence:evidence.map(item=>item.id)
+  });
 
   const reportBase:EngineeringCompletionReport={
     projectId:project.id,
@@ -511,7 +521,7 @@ export async function completeShaftEngineeringUnit(
   };
 
   evidence.push(humanEvidence);
-  artifact.evidenceIds=[...evidenceArtifact.evidenceIds,humanEvidence.id];
+  evidenceArtifact.evidenceIds=[...evidenceArtifact.evidenceIds,humanEvidence.id];
   evidenceArtifact.informationStatus="VERIFIED";
   project.evidenceIds=evidence.map(item=>item.id);
 
