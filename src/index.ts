@@ -33,6 +33,8 @@ import {CalculixProvider} from "./providers/calculix.js";
 import {EngineeringAgent} from "./core/agent.js";
 import {CADAnalysisProvider} from "./providers/cad-analysis.js";
 import {ConstraintEngineeringProvider} from "./providers/constraint-engineering.js";
+import {V2_0_1_CAPABILITIES} from "./capabilities/v2-0-1.js";
+import {EngineeringWorkspaceProvider} from "./providers/workspace.js";
 
 export * from "./state/persistence.js";
 export * from "./artifacts/persistence.js";
@@ -45,6 +47,8 @@ export * from "./product-model/index.js";
 export * from "./dynamics/index.js";
 export * from "./robotics/index.js";
 export * from "./system-simulation/index.js";
+export * from "./workspace/index.js";
+export * from "./task-graph/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
@@ -53,6 +57,7 @@ registry.registerCatalog(V1_21_CAPABILITIES);
 registry.registerCatalog(V1_22_CAPABILITIES);
 registry.registerCatalog(V1_23_CAPABILITIES);
 registry.registerCatalog(V1_24_CAPABILITIES);
+registry.registerCatalog(V2_0_1_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -65,6 +70,7 @@ registry.register(new CAMBoundaryProvider());
 registry.register(new MockCADProvider());
 registry.register(new CADAnalysisProvider());
 registry.register(new ConstraintEngineeringProvider());
+registry.register(new EngineeringWorkspaceProvider());
 registry.register(new ProductModelProvider());
 
 registry.register(new GmshProvider({
