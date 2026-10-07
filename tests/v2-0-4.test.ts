@@ -107,6 +107,33 @@ describe("V2.0.4 specialist delegation",()=>{
     expect(result.error).toContain("exceeds specialist analysis risk ceiling HIGH");
   });
 
+  it("refuses an invalid workflow stage at the runtime boundary",async()=>{
+    const {router}=setup();
+    const result=await router.execute({
+      capability:"AGENT.DELEGATE_SPECIALIST",
+      risk:"HIGH",
+      input:{taskGraph:graph(),taskId:"TASK-1",specialistId:"analysis",stage:"NOT_A_STAGE"}
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Delegation stage is invalid");
+  });
+
+  it("refuses a CRITICAL capability even when the task itself is marked LOW risk",async()=>{
+    const {router}=setup();
+    const result=await router.execute({
+      capability:"AGENT.DELEGATE_SPECIALIST",
+      risk:"HIGH",
+      input:{
+        taskGraph:graph({tasks:[task({capability:"ANALYSIS.CRITICAL_TEST"})]}),
+        taskId:"TASK-1",
+        specialistId:"analysis",
+        stage:"ANALYSIS"
+      }
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Capability risk CRITICAL exceeds specialist analysis risk ceiling HIGH");
+  });
+
   it("refuses an unknown capability definition",async()=>{
     const {router}=setup();
     const result=await router.execute({
