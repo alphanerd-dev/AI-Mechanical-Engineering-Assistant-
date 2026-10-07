@@ -74,6 +74,7 @@ export * from "./audit/index.js";
 export * from "./benchmarks/index.js";
 export * from "./collaboration/index.js";
 export * from "./completion/index.js";
+export * from "./evidence/index.js";
 export * from "./experience/index.js";
 export * from "./experience/context.js";
 

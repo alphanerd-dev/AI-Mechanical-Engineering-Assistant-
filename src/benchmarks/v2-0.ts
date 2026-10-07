@@ -16,6 +16,7 @@ import {InMemoryAuditTrail,verifyAuditEvent} from "../audit/index.js";
 import {createEngineeringMemorySnapshot} from "../memory/persistence.js";
 import {BenchmarkCaseDefinition} from "./types.js";
 import {runBenchmarkSuite} from "./runner.js";
+import {produceEvidenceByProduct} from "../evidence/by-product.js";
 
 const stamp="2026-10-07T00:00:00.000Z";
 
@@ -211,6 +212,61 @@ export const V2_0_BENCHMARK_CASES:readonly BenchmarkCaseDefinition[]=[
       return {
         metrics:{unverifiedEvidenceAccepted:0},
         evidence:["Engineering memory remains fail-closed at the VERIFIED evidence boundary."]
+      };
+    }
+  },
+  {
+    id:"v2-0-evidence-by-product",
+    name:"Validated execution automatically produces verified evidence",
+    async run(){
+      const state=project();
+      const artifact={
+        id:"ART-BENCH-EVIDENCE",
+        kind:"CALCULATION_RESULT" as const,
+        name:"Benchmark calculation result",
+        backend:"benchmark",
+        validationStatus:"PASS" as const,
+        informationStatus:"CALCULATED" as const,
+        evidenceIds:[],
+        requirementIds:[],
+        createdAt:stamp
+      };
+      const produced=produceEvidenceByProduct({
+        project:state,
+        artifacts:[artifact],
+        validation:"PASS",
+        drafts:[{
+          id:"E-BENCH-EVIDENCE",
+          type:"CALCULATION",
+          claim:"Validated benchmark calculation.",
+          method:"deterministic test method",
+          value:{passed:true},
+          artifactIds:[artifact.id]
+        }],
+        timestamp:stamp
+      });
+      if(!produced.emitted||produced.evidence.length!==1||produced.evidence[0].status!=="VERIFIED")
+        throw new Error("Validated execution did not emit verified evidence.");
+      if(!produced.artifacts[0].evidenceIds.includes(produced.evidence[0].id))
+        throw new Error("Produced evidence was not linked back to its artifact.");
+
+      const blocked=produceEvidenceByProduct({
+        project:state,
+        artifacts:[artifact],
+        validation:"FAIL",
+        drafts:[{
+          id:"E-BENCH-BLOCKED",
+          type:"CALCULATION",
+          claim:"Blocked benchmark claim.",
+          artifactIds:[artifact.id]
+        }],
+        timestamp:stamp
+      });
+      if(blocked.emitted||blocked.evidence.length!==0)
+        throw new Error("Failed validation emitted evidence.");
+      return {
+        metrics:{verifiedEvidenceProduced:1,failedValidationEvidenceProduced:0},
+        evidence:["Evidence was emitted as a validation-gated execution by-product and was blocked when validation failed."]
       };
     }
   },
