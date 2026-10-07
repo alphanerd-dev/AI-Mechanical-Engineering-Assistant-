@@ -41,6 +41,8 @@ import {V2_0_4_CAPABILITIES} from "./capabilities/v2-0-4.js";
 import {SpecialistDelegationProvider} from "./providers/specialist-delegation.js";
 import {V2_0_5_CAPABILITIES} from "./capabilities/v2-0-5.js";
 import {BoundedAutonomyProvider} from "./providers/bounded-autonomy.js";
+import {CollaborationProvider} from "./providers/collaboration.js";
+import {V2_0_9_CAPABILITIES} from "./capabilities/v2-0-9.js";
 
 // V1.15 project-state persistence remains available from ./state/persistence.js.
 // V2 workspace persistence and V2.0 project-memory persistence are canonical root-level contracts.
@@ -65,6 +67,7 @@ export * from "./orchestration/bounded-autonomy.js";
 export * from "./auth/index.js";
 export * from "./audit/index.js";
 export * from "./benchmarks/index.js";
+export * from "./collaboration/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
@@ -77,6 +80,7 @@ registry.registerCatalog(V2_0_1_CAPABILITIES);
 registry.registerCatalog(V2_0_2_CAPABILITIES);
 registry.registerCatalog(V2_0_4_CAPABILITIES);
 registry.registerCatalog(V2_0_5_CAPABILITIES);
+registry.registerCatalog(V2_0_9_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
