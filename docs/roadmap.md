@@ -293,22 +293,24 @@ Notes:
 - [x] V2.0.3 project memory persistence foundation
 - [x] V2.0.4 multi-agent specialist delegation
 - [x] V2.0.5 bounded autonomous execution + AgentRuntime boundary
-- [ ] Production authentication and authorization
-- [x] Full audit trail
-- [x] Benchmark suite
-- [ ] Multi-user collaboration
+- [x] V2.0.6 identity + authorization boundary
+- [x] V2.0.7 engineering audit trail primitive
+- [x] V2.0 benchmark suite
+- [x] V2.0.8 production authentication + Supabase Auth
+- [x] V2.0.9 collaborative engineering state foundation
+- [ ] V2.0.10 first end-to-end Engineering Completion Unit
+- [ ] V2.0.11 risk-adaptive engineering experience
+- [ ] V2.0.12 context-aware engineering interaction
+- [ ] V2.0.13 evidence-as-a-byproduct
+- [ ] V2.0 final product/workflow gate
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
-- V2.0.1 introduces a provider-neutral engineering workspace snapshot and explicit dependency-aware task graph.
-- Workspace revisions use optimistic concurrency protection and immutable reads/writes in the reference in-memory store.
-- Task readiness is fail-closed across dependencies, requirements, approval, and capability declaration.
-- V2.0.2 connects exactly one READY task to the existing EngineeringWorkflowEngine; it does not create a second orchestrator.
-- Execution rechecks requirements, approvals, dependencies, evidence policy, bounded retries, and workflow results before transitioning the task to COMPLETED, FAILED, or BLOCKED.
-- V2.0.3 adds a provider-neutral, versioned project-memory snapshot with immutable reads/writes, optimistic revision protection, fail-closed evidence/artifact lineage, and explicit project ownership.
-- V2.0.4 adds explicit named-specialist delegation for exactly one READY task, with capability-domain authorization and HIGH risk ceilings; delegation never executes work or selects tasks autonomously.
-- V2.0.5 adds bounded autonomous execution through structured agent action proposals, hard step/execution/delegation ceilings, HIGH maximum risk, stale graph-revision protection, and an external AgentRuntime adapter boundary. LangGraph is the first reference runtime at the edge; the Engineering Core remains framework-independent.
-- V2.0.5 does not permit CRITICAL autonomous work, does not mark tasks VERIFIED, and does not bypass the existing task graph, approval, validation, or evidence boundaries.
-- V2.0.6 establishes a provider-neutral identity and authorization boundary with explicit roles, permissions, deny-by-default decisions, and optional project scoping. It does not claim a production login/session provider; provider binding, durable identity storage, and revocation remain follow-up work.
-- V2.0.7 establishes a provider-neutral append-only audit boundary with sequenced events, actor/resource context, outcomes, defensive reads, and tamper-evident hash-chain verification. The reference store is in-memory; durable persistence and wiring audit emissions into every execution boundary remain follow-up integration work.
-- V2.0 benchmark suite establishes deterministic cross-boundary conformance checks for task readiness, bounded execution, hard risk ceilings, specialist scope, verified-memory acceptance, authorization, and audit integrity. The suite is a regression gate, not an engineering safety verdict; performance, solver-accuracy, cross-provider, hardware, and durable benchmark storage remain later work.
+- V2.0.6 establishes provider-neutral identity and authorization with explicit roles, permissions, deny-by-default decisions, and optional project scoping.
+- V2.0.7 establishes an append-only audit boundary with sequenced events, actor/resource context, outcomes, and tamper-evident hash-chain verification.
+- The V2.0 benchmark suite is a regression/conformance gate, not an engineering safety verdict.
+- V2.0.8 binds the application authentication boundary to Supabase Auth with SSR session handling, server-side claims verification, server-controlled app_metadata roles, route-level authorization, and fail-closed identity mapping.
+- V2.0.9 adds durable project, project-membership, and workspace-snapshot foundations with database-enforced project isolation and RLS. Realtime presence, chat/comments, social collaboration, and full durable task/artifact/evidence/audit stores remain deferred.
+- V2.0.9 collaboration contracts remain provider-neutral; the Supabase schema is the production persistence boundary while the application core does not hard-depend on Supabase.
+- The next product gate is not another infrastructure feature: V2.0.10 must demonstrate a real Engineering Completion Unit from requirement through deterministic execution, validation, evidence, and approval where required.
+- Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
