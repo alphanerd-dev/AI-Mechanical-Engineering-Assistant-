@@ -67,6 +67,26 @@ describe("V2.0.2 task graph execution control",()=>{
     expect(output.graph.tasks[0].status).toBe("COMPLETED");
   });
 
+  it("maps a throwing provider to FAILED instead of leaving RUNNING",async()=>{
+    const registry=new CapabilityRegistry();
+    registry.registerCatalog(V2_0_2_CAPABILITIES);
+    registry.registerCatalog([
+      {id:"TEST.FAIL",domain:"orchestration",purpose:"forced failure",inputs:[],outputs:[],risk:"LOW",providers:["throwing"],status:"PILOT"}
+    ]);
+    registry.register({id:"throwing",capabilities:["TEST.FAIL"],async()=>{throw new Error("deterministic test failure");}});
+    const router=new CapabilityRouter(registry);
+    const provider=new TaskGraphExecutionProvider(router);
+    const result=await provider.execute({
+      capability:"TASK_GRAPH.EXECUTE_READY",
+      risk:"HIGH",
+      input:{taskGraph:graph([task("t1","READY",{capability:"TEST.FAIL"})]),taskId:"t1",stage:"ANALYSIS"}
+    });
+    expect(result.success).toBe(false);
+    const output=result.output as {status:string;graph:EngineeringTaskGraph};
+    expect(output.status).toBe("FAILED");
+    expect(output.graph.tasks[0].status).toBe("FAILED");
+  });
+
   it("preserves evidence requirement as a blocking gate",async()=>{
     const registry=new CapabilityRegistry();
     registry.registerCatalog(V2_0_2_CAPABILITIES);
