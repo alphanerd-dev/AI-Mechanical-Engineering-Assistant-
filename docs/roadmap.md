@@ -292,7 +292,7 @@ Notes:
 - [x] V2.0.2 task graph execution-control bridge
 - [x] V2.0.3 project memory persistence foundation
 - [x] V2.0.4 multi-agent specialist delegation
-- [ ] Bounded autonomous execution
+- [x] V2.0.5 bounded autonomous execution + AgentRuntime boundary
 - [ ] Production authentication and authorization
 - [ ] Full audit trail
 - [ ] Benchmark suite
