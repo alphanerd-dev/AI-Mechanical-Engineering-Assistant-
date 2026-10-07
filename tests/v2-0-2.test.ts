@@ -18,7 +18,7 @@ function task(id:string,status:EngineeringTask["status"]="READY",overrides:Parti
     goal:`perform ${id}`,
     capability:"ANALYSIS.SHAFT_TORQUE",
     risk:"LOW",
-    input:{powerKw:5,rpm:1500},
+    input:{powerKw:5,speedRpm:1500},
     status,
     createdAt:stamp,
     updatedAt:stamp,
