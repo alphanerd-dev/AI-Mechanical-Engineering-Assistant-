@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthenticatedIdentity } from "../../../../src/auth/supabase-service.js";
+import { getAuthenticatedIdentity } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
