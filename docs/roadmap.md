@@ -300,7 +300,7 @@ Notes:
 - [x] V2.0.9 collaborative engineering state foundation
 - [x] V2.0.10 first end-to-end Engineering Completion Unit
 - [x] V2.0.11 risk-adaptive engineering experience
-- [ ] V2.0.12 context-aware engineering interaction
+- [x] V2.0.12 context-aware engineering interaction
 - [ ] V2.0.13 evidence-as-a-byproduct
 - [ ] V2.0 final product/workflow gate
 - [ ] Domain expansion beyond Mechanical Engineering
@@ -314,6 +314,7 @@ Notes:
 - V2.0.9 collaboration contracts remain provider-neutral; the Supabase schema is the production persistence boundary while the application core does not hard-depend on Supabase.
 - V2.0.10 demonstrates the first Engineering Completion Unit: explicit shaft requirements → task graph → deterministic torque/sizing → validation → evidence → authorized approval → final verification → project completion.
 - V2.0.11 makes risk-adaptive interaction a deterministic experience policy: fast exploration by default, automatic rigor for consequential engineering work, and explicit control points when ambiguity, consequence, verification intent, or risk warrants them.
+- V2.0.12 adds context resolution before questioning: known project inputs can satisfy material questions automatically, while unknown values remain unknown and are never invented.
 - V2.0.10 intentionally leaves detailed shaft design domains such as fatigue, keys/couplings, bearings, critical speed, deflection, detailed CAD, manufacturing release, and standards-backed material selection outside the unit.
 - The next product work should improve the engineering experience around a real completed workflow rather than add infrastructure for its own sake.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
