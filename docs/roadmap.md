@@ -291,7 +291,7 @@ Notes:
 - [x] V2.0.1 workspace + task graph foundation
 - [x] V2.0.2 task graph execution-control bridge
 - [x] V2.0.3 project memory persistence foundation
-- [ ] Multi-agent specialist delegation
+- [x] V2.0.4 multi-agent specialist delegation
 - [ ] Bounded autonomous execution
 - [ ] Production authentication and authorization
 - [ ] Full audit trail
@@ -306,4 +306,4 @@ Notes:
 - V2.0.2 connects exactly one READY task to the existing EngineeringWorkflowEngine; it does not create a second orchestrator.
 - Execution rechecks requirements, approvals, dependencies, evidence policy, bounded retries, and workflow results before transitioning the task to COMPLETED, FAILED, or BLOCKED.
 - V2.0.3 adds a provider-neutral, versioned project-memory snapshot with immutable reads/writes, optimistic revision protection, fail-closed evidence/artifact lineage, and explicit project ownership.
-- V2.0 remains non-autonomous: task execution occurs only through the explicit execution capability and never bypasses validation or approval gates.
+- V2.0.4 adds explicit named-specialist delegation for exactly one READY task, with capability-domain authorization and HIGH risk ceilings; delegation never executes work or selects tasks autonomously.\n- V2.0 remains non-autonomous: task execution occurs only through the explicit execution capability and never bypasses validation or approval gates.
