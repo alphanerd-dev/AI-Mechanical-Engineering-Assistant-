@@ -298,7 +298,7 @@ Notes:
 - [x] V2.0 benchmark suite
 - [x] V2.0.8 production authentication + Supabase Auth
 - [x] V2.0.9 collaborative engineering state foundation
-- [ ] V2.0.10 first end-to-end Engineering Completion Unit
+- [x] V2.0.10 first end-to-end Engineering Completion Unit
 - [ ] V2.0.11 risk-adaptive engineering experience
 - [ ] V2.0.12 context-aware engineering interaction
 - [ ] V2.0.13 evidence-as-a-byproduct
@@ -312,5 +312,7 @@ Notes:
 - V2.0.8 binds the application authentication boundary to Supabase Auth with SSR session handling, server-side claims verification, server-controlled app_metadata roles, route-level authorization, and fail-closed identity mapping.
 - V2.0.9 adds durable project, project-membership, and workspace-snapshot foundations with database-enforced project isolation and RLS. Realtime presence, chat/comments, social collaboration, and full durable task/artifact/evidence/audit stores remain deferred.
 - V2.0.9 collaboration contracts remain provider-neutral; the Supabase schema is the production persistence boundary while the application core does not hard-depend on Supabase.
-- The next product gate is not another infrastructure feature: V2.0.10 must demonstrate a real Engineering Completion Unit from requirement through deterministic execution, validation, evidence, and approval where required.
+- V2.0.10 demonstrates the first Engineering Completion Unit: explicit shaft requirements → task graph → deterministic torque/sizing → validation → evidence → authorized approval → final verification → project completion.
+- V2.0.10 intentionally leaves detailed shaft design domains such as fatigue, keys/couplings, bearings, critical speed, deflection, detailed CAD, manufacturing release, and standards-backed material selection outside the unit.
+- The next product work should improve the engineering experience around a real completed workflow rather than add infrastructure for its own sake.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."

@@ -1,6 +1,6 @@
 import {InformationStatus} from "../core/types";
 
-export type ArtifactKind="CAD_SOURCE"|"CAD_SOLID"|"STEP"|"STL"|"FEA_MODEL"|"FEA_RESULT"|"RESEARCH_EVIDENCE"|"PLM_RECORD"|"MANUFACTURING_PROCESS_PLAN"|"MANUFACTURING_RECORD";
+export type ArtifactKind="CAD_SOURCE"|"CAD_SOLID"|"STEP"|"STL"|"FEA_MODEL"|"FEA_RESULT"|"CALCULATION_RESULT"|"RESEARCH_EVIDENCE"|"PLM_RECORD"|"MANUFACTURING_PROCESS_PLAN"|"MANUFACTURING_RECORD";
 
 export interface EngineeringArtifact {
   id:string;
