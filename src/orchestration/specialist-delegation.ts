@@ -30,6 +30,8 @@ export interface EngineeringSpecialistDelegation{
   reason:string;
 }
 
+const validWorkflowStages:readonly EngineeringWorkflowStage[]=["REQUIREMENTS","RESEARCH","COMPUTATION","ANALYSIS","CAD","SIMULATION","DYNAMICS","ROBOTICS","MANUFACTURING","VALIDATION","PLM"];
+
 export function validateSpecialistDelegationRequest(
   request:SpecialistDelegationRequest,
   specialist:EngineeringSpecialistProfile|undefined,
@@ -40,6 +42,7 @@ export function validateSpecialistDelegationRequest(
 
   if(!request.taskId.trim()) errors.push("Delegation taskId is required.");
   if(!request.specialistId.trim()) errors.push("Delegation specialistId is required.");
+  if(!validWorkflowStages.includes(request.stage)) errors.push("Delegation stage is invalid: "+String(request.stage)+".");
 
   const task=request.taskGraph.tasks.find(item=>item.id===request.taskId);
   if(!task){
@@ -64,6 +67,8 @@ export function validateSpecialistDelegationRequest(
       errors.push("Specialist "+specialist.id+" is not authorized for capability "+definition.id+".");
     if(task&&specialist&&!riskWithinSpecialistCeiling(task.risk,specialist))
       errors.push("Task risk "+task.risk+" exceeds specialist "+specialist.id+" risk ceiling "+specialist.maxRisk+".");
+    if(specialist&&!riskWithinSpecialistCeiling(definition.risk,specialist))
+      errors.push("Capability risk "+definition.risk+" exceeds specialist "+specialist.id+" risk ceiling "+specialist.maxRisk+".");
   }
 
   return [...new Set(errors)];
