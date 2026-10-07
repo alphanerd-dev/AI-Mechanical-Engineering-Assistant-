@@ -1,7 +1,7 @@
 import {CapabilityProvider} from "../capabilities/registry.js";
 import {CapabilityRequest,CapabilityResult} from "../core/types.js";
-import {RiskAdaptiveExperienceRequest} from "../experience/types.js";
-import {assessRiskAdaptiveExperience} from "../experience/risk-adaptive.js";
+import {RiskAdaptiveExperienceRequest} from "../experience/types";
+import {assessRiskAdaptiveExperience} from "../experience/risk-adaptive";
 
 export class RiskAdaptiveExperienceProvider implements CapabilityProvider{
   id="experience.risk-adaptive";
