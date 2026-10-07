@@ -1,9 +1,9 @@
 import { createClient } from "../../lib/supabase/server";
-import { InMemoryAuditTrail } from "../audit/trail.js";
-import { type AuditActor, type AuditAction, type AuditOutcome } from "../audit/types.js";
-import { authorize } from "./policy.js";
-import type { AuthenticatedIdentity, EngineeringPermission } from "./types.js";
-import { identityFromSupabaseClaims } from "./supabase-identity.js";
+import { InMemoryAuditTrail } from "../audit/trail";
+import { type AuditActor, type AuditAction, type AuditOutcome } from "../audit/types";
+import { authorize } from "./policy";
+import type { AuthenticatedIdentity, EngineeringPermission } from "./types";
+import { identityFromSupabaseClaims } from "./supabase-identity";
 
 const globalKey = "__ENGINEERING_SUPABASE_AUTH_AUDIT__";
 type GlobalWithAudit = typeof globalThis & { [globalKey]?: InMemoryAuditTrail };
