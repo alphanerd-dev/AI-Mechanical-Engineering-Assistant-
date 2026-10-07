@@ -41,7 +41,6 @@ import {V2_0_4_CAPABILITIES} from "./capabilities/v2-0-4.js";
 import {SpecialistDelegationProvider} from "./providers/specialist-delegation.js";
 import {V2_0_5_CAPABILITIES} from "./capabilities/v2-0-5.js";
 import {BoundedAutonomyProvider} from "./providers/bounded-autonomy.js";
-import {CollaborationProvider} from "./providers/collaboration.js";
 import {V2_0_9_CAPABILITIES} from "./capabilities/v2-0-9.js";
 
 // V1.15 project-state persistence remains available from ./state/persistence.js.
