@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyResearchFinding } from "../../../../src/research/verification";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service.js";
+import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
