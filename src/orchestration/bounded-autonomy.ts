@@ -98,6 +98,9 @@ function validateActionShape(
   if(action.kind==="REQUEST_APPROVAL"&&!action.reason.trim())
     errors.push("Agent approval request reason is required.");
 
+  if((action.kind==="DELEGATE_SPECIALIST"||action.kind==="EXECUTE_TASK")&&!task?.capability?.trim())
+    errors.push("Agent task action requires an engineering capability: "+action.taskId+".");
+
   if(action.kind==="DELEGATE_SPECIALIST"){
     if(limits.allowedSpecialists&&limits.allowedSpecialists.length>0&&!limits.allowedSpecialists.includes(action.specialistId))
       errors.push("Specialist is outside the bounded agent policy: "+action.specialistId+".");
@@ -156,6 +159,9 @@ export async function runBoundedAutonomy(
   };
   if(graphErrors.length||limitErrors.length)
     return {...initial,stopReason:[...graphErrors,...limitErrors].join(" ")};
+
+  if(request.actions.length===0)
+    return {...initial,status:"INCOMPLETE",stopReason:"Bounded agent action list must contain at least one action."};
 
   if(request.project&&request.project.id!==request.taskGraph.projectId)
     return {...initial,stopReason:"Agent project id does not match task graph project id."};
