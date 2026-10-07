@@ -31,7 +31,7 @@ function workspace():EngineeringWorkspaceSnapshot{
 describe("V2.0.1 task graph foundation",()=>{
   it("rejects duplicate ids, missing dependencies, project leaks and cycles",()=>{
     expect(validateEngineeringTaskGraph(graph([
-      task("a",{ } as never),
+      task("a"),
       task("a"),
       task("b","PROPOSED",{projectId:"OTHER"}),
       task("c","PROPOSED",{dependsOn:["missing"]}),
