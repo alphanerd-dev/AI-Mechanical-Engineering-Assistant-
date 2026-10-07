@@ -1,4 +1,5 @@
-import {AuthenticatedIdentity,ProjectState} from "../core/types.js";
+import {ProjectState} from "../core/types.js";
+import {AuthenticatedIdentity} from "../auth/types.js";
 import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artifacts.js";
 import {EngineeringTaskGraph} from "../task-graph/types.js";
 import {EngineeringProjectVerificationReport} from "../verification/project.js";
