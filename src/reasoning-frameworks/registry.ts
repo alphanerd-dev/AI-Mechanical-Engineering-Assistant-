@@ -1,6 +1,6 @@
 import type { ReasoningFrameworkId, ReasoningFrameworkManifest } from "./types.js";
 
-export const REASONING_FRAMEWORKS: readonly ReasoningFrameworkManifest[] = [
+const builtInFrameworks: ReasoningFrameworkManifest[] = [
   {
     schemaVersion: 1,
     id: "first-principles",
@@ -31,7 +31,15 @@ export const REASONING_FRAMEWORKS: readonly ReasoningFrameworkManifest[] = [
     requiredInputs: ["problem-statement"],
     outputKind: "REASONING_RECORD"
   }
-] as const;
+];
+
+export const REASONING_FRAMEWORKS: readonly ReasoningFrameworkManifest[] = Object.freeze(
+  builtInFrameworks.map((framework) => {
+    Object.freeze(framework.suitableFor);
+    Object.freeze(framework.requiredInputs);
+    return Object.freeze(framework);
+  })
+);
 
 export function getReasoningFramework(id: ReasoningFrameworkId): ReasoningFrameworkManifest | undefined {
   return REASONING_FRAMEWORKS.find((item) => item.id === id);
