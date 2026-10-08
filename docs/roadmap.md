@@ -319,6 +319,7 @@ Notes:
 - [x] V2.0.17 real engineering interaction surface
 - [x] V2.0.18 domain-neutral intent contract foundation
 - [x] V2.0.19 domain-neutral decision/result contract
+- [x] V2.0.20 domain-neutral completion routing
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
@@ -344,6 +345,7 @@ Notes:
 - V2.0.17 adds the first real project engineering interaction surface: natural-language request entry, project-scoped multi-turn continuation, decision-ready rendering, validation/evidence status, and a route-level session boundary over the existing deterministic completion path. Durable cross-instance conversation storage remains future workspace persistence.
 - V2.0.18 removes the remaining shaft-specific typing from the reusable intent interpretation boundary. Intent extracted inputs are now generic key/value data, and intent-entry approval uses the generic engineering approval contract. This is an architecture-preparation milestone for the first non-mechanical domain; it does not add a second domain completion unit.
 - V2.0.19 removes the remaining shaft-specific fields from the reusable decision contract. Decision-ready deterministic outputs now expose generic typed metrics with optional units; the canonical shaft workflow emits torque and diameter as metrics rather than top-level decision fields. This prepares the interaction surface for domain-specific deterministic results without changing the engineering authority boundary.
+- V2.0.20 removes the remaining shaft-specific completion-routing coupling. A provider-neutral completion-unit registry now declares required inputs and the capability used for execution, while the AI-native provider resolves a registered unit and delegates through the existing CapabilityRouter. The canonical shaft completion remains the current registered unit; no second domain is added in this milestone.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
 
 ## V2.1 — Multi-CAD Engineering Layer
