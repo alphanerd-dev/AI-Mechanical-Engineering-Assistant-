@@ -10,7 +10,7 @@ const modules = [
 export default function HomePage() {
   return <main className="shell">
     <header className="hero">
-      <div><p className="eyebrow">AI MECHANICAL R&D ENGINEER</p><h1>Engineering Workspace</h1><p className="muted">Problem → Requirements → Analysis → CAD → Simulation → Manufacturing → Test → Validation.</p></div>
+      <div><p className="eyebrow">AI-NATIVE ENGINEERING WORKSPACE</p><h1>Engineering Workspace</h1><p className="muted">Problem → Requirements → Analysis → CAD → Simulation → Manufacturing → Test → Validation.</p></div>
       <Link className="button" href="/projects/demo">Open project</Link>
     </header>
     <section className="grid">{modules.map(([title, body, href]) => <Link className="card" href={href} key={title}><span className="tag">MODULE</span><h2>{title}</h2><p>{body}</p><span className="arrow">Open →</span></Link>)}</section>
