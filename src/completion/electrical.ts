@@ -97,7 +97,7 @@ function baseReport(
   taskGraph:EngineeringTaskGraph,
   missingInputs:string[],
   nextAction:string
-):EngineeringCompletionReport{
+):EngineeringCompletionReport<DcLoadEngineeringValidation>{
   return {
     projectId,
     status:"BLOCKED",
@@ -117,7 +117,7 @@ function baseReport(
   };
 }
 
-function fail(project:ProjectState,graph:EngineeringTaskGraph,reason:string):EngineeringCompletionReport{
+function fail(project:ProjectState,graph:EngineeringTaskGraph,reason:string):EngineeringCompletionReport<DcLoadEngineeringValidation>{
   project.status="BLOCKED";
   project.openQuestions=[reason];
   return {...baseReport(project.id,project,graph,project.openQuestions,"Resolve the failed deterministic step before continuing."),status:"FAILED"};
