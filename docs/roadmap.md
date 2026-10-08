@@ -301,9 +301,12 @@ Notes:
 - [x] V2.0.10 first end-to-end Engineering Completion Unit
 - [x] V2.0.11 risk-adaptive engineering experience
 - [x] V2.0.12 context-aware engineering interaction
-- [ ] V2.0.13 evidence-as-a-byproduct
+- [x] V2.0.13 evidence-as-a-byproduct
 - [x] V2.0 final product/workflow gate
-- [ ] AI-native entry to the canonical Engineering Completion Unit
+- [x] V2.0.14 AI-native completion entry
+- [ ] V2.0.15 AI-native completion path validation
+- [ ] V2.0.16 model-backed intent adapter
+- [ ] V2.0.17 real engineering interaction surface
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
@@ -320,7 +323,15 @@ Notes:
 - V2.0.10 intentionally leaves detailed shaft design domains such as fatigue, keys/couplings, bearings, critical speed, deflection, detailed CAD, manufacturing release, and standards-backed material selection outside the unit.
 - V2.0 final product/workflow gate confirms the canonical Engineering Completion Unit as the product contract: explicit requirements → deterministic task execution → validation → automatic evidence → explicit authorized approval when required → final verification → traceable completion. The gate also requires artifact/evidence lineage consistency and fail-closed behavior on validation failure.
 - V2.0.14 makes the canonical Engineering Completion Unit reachable from natural engineering intent. The entry path interprets intent, resolves known context, applies risk-adaptive rigor, invokes the existing deterministic completion unit, and returns a concise decision-ready result or the minimum required escalation.
-- The V2.0.14 intent interpreter is a provider-neutral contract. The repository includes a deterministic reference interpreter for testing; a future model adapter may implement the same contract without moving engineering authority into the model layer.
-- V2.0.14 does not invent missing values, bypass deterministic validation, create CAD, or expand the shaft completion-unit scope.
-- The next product work should measure the five AI-native exit tests on this real path before adding another completion unit or moving to V2.1 Multi-CAD.
+- V2.0.15 is the named product acceptance gate for the AI-native path. It validates intent routing, context reuse, minimal escalation, fail-closed validation, decision-ready output, multi-turn continuation, and wrong-unit protection. The gate also locks the invariant that AI-native entry must route through the existing deterministic completion capability rather than create a second engineering execution path.
+- V2.0.15 uses a provider-neutral project-scoped in-memory intent session contract for continuation. Session state reduces repeated input but is not authorization, engineering truth, or durable project memory.
+- V2.0.15 keeps the deterministic reference interpreter as a replaceable test harness. It does not claim that regex extraction is production AI intelligence.
+- V2.0.16 should add the model-backed intent adapter only after V2.0.15's seven-case acceptance gate is green.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
+
+## V2.1 — Multi-CAD Engineering Layer
+- [ ] Provider-neutral CAD document/model identity
+- [ ] Multi-CAD capability routing
+- [ ] CAD artifact provenance and validation integration
+- [ ] First reference CAD provider
+
