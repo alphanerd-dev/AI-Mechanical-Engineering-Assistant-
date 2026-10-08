@@ -127,9 +127,10 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
 
     const unsupported=interpretation.completionUnit!=="ENGINEERING.COMPLETE_SHAFT";
     if(unsupported){
-      const decision:EngineeringIntentDecision={
+        const decision:EngineeringIntentDecision={
         status:"NEEDS_INPUT",
         validationPassed:false,
+        metrics:[],
         evidenceIds:[],
         nextQuestion:"Clarify the engineering completion unit or design objective."
       };
@@ -161,6 +162,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       const decision:EngineeringIntentDecision={
         status:"NEEDS_INPUT",
         validationPassed:false,
+        metrics:[],
         evidenceIds:[],
         nextQuestion
       };
@@ -211,12 +213,22 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       completion?.status==="COMPLETE"?"COMPLETE":
       completion?.status==="WAITING_APPROVAL"?"WAITING_APPROVAL":
       completion?.status==="FAILED"?"FAILED":"NEEDS_INPUT";
+    const metrics = [
+      validation?.calculatedTorqueNm!==undefined
+        ? {key:"torqueNm",value:validation.calculatedTorqueNm,unit:"N·m"}
+        : undefined,
+      validation?.minimumDiameterMm!==undefined
+        ? {key:"minimumDiameterMm",value:validation.minimumDiameterMm,unit:"mm"}
+        : undefined,
+      validation?.proposedDiameterMm!==undefined
+        ? {key:"proposedDiameterMm",value:validation.proposedDiameterMm,unit:"mm"}
+        : undefined
+    ].filter((metric):metric is {key:string;value:number;unit:string}=>metric!==undefined);
+
     const decision:EngineeringIntentDecision={
       status,
       validationPassed:validation?.passed??false,
-      torqueNm:validation?.calculatedTorqueNm,
-      minimumDiameterMm:validation?.minimumDiameterMm,
-      proposedDiameterMm:validation?.proposedDiameterMm,
+      metrics,
       evidenceIds,
       nextAction:completion?.nextAction
     };
