@@ -302,7 +302,7 @@ Notes:
 - [x] V2.0.11 risk-adaptive engineering experience
 - [x] V2.0.12 context-aware engineering interaction
 - [ ] V2.0.13 evidence-as-a-byproduct
-- [ ] V2.0 final product/workflow gate
+- [x] V2.0 final product/workflow gate
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
@@ -317,5 +317,6 @@ Notes:
 - V2.0.12 adds context resolution before questioning: known project inputs can satisfy material questions automatically, while unknown values remain unknown and are never invented.
 - V2.0.13 adds a provider-neutral evidence-by-product primitive. Validated deterministic execution can automatically emit VERIFIED evidence with checked artifact and requirement provenance; failed or incomplete validation emits no VERIFIED evidence. The canonical shaft completion workflow now records those evidence IDs directly in project state before approval. Human approval evidence remains explicitly separate.
 - V2.0.10 intentionally leaves detailed shaft design domains such as fatigue, keys/couplings, bearings, critical speed, deflection, detailed CAD, manufacturing release, and standards-backed material selection outside the unit.
+- V2.0 final product/workflow gate confirms the canonical Engineering Completion Unit as the product contract: explicit requirements → deterministic task execution → validation → automatic evidence → explicit authorized approval when required → final verification → traceable completion. The gate also requires artifact/evidence lineage consistency and fail-closed behavior on validation failure.
 - The next product work should improve the engineering experience around a real completed workflow rather than add infrastructure for its own sake.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."

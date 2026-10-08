@@ -479,7 +479,7 @@ export async function completeShaftEngineeringUnit(
     nextAction:"A REVIEWER or ADMIN must explicitly approve the validated engineering result before the completion unit can close.",
     lineage:{
       requirementIds:project.requirements.map(item=>item.id),
-      artifactIds:[artifact.id],
+      artifactIds:[evidenceArtifact.id],
       evidenceIds:[...evidenceIds]
     }
   };
@@ -613,7 +613,7 @@ export async function completeShaftEngineeringUnit(
     nextAction:project.nextAction,
     lineage:{
       requirementIds:project.requirements.map(item=>item.id),
-      artifactIds:[artifact.id],
+      artifactIds:[evidenceArtifact.id],
       evidenceIds:evidence.map(item=>item.id)
     }
   };
