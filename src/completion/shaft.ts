@@ -1,12 +1,12 @@
-import {CapabilityRouter} from "../capabilities/router.js";
-import {CapabilityRisk,ProjectState,Requirement} from "../core/types.js";
-import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artifacts.js";
-import {EngineeringTaskGraph} from "../task-graph/types.js";
-import {transitionTask} from "../task-graph/validation.js";
-import {shaftTorque} from "../engineering/calculations.js";
-import {EngineeringCompletionReport,ShaftEngineeringCompletionRequest,ShaftEngineeringValidation} from "./types.js";
-import {authorize} from "../auth/policy.js";
-import {produceEvidenceByProduct} from "../evidence/by-product.js";
+import {CapabilityRouter} from "../capabilities/router";
+import {CapabilityRisk,ProjectState,Requirement} from "../core/types";
+import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artifacts";
+import {EngineeringTaskGraph} from "../task-graph/types";
+import {transitionTask} from "../task-graph/validation";
+import {shaftTorque} from "../engineering/calculations";
+import {EngineeringCompletionReport,ShaftEngineeringCompletionRequest,ShaftEngineeringValidation} from "./types";
+import {authorize} from "../auth/policy";
+import {produceEvidenceByProduct} from "../evidence/by-product";
 
 const TORQUE_REQUIREMENT="REQ-SHAFT-TORQUE";
 const SPEED_REQUIREMENT="REQ-SHAFT-SPEED";

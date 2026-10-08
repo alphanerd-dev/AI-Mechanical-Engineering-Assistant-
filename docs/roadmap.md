@@ -303,6 +303,7 @@ Notes:
 - [x] V2.0.12 context-aware engineering interaction
 - [ ] V2.0.13 evidence-as-a-byproduct
 - [x] V2.0 final product/workflow gate
+- [ ] AI-native entry to the canonical Engineering Completion Unit
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
@@ -318,5 +319,8 @@ Notes:
 - V2.0.13 adds a provider-neutral evidence-by-product primitive. Validated deterministic execution can automatically emit VERIFIED evidence with checked artifact and requirement provenance; failed or incomplete validation emits no VERIFIED evidence. The canonical shaft completion workflow now records those evidence IDs directly in project state before approval. Human approval evidence remains explicitly separate.
 - V2.0.10 intentionally leaves detailed shaft design domains such as fatigue, keys/couplings, bearings, critical speed, deflection, detailed CAD, manufacturing release, and standards-backed material selection outside the unit.
 - V2.0 final product/workflow gate confirms the canonical Engineering Completion Unit as the product contract: explicit requirements → deterministic task execution → validation → automatic evidence → explicit authorized approval when required → final verification → traceable completion. The gate also requires artifact/evidence lineage consistency and fail-closed behavior on validation failure.
-- The next product work should improve the engineering experience around a real completed workflow rather than add infrastructure for its own sake.
+- V2.0.14 makes the canonical Engineering Completion Unit reachable from natural engineering intent. The entry path interprets intent, resolves known context, applies risk-adaptive rigor, invokes the existing deterministic completion unit, and returns a concise decision-ready result or the minimum required escalation.
+- The V2.0.14 intent interpreter is a provider-neutral contract. The repository includes a deterministic reference interpreter for testing; a future model adapter may implement the same contract without moving engineering authority into the model layer.
+- V2.0.14 does not invent missing values, bypass deterministic validation, create CAD, or expand the shaft completion-unit scope.
+- The next product work should measure the five AI-native exit tests on this real path before adding another completion unit or moving to V2.1 Multi-CAD.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."

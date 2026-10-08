@@ -1,8 +1,8 @@
-import {CapabilityProvider} from "../capabilities/registry.js";
-import {CapabilityRequest,CapabilityResult} from "../core/types.js";
-import {CapabilityRouter} from "../capabilities/router.js";
-import {ShaftEngineeringCompletionRequest} from "../completion/types.js";
-import {completeShaftEngineeringUnit} from "../completion/shaft.js";
+import {CapabilityProvider} from "../capabilities/registry";
+import {CapabilityRequest,CapabilityResult} from "../core/types";
+import {CapabilityRouter} from "../capabilities/router";
+import {ShaftEngineeringCompletionRequest} from "../completion/types";
+import {completeShaftEngineeringUnit} from "../completion/shaft";
 
 export class EngineeringCompletionProvider implements CapabilityProvider{
   id="engineering-completion";

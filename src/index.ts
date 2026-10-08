@@ -48,6 +48,9 @@ import {V2_0_12_CAPABILITIES} from "./capabilities/v2-0-12.js";
 import {EngineeringCompletionProvider} from "./providers/engineering-completion.js";
 import {RiskAdaptiveExperienceProvider} from "./providers/experience.js";
 import {EngineeringContextProvider} from "./providers/context.js";
+import {V2_0_14_CAPABILITIES} from "./capabilities/v2-0-14.js";
+import {AIEngineeringIntentProvider} from "./providers/ai-intent.js";
+import {DeterministicShaftIntentInterpreter} from "./intent/shaft.js";
 
 // V1.15 project-state persistence remains available from ./state/persistence.js.
 // V2 workspace persistence and V2.0 project-memory persistence are canonical root-level contracts.
@@ -77,6 +80,7 @@ export * from "./completion/index.js";
 export * from "./evidence/index.js";
 export * from "./experience/index.js";
 export * from "./experience/context.js";
+export * from "./intent/index.js";
 
 const registry=new CapabilityRegistry();
 registry.registerCatalog(ENGINEERING_CAPABILITIES);
@@ -93,6 +97,7 @@ registry.registerCatalog(V2_0_9_CAPABILITIES);
 registry.registerCatalog(V2_0_10_CAPABILITIES);
 registry.registerCatalog(V2_0_11_CAPABILITIES);
 registry.registerCatalog(V2_0_12_CAPABILITIES);
+registry.registerCatalog(V2_0_14_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -171,6 +176,7 @@ registry.register(new EngineeringOrchestratorProvider(router));
 registry.register(new EngineeringCompletionProvider(router));
 registry.register(new RiskAdaptiveExperienceProvider());
 registry.register(new EngineeringContextProvider());
+registry.register(new AIEngineeringIntentProvider(router,new DeterministicShaftIntentInterpreter()));
 
 const agent=new EngineeringAgent(router);
 const result=agent.start("Design a shaft that transmits 5 kW at 1500 rpm.");
