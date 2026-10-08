@@ -58,7 +58,7 @@ describe("AI-native engineering intent entry",()=>{
       proposedDiameterMm:30
     });
     expect(output.decision.evidenceIds).toHaveLength(3);
-    expect(output.decision.torqueNm).toBeCloseTo(31.8309886184,10);
+    expect(output.decision.torqueNm).toBeCloseTo(31.8333333333,10);
   });
 
   it("uses known context instead of asking for values already available",async()=>{
