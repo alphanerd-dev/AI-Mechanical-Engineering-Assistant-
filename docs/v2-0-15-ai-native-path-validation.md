@@ -43,11 +43,11 @@ Every accepted result path exposes a `decision` object containing:
 - `evidenceIds`
 - `nextAction` or `nextQuestion`
 
-When deterministic validation has run, the decision also carries available key numbers:
+When deterministic validation has run, the decision carries available deterministic key numbers in the generic `metrics` array. The canonical shaft workflow currently emits:
 
-- `torqueNm`
-- `minimumDiameterMm`
-- `proposedDiameterMm`
+- `torqueNm` with unit `N·m`
+- `minimumDiameterMm` with unit `mm`
+- `proposedDiameterMm` with unit `mm`
 
 A needs-input result has `validationPassed: false` and an empty evidence list. A failed deterministic result likewise has no VERIFIED evidence.
 
