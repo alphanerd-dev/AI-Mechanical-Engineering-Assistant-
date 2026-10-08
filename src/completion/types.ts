@@ -19,7 +19,12 @@ export interface ShaftEngineeringCompletionRequest{
   approval?:EngineeringApprovalRequest;
 }
 
-export type ShaftEngineeringCompletionStatus="BLOCKED"|"FAILED"|"WAITING_APPROVAL"|"COMPLETE";
+export type EngineeringCompletionStatus="BLOCKED"|"FAILED"|"WAITING_APPROVAL"|"COMPLETE";
+
+export interface EngineeringValidationSummary{
+  passed:boolean;
+  reasons:string[];
+}
 
 export interface ShaftEngineeringValidation{
   torqueConsistent:boolean;
@@ -32,15 +37,20 @@ export interface ShaftEngineeringValidation{
   reasons:string[];
 }
 
-export interface EngineeringCompletionReport{
+import type {EngineeringDecisionMetric} from "../intent/types.js";
+
+export interface EngineeringCompletionReport<TValidation extends EngineeringValidationSummary=EngineeringValidationSummary>{
   projectId:string;
-  status:ShaftEngineeringCompletionStatus;
+  status:EngineeringCompletionStatus;
+  completionUnit?:string;
+  decisionMetrics:EngineeringDecisionMetric[];
+  project:ProjectState;
   project:ProjectState;
   taskGraph:EngineeringTaskGraph;
   artifacts:EngineeringArtifact[];
   evidence:EvidenceRecord[];
   verification:EngineeringProjectVerificationReport|null;
-  validation:ShaftEngineeringValidation|null;
+  validation:TValidation|null;
   approvalRequired:boolean;
   approvalGranted:boolean;
   approval?:EngineeringApprovalRequest;
@@ -51,4 +61,19 @@ export interface EngineeringCompletionReport{
     artifactIds:string[];
     evidenceIds:string[];
   };
+}
+
+export type ShaftEngineeringCompletionReport=EngineeringCompletionReport<ShaftEngineeringValidation>;
+
+export interface EngineeringCompletionUnitRequest{
+  projectId:string;
+  inputs:Record<string,number|string>;
+  approval?:EngineeringApprovalRequest;
+}
+
+export interface EngineeringCompletionUnit{
+  id:string;
+  capability:string;
+  requiredInputs:{key:string;label:string}[];
+  execute(request:EngineeringCompletionUnitRequest,router:import("../capabilities/router.js").CapabilityRouter):Promise<EngineeringCompletionReport>;
 }
