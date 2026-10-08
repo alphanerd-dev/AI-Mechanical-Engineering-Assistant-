@@ -2,7 +2,7 @@ import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
 import {ProjectState} from "../core/types.js";
 import {RequirementTraceability} from "../requirements/traceability.js";
 import {ProjectVerificationStatus,VerificationPlan} from "./types.js";
-import {executeVerificationPlan} from "./plans.js";
+import {executeVerificationPlan} from "./plans";
 
 export interface VerificationArtifactProvenance{
   id:string;

@@ -1,7 +1,7 @@
 import {CapabilityProvider} from "../capabilities/registry.js";
 import {CapabilityRequest,CapabilityResult,ProjectState} from "../core/types.js";
 import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artifacts.js";
-import {verifyEngineeringProject} from "../verification/project.js";
+import {verifyEngineeringProject} from "../verification/project";
 
 export class EngineeringVerificationProvider implements CapabilityProvider{
   id="engineering-core";

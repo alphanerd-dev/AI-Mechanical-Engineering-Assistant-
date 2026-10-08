@@ -5,11 +5,17 @@ import {V2_0_10_CAPABILITIES} from "../../../../src/capabilities/v2-0-10";
 import {V2_0_11_CAPABILITIES} from "../../../../src/capabilities/v2-0-11";
 import {V2_0_12_CAPABILITIES} from "../../../../src/capabilities/v2-0-12";
 import {V2_0_14_CAPABILITIES} from "../../../../src/capabilities/v2-0-14";
+import {V2_0_21_CAPABILITIES} from "../../../../src/capabilities/v2-0-21";
+import {ENGINEERING_CAPABILITIES} from "../../../../src/capabilities/catalog";
+import {NumericalAnalysisProvider} from "../../../../src/providers/numerical";
 import {EngineeringCompletionProvider} from "../../../../src/providers/engineering-completion";
 import {RiskAdaptiveExperienceProvider} from "../../../../src/providers/experience";
 import {EngineeringContextProvider} from "../../../../src/providers/context";
+import {EngineeringVerificationProvider} from "../../../../src/providers/engineering-verification";
+import {ElectricalAnalysisProvider} from "../../../../src/providers/electrical";
+import {ElectricalEngineeringCompletionProvider} from "../../../../src/providers/electrical-completion";
 import {AIEngineeringIntentProvider} from "../../../../src/providers/ai-intent";
-import {DeterministicShaftIntentInterpreter} from "../../../../src/intent/shaft";
+import {createDefaultDeterministicEngineeringIntentInterpreter} from "../../../../src/intent/deterministic";
 import {InMemoryEngineeringIntentSessionStore} from "../../../../src/intent/session";
 import {authorizeSupabaseRequest} from "../../../../src/auth/supabase-service";
 
@@ -38,12 +44,18 @@ export async function POST(request:Request){
   registry.registerCatalog(V2_0_11_CAPABILITIES);
   registry.registerCatalog(V2_0_12_CAPABILITIES);
   registry.registerCatalog(V2_0_14_CAPABILITIES);
+  registry.registerCatalog(V2_0_21_CAPABILITIES);
+  registry.registerCatalog(ENGINEERING_CAPABILITIES);
 
   const router=new CapabilityRouter(registry);
   registry.register(new RiskAdaptiveExperienceProvider());
   registry.register(new EngineeringContextProvider());
+  registry.register(new NumericalAnalysisProvider());
   registry.register(new EngineeringCompletionProvider(router));
-  registry.register(new AIEngineeringIntentProvider(router,new DeterministicShaftIntentInterpreter(),sessionStore));
+  registry.register(new ElectricalEngineeringCompletionProvider(router));
+  registry.register(new ElectricalAnalysisProvider());
+  registry.register(new EngineeringVerificationProvider());
+  registry.register(new AIEngineeringIntentProvider(router,createDefaultDeterministicEngineeringIntentInterpreter(),sessionStore));
 
   const result=await router.execute({
     capability:"ENGINEERING.ENTER_FROM_INTENT",

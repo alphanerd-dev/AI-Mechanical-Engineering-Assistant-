@@ -1,4 +1,4 @@
-import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
+import {EvidenceRecord} from "../artifacts/engineering-artifacts";
 export type ProjectVerificationStatus="PASS"|"INCOMPLETE"|"FAIL";
 export type VerificationEvidenceType="CAD"|"FEA"|"CALCULATION"|"RESEARCH"|"MEASUREMENT"|"MANUFACTURING"|"OTHER";
 export interface VerificationEvidenceGate{type:VerificationEvidenceType;minimum:number;}
