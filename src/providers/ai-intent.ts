@@ -2,7 +2,6 @@ import {CapabilityProvider} from "../capabilities/registry.js";
 import {CapabilityRequest,CapabilityResult} from "../core/types.js";
 import {EngineeringContext} from "../experience/context.js";
 import {assessRiskAdaptiveExperience} from "../experience/risk-adaptive.js";
-import {completeShaftEngineeringUnit} from "../completion/shaft.js";
 import {CapabilityRouter} from "../capabilities/router.js";
 import {EngineeringIntentInterpreter} from "../intent/types.js";
 
@@ -118,7 +117,36 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       approval:input.approval
     };
 
-    const completion=await completeShaftEngineeringUnit(completionInput,this.router);
+    const completionResult=await this.router.execute({
+      capability:"ENGINEERING.COMPLETE_SHAFT",
+      risk:"HIGH",
+      input:completionInput
+    });
+
+    if(!completionResult.success){
+      return {
+        capability:request.capability,
+        provider:this.id,
+        success:false,
+        output:{
+          interpretation,
+          experience,
+          completion:completionResult.output,
+          status:"FAILED",
+          decisionSummary:"The deterministic shaft completion capability failed closed."
+        },
+        error:completionResult.error??"The shaft completion capability failed."
+      };
+    }
+
+    const completion=completionResult.output as {
+      status:"BLOCKED"|"FAILED"|"WAITING_APPROVAL"|"COMPLETE";
+      missingInputs:string[];
+      nextAction:string;
+      lineage:{evidenceIds:string[];artifactIds:string[]};
+      validation?:unknown;
+      evidence?:unknown[];
+    };
     const status=completion.status==="COMPLETE"?"COMPLETE":
       completion.status==="WAITING_APPROVAL"?"WAITING_APPROVAL":
       completion.status==="FAILED"?"FAILED":"NEEDS_INPUT";
