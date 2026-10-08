@@ -1,11 +1,11 @@
-import {CapabilityRouter} from "../capabilities/router.js";
-import {CapabilityRisk,ProjectState} from "../core/types.js";
-import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artifacts.js";
-import {EngineeringTaskGraph} from "../task-graph/types.js";
-import {transitionTask} from "../task-graph/validation.js";
-import {EngineeringApprovalRequest,EngineeringCompletionReport,EngineeringValidationSummary} from "./types.js";
-import {authorize} from "../auth/policy.js";
-import {produceEvidenceByProduct} from "../evidence/by-product.js";
+import {CapabilityRouter} from "../capabilities/router";
+import {CapabilityRisk,ProjectState} from "../core/types";
+import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artifacts";
+import {EngineeringTaskGraph} from "../task-graph/types";
+import {transitionTask} from "../task-graph/validation";
+import {EngineeringApprovalRequest,EngineeringCompletionReport,EngineeringValidationSummary} from "./types";
+import {authorize} from "../auth/policy";
+import {produceEvidenceByProduct} from "../evidence/by-product";
 
 const POWER_REQUIREMENT="REQ-DC-POWER";
 const VOLTAGE_REQUIREMENT="REQ-DC-VOLTAGE";
