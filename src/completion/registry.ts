@@ -1,4 +1,5 @@
 import {EngineeringCompletionUnit} from "./types.js";
+import {ShaftEngineeringCompletionUnit} from "./shaft-unit.js";
 
 export class EngineeringCompletionUnitRegistry{
   private readonly units=new Map<string,EngineeringCompletionUnit>();
@@ -15,4 +16,10 @@ export class EngineeringCompletionUnitRegistry{
   list():EngineeringCompletionUnit[]{
     return [...this.units.values()];
   }
+}
+
+export function createDefaultEngineeringCompletionUnitRegistry():EngineeringCompletionUnitRegistry{
+  const registry=new EngineeringCompletionUnitRegistry();
+  registry.register(new ShaftEngineeringCompletionUnit());
+  return registry;
 }
