@@ -21,14 +21,27 @@ export interface EngineeringIntentInterpreter{
 export interface EngineeringIntentEntryRequest{
   rawIntent:string;
   projectId:string;
+  sessionId?:string;
   context?:EngineeringContext;
   approval?:ShaftEngineeringCompletionRequest["approval"];
+}
+
+export interface EngineeringIntentDecision{
+  status:"READY"|"NEEDS_INPUT"|"WAITING_APPROVAL"|"COMPLETE"|"FAILED";
+  validationPassed:boolean;
+  torqueNm?:number;
+  minimumDiameterMm?:number;
+  proposedDiameterMm?:number;
+  evidenceIds:string[];
+  nextAction?:string;
+  nextQuestion?:string;
 }
 
 export interface EngineeringIntentEntryResult{
   interpretation:EngineeringIntentInterpretation;
   experience:RiskAdaptiveExperienceDecision;
   completion?:EngineeringCompletionReport;
+  decision:EngineeringIntentDecision;
   nextQuestion?:string;
   status:"READY"|"NEEDS_INPUT"|"WAITING_APPROVAL"|"COMPLETE"|"FAILED";
   decisionSummary:string;
