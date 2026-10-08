@@ -33,8 +33,15 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       return {capability:request.capability,provider:this.id,success:false,error:"projectId is required."};
     }
 
-    const interpretation=await this.interpreter.interpret(input.rawIntent,input.context);
+    const interpretationBase=await this.interpreter.interpret(input.rawIntent,input.context);
     const effectiveProjectId=input.projectId.trim();
+    const interpretation={
+      ...interpretationBase,
+      extractedInputs:{
+        ...interpretationBase.extractedInputs,
+        projectId:effectiveProjectId
+      }
+    };
     const missing=[...interpretation.missingInputs];
 
     const contextDecision=await this.router.execute({
