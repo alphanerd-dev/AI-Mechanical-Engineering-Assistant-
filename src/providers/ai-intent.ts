@@ -182,11 +182,35 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       };
     }
 
-    const completion=await unit.execute({
-      projectId:effectiveProjectId,
-      inputs:interpretation.extractedInputs,
-      approval:input.approval
-    },this.router);
+    let completion;
+    try{
+      completion=await unit.execute({
+        projectId:effectiveProjectId,
+        inputs:interpretation.extractedInputs,
+        approval:input.approval
+      },this.router);
+    }catch(error){
+      const reason=error instanceof Error?error.message:"Engineering completion unit failed.";
+      return {
+        capability:request.capability,
+        provider:this.id,
+        success:false,
+        error:reason,
+        output:{
+          interpretation,
+          experience,
+          status:"FAILED",
+          decision:{
+            status:"FAILED",
+            validationPassed:false,
+            metrics:[],
+            evidenceIds:[],
+            nextAction:reason
+          },
+          decisionSummary:"The selected engineering completion unit failed closed before producing an accepted result."
+        }
+      };
+    }
 
     const evidenceIds=completion.lineage.evidenceIds;
     const status:EngineeringIntentDecision["status"]=
