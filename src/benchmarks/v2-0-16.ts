@@ -46,7 +46,7 @@ export const V2_0_16_BENCHMARK_CASES:readonly BenchmarkCaseDefinition[]=[
       if(!result.success) throw new Error(result.error??"Model-backed intent routing failed.");
       const output=result.output as any;
       if(output.status!=="WAITING_APPROVAL"||!output.decision.validationPassed) throw new Error("Model-backed intent did not reach a validated completion.");
-      if(output.decision.torqueNm===undefined||output.decision.minimumDiameterMm===undefined) throw new Error("Decision-ready deterministic results are missing.");
+      if(!output.decision.metrics.some((metric:any)=>metric.key==="torqueNm")||!output.decision.metrics.some((metric:any)=>metric.key==="minimumDiameterMm")) throw new Error("Decision-ready deterministic results are missing.");
       return {metrics:{modelInterpreted:1,deterministicValidationPassed:1},evidence:["The model adapter supplied structure only; the canonical shaft completion provider produced the engineering decision."]};
     }
   },

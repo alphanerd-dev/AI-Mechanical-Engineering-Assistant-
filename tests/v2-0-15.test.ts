@@ -7,6 +7,7 @@ function expectDecisionContract(output:any):void{
   expect(output.decision).toHaveProperty("validationPassed");
   expect(output.decision).toHaveProperty("evidenceIds");
   expect(Array.isArray(output.decision.evidenceIds)).toBe(true);
+  expect(Array.isArray(output.decision.metrics)).toBe(true);
   expect(output.decision.nextAction??output.decision.nextQuestion).toBeTruthy();
 }
 
@@ -49,7 +50,7 @@ describe("V2.0.15 AI-native completion path acceptance gate",()=>{
     const output=result.output as any;
     expect(output.interpretation).not.toHaveProperty("torqueNm");
     expect(output.interpretation).not.toHaveProperty("minimumDiameterMm");
-    expect(output.decision.torqueNm).toBeCloseTo(31.8333333333,10);
+    expect(output.decision.metrics).toEqual(expect.arrayContaining([{key:"torqueNm",value:expect.closeTo(31.8333333333,10),unit:"N·m"}]));
     expect(output.decision.validationPassed).toBe(true);
   });
 

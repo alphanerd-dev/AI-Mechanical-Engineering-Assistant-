@@ -1,5 +1,5 @@
 import {EngineeringContext} from "../experience/context.js";
-import {EngineeringApprovalRequest,EngineeringCompletionReport,ShaftEngineeringCompletionRequest} from "../completion/types.js";
+import {EngineeringApprovalRequest,EngineeringCompletionReport} from "../completion/types.js";
 import {RiskAdaptiveExperienceDecision} from "../experience/types.js";
 
 export interface EngineeringIntentInterpretation{
@@ -26,12 +26,16 @@ export interface EngineeringIntentEntryRequest{
   approval?:EngineeringApprovalRequest;
 }
 
+export interface EngineeringDecisionMetric{
+  key:string;
+  value:number|string;
+  unit?:string;
+}
+
 export interface EngineeringIntentDecision{
   status:"READY"|"NEEDS_INPUT"|"WAITING_APPROVAL"|"COMPLETE"|"FAILED";
   validationPassed:boolean;
-  torqueNm?:number;
-  minimumDiameterMm?:number;
-  proposedDiameterMm?:number;
+  metrics:EngineeringDecisionMetric[];
   evidenceIds:string[];
   nextAction?:string;
   nextQuestion?:string;
