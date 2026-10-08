@@ -1,6 +1,6 @@
-import {CapabilityProvider} from "../capabilities/registry.js";
-import {CapabilityRequest,CapabilityResult} from "../core/types.js";
-import {calculateDcPower,calculateDcResistance} from "../engineering/electrical.js";
+import {CapabilityProvider} from "../capabilities/registry";
+import {CapabilityRequest,CapabilityResult} from "../core/types";
+import {calculateDcPower,calculateDcResistance} from "../engineering/electrical";
 
 export class ElectricalAnalysisProvider implements CapabilityProvider{
   id="electrical-analysis";
