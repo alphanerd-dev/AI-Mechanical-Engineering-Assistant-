@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ai-mechanical-engineering-assistant.dev/schemas/reasoning-framework-manifest.schema.json",
+  "$id": "urn:ai-mechanical-engineering-assistant:schemas:reasoning-framework-manifest:v1",
   "title": "Reasoning Framework Manifest",
   "type": "object",
   "additionalProperties": false,
