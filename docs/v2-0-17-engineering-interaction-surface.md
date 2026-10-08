@@ -18,7 +18,7 @@ Engineer
 ## Product behavior
 
 The engineer can state a task in natural language and continue from the same project interaction without restating the full original request.
-The surface shows the engineering-core response, the current decision status, available deterministic key numbers, and evidence count.
+The surface shows the engineering-core response, the current decision status, available deterministic key numbers from the generic metrics collection, and evidence count.
 When a material input is missing, the surface exposes the next required question instead of inventing a value.
 When approval is required, the surface presents the state as a decision boundary rather than pretending approval occurred.
 
