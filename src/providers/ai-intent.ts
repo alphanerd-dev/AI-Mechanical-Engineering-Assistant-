@@ -4,7 +4,7 @@ import {EngineeringContext} from "../experience/context.js";
 import {CapabilityRouter} from "../capabilities/router.js";
 import {EngineeringIntentInterpreter,EngineeringIntentDecision,EngineeringIntentInterpretation} from "../intent/types.js";
 import {EngineeringIntentSessionStore} from "../intent/session.js";
-import {EngineeringApprovalRequest} from "../completion/types.js";
+import {EngineeringApprovalRequest,EngineeringCompletionReport} from "../completion/types.js";
 import {EngineeringCompletionUnitRegistry,createDefaultEngineeringCompletionUnitRegistry} from "../completion/registry.js";
 
 export class AIEngineeringIntentProvider implements CapabilityProvider{
@@ -182,7 +182,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       };
     }
 
-    let completion;
+    let completion:EngineeringCompletionReport;
     try{
       completion=await unit.execute({
         projectId:effectiveProjectId,
