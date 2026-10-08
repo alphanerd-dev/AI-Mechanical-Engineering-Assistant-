@@ -1,5 +1,5 @@
 import {EngineeringContext} from "../experience/context.js";
-import {EngineeringApprovalRequest,EngineeringCompletionReport,ShaftEngineeringCompletionRequest} from "../completion/types.js";
+import {EngineeringApprovalRequest,EngineeringCompletionReport} from "../completion/types.js";
 import {RiskAdaptiveExperienceDecision} from "../experience/types.js";
 
 export interface EngineeringIntentInterpretation{
