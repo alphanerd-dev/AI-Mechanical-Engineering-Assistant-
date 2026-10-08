@@ -112,8 +112,8 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
     }
 
     const completionInput={
-      projectId:effectiveProjectId,
       ...interpretation.extractedInputs,
+      projectId:effectiveProjectId,
       approval:input.approval
     };
 
