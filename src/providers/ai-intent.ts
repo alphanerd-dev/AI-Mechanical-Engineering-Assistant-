@@ -5,7 +5,7 @@ import {CapabilityRouter} from "../capabilities/router.js";
 import {EngineeringIntentInterpreter,EngineeringIntentDecision,EngineeringIntentInterpretation} from "../intent/types.js";
 import {EngineeringIntentSessionStore} from "../intent/session.js";
 import {EngineeringApprovalRequest,EngineeringCompletionReport} from "../completion/types.js";
-import {EngineeringCompletionUnitRegistry,createDefaultEngineeringCompletionUnitRegistry} from "../completion/registry.js";
+import {EngineeringCompletionUnitRegistry,createDefaultEngineeringCompletionUnitRegistry} from "../completion/registry";
 
 export class AIEngineeringIntentProvider implements CapabilityProvider{
   id="engineering.ai-intent";
