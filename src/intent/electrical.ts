@@ -1,5 +1,5 @@
-import {EngineeringContext} from "../experience/context.js";
-import {EngineeringIntentInterpreter,EngineeringIntentInterpretation} from "./types.js";
+import {EngineeringContext} from "../experience/context";
+import {EngineeringIntentInterpreter,EngineeringIntentInterpretation} from "./types";
 
 function numberAfter(pattern:RegExp,raw:string):number|undefined{
   const match=raw.match(pattern);
