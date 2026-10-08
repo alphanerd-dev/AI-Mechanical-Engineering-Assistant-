@@ -30,8 +30,15 @@ export interface DcLoadEngineeringValidation extends EngineeringValidationSummar
   powerWithinLimit:boolean;
 }
 
-function makeRequirement(id:string,name:string,value:number,unit:string){
-  return {id,name,value,unit,priority:"MUST" as const,status:"OPEN" as const};
+function makeRequirement(id:string,name:string,value?:number,unit?:string){
+  return {
+    id,
+    name,
+    ...(value!==undefined?{value}:{}),
+    ...(unit!==undefined?{unit}:{}),
+    priority:"MUST" as const,
+    status:"OPEN" as const
+  };
 }
 
 function createProject(request:DcLoadEngineeringCompletionRequest):ProjectState{
@@ -44,7 +51,7 @@ function createProject(request:DcLoadEngineeringCompletionRequest):ProjectState{
       makeRequirement(VOLTAGE_REQUIREMENT,"DC voltage",request.voltageV!,"V"),
       makeRequirement(CURRENT_REQUIREMENT,"DC current",request.currentA!,"A"),
       makeRequirement(MAX_POWER_REQUIREMENT,"Maximum allowable power",request.maximumPowerW!,"W"),
-      makeRequirement(POWER_REQUIREMENT,"Calculated DC power",request.voltageV!*request.currentA!,"W")
+      makeRequirement(POWER_REQUIREMENT,"Calculated DC power")
     ],
     assumptions:[],
     openQuestions:[],
@@ -271,6 +278,12 @@ export async function completeDcLoadEngineeringUnit(
   const resistanceOutput=resistanceResult.output as {resistanceOhm?:number}|undefined;
   if(typeof powerOutput?.powerW!=="number"||typeof resistanceOutput?.resistanceOhm!=="number"){
     return fail(project,taskGraph,"Deterministic electrical providers returned incomplete output; no result will be inferred.");
+  }
+
+  const calculatedPowerRequirement=project.requirements.find(item=>item.id===POWER_REQUIREMENT);
+  if(calculatedPowerRequirement){
+    calculatedPowerRequirement.value=powerOutput.powerW;
+    calculatedPowerRequirement.unit="W";
   }
 
   const validation=validate(
