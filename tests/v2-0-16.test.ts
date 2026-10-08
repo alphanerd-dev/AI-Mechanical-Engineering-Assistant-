@@ -83,8 +83,9 @@ describe("V2.0.16 model-backed intent adapter",()=>{
     const output=result.output as any;
     expect(output.status).toBe("WAITING_APPROVAL");
     expect(output.decision.validationPassed).toBe(true);
-    expect(output.decision.torqueNm).toBeCloseTo(31.8333333333,10);
+    expect(output.decision.metrics).toEqual(expect.arrayContaining([{key:"torqueNm",value:expect.closeTo(31.8333333333,10),unit:"N·m"}]));
     expect(output.decision.evidenceIds.length).toBe(3);
+    expect(output.decision.metrics.length).toBe(3);
     expect(output.completion.validation.passed).toBe(true);
   });
 
