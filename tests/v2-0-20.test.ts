@@ -11,6 +11,7 @@ import {EngineeringContextProvider} from "../src/providers/context.js";
 import {AIEngineeringIntentProvider} from "../src/providers/ai-intent.js";
 import {DeterministicShaftIntentInterpreter} from "../src/intent/shaft.js";
 import {EngineeringCompletionUnitRegistry,createDefaultEngineeringCompletionUnitRegistry} from "../src/completion/registry.js";
+import {NumericalAnalysisProvider} from "../src/providers/numerical.js";
 
 describe("V2.0.20 domain-neutral completion routing",()=>{
   it("registers the canonical shaft completion unit without exposing shaft logic in the registry",()=>{
@@ -37,6 +38,7 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
     registry.registerCatalog(V2_0_12_CAPABILITIES);
     registry.registerCatalog(V2_0_14_CAPABILITIES);
     const router=new CapabilityRouter(registry);
+    registry.register(new NumericalAnalysisProvider());
     registry.register(new EngineeringCompletionProvider(router));
     registry.register(new RiskAdaptiveExperienceProvider());
     registry.register(new EngineeringContextProvider());
