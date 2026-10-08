@@ -320,6 +320,7 @@ Notes:
 - [x] V2.0.18 domain-neutral intent contract foundation
 - [x] V2.0.19 domain-neutral decision/result contract
 - [x] V2.0.20 domain-neutral completion routing
+- [x] V2.0.21 first non-mechanical completion unit — Electrical DC load
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
@@ -346,6 +347,7 @@ Notes:
 - V2.0.18 removes the remaining shaft-specific typing from the reusable intent interpretation boundary. Intent extracted inputs are now generic key/value data, and intent-entry approval uses the generic engineering approval contract. This is an architecture-preparation milestone for the first non-mechanical domain; it does not add a second domain completion unit.
 - V2.0.19 removes the remaining shaft-specific fields from the reusable decision contract. Decision-ready deterministic outputs now expose generic typed metrics with optional units; the canonical shaft workflow emits torque and diameter as metrics rather than top-level decision fields. This prepares the interaction surface for domain-specific deterministic results without changing the engineering authority boundary.
 - V2.0.20 removes the remaining shaft-specific completion-routing coupling. A provider-neutral completion-unit registry now declares required inputs and the capability used for execution, while the AI-native provider resolves a registered unit and delegates through the existing CapabilityRouter. The canonical shaft completion remains the current registered unit; no second domain is added in this milestone.
+- V2.0.21 adds the first genuine non-mechanical completion unit: a bounded steady-state Electrical DC load workflow. It proves domain-aware intent routing, deterministic electrical calculations, fail-closed validation, evidence-by-product, approval/final verification, context reuse, and model-backed structured electrical intent without changing the reusable workspace architecture. Broader Electrical Engineering, transient/thermal/power-electronics/ECAD capabilities remain deferred.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
 
 ## V2.1 — Multi-CAD Engineering Layer
