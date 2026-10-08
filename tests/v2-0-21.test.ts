@@ -254,6 +254,24 @@ describe("V2.0.21 first non-mechanical completion unit — electrical DC load",(
     expect(output.decision.validationPassed).toBe(true);
   });
 
+  it("does not force an AC electrical load into the DC completion unit",async()=>{
+    const router=setup();
+    const result=await router.execute({
+      capability:"ENGINEERING.ENTER_FROM_INTENT",
+      risk:"HIGH",
+      input:{
+        projectId:"V2-0-21-AC",
+        rawIntent:"Analyze a 230 V AC electrical load drawing 2 A. Maximum allowable power is 500 W."
+      }
+    });
+
+    expect(result.success).toBe(true);
+    const output=result.output as any;
+    expect(output.status).toBe("NEEDS_INPUT");
+    expect(output.interpretation.completionUnit).toBeUndefined();
+    expect(output.decision.evidenceIds).toHaveLength(0);
+  });
+
   it("does not force an unsupported pressure-vessel task into electrical",async()=>{
     const router=setup();
     const result=await router.execute({
