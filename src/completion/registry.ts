@@ -1,5 +1,5 @@
-import {EngineeringCompletionUnit} from "./types.js";
-import {ShaftEngineeringCompletionUnit} from "./shaft-unit.js";
+import {EngineeringCompletionUnit} from "./types";
+import {ShaftEngineeringCompletionUnit} from "./shaft-unit";
 
 export class EngineeringCompletionUnitRegistry{
   private readonly units=new Map<string,EngineeringCompletionUnit>();
