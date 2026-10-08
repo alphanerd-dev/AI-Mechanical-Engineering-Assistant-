@@ -1,5 +1,6 @@
 import {EngineeringCompletionUnit} from "./types";
 import {ShaftEngineeringCompletionUnit} from "./shaft-unit";
+import {DcLoadEngineeringCompletionUnit} from "./electrical-unit";
 
 export class EngineeringCompletionUnitRegistry{
   private readonly units=new Map<string,EngineeringCompletionUnit>();
