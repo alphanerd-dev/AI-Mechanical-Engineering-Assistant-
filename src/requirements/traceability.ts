@@ -1,4 +1,4 @@
-import {EngineeringRequirement,RequirementTrace} from "./types.js";
+import {EngineeringRequirement,RequirementTrace} from "./types";
 
 export class RequirementTraceability {
   private readonly requirements=new Map<string,EngineeringRequirement>();
