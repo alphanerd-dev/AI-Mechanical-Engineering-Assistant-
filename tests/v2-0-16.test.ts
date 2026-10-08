@@ -5,6 +5,7 @@ import {
   validateModelEngineeringIntent
 } from "../src/intent/model-adapter.js";
 import {createV2_0_15Router} from "../src/benchmarks/v2-0-15.js";
+import {runV2_0_16BenchmarkSuite} from "../src/benchmarks/v2-0-16.js";
 
 const raw="Design a shaft that transmits 5 kW at 1500 rpm. Bending moment is 80 N·m. Allowable shear is 55 MPa. Proposed diameter is 30 mm.";
 
@@ -30,6 +31,14 @@ function completeModelOutput(){
 }
 
 describe("V2.0.16 model-backed intent adapter",()=>{
+  it("passes the named model-backed benchmark gate",async()=>{
+    const report=await runV2_0_16BenchmarkSuite();
+    expect(report.suiteId).toBe("engineering-model-backed-intent-v2.0.16");
+    expect(report.version).toBe("2.0.16");
+    expect(report.failed).toBe(0);
+    expect(report.passRate).toBe(1);
+  });
+
   it("accepts structured model intent and exposes only interpretation fields",async()=>{
     const adapter=new ModelBackedEngineeringIntentAdapter(new StaticModelIntentGenerator(completeModelOutput()));
     const result=await adapter.interpret(raw);
