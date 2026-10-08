@@ -53,12 +53,14 @@ describe("AI-native engineering intent entry",()=>{
     expect(output.completion.evidence).toHaveLength(3);
     expect(output.decision).toMatchObject({
       status:"WAITING_APPROVAL",
-      validationPassed:true,
-      minimumDiameterMm:expect.any(Number),
-      proposedDiameterMm:30
+      validationPassed:true
     });
+    expect(output.decision.metrics).toEqual(expect.arrayContaining([
+      {key:"minimumDiameterMm",value:expect.any(Number),unit:"mm"},
+      {key:"proposedDiameterMm",value:30,unit:"mm"}
+    ]));
     expect(output.decision.evidenceIds).toHaveLength(3);
-    expect(output.decision.torqueNm).toBeCloseTo(31.8333333333,10);
+    expect(output.decision.metrics).toEqual(expect.arrayContaining([{key:"torqueNm",value:expect.closeTo(31.8333333333,10),unit:"N·m"}]));
   });
 
   it("uses known context instead of asking for values already available",async()=>{
