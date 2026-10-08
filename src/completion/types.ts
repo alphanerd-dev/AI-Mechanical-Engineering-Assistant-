@@ -1,4 +1,4 @@
-import {ProjectState} from "../core/types.js";
+import {EngineeringDecisionMetric,ProjectState} from "../core/types.js";
 import {AuthenticatedIdentity} from "../auth/types.js";
 import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artifacts.js";
 import {EngineeringTaskGraph} from "../task-graph/types.js";
@@ -36,8 +36,6 @@ export interface ShaftEngineeringValidation{
   passed:boolean;
   reasons:string[];
 }
-
-import type {EngineeringDecisionMetric} from "../intent/types.js";
 
 export interface EngineeringCompletionReport<TValidation extends EngineeringValidationSummary=EngineeringValidationSummary>{
   projectId:string;
