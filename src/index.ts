@@ -182,7 +182,7 @@ registry.register(new RiskAdaptiveExperienceProvider());
 registry.register(new EngineeringContextProvider());
 registry.register(new ElectricalAnalysisProvider());
 registry.register(new ElectricalEngineeringCompletionProvider(router));
-registry.register(new AIEngineeringIntentProvider(router,new (class { constructor(private readonly delegate=createDefaultDeterministicEngineeringIntentInterpreter()){} interpret(raw:string,context:any){ return this.delegate.interpret(raw,context); } })());
+registry.register(new AIEngineeringIntentProvider(router,createDefaultDeterministicEngineeringIntentInterpreter()));
 
 const agent=new EngineeringAgent(router);
 const result=agent.start("Design a shaft that transmits 5 kW at 1500 rpm.");
