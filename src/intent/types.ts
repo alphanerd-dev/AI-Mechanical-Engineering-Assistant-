@@ -26,12 +26,16 @@ export interface EngineeringIntentEntryRequest{
   approval?:EngineeringApprovalRequest;
 }
 
+export interface EngineeringDecisionMetric{
+  key:string;
+  value:number|string;
+  unit?:string;
+}
+
 export interface EngineeringIntentDecision{
   status:"READY"|"NEEDS_INPUT"|"WAITING_APPROVAL"|"COMPLETE"|"FAILED";
   validationPassed:boolean;
-  torqueNm?:number;
-  minimumDiameterMm?:number;
-  proposedDiameterMm?:number;
+  metrics:EngineeringDecisionMetric[];
   evidenceIds:string[];
   nextAction?:string;
   nextQuestion?:string;
