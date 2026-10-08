@@ -10,6 +10,7 @@ import {RiskAdaptiveExperienceProvider} from "../src/providers/experience.js";
 import {EngineeringContextProvider} from "../src/providers/context.js";
 import {AIEngineeringIntentProvider} from "../src/providers/ai-intent.js";
 import {DeterministicShaftIntentInterpreter} from "../src/intent/shaft.js";
+import {NumericalAnalysisProvider} from "../src/providers/numerical.js";
 
 function router(){
   const registry=new CapabilityRegistry();
@@ -18,6 +19,7 @@ function router(){
   registry.registerCatalog(V2_0_12_CAPABILITIES);
   registry.registerCatalog(V2_0_14_CAPABILITIES);
   const router=new CapabilityRouter(registry);
+  registry.register(new NumericalAnalysisProvider());
   registry.register(new RiskAdaptiveExperienceProvider());
   registry.register(new EngineeringContextProvider());
   registry.register(new EngineeringCompletionProvider(router));
