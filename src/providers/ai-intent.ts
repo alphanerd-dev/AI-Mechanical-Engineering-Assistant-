@@ -1,9 +1,9 @@
 import {CapabilityProvider} from "../capabilities/registry.js";
 import {CapabilityRequest,CapabilityResult} from "../core/types.js";
 import {EngineeringContext} from "../experience/context.js";
-import {assessRiskAdaptiveExperience} from "../experience/risk-adaptive.js";
 import {CapabilityRouter} from "../capabilities/router.js";
-import {EngineeringIntentInterpreter} from "../intent/types.js";
+import {EngineeringIntentInterpreter,EngineeringIntentDecision,EngineeringIntentInterpretation} from "../intent/types.js";
+import {EngineeringIntentSessionStore} from "../intent/session.js";
 
 export class AIEngineeringIntentProvider implements CapabilityProvider{
   id="engineering.ai-intent";
@@ -11,7 +11,8 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
 
   constructor(
     private readonly router:CapabilityRouter,
-    private readonly interpreter:EngineeringIntentInterpreter
+    private readonly interpreter:EngineeringIntentInterpreter,
+    private readonly sessions?:EngineeringIntentSessionStore
   ){}
 
   async execute(request:CapabilityRequest):Promise<CapabilityResult>{
@@ -22,6 +23,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
     const input=request.input as {
       rawIntent?:string;
       projectId?:string;
+      sessionId?:string;
       context?:EngineeringContext;
       approval?:unknown;
     };
@@ -33,16 +35,52 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       return {capability:request.capability,provider:this.id,success:false,error:"projectId is required."};
     }
 
-    const interpretationBase=await this.interpreter.interpret(input.rawIntent,input.context);
     const effectiveProjectId=input.projectId.trim();
-    const interpretation={
-      ...interpretationBase,
-      extractedInputs:{
-        ...interpretationBase.extractedInputs,
-        projectId:effectiveProjectId
-      }
+    const prior=input.sessionId&&this.sessions
+      ?this.sessions.get(input.sessionId,effectiveProjectId)
+      :undefined;
+
+    const sessionKnownInputs={
+      ...(prior?.interpretation.extractedInputs??{}),
+      ...(input.context?.knownInputs??{})
     };
-    const missing=[...interpretation.missingInputs];
+    const effectiveContext:EngineeringContext={
+      ...input.context,
+      projectId:input.context?.projectId??effectiveProjectId,
+      knownInputs:sessionKnownInputs
+    };
+
+    const current=await this.interpreter.interpret(input.rawIntent,effectiveContext);
+    const interpretation:EngineeringIntentInterpretation={
+      ...current,
+      goal:current.goal==="engineering task"&&prior?prior.interpretation.goal:current.goal,
+      completionUnit:current.completionUnit??prior?.interpretation.completionUnit,
+      extractedInputs:{
+        ...(prior?.interpretation.extractedInputs??{}),
+        ...current.extractedInputs,
+        projectId:effectiveProjectId
+      },
+      contextUsed:[...new Set([
+        ...(prior?.interpretation.contextUsed??[]),
+        ...current.contextUsed
+      ])],
+      assumptions:[...new Set([
+        ...(prior?.interpretation.assumptions??[]),
+        ...current.assumptions
+      ])]
+    };
+
+    const required=["powerKw","speedRpm","bendingMomentNm","allowableShearStressMpa","proposedDiameterMm"] as const;
+    const missing=required.filter(key=>
+      typeof interpretation.extractedInputs[key]!=="number"||
+      !Number.isFinite(interpretation.extractedInputs[key] as number)
+    ).map(key=>({
+      powerKw:"power",
+      speedRpm:"speed",
+      bendingMomentNm:"bending moment",
+      allowableShearStressMpa:"allowable shear stress",
+      proposedDiameterMm:"proposed shaft diameter"
+    }[key]));
 
     const contextDecision=await this.router.execute({
       capability:"ENGINEERING.RESOLVE_CONTEXT",
@@ -51,9 +89,9 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
         intent:"DESIGN",
         risk:"HIGH",
         consequence:"PROJECT_STATE",
-        ambiguity:interpretation.ambiguity,
+        ambiguity:missing.length===0?"LOW":missing.length<=2?"MEDIUM":"HIGH",
         missingInputs:missing,
-        context:input.context
+        context:effectiveContext
       }
     });
 
@@ -68,7 +106,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
         intent:"DESIGN",
         risk:"HIGH",
         consequence:"PROJECT_STATE",
-        ambiguity:interpretation.ambiguity,
+        ambiguity:resolvedMissing.length===0?"LOW":resolvedMissing.length<=2?"MEDIUM":"HIGH",
         missingInputs:resolvedMissing,
         authorizationRequired:true,
         requestedExperience:"ENGINEERING"
@@ -87,23 +125,14 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       reasons:string[];
     };
 
-    if(resolvedMissing.length>0){
-      const nextQuestion=experience.nextQuestion??resolvedMissing[0];
-      return {
-        capability:request.capability,
-        provider:this.id,
-        success:true,
-        output:{
-          interpretation:{...interpretation,missingInputs:resolvedMissing},
-          experience,
-          status:"NEEDS_INPUT",
-          nextQuestion,
-          decisionSummary:"The engineering intent is understood, but one material input is still required before deterministic execution."
-        }
+    const unsupported=interpretation.completionUnit!=="ENGINEERING.COMPLETE_SHAFT";
+    if(unsupported){
+      const decision:EngineeringIntentDecision={
+        status:"NEEDS_INPUT",
+        validationPassed:false,
+        evidenceIds:[],
+        nextQuestion:"Clarify the engineering completion unit or design objective."
       };
-    }
-
-    if(interpretation.completionUnit!=="ENGINEERING.COMPLETE_SHAFT"){
       return {
         capability:request.capability,
         provider:this.id,
@@ -112,8 +141,40 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
           interpretation,
           experience,
           status:"NEEDS_INPUT",
-          nextQuestion:"Clarify the engineering completion unit or design objective.",
-          decisionSummary:"The intent could not be mapped to a supported completion unit."
+          decision,
+          nextQuestion:decision.nextQuestion,
+          decisionSummary:"The intent is not supported by the current completion units and was not forced into the shaft workflow."
+        }
+      };
+    }
+
+    if(resolvedMissing.length>0){
+      const nextQuestion=experience.nextQuestion??resolvedMissing[0];
+      if(input.sessionId&&this.sessions){
+        this.sessions.save({
+          sessionId:input.sessionId,
+          projectId:effectiveProjectId,
+          interpretation:{...interpretation,missingInputs:resolvedMissing},
+          updatedAt:new Date().toISOString()
+        });
+      }
+      const decision:EngineeringIntentDecision={
+        status:"NEEDS_INPUT",
+        validationPassed:false,
+        evidenceIds:[],
+        nextQuestion
+      };
+      return {
+        capability:request.capability,
+        provider:this.id,
+        success:true,
+        output:{
+          interpretation:{...interpretation,missingInputs:resolvedMissing},
+          experience,
+          status:"NEEDS_INPUT",
+          decision,
+          nextQuestion,
+          decisionSummary:"The engineering intent is understood, but one material input is still required before deterministic execution."
         }
       };
     }
@@ -130,6 +191,36 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       input:completionInput
     });
 
+    const completion=completionResult.output as {
+      status:"BLOCKED"|"FAILED"|"WAITING_APPROVAL"|"COMPLETE";
+      missingInputs:string[];
+      nextAction:string;
+      lineage?:{evidenceIds:string[];artifactIds:string[]};
+      validation?:{
+        passed?:boolean;
+        calculatedTorqueNm?:number;
+        minimumDiameterMm?:number;
+        proposedDiameterMm?:number;
+      };
+      evidence?:unknown[];
+    }|undefined;
+
+    const validation=completion?.validation;
+    const evidenceIds=completion?.lineage?.evidenceIds??[];
+    const status:EngineeringIntentDecision["status"]=
+      completion?.status==="COMPLETE"?"COMPLETE":
+      completion?.status==="WAITING_APPROVAL"?"WAITING_APPROVAL":
+      completion?.status==="FAILED"?"FAILED":"NEEDS_INPUT";
+    const decision:EngineeringIntentDecision={
+      status,
+      validationPassed:validation?.passed??false,
+      torqueNm:validation?.calculatedTorqueNm,
+      minimumDiameterMm:validation?.minimumDiameterMm,
+      proposedDiameterMm:validation?.proposedDiameterMm,
+      evidenceIds,
+      nextAction:completion?.nextAction
+    };
+
     if(!completionResult.success){
       return {
         capability:request.capability,
@@ -138,61 +229,34 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
         output:{
           interpretation,
           experience,
-          completion:completionResult.output,
+          completion,
           status:"FAILED",
+          decision,
           decisionSummary:"The deterministic shaft completion capability failed closed."
         },
         error:completionResult.error??"The shaft completion capability failed."
       };
     }
 
-    const completion=completionResult.output as {
-      status:"BLOCKED"|"FAILED"|"WAITING_APPROVAL"|"COMPLETE";
-      missingInputs:string[];
-      nextAction:string;
-      lineage:{evidenceIds:string[];artifactIds:string[]};
-      validation?:unknown;
-      evidence?:unknown[];
-    };
-    const status=completion.status==="COMPLETE"?"COMPLETE":
-      completion.status==="WAITING_APPROVAL"?"WAITING_APPROVAL":
-      completion.status==="FAILED"?"FAILED":"NEEDS_INPUT";
-    const validation=completion.validation as {
-      passed?:boolean;
-      calculatedTorqueNm?:number;
-      minimumDiameterMm?:number;
-      proposedDiameterMm?:number;
-    }|null|undefined;
-    const decision={
-      status,
-      validationPassed:validation?.passed??false,
-      torqueNm:validation?.calculatedTorqueNm,
-      minimumDiameterMm:validation?.minimumDiameterMm,
-      proposedDiameterMm:validation?.proposedDiameterMm,
-      evidenceIds:completion.lineage.evidenceIds,
-      nextAction:completion.nextAction
-    };
-
     return {
       capability:request.capability,
       provider:this.id,
-      success:completion.status!=="FAILED",
+      success:true,
       output:{
         interpretation,
         experience,
         completion,
         status,
         decision,
-        nextQuestion:completion.missingInputs[0],
-        decisionSummary:completion.status==="WAITING_APPROVAL"
+        nextQuestion:completion?.missingInputs[0],
+        decisionSummary:status==="WAITING_APPROVAL"
           ?"The shaft design passed deterministic validation and evidence was generated. Explicit authorized approval is now required."
-          :completion.status==="COMPLETE"
+          :status==="COMPLETE"
             ?"The shaft completion unit is complete and verified."
             :"The shaft completion unit could not complete."
       },
-      error:completion.status==="FAILED"?completion.nextAction:undefined,
-      evidenceIds:completion.lineage.evidenceIds,
-      artifactIds:completion.lineage.artifactIds
+      evidenceIds,
+      artifactIds:completion?.lineage?.artifactIds??[]
     };
   }
 }
