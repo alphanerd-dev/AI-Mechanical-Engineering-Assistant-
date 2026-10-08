@@ -63,4 +63,4 @@ Model availability must never change the authority boundary of the Engineering C
 ## Acceptance gate
 
 The V2.0.16 benchmark covers valid model-backed routing, malformed-output rejection, no-invention/provenance rejection, context provenance validation, and unsupported completion-unit protection.
-The existing V2.0.15 seven-case acceptance suite remains the regression gate for the full AI-native workflow.
+The existing V2.0.15 seven-case acceptance suite remains the regression gate for the full AI-native workflow. Decision-ready deterministic outputs use the generic metrics contract introduced in V2.0.19.
