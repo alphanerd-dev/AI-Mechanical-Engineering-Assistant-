@@ -1,5 +1,5 @@
-import {CapabilityRouter} from "../capabilities/router.js";
-import {EngineeringCompletionUnit,EngineeringCompletionUnitRequest,EngineeringCompletionReport} from "./types.js";
+import {CapabilityRouter} from "../capabilities/router";
+import {EngineeringCompletionUnit,EngineeringCompletionUnitRequest,EngineeringCompletionReport} from "./types";
 
 export class ShaftEngineeringCompletionUnit implements EngineeringCompletionUnit{
   id="ENGINEERING.COMPLETE_SHAFT";
