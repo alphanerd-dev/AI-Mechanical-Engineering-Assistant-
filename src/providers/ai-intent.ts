@@ -150,6 +150,21 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
     const status=completion.status==="COMPLETE"?"COMPLETE":
       completion.status==="WAITING_APPROVAL"?"WAITING_APPROVAL":
       completion.status==="FAILED"?"FAILED":"NEEDS_INPUT";
+    const validation=completion.validation as {
+      passed?:boolean;
+      calculatedTorqueNm?:number;
+      minimumDiameterMm?:number;
+      proposedDiameterMm?:number;
+    }|null|undefined;
+    const decision={
+      status,
+      validationPassed:validation?.passed??false,
+      torqueNm:validation?.calculatedTorqueNm,
+      minimumDiameterMm:validation?.minimumDiameterMm,
+      proposedDiameterMm:validation?.proposedDiameterMm,
+      evidenceIds:completion.lineage.evidenceIds,
+      nextAction:completion.nextAction
+    };
 
     return {
       capability:request.capability,
@@ -160,6 +175,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
         experience,
         completion,
         status,
+        decision,
         nextQuestion:completion.missingInputs[0],
         decisionSummary:completion.status==="WAITING_APPROVAL"
           ?"The shaft design passed deterministic validation and evidence was generated. Explicit authorized approval is now required."
