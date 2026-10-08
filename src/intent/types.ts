@@ -6,7 +6,7 @@ export interface EngineeringIntentInterpretation{
   raw:string;
   goal:string;
   completionUnit?:string;
-  extractedInputs:Partial<ShaftEngineeringCompletionRequest>;
+  extractedInputs:Record<string,number|string>;
   missingInputs:string[];
   confidence:"LOW"|"MEDIUM"|"HIGH";
   ambiguity:"LOW"|"MEDIUM"|"HIGH";
