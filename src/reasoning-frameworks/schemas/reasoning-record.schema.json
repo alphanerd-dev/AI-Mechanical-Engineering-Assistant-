@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ai-mechanical-engineering-assistant.dev/schemas/reasoning-record.schema.json",
+  "$id": "urn:ai-mechanical-engineering-assistant:schemas:reasoning-record:v1",
   "title": "Engineering Reasoning Record",
   "description": "An advisory record of a reasoning method. It is not evidence that engineering correctness has been established.",
   "type": "object",
@@ -16,7 +16,7 @@
     "status": { "enum": ["PROPOSED", "INCOMPLETE", "BLOCKED"] },
     "inputs": { "type": "object" },
     "assumptions": { "type": "array", "items": { "type": "string" } },
-    "output": {},
+    "output": { "type": ["object", "array", "string", "number", "boolean", "null"] },
     "limitations": {
       "type": "array",
       "minItems": 1,
