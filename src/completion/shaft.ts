@@ -85,7 +85,7 @@ function createBaseReport(
   taskGraph:EngineeringTaskGraph,
   missingInputs:string[],
   nextAction:string
-):EngineeringCompletionReport{
+):ShaftEngineeringCompletionReport{
   return {
     projectId,
     status:"BLOCKED",
