@@ -18,10 +18,7 @@ export function isElectricalIntentCandidate(raw:string,context?:EngineeringConte
   const text=raw.toLowerCase();
   const explicitElectrical=/\b(?:dc|direct current|electrical|electric)\b/.test(text);
   const loadLanguage=/\b(?:load|circuit|power|resistance|voltage|current)\b/.test(text);
-  const contextElectrical=
-    context?.knownInputs!==undefined &&
-    ["voltageV","currentA","maximumPowerW"].some(key=>key in (context.knownInputs??{}));
-  return (explicitElectrical&&loadLanguage)||contextElectrical;
+  return explicitElectrical&&loadLanguage;
 }
 
 export class DeterministicElectricalIntentInterpreter implements EngineeringIntentInterpreter{
