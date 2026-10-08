@@ -16,9 +16,10 @@ function contextNumber(context:EngineeringContext|undefined,keys:string[]):numbe
 
 export function isElectricalIntentCandidate(raw:string,context?:EngineeringContext):boolean{
   const text=raw.toLowerCase();
-  const explicitElectrical=/\b(?:dc|direct current|electrical|electric)\b/.test(text);
+  const explicitDc=/\b(?:dc|direct current)\b/.test(text);
   const loadLanguage=/\b(?:load|circuit|power|resistance|voltage|current)\b/.test(text);
-  return explicitElectrical&&loadLanguage;
+  const electricalLanguage=/\b(?:electrical|electric)\b/.test(text);
+  return explicitDc&&(loadLanguage||electricalLanguage);
 }
 
 export class DeterministicElectricalIntentInterpreter implements EngineeringIntentInterpreter{
