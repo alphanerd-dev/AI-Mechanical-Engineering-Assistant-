@@ -1,5 +1,5 @@
-import {EvidenceRecord} from "../artifacts/engineering-artifacts.js";
-import {EngineeringVerificationRequest,EngineeringVerificationResult,VerificationEvidenceType} from "./types.js";
+import {EvidenceRecord} from "../artifacts/engineering-artifacts";
+import {EngineeringVerificationRequest,EngineeringVerificationResult,VerificationEvidenceType} from "./types";
 
 function evidenceMatchesType(evidence:EvidenceRecord,type:VerificationEvidenceType):boolean{
   if(type==="CAD") return evidence.type==="GEOMETRY_CHECK";
@@ -25,5 +25,5 @@ export class EngineeringVerificationEngine{
   }
 }
 
-export {verifyEngineeringProject} from "./project.js";
-export type {EngineeringProjectVerificationRequest,EngineeringProjectVerificationRequirement,EngineeringProjectVerificationReport} from "./project.js";
+export {verifyEngineeringProject} from "./project";
+export type {EngineeringProjectVerificationRequest,EngineeringProjectVerificationRequirement,EngineeringProjectVerificationReport} from "./project";
