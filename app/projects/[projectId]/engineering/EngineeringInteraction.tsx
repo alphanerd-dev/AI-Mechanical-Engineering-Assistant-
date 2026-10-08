@@ -2,12 +2,11 @@
 
 import {FormEvent,useMemo,useState} from "react";
 
+type DecisionMetric={key:string;value:number|string;unit?:string};
 type Decision={
   status:string;
   validationPassed:boolean;
-  torqueNm?:number;
-  minimumDiameterMm?:number;
-  proposedDiameterMm?:number;
+  metrics:DecisionMetric[];
   evidenceIds:string[];
   nextAction?:string;
   nextQuestion?:string;
@@ -112,9 +111,11 @@ export default function EngineeringInteraction({projectId}:{projectId:string}){
       <div className="decisionTop"><span className="tag">DECISION</span><strong>{lastDecision.status}</strong></div>
       <div className="decisionGrid">
         <Metric label="Validation" value={lastDecision.validationPassed?"PASS":"NOT VERIFIED"} />
-        {lastDecision.torqueNm!==undefined&&<Metric label="Torque" value={`${lastDecision.torqueNm.toFixed(2)} N·m`} />}
-        {lastDecision.minimumDiameterMm!==undefined&&<Metric label="Minimum diameter" value={`${lastDecision.minimumDiameterMm.toFixed(2)} mm`} />}
-        {lastDecision.proposedDiameterMm!==undefined&&<Metric label="Proposed diameter" value={`${lastDecision.proposedDiameterMm.toFixed(2)} mm`} />}
+        {lastDecision.metrics.map(metric=><Metric
+          key={metric.key}
+          label={metric.key}
+          value={typeof metric.value==="number" ? `${metric.value.toFixed(2)}${metric.unit ? ` ${metric.unit}` : ""}` : `${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`}
+        />)}
       </div>
       <div className="evidenceLine"><span>Evidence</span><strong>{lastDecision.evidenceIds.length} record{lastDecision.evidenceIds.length===1?"":"s"}</strong></div>
     </div>}
