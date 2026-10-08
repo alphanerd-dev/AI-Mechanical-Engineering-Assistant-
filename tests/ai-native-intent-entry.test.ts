@@ -67,7 +67,7 @@ describe("AI-native engineering intent entry",()=>{
       risk:"HIGH",
       input:{
         projectId:"ai-intent-context-1",
-        rawIntent:"Design the shaft using the proposed 30 mm diameter.",
+        rawIntent:"Design the shaft using the known project inputs.",
         context:{
           projectId:"ai-intent-context-1",
           knownInputs:{
