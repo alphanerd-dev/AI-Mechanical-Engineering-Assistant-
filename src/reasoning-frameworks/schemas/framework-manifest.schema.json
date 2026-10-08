@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai-mechanical-engineering-assistant:schemas:reasoning-framework-manifest:v1",
+  "title": "Reasoning Framework Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "version", "name", "purpose", "suitableFor", "requiredInputs", "outputKind"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$" },
+    "name": { "type": "string", "minLength": 1 },
+    "purpose": { "type": "string", "minLength": 1 },
+    "suitableFor": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "requiredInputs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "outputKind": { "const": "REASONING_RECORD" }
+  }
+}
