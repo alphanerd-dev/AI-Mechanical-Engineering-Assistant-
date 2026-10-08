@@ -1,6 +1,6 @@
-import {CapabilityProvider} from "../capabilities/registry.js";
-import {CapabilityRequest,CapabilityResult} from "../core/types.js";
-import {ContextAwareExperienceRequest,resolveEngineeringContext} from "../experience/context.js";
+import {CapabilityProvider} from "../capabilities/registry";
+import {CapabilityRequest,CapabilityResult} from "../core/types";
+import {ContextAwareExperienceRequest,resolveEngineeringContext} from "../experience/context";
 
 export class EngineeringContextProvider implements CapabilityProvider{
   id="experience.context";
