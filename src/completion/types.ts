@@ -43,7 +43,6 @@ export interface EngineeringCompletionReport<TValidation extends EngineeringVali
   completionUnit?:string;
   decisionMetrics:EngineeringDecisionMetric[];
   project:ProjectState;
-  project:ProjectState;
   taskGraph:EngineeringTaskGraph;
   artifacts:EngineeringArtifact[];
   evidence:EvidenceRecord[];
