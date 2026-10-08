@@ -10,9 +10,12 @@ import {RiskAdaptiveExperienceProvider} from "../../../../src/providers/experien
 import {EngineeringContextProvider} from "../../../../src/providers/context";
 import {AIEngineeringIntentProvider} from "../../../../src/providers/ai-intent";
 import {DeterministicShaftIntentInterpreter} from "../../../../src/intent/shaft";
+import {InMemoryEngineeringIntentSessionStore} from "../../../../src/intent/session";
 import {authorizeSupabaseRequest} from "../../../../src/auth/supabase-service";
 
 export const runtime="nodejs";
+
+const sessionStore=new InMemoryEngineeringIntentSessionStore();
 
 export async function POST(request:Request){
   const body=await request.json().catch(()=>({}));
@@ -40,7 +43,7 @@ export async function POST(request:Request){
   registry.register(new RiskAdaptiveExperienceProvider());
   registry.register(new EngineeringContextProvider());
   registry.register(new EngineeringCompletionProvider(router));
-  registry.register(new AIEngineeringIntentProvider(router,new DeterministicShaftIntentInterpreter()));
+  registry.register(new AIEngineeringIntentProvider(router,new DeterministicShaftIntentInterpreter(),sessionStore));
 
   const result=await router.execute({
     capability:"ENGINEERING.ENTER_FROM_INTENT",

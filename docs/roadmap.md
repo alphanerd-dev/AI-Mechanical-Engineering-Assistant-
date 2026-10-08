@@ -316,7 +316,7 @@ Notes:
 - [x] V2.0.14 AI-native completion entry
 - [x] V2.0.15 AI-native completion path validation
 - [x] V2.0.16 model-backed intent adapter
-- [ ] V2.0.17 real engineering interaction surface
+- [x] V2.0.17 real engineering interaction surface
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
@@ -339,6 +339,7 @@ Notes:
 - V2.0.16 adds a provider-neutral model-backed intent adapter only after V2.0.15's seven-case acceptance gate is green. Model outputs are schema-validated, provenance-checked, and routed through the existing deterministic completion path.
 - V2.0.15 acceptance is complete: the seven-case AI-native path gate, decision-ready result contract, continuation behavior, wrong-unit protection, fail-closed validation, and single deterministic execution-path invariant are implemented and regression-tested.
 - V2.0.16 acceptance is complete: the model adapter enforces structured intent output, USER/CONTEXT/UNKNOWN provenance, rejection of engineering-result fields, no-invention checks, unsupported-unit protection, and compatibility with the existing deterministic completion path. Model vendor transport remains host-injected and provider-neutral.
+- V2.0.17 adds the first real project engineering interaction surface: natural-language request entry, project-scoped multi-turn continuation, decision-ready rendering, validation/evidence status, and a route-level session boundary over the existing deterministic completion path. Durable cross-instance conversation storage remains future workspace persistence.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
 
 ## V2.1 — Multi-CAD Engineering Layer
