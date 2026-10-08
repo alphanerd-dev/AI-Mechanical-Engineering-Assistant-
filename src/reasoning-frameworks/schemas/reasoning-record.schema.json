@@ -16,7 +16,7 @@
     "status": { "enum": ["PROPOSED", "INCOMPLETE", "BLOCKED"] },
     "inputs": { "type": "object" },
     "assumptions": { "type": "array", "items": { "type": "string" } },
-    "output": { "type": ["object", "array", "string", "number", "boolean", "null"] },
+    "output": { "anyOf": [{ "type": "object" }, { "type": "array" }, { "type": "string" }, { "type": "number" }, { "type": "boolean" }, { "type": "null" }] },
     "limitations": {
       "type": "array",
       "minItems": 1,
