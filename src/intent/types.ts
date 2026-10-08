@@ -1,12 +1,12 @@
 import {EngineeringContext} from "../experience/context.js";
-import {EngineeringCompletionReport,ShaftEngineeringCompletionRequest} from "../completion/types.js";
+import {EngineeringApprovalRequest,EngineeringCompletionReport,ShaftEngineeringCompletionRequest} from "../completion/types.js";
 import {RiskAdaptiveExperienceDecision} from "../experience/types.js";
 
 export interface EngineeringIntentInterpretation{
   raw:string;
   goal:string;
   completionUnit?:string;
-  extractedInputs:Partial<ShaftEngineeringCompletionRequest>;
+  extractedInputs:Record<string,number|string>;
   missingInputs:string[];
   confidence:"LOW"|"MEDIUM"|"HIGH";
   ambiguity:"LOW"|"MEDIUM"|"HIGH";
@@ -23,7 +23,7 @@ export interface EngineeringIntentEntryRequest{
   projectId:string;
   sessionId?:string;
   context?:EngineeringContext;
-  approval?:ShaftEngineeringCompletionRequest["approval"];
+  approval?:EngineeringApprovalRequest;
 }
 
 export interface EngineeringIntentDecision{

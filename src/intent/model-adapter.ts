@@ -1,6 +1,5 @@
 import {EngineeringIntent,EngineeringIntentInput} from "../core/types.js";
 import {EngineeringContext} from "../experience/context.js";
-import {ShaftEngineeringCompletionRequest} from "../completion/types.js";
 import {EngineeringIntentInterpreter,EngineeringIntentInterpretation} from "./types.js";
 
 export interface ModelIntentGenerationRequest{
@@ -16,10 +15,6 @@ export interface ModelIntentGenerator{
 const ALLOWED_OUTPUT_KEYS=new Set([
   "raw","goal","domain","completionUnit","inputs","missingInputs",
   "requestedCapabilities","confidence","ambiguity","assumptions"
-]);
-
-const SHAFT_INPUT_KEYS=new Set<string>([
-  "powerKw","speedRpm","bendingMomentNm","allowableShearStressMpa","proposedDiameterMm"
 ]);
 
 function isRecord(value:unknown):value is Record<string,unknown>{
@@ -206,13 +201,9 @@ export class ModelBackedEngineeringIntentAdapter implements EngineeringIntentInt
       request
     );
 
-    const extractedInputs:Partial<ShaftEngineeringCompletionRequest>={};
+    const extractedInputs:Record<string,number|string>={};
     for(const input of intent.inputs??[]){
-      if(SHAFT_INPUT_KEYS.has(input.name)&&typeof input.value==="number"){
-        const key=input.name as keyof Pick<ShaftEngineeringCompletionRequest,
-          "powerKw"|"speedRpm"|"bendingMomentNm"|"allowableShearStressMpa"|"proposedDiameterMm">;
-        extractedInputs[key]=input.value;
-      }
+      if(input.value!==undefined) extractedInputs[input.name]=input.value;
     }
 
     return {
