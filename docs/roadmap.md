@@ -6,6 +6,16 @@
 - AI models orchestrate engineering capabilities; deterministic providers perform calculations, simulation, CAD, manufacturing, and other technical operations.
 - Critical results require explicit validation/evidence before being treated as verified.
 
+## V1.0 — Foundation (retrospective)
+- [x] Repository/package baseline
+- [x] Initial provider-neutral engineering architecture
+- [x] Initial project-state, memory, capability-routing, and test foundations
+- [x] Initial CI/repository documentation baseline
+
+Notes:
+- V1.0 is reconstructed from the repository's initial implementation history; it was not previously recorded as a named roadmap milestone.
+- This retrospective milestone establishes the starting point for the V1.1 core and avoids an undocumented gap at the beginning of the roadmap.
+
 ## V1.1 — Engineering core + mock providers
 - [x] Core types
 - [x] Project state
@@ -117,10 +127,10 @@
 - [x] Manufacturing artifact/evidence linkage
 - [x] Manufacturing capability-provider boundary
 - [x] Routed manufacturing capabilities
-- [ ] DFM rule library
-- [ ] Tolerance-stack capability
-- [ ] CAM/slicing provider boundary
-- [ ] BOM generation and manufacturing release workflow
+- [ ] DFM rule library (superseded/fulfilled in measured form by V1.19 and V1.21)
+- [ ] Tolerance-stack capability (fulfilled by V1.20)
+- [ ] CAM/slicing provider boundary (fulfilled by V1.21)
+- [ ] BOM generation and manufacturing release workflow (fulfilled by V1.21)
 
 ## V1.11 — Dynamics, robotics & digital engineering
 - [x] Multibody dynamics provider
@@ -304,7 +314,7 @@ Notes:
 - [x] V2.0.13 evidence-as-a-byproduct
 - [x] V2.0 final product/workflow gate
 - [x] V2.0.14 AI-native completion entry
-- [ ] V2.0.15 AI-native completion path validation
+- [x] V2.0.15 AI-native completion path validation
 - [ ] V2.0.16 model-backed intent adapter
 - [ ] V2.0.17 real engineering interaction surface
 - [ ] Domain expansion beyond Mechanical Engineering
@@ -327,6 +337,7 @@ Notes:
 - V2.0.15 uses a provider-neutral project-scoped in-memory intent session contract for continuation. Session state reduces repeated input but is not authorization, engineering truth, or durable project memory.
 - V2.0.15 keeps the deterministic reference interpreter as a replaceable test harness. It does not claim that regex extraction is production AI intelligence.
 - V2.0.16 should add the model-backed intent adapter only after V2.0.15's seven-case acceptance gate is green.
+- V2.0.15 acceptance is complete: the seven-case AI-native path gate, decision-ready result contract, continuation behavior, wrong-unit protection, fail-closed validation, and single deterministic execution-path invariant are implemented and regression-tested.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
 
 ## V2.1 — Multi-CAD Engineering Layer
