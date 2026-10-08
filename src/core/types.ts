@@ -23,9 +23,26 @@ export interface ProjectState {
   evidenceIds?:string[];
 }
 
+export type EngineeringIntentInputSource="USER"|"CONTEXT"|"UNKNOWN";
+
+export interface EngineeringIntentInput{
+  name:string;
+  value?:number|string;
+  unit?:string;
+  source:EngineeringIntentInputSource;
+  sourceKey?:string;
+  sourceText?:string;
+}
+
 export interface EngineeringIntent {
   raw:string; goal:string; knownInputs:Record<string,number|string>;
   missingInputs:string[]; requestedCapabilities:string[];
+  domain?:string;
+  completionUnit?:string;
+  inputs?:EngineeringIntentInput[];
+  confidence?:"LOW"|"MEDIUM"|"HIGH";
+  ambiguity?:"LOW"|"MEDIUM"|"HIGH";
+  assumptions?:string[];
 }
 
 export interface CapabilityRequest {

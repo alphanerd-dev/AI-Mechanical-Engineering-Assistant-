@@ -315,7 +315,7 @@ Notes:
 - [x] V2.0 final product/workflow gate
 - [x] V2.0.14 AI-native completion entry
 - [x] V2.0.15 AI-native completion path validation
-- [ ] V2.0.16 model-backed intent adapter
+- [x] V2.0.16 model-backed intent adapter
 - [ ] V2.0.17 real engineering interaction surface
 - [ ] Domain expansion beyond Mechanical Engineering
 
@@ -336,8 +336,9 @@ Notes:
 - V2.0.15 is the named product acceptance gate for the AI-native path. It validates intent routing, context reuse, minimal escalation, fail-closed validation, decision-ready output, multi-turn continuation, and wrong-unit protection. The gate also locks the invariant that AI-native entry must route through the existing deterministic completion capability rather than create a second engineering execution path.
 - V2.0.15 uses a provider-neutral project-scoped in-memory intent session contract for continuation. Session state reduces repeated input but is not authorization, engineering truth, or durable project memory.
 - V2.0.15 keeps the deterministic reference interpreter as a replaceable test harness. It does not claim that regex extraction is production AI intelligence.
-- V2.0.16 should add the model-backed intent adapter only after V2.0.15's seven-case acceptance gate is green.
+- V2.0.16 adds a provider-neutral model-backed intent adapter only after V2.0.15's seven-case acceptance gate is green. Model outputs are schema-validated, provenance-checked, and routed through the existing deterministic completion path.
 - V2.0.15 acceptance is complete: the seven-case AI-native path gate, decision-ready result contract, continuation behavior, wrong-unit protection, fail-closed validation, and single deterministic execution-path invariant are implemented and regression-tested.
+- V2.0.16 acceptance is complete: the model adapter enforces structured intent output, USER/CONTEXT/UNKNOWN provenance, rejection of engineering-result fields, no-invention checks, unsupported-unit protection, and compatibility with the existing deterministic completion path. Model vendor transport remains host-injected and provider-neutral.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
 
 ## V2.1 — Multi-CAD Engineering Layer

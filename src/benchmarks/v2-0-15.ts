@@ -9,12 +9,16 @@ import {RiskAdaptiveExperienceProvider} from "../providers/experience.js";
 import {EngineeringContextProvider} from "../providers/context.js";
 import {AIEngineeringIntentProvider} from "../providers/ai-intent.js";
 import {DeterministicShaftIntentInterpreter} from "../intent/shaft.js";
+import {EngineeringIntentInterpreter} from "../intent/types.js";
 import {InMemoryEngineeringIntentSessionStore} from "../intent/session.js";
 import {NumericalAnalysisProvider} from "../providers/numerical.js";
 import {BenchmarkCaseDefinition} from "./types.js";
 import {runBenchmarkSuite} from "./runner.js";
 
-export function createV2_0_15Router(sessionStore=new InMemoryEngineeringIntentSessionStore()):{
+export function createV2_0_15Router(
+  sessionStore=new InMemoryEngineeringIntentSessionStore(),
+  interpreter:EngineeringIntentInterpreter=new DeterministicShaftIntentInterpreter()
+):{
   router:CapabilityRouter;
   sessionStore:InMemoryEngineeringIntentSessionStore;
 }{
@@ -30,7 +34,7 @@ export function createV2_0_15Router(sessionStore=new InMemoryEngineeringIntentSe
   registry.register(new EngineeringCompletionProvider(router));
   registry.register(new AIEngineeringIntentProvider(
     router,
-    new DeterministicShaftIntentInterpreter(),
+    interpreter,
     sessionStore
   ));
   return {router,sessionStore};
