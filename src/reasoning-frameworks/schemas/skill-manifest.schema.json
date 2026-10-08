@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ai-mechanical-engineering-assistant.dev/schemas/skill-manifest.schema.json",
+  "$id": "urn:ai-mechanical-engineering-assistant:schemas:skill-manifest:v1",
   "title": "Engineering Skill Manifest",
   "type": "object",
   "additionalProperties": false,
