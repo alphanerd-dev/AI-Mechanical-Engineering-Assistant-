@@ -1,7 +1,7 @@
-import {EngineeringContext} from "../experience/context.js";
-import {EngineeringIntentInterpreter,EngineeringIntentInterpretation} from "./types.js";
-import {DeterministicShaftIntentInterpreter} from "./shaft.js";
-import {DeterministicElectricalIntentInterpreter,isElectricalIntentCandidate} from "./electrical.js";
+import {EngineeringContext} from "../experience/context";
+import {EngineeringIntentInterpreter,EngineeringIntentInterpretation} from "./types";
+import {DeterministicShaftIntentInterpreter} from "./shaft";
+import {DeterministicElectricalIntentInterpreter,isElectricalIntentCandidate} from "./electrical";
 
 export class DeterministicEngineeringIntentInterpreter implements EngineeringIntentInterpreter{
   constructor(
