@@ -16,6 +16,10 @@ describe("reasoning framework contracts", () => {
     expect(REASONING_FRAMEWORKS.every((framework) => framework.version === "1.0.0")).toBe(true);
   });
 
+  it("keeps every built-in framework manifest schema-valid", () => {
+    expect(REASONING_FRAMEWORKS.flatMap((framework) => validateFrameworkManifest(framework))).toEqual([]);
+  });
+
   it("validates well-formed skill manifests using the schema", () => {
     const skill = {
       schemaVersion: 1,
@@ -119,6 +123,24 @@ describe("reasoning framework contracts", () => {
     expect(getReasoningFramework("five-whys")).toBeDefined();
   });
 
+  it("supports incomplete records without fabricating an output", () => {
+    const record = createFrameworkReasoningRecord({
+      recordId: "reasoning-incomplete",
+      createdAt: "2026-10-09T12:00:00.000Z",
+      taskType: "failure-analysis",
+      frameworkId: "five-whys",
+      status: "INCOMPLETE",
+      inputs: { "problem-statement": "A hose leaked." },
+      assumptions: [],
+      limitations: [],
+      evidenceReferences: [],
+      requiredGates: ["collect-missing-inspection-data"]
+    });
+    expect(record.output).toBeUndefined();
+    expect(record.status).toBe("INCOMPLETE");
+    expect(validateFrameworkReasoningRecord(record)).toEqual([]);
+  });
+
   it("rejects records that claim verification or omit the advisory limitation", () => {
     const invalid = {
       schemaVersion: 1,
@@ -137,6 +159,28 @@ describe("reasoning framework contracts", () => {
       requiredGates: []
     };
     expect(validateFrameworkReasoningRecord(invalid).length).toBeGreaterThan(0);
+  });
+
+  it("rejects non-JSON-compatible nested values", () => {
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    const invalid = {
+      schemaVersion: 1,
+      recordId: "reasoning-cycle",
+      createdAt: "2026-10-09T12:00:00.000Z",
+      taskType: "failure-analysis",
+      frameworkId: "five-whys",
+      frameworkVersion: "1.0.0",
+      status: "PROPOSED",
+      inputs: {},
+      assumptions: [],
+      output: cycle,
+      limitations: [REASONING_RECORD_ADVISORY_LIMITATION],
+      evidenceReferences: [],
+      validationStatus: "NOT_PERFORMED",
+      requiredGates: []
+    };
+    expect(validateFrameworkReasoningRecord(invalid).join(" ")).toMatch(/JSON-compatible/);
   });
 
   it("requires output for a proposed record", () => {
