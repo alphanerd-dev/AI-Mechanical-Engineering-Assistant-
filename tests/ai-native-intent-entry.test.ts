@@ -52,11 +52,11 @@ describe("AI-native engineering intent entry",()=>{
     expect(output.decision).toMatchObject({
       status:"WAITING_APPROVAL",
       validationPassed:true,
-      torqueNm:31.830988618379067,
       minimumDiameterMm:expect.any(Number),
       proposedDiameterMm:30
     });
     expect(output.decision.evidenceIds).toHaveLength(3);
+    expect(output.decision.torqueNm).toBeCloseTo(31.8309886184,10);
   });
 
   it("uses known context instead of asking for values already available",async()=>{
