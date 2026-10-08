@@ -1,6 +1,6 @@
-import {CapabilityProvider} from "../capabilities/registry.js";
-import {CapabilityRequest,CapabilityResult} from "../core/types.js";
-import {CapabilityRouter} from "../capabilities/router.js";
+import {CapabilityProvider} from "../capabilities/registry";
+import {CapabilityRequest,CapabilityResult} from "../core/types";
+import {CapabilityRouter} from "../capabilities/router";
 import {DcLoadEngineeringCompletionRequest,completeDcLoadEngineeringUnit} from "../completion/electrical";
 
 export class ElectricalEngineeringCompletionProvider implements CapabilityProvider{
