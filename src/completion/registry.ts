@@ -21,5 +21,6 @@ export class EngineeringCompletionUnitRegistry{
 export function createDefaultEngineeringCompletionUnitRegistry():EngineeringCompletionUnitRegistry{
   const registry=new EngineeringCompletionUnitRegistry();
   registry.register(new ShaftEngineeringCompletionUnit());
+  registry.register(new DcLoadEngineeringCompletionUnit());
   return registry;
 }
