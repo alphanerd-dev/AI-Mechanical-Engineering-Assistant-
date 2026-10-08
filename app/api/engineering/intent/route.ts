@@ -7,6 +7,7 @@ import {V2_0_12_CAPABILITIES} from "../../../../src/capabilities/v2-0-12";
 import {V2_0_14_CAPABILITIES} from "../../../../src/capabilities/v2-0-14";
 import {V2_0_21_CAPABILITIES} from "../../../../src/capabilities/v2-0-21";
 import {ENGINEERING_CAPABILITIES} from "../../../../src/capabilities/catalog";
+import {NumericalAnalysisProvider} from "../../../../src/providers/numerical";
 import {EngineeringCompletionProvider} from "../../../../src/providers/engineering-completion";
 import {RiskAdaptiveExperienceProvider} from "../../../../src/providers/experience";
 import {EngineeringContextProvider} from "../../../../src/providers/context";
@@ -49,6 +50,7 @@ export async function POST(request:Request){
   const router=new CapabilityRouter(registry);
   registry.register(new RiskAdaptiveExperienceProvider());
   registry.register(new EngineeringContextProvider());
+  registry.register(new NumericalAnalysisProvider());
   registry.register(new EngineeringCompletionProvider(router));
   registry.register(new ElectricalEngineeringCompletionProvider(router));
   registry.register(new ElectricalAnalysisProvider());
