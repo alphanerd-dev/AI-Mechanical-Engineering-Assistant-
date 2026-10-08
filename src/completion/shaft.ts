@@ -443,6 +443,8 @@ export async function completeShaftEngineeringUnit(
     return {
       projectId:project.id,
       status:"FAILED",
+      completionUnit:"ENGINEERING.COMPLETE_SHAFT",
+      decisionMetrics,
       project,
       taskGraph,
       artifacts:evidenceByProduct.artifacts,
@@ -612,6 +614,8 @@ export async function completeShaftEngineeringUnit(
   return {
     projectId:project.id,
     status:"COMPLETE",
+    completionUnit:"ENGINEERING.COMPLETE_SHAFT",
+    decisionMetrics,
     project,
     taskGraph,
     artifacts:[evidenceArtifact],
