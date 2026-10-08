@@ -1,4 +1,5 @@
 import {EngineeringContext} from "../experience/context.js";
+import {EngineeringDecisionMetric} from "../core/types.js";
 import {EngineeringApprovalRequest,EngineeringCompletionReport} from "../completion/types.js";
 import {RiskAdaptiveExperienceDecision} from "../experience/types.js";
 
@@ -26,11 +27,7 @@ export interface EngineeringIntentEntryRequest{
   approval?:EngineeringApprovalRequest;
 }
 
-export interface EngineeringDecisionMetric{
-  key:string;
-  value:number|string;
-  unit?:string;
-}
+export type {EngineeringDecisionMetric} from "../core/types.js";
 
 export interface EngineeringIntentDecision{
   status:"READY"|"NEEDS_INPUT"|"WAITING_APPROVAL"|"COMPLETE"|"FAILED";

@@ -4,7 +4,7 @@ import {EngineeringArtifact,EvidenceRecord} from "../artifacts/engineering-artif
 import {EngineeringTaskGraph} from "../task-graph/types";
 import {transitionTask} from "../task-graph/validation";
 import {shaftTorque} from "../engineering/calculations";
-import {EngineeringCompletionReport,ShaftEngineeringCompletionRequest,ShaftEngineeringValidation} from "./types";
+import {EngineeringCompletionReport,ShaftEngineeringCompletionReport,ShaftEngineeringCompletionRequest,ShaftEngineeringValidation} from "./types";
 import {authorize} from "../auth/policy";
 import {produceEvidenceByProduct} from "../evidence/by-product";
 
@@ -85,10 +85,12 @@ function createBaseReport(
   taskGraph:EngineeringTaskGraph,
   missingInputs:string[],
   nextAction:string
-):EngineeringCompletionReport{
+):ShaftEngineeringCompletionReport{
   return {
     projectId,
     status:"BLOCKED",
+    completionUnit:"ENGINEERING.COMPLETE_SHAFT",
+    decisionMetrics:[],
     project,
     taskGraph,
     artifacts:[],
@@ -192,7 +194,7 @@ function failedResult(
   project:ProjectState,
   taskGraph:EngineeringTaskGraph,
   reason:string
-):EngineeringCompletionReport{
+):ShaftEngineeringCompletionReport{
   project.status="BLOCKED";
   project.openQuestions=[reason];
   const report=createBaseReport(
@@ -208,7 +210,7 @@ function failedResult(
 export async function completeShaftEngineeringUnit(
   request:ShaftEngineeringCompletionRequest,
   router:CapabilityRouter
-):Promise<EngineeringCompletionReport>{
+):Promise<ShaftEngineeringCompletionReport>{
   if(typeof request.projectId!=="string"||!request.projectId.trim()){
     const project={
       id:"",
@@ -353,6 +355,12 @@ export async function completeShaftEngineeringUnit(
     request.proposedDiameterMm!
   );
 
+  const decisionMetrics=[
+    {key:"torqueNm",value:validation.calculatedTorqueNm,unit:"N·m"},
+    {key:"minimumDiameterMm",value:validation.minimumDiameterMm,unit:"mm"},
+    {key:"proposedDiameterMm",value:validation.proposedDiameterMm,unit:"mm"}
+  ];
+
   const evidenceIds=[
     "EVD-"+project.id+"-TORQUE",
     "EVD-"+project.id+"-SIZING",
@@ -374,6 +382,8 @@ export async function completeShaftEngineeringUnit(
     return {
       projectId:project.id,
       status:"FAILED",
+      completionUnit:"ENGINEERING.COMPLETE_SHAFT",
+      decisionMetrics,
       project,
       taskGraph,
       artifacts:[artifact],
@@ -433,6 +443,8 @@ export async function completeShaftEngineeringUnit(
     return {
       projectId:project.id,
       status:"FAILED",
+      completionUnit:"ENGINEERING.COMPLETE_SHAFT",
+      decisionMetrics,
       project,
       taskGraph,
       artifacts:evidenceByProduct.artifacts,
@@ -464,9 +476,11 @@ export async function completeShaftEngineeringUnit(
     evidence:evidence.map(item=>item.id)
   });
 
-  const reportBase:EngineeringCompletionReport={
+  const reportBase:ShaftEngineeringCompletionReport={
     projectId:project.id,
     status:"WAITING_APPROVAL",
+    completionUnit:"ENGINEERING.COMPLETE_SHAFT",
+    decisionMetrics,
     project,
     taskGraph,
     artifacts:[evidenceArtifact],
@@ -600,6 +614,8 @@ export async function completeShaftEngineeringUnit(
   return {
     projectId:project.id,
     status:"COMPLETE",
+    completionUnit:"ENGINEERING.COMPLETE_SHAFT",
+    decisionMetrics,
     project,
     taskGraph,
     artifacts:[evidenceArtifact],

@@ -1,9 +1,11 @@
 import {CapabilityProvider} from "../capabilities/registry.js";
-import {CapabilityRequest,CapabilityResult} from "../core/types.js";
+import {CapabilityRequest,CapabilityResult,EngineeringDecisionMetric} from "../core/types.js";
 import {EngineeringContext} from "../experience/context.js";
 import {CapabilityRouter} from "../capabilities/router.js";
 import {EngineeringIntentInterpreter,EngineeringIntentDecision,EngineeringIntentInterpretation} from "../intent/types.js";
 import {EngineeringIntentSessionStore} from "../intent/session.js";
+import {EngineeringApprovalRequest,EngineeringCompletionReport} from "../completion/types.js";
+import {EngineeringCompletionUnitRegistry,createDefaultEngineeringCompletionUnitRegistry} from "../completion/registry";
 
 export class AIEngineeringIntentProvider implements CapabilityProvider{
   id="engineering.ai-intent";
@@ -12,7 +14,8 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
   constructor(
     private readonly router:CapabilityRouter,
     private readonly interpreter:EngineeringIntentInterpreter,
-    private readonly sessions?:EngineeringIntentSessionStore
+    private readonly sessions?:EngineeringIntentSessionStore,
+    private readonly completionUnits:EngineeringCompletionUnitRegistry=createDefaultEngineeringCompletionUnitRegistry()
   ){}
 
   async execute(request:CapabilityRequest):Promise<CapabilityResult>{
@@ -25,7 +28,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       projectId?:string;
       sessionId?:string;
       context?:EngineeringContext;
-      approval?:unknown;
+      approval?:EngineeringApprovalRequest;
     };
 
     if(typeof input.rawIntent!=="string"||!input.rawIntent.trim()){
@@ -70,17 +73,16 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       ])]
     };
 
-    const required=["powerKw","speedRpm","bendingMomentNm","allowableShearStressMpa","proposedDiameterMm"] as const;
-    const missing=required.filter(key=>
-      typeof interpretation.extractedInputs[key]!=="number"||
-      !Number.isFinite(interpretation.extractedInputs[key] as number)
-    ).map(key=>({
-      powerKw:"power",
-      speedRpm:"speed",
-      bendingMomentNm:"bending moment",
-      allowableShearStressMpa:"allowable shear stress",
-      proposedDiameterMm:"proposed shaft diameter"
-    }[key]));
+    const unit=interpretation.completionUnit
+      ?this.completionUnits.resolve(interpretation.completionUnit)
+      :undefined;
+
+    const contextMissing=unit?.requiredInputs
+      .filter(({key})=>{
+        const value=interpretation.extractedInputs[key]??effectiveContext.knownInputs?.[key];
+        return typeof value!=="number"&&typeof value!=="string";
+      })
+      .map(({label})=>label)??[];
 
     const contextDecision=await this.router.execute({
       capability:"ENGINEERING.RESOLVE_CONTEXT",
@@ -89,15 +91,15 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
         intent:"DESIGN",
         risk:"HIGH",
         consequence:"PROJECT_STATE",
-        ambiguity:missing.length===0?"LOW":missing.length<=2?"MEDIUM":"HIGH",
-        missingInputs:missing,
+        ambiguity:contextMissing.length===0?"LOW":contextMissing.length<=2?"MEDIUM":"HIGH",
+        missingInputs:contextMissing,
         context:effectiveContext
       }
     });
 
     const resolvedMissing=contextDecision.success
       ?((contextDecision.output as {missingInputs:string[]}).missingInputs)
-      :missing;
+      :contextMissing;
 
     const experienceResult=await this.router.execute({
       capability:"ENGINEERING.ASSESS_EXPERIENCE",
@@ -125,9 +127,8 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       reasons:string[];
     };
 
-    const unsupported=interpretation.completionUnit!=="ENGINEERING.COMPLETE_SHAFT";
-    if(unsupported){
-        const decision:EngineeringIntentDecision={
+    if(!unit){
+      const decision:EngineeringIntentDecision={
         status:"NEEDS_INPUT",
         validationPassed:false,
         metrics:[],
@@ -144,7 +145,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
           status:"NEEDS_INPUT",
           decision,
           nextQuestion:decision.nextQuestion,
-          decisionSummary:"The intent is not supported by the current completion units and was not forced into the shaft workflow."
+          decisionSummary:"The intent is not supported by a registered engineering completion unit and was not forced into another workflow."
         }
       };
     }
@@ -181,94 +182,74 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       };
     }
 
-    const completionInput={
-      ...interpretation.extractedInputs,
-      projectId:effectiveProjectId,
-      approval:input.approval
-    };
-
-    const completionResult=await this.router.execute({
-      capability:"ENGINEERING.COMPLETE_SHAFT",
-      risk:"HIGH",
-      input:completionInput
-    });
-
-    const completion=completionResult.output as {
-      status:"BLOCKED"|"FAILED"|"WAITING_APPROVAL"|"COMPLETE";
-      missingInputs:string[];
-      nextAction:string;
-      lineage?:{evidenceIds:string[];artifactIds:string[]};
-      validation?:{
-        passed?:boolean;
-        calculatedTorqueNm?:number;
-        minimumDiameterMm?:number;
-        proposedDiameterMm?:number;
-      };
-      evidence?:unknown[];
-    }|undefined;
-
-    const validation=completion?.validation;
-    const evidenceIds=completion?.lineage?.evidenceIds??[];
-    const status:EngineeringIntentDecision["status"]=
-      completion?.status==="COMPLETE"?"COMPLETE":
-      completion?.status==="WAITING_APPROVAL"?"WAITING_APPROVAL":
-      completion?.status==="FAILED"?"FAILED":"NEEDS_INPUT";
-    const metrics = [
-      validation?.calculatedTorqueNm!==undefined
-        ? {key:"torqueNm",value:validation.calculatedTorqueNm,unit:"N·m"}
-        : undefined,
-      validation?.minimumDiameterMm!==undefined
-        ? {key:"minimumDiameterMm",value:validation.minimumDiameterMm,unit:"mm"}
-        : undefined,
-      validation?.proposedDiameterMm!==undefined
-        ? {key:"proposedDiameterMm",value:validation.proposedDiameterMm,unit:"mm"}
-        : undefined
-    ].filter((metric):metric is {key:string;value:number;unit:string}=>metric!==undefined);
-
-    const decision:EngineeringIntentDecision={
-      status,
-      validationPassed:validation?.passed??false,
-      metrics,
-      evidenceIds,
-      nextAction:completion?.nextAction
-    };
-
-    if(!completionResult.success){
+    let completion:EngineeringCompletionReport;
+    try{
+      completion=await unit.execute({
+        projectId:effectiveProjectId,
+        inputs:interpretation.extractedInputs,
+        approval:input.approval
+      },this.router);
+    }catch(error){
+      const reason=error instanceof Error?error.message:"Engineering completion unit failed.";
       return {
         capability:request.capability,
         provider:this.id,
         success:false,
+        error:reason,
         output:{
           interpretation,
           experience,
-          completion,
           status:"FAILED",
-          decision,
-          decisionSummary:"The deterministic shaft completion capability failed closed."
-        },
-        error:completionResult.error??"The shaft completion capability failed."
+          decision:{
+            status:"FAILED",
+            validationPassed:false,
+            metrics:[],
+            evidenceIds:[],
+            nextAction:reason
+          },
+          decisionSummary:"The selected engineering completion unit failed closed before producing an accepted result."
+        }
       };
     }
 
+    const evidenceIds=completion.lineage.evidenceIds;
+    const status:EngineeringIntentDecision["status"]=
+      completion.status==="COMPLETE"?"COMPLETE":
+      completion.status==="WAITING_APPROVAL"?"WAITING_APPROVAL":
+      completion.status==="FAILED"?"FAILED":"NEEDS_INPUT";
+
+    const metrics:EngineeringDecisionMetric[]=[...completion.decisionMetrics];
+    const decision:EngineeringIntentDecision={
+      status,
+      validationPassed:completion.validation?.passed??false,
+      metrics,
+      evidenceIds,
+      nextAction:completion.nextAction
+    };
+
+    const resultSuccess=completion.status!=="FAILED";
     return {
       capability:request.capability,
       provider:this.id,
-      success:true,
+      success:resultSuccess,
       output:{
         interpretation,
         experience,
         completion,
         status,
         decision,
-        nextQuestion:completion?.missingInputs[0],
+        nextQuestion:completion.missingInputs[0],
         decisionSummary:status==="WAITING_APPROVAL"
-          ?"The shaft design passed deterministic validation and evidence was generated. Explicit authorized approval is now required."
+          ?"The engineering completion unit passed deterministic validation and produced evidence. Explicit authorized approval is now required."
           :status==="COMPLETE"
-            ?"The shaft completion unit is complete and verified."
-            :"The shaft completion unit could not complete."
+            ?"The engineering completion unit is complete and verified."
+            :status==="FAILED"
+              ?"The deterministic engineering completion unit failed closed."
+              :"The engineering completion unit requires further input."
       },
+      error:resultSuccess?undefined:completion.nextAction,
       evidenceIds,
-      artifactIds:completion?.lineage?.artifactIds??[]
+      artifactIds:completion.lineage.artifactIds
     };
   }
 }

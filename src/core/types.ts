@@ -1,4 +1,10 @@
 export type InformationStatus="KNOWN"|"ASSUMED"|"ESTIMATED"|"CALCULATED"|"MEASURED"|"VERIFIED";
+
+export interface EngineeringDecisionMetric{
+  key:string;
+  value:number|string;
+  unit?:string;
+}
 export type RequirementPriority="MUST"|"SHOULD"|"COULD";
 export type CapabilityRisk="LOW"|"MEDIUM"|"HIGH"|"CRITICAL";
 export type CapabilityStatus="EXPERIMENTAL"|"PILOT"|"VERIFIED"|"BLOCKED"|"DEPRECATED";
