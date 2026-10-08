@@ -386,7 +386,7 @@ export async function completeShaftEngineeringUnit(
       nextAction:"Revise the design inputs; the deterministic validation gate is fail-closed.",
       lineage:{
         requirementIds:project.requirements.map(item=>item.id),
-        artifactIds:[evidenceArtifact.id],
+        artifactIds:[artifact.id],
         evidenceIds:[]
       }
     };
@@ -403,7 +403,7 @@ export async function completeShaftEngineeringUnit(
         claim:"Transmitted shaft torque was calculated deterministically from explicit power and speed.",
         method:"T = 9550 P(kW) / n(rpm)",
         value:torqueResult.output,
-        artifactIds:[evidenceArtifact.id],
+        artifactIds:[artifact.id],
         requirementIds:[TORQUE_REQUIREMENT,SPEED_REQUIREMENT]
       },
       {
@@ -412,7 +412,7 @@ export async function completeShaftEngineeringUnit(
         claim:"Minimum solid-shaft diameter was calculated deterministically from explicit torque, bending moment and allowable shear stress.",
         method:"d = [16·Te/(π·τallow)]^(1/3)",
         value:sizingResult.output,
-        artifactIds:[evidenceArtifact.id],
+        artifactIds:[artifact.id],
         requirementIds:[TORQUE_REQUIREMENT,SPEED_REQUIREMENT,ALLOWABLE_STRESS_REQUIREMENT,BENDING_REQUIREMENT]
       },
       {
@@ -421,7 +421,7 @@ export async function completeShaftEngineeringUnit(
         claim:"Selected shaft diameter passed the deterministic minimum-diameter acceptance gate.",
         method:"minimumDiameterMm <= proposedDiameterMm",
         value:validation,
-        artifactIds:[evidenceArtifact.id],
+        artifactIds:[artifact.id],
         requirementIds:[DIAMETER_REQUIREMENT]
       }
     ]
@@ -557,7 +557,7 @@ export async function completeShaftEngineeringUnit(
       nextAction:project.nextAction,
       lineage:{
         requirementIds:project.requirements.map(item=>item.id),
-        artifactIds:[evidenceArtifact.id],
+        artifactIds:[artifact.id],
         evidenceIds:evidence.map(item=>item.id)
       }
     };
@@ -578,7 +578,7 @@ export async function completeShaftEngineeringUnit(
       nextAction:project.nextAction,
       lineage:{
         requirementIds:project.requirements.map(item=>item.id),
-        artifactIds:[evidenceArtifact.id],
+        artifactIds:[artifact.id],
         evidenceIds:evidence.map(item=>item.id)
       }
     };
