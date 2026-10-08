@@ -30,8 +30,8 @@
   },
   "allOf": [
     {
-      "if": { "properties": { "status": { "const": "PROPOSED" } }, "required": ["status"] },
-      "then": { "properties": { "output": {} }, "required": ["output"] }
+      "if": { "type": "object", "properties": { "status": { "const": "PROPOSED" } }, "required": ["status"] },
+      "then": { "type": "object", "properties": { "output": {} }, "required": ["output"] }
     }
   ]
 }
