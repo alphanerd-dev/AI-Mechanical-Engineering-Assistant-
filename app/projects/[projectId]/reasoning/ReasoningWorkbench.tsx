@@ -100,15 +100,14 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     }
   }
 
-  async function refresh() {
-    setLoading(true);
-    setError(undefined);
+  async function refresh(isCurrent: () => boolean = () => true) {
     try {
       const response = await fetch(
-        `/api/engineering/reasoning?projectId=${encodeURIComponent(projectId)}`,
+        "/api/engineering/reasoning?projectId=" + encodeURIComponent(projectId),
         { cache: "no-store" }
       );
       const payload = await readApiResponse<WorkbenchPayload>(response);
+      if (!isCurrent()) return;
       applyWorkbenchPayload(payload);
       setModelConfigured(payload.modelConfigured);
       setNotice(payload.storageMode === "DEMO_EPHEMERAL"
@@ -119,23 +118,26 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
       if (payload.taskGraph.tasks.length && !payload.taskGraph.tasks.some((task) => task.id === selectedTaskId)) {
         setSelectedTaskId(payload.taskGraph.tasks[0].id);
       }
+      setError(undefined);
+      setLoadedProjectId(projectId);
     } catch (caught) {
+      if (!isCurrent()) return;
       setError(caught instanceof Error ? caught.message : "Could not load the reasoning workbench.");
+      setLoadedProjectId(projectId);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+    void refresh(() => active);
     // Project changes represent a new workspace boundary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      active = false;
+    };
   }, [projectId]);
-
-  useEffect(() => {
-    if (selectedTask) setInputDraft(JSON.stringify(selectedTask.input ?? {}, null, 2));
-  }, [selectedTaskId, selectedTask?.updatedAt]);
-
   function updateInputDraft(value: string) {
     if (!selectedTask) return;
     setInputDraftState({ taskId: selectedTask.id, updatedAt: selectedTask.updatedAt, value });
