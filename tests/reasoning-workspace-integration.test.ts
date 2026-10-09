@@ -100,7 +100,7 @@ describe("workspace controlled reasoning integration", () => {
     });
 
     const proposer = { propose: vi.fn(async () => validProposal) };
-    expect(proposeWorkspaceTaskReasoning(routed.workspace, "task-2", proposer, {
+    await expect(proposeWorkspaceTaskReasoning(routed.workspace, "task-2", proposer, {
       frameworkRegistry: registry,
       now: NOW
     })).rejects.toThrow(/selected, version-pinned framework/);
