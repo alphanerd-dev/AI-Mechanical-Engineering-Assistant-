@@ -80,7 +80,7 @@ describe("workspace controlled reasoning integration", () => {
     expect(makeWorkspace().taskGraph.tasks).toHaveLength(0);
   });
 
-  it("keeps tasks blocked until required framework inputs are supplied", () => {
+  it("keeps tasks blocked until required framework inputs are supplied", async () => {
     const routed = createWorkspaceReasoningTask(makeWorkspace(), {
       taskId: "task-2",
       name: "Investigate a recurring failure",
