@@ -32,7 +32,7 @@ export function evaluateTaskReady(
       reasons.push(`Dependency is not complete: ${dependencyId}.`);
   }
   reasons.push(...requirementsSatisfied(task,project));
-  reasons.push(...getTaskReasoningGateErrors(task));
+  reasons.push(...getTaskReadinessGateErrors(task));
   if(task.approvalRequired&&!task.approvalGranted)
     reasons.push("Explicit human approval is required before this task can become READY.");
   if(task.capability===undefined||!task.capability.trim())
