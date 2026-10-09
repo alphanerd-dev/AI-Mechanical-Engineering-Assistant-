@@ -315,11 +315,9 @@ export async function completeSensibleHeatingUnit(
     };
   }
 
-  taskGraph = finishTask(taskGraph, "TASK-THERMAL-SPECIFIC-ENERGY", true);
-  taskGraph = transitionTask(taskGraph, "TASK-THERMAL-HEAT-DUTY", "READY");
   const specificEnergyOutput = specificEnergyResult.output as { specificEnergyKjPerKg?: number };
   if (typeof specificEnergyOutput.specificEnergyKjPerKg !== "number" || !Number.isFinite(specificEnergyOutput.specificEnergyKjPerKg)) {
-    taskGraph = finishTask(taskGraph, "TASK-THERMAL-HEAT-DUTY", false);
+    taskGraph = finishTask(taskGraph, "TASK-THERMAL-SPECIFIC-ENERGY", false);
     project.status = "BLOCKED";
     project.openQuestions = ["Specific-energy provider returned incomplete output."];
     return {
@@ -328,6 +326,8 @@ export async function completeSensibleHeatingUnit(
     };
   }
 
+  taskGraph = finishTask(taskGraph, "TASK-THERMAL-SPECIFIC-ENERGY", true);
+  taskGraph = transitionTask(taskGraph, "TASK-THERMAL-HEAT-DUTY", "READY");
   const heatDutyResult = await router.execute({
     capability: CAPABILITY_HEAT_DUTY,
     risk: "LOW" as CapabilityRisk,
@@ -345,10 +345,9 @@ export async function completeSensibleHeatingUnit(
       status: "FAILED"
     };
   }
-  taskGraph = finishTask(taskGraph, "TASK-THERMAL-HEAT-DUTY", true);
-
   const heatDutyOutput = heatDutyResult.output as { heatDutyKw?: number };
   if (typeof heatDutyOutput.heatDutyKw !== "number" || !Number.isFinite(heatDutyOutput.heatDutyKw)) {
+    taskGraph = finishTask(taskGraph, "TASK-THERMAL-HEAT-DUTY", false);
     project.status = "BLOCKED";
     project.openQuestions = ["Heat-duty provider returned incomplete output."];
     return {
@@ -356,6 +355,7 @@ export async function completeSensibleHeatingUnit(
       status: "FAILED"
     };
   }
+  taskGraph = finishTask(taskGraph, "TASK-THERMAL-HEAT-DUTY", true);
 
   project.events.push({
     id: "EVT-" + project.id + "-ANALYSIS",
