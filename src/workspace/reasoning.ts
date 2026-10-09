@@ -1,4 +1,5 @@
-import type { ReasoningFrameworkRegistry, FrameworkReasoningRecord } from "../reasoning-frameworks/types";
+import type { FrameworkReasoningRecord } from "../reasoning-frameworks/types";
+import type { ReasoningFrameworkRegistry } from "../reasoning-frameworks/registry";
 import type { TaskReasoningProposer } from "../task-graph/reasoning-execution";
 import { executeTaskReasoning } from "../task-graph/reasoning-execution";
 import { routeTaskReasoning } from "../task-graph/reasoning";
