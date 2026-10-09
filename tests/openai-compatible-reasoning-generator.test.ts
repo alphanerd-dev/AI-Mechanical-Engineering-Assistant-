@@ -141,7 +141,10 @@ describe("OpenAI-compatible reasoning transport", () => {
       model: "reasoning-model",
       fetchImpl: async () => new Response(JSON.stringify({ choices: [] }), { status: 200 })
     });
-    await expect(noMessage.generate(generationRequest)).rejects.toBeInstanceOf(ModelTransportError);
+    await expect(noMessage.generate(generationRequest)).rejects.toMatchObject({
+      name: "ModelTransportError",
+      code: "MODEL_MISSING_RESPONSE_CONTENT"
+    });
 
     const malformed = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://model.example/v1/chat/completions",
@@ -150,7 +153,11 @@ describe("OpenAI-compatible reasoning transport", () => {
         choices: [{ message: { content: "{not-json" } }]
       }), { status: 200 })
     });
-    await expect(malformed.generate(generationRequest)).rejects.toThrow(/valid JSON proposal object/);
+    await expect(malformed.generate(generationRequest)).rejects.toMatchObject({
+      name: "ModelTransportError",
+      code: "MODEL_INVALID_PROPOSAL_JSON",
+      message: expect.stringMatching(/valid JSON proposal object/)
+    });
   });
 
   it("rejects embedded credentials and invalid timeout values", () => {
