@@ -150,9 +150,10 @@ export function createConfiguredReasoningGenerator(
 }
 
 function parseTimeout(value: string | undefined): number {
-  if (!value) return 45_000;
+  if (value === undefined || value.trim() === "") return 45_000;
   const timeout = Number(value);
-  return Number.isInteger(timeout) && timeout >= 1_000 && timeout <= 120_000
-    ? timeout
-    : 45_000;
+  if (!Number.isInteger(timeout) || timeout < 1_000 || timeout > 120_000) {
+    throw new Error("Reasoning model timeout must be an integer from 1000 to 120000 milliseconds.");
+  }
+  return timeout;
 }
