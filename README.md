@@ -53,6 +53,12 @@ The CAD layer now has an explicit routing policy for provider priority, host-dec
 
 See [V2.1.2 routing contract](docs/v2-1-2-cad-routing.md).
 
+## V2.1.3 — CAD artifact provenance and validation integration
+
+CAD execution outputs can now be bound to a canonical project/model identity, host-authored provider id, execution id, and a SHA-256 digest of the exact source text. Geometry validation evidence is marked VERIFIED only when a receipt references the exact generated solid and matches its model and source lineage. A source-text digest is not an output-file content digest.
+
+See [V2.1.3 provenance contract](docs/v2-1-3-cad-provenance.md).
+
 ## Benchmark
 
 Input: "Design a shaft that transmits 5 kW at 1500 rpm."
