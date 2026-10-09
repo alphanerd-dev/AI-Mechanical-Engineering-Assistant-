@@ -1,5 +1,5 @@
 import { CADAcceptance, evaluateCADAcceptance } from "./acceptance.js";
-import { CADArtifact, CADArtifactProvenance, GeometryValidation } from "./artifacts.js";
+import { CADArtifact, GeometryValidation } from "./artifacts.js";
 import { CADArtifactManifest } from "./artifact-manifest.js";
 import { ArtifactProvenance, EngineeringArtifact, EvidenceRecord } from "../artifacts/engineering-artifacts.js";
 import { CADExecutionResult } from "./execution.js";
@@ -199,7 +199,7 @@ export function createCADArtifactBundle(
   if (!nonEmptyString(execution.solidArtifactPath)) throw new Error("CAD artifact bundle requires a returned solid artifact path.");
 
   const now=new Date().toISOString();
-  const base=projectId+"-cad-legacy-"+createCADSourceSha256(execution.solidArtifactPath).slice(0,16);
+  const base=projectId+"-cad-legacy-"+Date.now()+"-"+createCADSourceSha256(execution.solidArtifactPath).slice(0,8);
   const evidenceId=base+"-geometry-evidence";
   const warnings=[...evaluateCADAcceptance(validation).warnings,
     "Legacy CAD bridge lacks model identity and source provenance; validation is not bound to an execution manifest."];
