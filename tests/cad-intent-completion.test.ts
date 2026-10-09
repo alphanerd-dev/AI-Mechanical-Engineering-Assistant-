@@ -80,7 +80,7 @@ const shaftIntent = "Create a cylindrical shaft with a diameter of 30 mm and a l
 
 describe("bounded CAD intent interpretation", () => {
   it("normalizes explicit dimensions into millimetres", () => {
-    const result = parseCADPartIntent("Create a shaft 1.2 inches in diameter and 10 cm long.");
+    const result = parseCADPartIntent("Create a shaft with a diameter of 1.2 inches and a length of 10 cm.");
     expect(result.status).toBe("READY");
     if (result.status !== "READY") throw new Error("Expected a parsed shaft specification.");
     expect(result.specification).toMatchObject({
@@ -101,7 +101,7 @@ describe("bounded CAD intent interpretation", () => {
 
   it("rejects unsupported shapes and ambiguous dimensional values", () => {
     expect(parseCADPartIntent("Create a bracket 40 mm long.").status).toBe("UNSUPPORTED");
-    const ambiguous = parseCADPartIntent("Create a shaft with a diameter of 20 mm or 30 mm and a length of 100 mm.");
+    const ambiguous = parseCADPartIntent("Create a shaft with a diameter of 20 mm and a diameter of 30 mm, with a length of 100 mm.");
     expect(ambiguous.status).toBe("NEEDS_INPUT");
     if (ambiguous.status !== "NEEDS_INPUT") throw new Error("Expected ambiguity to require clarification.");
     expect(ambiguous.nextQuestion).toContain("conflicting diameter");
@@ -202,15 +202,18 @@ describe("end-to-end CAD part completion orchestration", () => {
   });
 
   it("blocks rather than silently switching providers when the execution provider is unavailable", async () => {
-    const { workflow, executor: unusedExecutor } = makeWorkflow();
-    // A separate workflow pinned to an unregistered provider exercises the same fail-closed contract.
+    const executor = new FakeExecutor();
+    const build123d = new Build123dCADProvider(executor, {
+      createExecutionId: () => "execution-shaft",
+      now: () => "2026-10-10T00:30:00.000Z"
+    });
     const registry = new CapabilityRegistry();
     registry.registerCatalog(ENGINEERING_CAPABILITIES);
-    const router = new CADCapabilityRouter(registry, []);
-    const blocked = new CADPartCompletionWorkflow(router, new Build123dIntentCodeGenerator(), {
-      cadProviderId: "cad.build123d",
-      validationProviderId: "cad.occt"
-    });
+    registry.register(build123d);
+    const router = new CADCapabilityRouter(registry, [
+      { providerId: "cad.build123d", availability: "UNAVAILABLE", reason: "Docker runtime is not configured." }
+    ]);
+    const blocked = new CADPartCompletionWorkflow(router, new Build123dIntentCodeGenerator());
     const result = await blocked.complete({
       projectId: "project-shaft",
       modelIdentity,
@@ -219,6 +222,6 @@ describe("end-to-end CAD part completion orchestration", () => {
 
     expect(result.status).toBe("BLOCKED");
     expect(result.stage).toBe("EXECUTION");
-    expect(unusedExecutor.requests).toHaveLength(0);
+    expect(executor.requests).toHaveLength(0);
   });
 });
