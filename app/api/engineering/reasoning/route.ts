@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { createDefaultReasoningFrameworkRegistry } from "../../../../src/reasoning-frameworks/registry";
+import { ModelBackedTaskReasoningProposer } from "../../../../src/reasoning-frameworks/model-adapter";
 import {
-  createDefaultReasoningFrameworkRegistry,
-  ModelBackedTaskReasoningProposer,
   createConfiguredReasoningGenerator,
   ModelTransportError
-} from "../../../../src/reasoning-frameworks/index";
+} from "../../../../src/reasoning-frameworks/openai-compatible-generator";
 import {
   createWorkspaceReasoningTask,
   proposeWorkspaceTaskReasoning,
