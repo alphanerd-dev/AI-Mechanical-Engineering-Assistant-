@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   live-acceptance:
+    if: github.ref == 'refs/heads/main'
     name: Exercise configured live model provider
     runs-on: ubuntu-latest
     timeout-minutes: 5
