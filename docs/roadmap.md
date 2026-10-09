@@ -328,6 +328,7 @@ Notes:
 - [x] V2.0.26 live-provider acceptance harness + restricted manual workflow
 - [x] Live external-provider acceptance in a configured deployment
 - [x] V2.0.27 model trust-boundary hardening + evidence traceability
+- [x] V2.0.28 shared cross-domain acceptance + bounded thermal completion unit
 - [x] Refresh live-provider acceptance evidence against the V2.0.27 provider-provenance assertion
 - [x] Domain expansion beyond Mechanical Engineering — bounded thermal sensible heating
 - [x] V2.0.28 shared cross-domain acceptance (shaft, DC electrical load, sensible heating)
