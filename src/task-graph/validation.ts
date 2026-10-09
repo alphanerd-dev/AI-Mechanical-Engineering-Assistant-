@@ -34,6 +34,8 @@ export function validateEngineeringTaskGraph(graph: EngineeringTaskGraph): strin
     if (task.projectId !== graph.projectId) errors.push(`Engineering task belongs to another project: ${task.id}.`);
     if (!task.name.trim()) errors.push(`Engineering task name is required: ${task.id}.`);
     if (!task.goal.trim()) errors.push(`Engineering task goal is required: ${task.id}.`);
+    if (!["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(task.risk))
+      errors.push(`Engineering task risk is invalid: ${task.id}.`);
     if (!Number.isInteger(task.maxAttempts ?? 1) || (task.maxAttempts ?? 1) < 1)
       errors.push(`Engineering task maxAttempts must be a positive integer: ${task.id}.`);
     if (!Number.isInteger(Date.parse(task.createdAt)) || !Number.isInteger(Date.parse(task.updatedAt)))
@@ -158,6 +160,9 @@ export function transitionTask(
   const task = graph.tasks[index];
   if (!canTransitionTask(task.status, to)) throw new Error(`Invalid engineering task transition: ${task.status} -> ${to}.`);
   if (to === "READY") {
+    if (task.reasoning?.skillManifest?.requiresApproval && !task.approvalGranted) {
+      throw new Error("Assigned skill requires explicit human approval before the task can become READY.");
+    }
     const reasoningGateErrors = getTaskReasoningGateErrors(task);
     if (reasoningGateErrors.length) throw new Error(reasoningGateErrors.join(" "));
   }
