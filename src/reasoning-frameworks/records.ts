@@ -1,5 +1,5 @@
-import { getReasoningFramework, type ReasoningFrameworkRegistry } from "./registry.js";
-import { parseFrameworkReasoningRecord } from "./validation.js";
+import { getReasoningFramework, type ReasoningFrameworkRegistry } from "./registry";
+import { parseFrameworkReasoningRecord } from "./validation";
 import type { CreateFrameworkReasoningRecordInput, FrameworkReasoningRecord } from "./types.js";
 
 export const REASONING_RECORD_ADVISORY_LIMITATION =
