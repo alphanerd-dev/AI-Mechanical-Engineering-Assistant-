@@ -6,6 +6,7 @@ import {
 } from "../src/reasoning-frameworks/index.js";
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
 import { routeTaskReasoning } from "../src/task-graph/reasoning.js";
+import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
 import type { EngineeringTaskGraph } from "../src/task-graph/types.js";
 
 const NOW = "2026-10-09T05:00:00.000Z";
@@ -46,7 +47,7 @@ function makeRoutedGraph(): EngineeringTaskGraph {
 
 describe("model-backed reasoning adapter", () => {
   it("passes pinned framework context to the model and persists only a validated advisory record", async () => {
-    const generate = vi.fn(async () => proposal);
+    const generate = vi.fn(async (_request: ModelReasoningGenerationRequest) => proposal);
     const proposer = new ModelBackedTaskReasoningProposer({ generate });
     const result = await executeTaskReasoning(makeRoutedGraph(), "task-1", proposer, {
       now: NOW,
