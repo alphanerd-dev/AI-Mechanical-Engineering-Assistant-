@@ -1,4 +1,5 @@
 import type { ReasoningFrameworkId, ReasoningFrameworkManifest } from "./types.js";
+import { parseFrameworkManifest } from "./validation.js";
 
 const builtInFrameworks: ReasoningFrameworkManifest[] = [
   {
@@ -33,14 +34,75 @@ const builtInFrameworks: ReasoningFrameworkManifest[] = [
   }
 ];
 
+function immutableManifest(manifest: ReasoningFrameworkManifest): ReasoningFrameworkManifest {
+  const copy = structuredClone(manifest);
+  Object.freeze(copy.suitableFor);
+  Object.freeze(copy.requiredInputs);
+  return Object.freeze(copy);
+}
+
 export const REASONING_FRAMEWORKS: readonly ReasoningFrameworkManifest[] = Object.freeze(
-  builtInFrameworks.map((framework) => {
-    Object.freeze(framework.suitableFor);
-    Object.freeze(framework.requiredInputs);
-    return Object.freeze(framework);
-  })
+  builtInFrameworks.map(immutableManifest)
 );
 
-export function getReasoningFramework(id: ReasoningFrameworkId): ReasoningFrameworkManifest | undefined {
-  return REASONING_FRAMEWORKS.find((item) => item.id === id);
+export interface ReasoningFrameworkRegistry {
+  register(value: unknown): ReasoningFrameworkManifest;
+  get(id: ReasoningFrameworkId, version?: string): ReasoningFrameworkManifest | undefined;
+  list(id?: ReasoningFrameworkId): ReasoningFrameworkManifest[];
+}
+
+/**
+ * Isolated registry for one application/workspace scope. Exact versions are
+ * retained; a lookup without a version is only resolved when the ID is unambiguous.
+ */
+export class InMemoryReasoningFrameworkRegistry implements ReasoningFrameworkRegistry {
+  private readonly manifests = new Map<string, ReasoningFrameworkManifest>();
+
+  constructor(initial: readonly unknown[] = []) {
+    for (const manifest of initial) this.register(manifest);
+  }
+
+  register(value: unknown): ReasoningFrameworkManifest {
+    const manifest = parseFrameworkManifest(value);
+    const key = this.key(manifest.id, manifest.version);
+    if (this.manifests.has(key)) {
+      throw new Error(`Reasoning framework version is already registered: ${manifest.id}@${manifest.version}.`);
+    }
+    this.manifests.set(key, immutableManifest(manifest));
+    return structuredClone(manifest);
+  }
+
+  get(id: ReasoningFrameworkId, version?: string): ReasoningFrameworkManifest | undefined {
+    if (version !== undefined) {
+      const manifest = this.manifests.get(this.key(id, version));
+      return manifest ? structuredClone(manifest) : undefined;
+    }
+    const matches = [...this.manifests.values()].filter((manifest) => manifest.id === id);
+    return matches.length === 1 ? structuredClone(matches[0]) : undefined;
+  }
+
+  list(id?: ReasoningFrameworkId): ReasoningFrameworkManifest[] {
+    return [...this.manifests.values()]
+      .filter((manifest) => id === undefined || manifest.id === id)
+      .sort((left, right) => left.id.localeCompare(right.id) || left.version.localeCompare(right.version))
+      .map((manifest) => structuredClone(manifest));
+  }
+
+  private key(id: string, version: string): string {
+    return `${id}@${version}`;
+  }
+}
+
+export function createDefaultReasoningFrameworkRegistry(): InMemoryReasoningFrameworkRegistry {
+  return new InMemoryReasoningFrameworkRegistry(REASONING_FRAMEWORKS);
+}
+
+export function getReasoningFramework(
+  id: ReasoningFrameworkId,
+  version?: string
+): ReasoningFrameworkManifest | undefined {
+  const matches = REASONING_FRAMEWORKS.filter(
+    (manifest) => manifest.id === id && (version === undefined || manifest.version === version)
+  );
+  return matches.length === 1 ? structuredClone(matches[0]) : undefined;
 }
