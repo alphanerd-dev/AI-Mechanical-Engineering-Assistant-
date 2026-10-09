@@ -4,3 +4,5 @@ export * from "./registry.js";
 export * from "./shaft-unit.js";
 export * from "./electrical.js";
 export * from "./electrical-unit.js";
+export * from "./thermal.js";
+export * from "./thermal-unit.js";
