@@ -64,8 +64,9 @@ async function main(): Promise<void> {
     }
 
     const liveFetch: typeof fetch = async (input, init) => {
+      const response = await fetch(input, init);
       evidence.checks.realEndpointCalled = true;
-      return fetch(input, init);
+      return response;
     };
     const configured = createConfiguredReasoningGenerator(process.env, liveFetch);
     if (!configured) {
