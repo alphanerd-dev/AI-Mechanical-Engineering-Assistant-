@@ -15,6 +15,8 @@ import {
   validateEngineeringTaskGraph
 } from "../src/task-graph/index.js";
 import type { EngineeringTaskGraph } from "../src/task-graph/types.js";
+import { ENGINEERING_WORKSPACE_SCHEMA_VERSION, type EngineeringWorkspaceSnapshot } from "../src/workspace/types.js";
+import { deserializeEngineeringWorkspaceSnapshot, serializeEngineeringWorkspaceSnapshot } from "../src/workspace/validation.js";
 
 const NOW = "2026-10-09T04:00:00.000Z";
 
@@ -222,6 +224,43 @@ describe("reasoning-framework integration with task graphs", () => {
       requiredGates: []
     }, customRegistry);
     expect(() => appendTaskReasoningRecord(routed.graph, "task-1", wrongFrameworkVersion, NOW)).toThrow(/does not match/);
+  });
+
+  it("preserves task-linked reasoning records through workspace serialization", () => {
+    const routed = routeTaskReasoning(createGraph(), "task-1", {
+      taskType: "novel-design",
+      requestedFramework: "first-principles",
+      required: true,
+      now: NOW
+    });
+    const graph = appendTaskReasoningRecord(
+      routed.graph,
+      "task-1",
+      proposedRecord("first-principles", "1.0.0"),
+      NOW
+    );
+    const snapshot: EngineeringWorkspaceSnapshot = {
+      schemaVersion: ENGINEERING_WORKSPACE_SCHEMA_VERSION,
+      id: "workspace-1",
+      name: "Reasoning integration test",
+      project: {
+        id: "project-1",
+        name: "Test project",
+        stage: "DESIGN",
+        status: "ACTIVE",
+        requirements: [],
+        assumptions: [],
+        openQuestions: [],
+        unresolvedRisks: [],
+        events: []
+      },
+      taskGraph: graph,
+      revision: 1,
+      savedAt: NOW
+    };
+    const restored = deserializeEngineeringWorkspaceSnapshot(serializeEngineeringWorkspaceSnapshot(snapshot));
+    expect(restored.taskGraph.tasks[0].reasoning?.records?.[0].recordId).toBe("record-first-principles-1.0.0");
+    expect(restored.taskGraph.tasks[0].reasoning?.records?.[0].taskId).toBe("task-1");
   });
 
   it("parses record snapshots without allowing them to claim verification", () => {
