@@ -16,10 +16,8 @@ export class ModelTransportError extends Error {
 }
 
 /**
- * Minimal server-side Chat Completions-compatible transport.
- * The endpoint and credential are host configuration, never request input.
- * No vendor SDK is required, and all returned content still passes through
- * executeTaskReasoning's deterministic schema and state boundary.
+ * Server-side transport for OpenAI Chat Completions and native Gemini
+ * generateContent endpoints. Provider credentials never come from request input.
  */
 export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGenerator {
   private readonly endpoint: string;
@@ -27,6 +25,7 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
   private readonly apiKey?: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly protocol: "openai" | "gemini";
 
   constructor(options: OpenAICompatibleGeneratorOptions) {
     if (!options || typeof options.endpoint !== "string" || !options.endpoint.trim()) {
@@ -56,6 +55,7 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
     this.apiKey = options.apiKey?.trim() || undefined;
     this.timeoutMs = timeout;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.protocol = isGeminiEndpoint(url) ? "gemini" : "openai";
   }
 
   async generate(request: ModelReasoningGenerationRequest): Promise<unknown> {
@@ -63,7 +63,15 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       "content-type": "application/json",
       accept: "application/json"
     };
-    if (this.apiKey) headers.authorization = `Bearer ${this.apiKey}`;
+    if (this.protocol === "gemini") {
+      if (this.apiKey) headers["x-goog-api-key"] = this.apiKey;
+    } else if (this.apiKey) {
+      headers.authorization = `Bearer ${this.apiKey}`;
+    }
+
+    const body = this.protocol === "gemini"
+      ? buildGeminiRequest(request)
+      : buildOpenAIRequest(this.model, request);
 
     let response: Response;
     try {
@@ -71,24 +79,7 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
         method: "POST",
         headers,
         signal: AbortSignal.timeout(this.timeoutMs),
-        body: JSON.stringify({
-          model: this.model,
-          temperature: 0.2,
-          max_tokens: 1800,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: request.instructions },
-            {
-              role: "user",
-              content: JSON.stringify({
-                task: request.task,
-                framework: request.framework,
-                inputs: request.inputs,
-                trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
-              })
-            }
-          ]
-        })
+        body: JSON.stringify(body)
       });
     } catch {
       throw new ModelTransportError("The configured reasoning model endpoint could not be reached within the allowed time.");
@@ -105,13 +96,15 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       throw new ModelTransportError("The configured reasoning model endpoint did not return valid JSON.");
     }
 
-    const content = extractMessageContent(payload);
+    const content = this.protocol === "gemini"
+      ? extractGeminiContent(payload)
+      : extractMessageContent(payload);
     if (!content) {
       throw new ModelTransportError("The configured reasoning model response did not contain a message.");
     }
 
     try {
-      const parsed: unknown = JSON.parse(content);
+      const parsed: unknown = JSON.parse(stripJsonCodeFence(content));
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
         throw new Error("Expected a JSON object.");
       }
@@ -120,6 +113,51 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       throw new ModelTransportError("The reasoning model did not return a valid JSON proposal object.");
     }
   }
+}
+
+function isGeminiEndpoint(url: URL): boolean {
+  return url.hostname === "generativelanguage.googleapis.com" || url.pathname.includes(":generateContent");
+}
+
+function buildOpenAIRequest(model: string, request: ModelReasoningGenerationRequest) {
+  return {
+    model,
+    temperature: 0.2,
+    max_tokens: 1800,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: request.instructions },
+      {
+        role: "user",
+        content: JSON.stringify({
+          task: request.task,
+          framework: request.framework,
+          inputs: request.inputs,
+          trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
+        })
+      }
+    ]
+  };
+}
+
+function buildGeminiRequest(request: ModelReasoningGenerationRequest) {
+  return {
+    systemInstruction: { parts: [{ text: request.instructions }] },
+    contents: [{
+      role: "user",
+      parts: [{ text: JSON.stringify({
+        task: request.task,
+        framework: request.framework,
+        inputs: request.inputs,
+        trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
+      }) }]
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 1800,
+      responseMimeType: "application/json"
+    }
+  };
 }
 
 function extractMessageContent(value: unknown): string | undefined {
@@ -132,6 +170,27 @@ function extractMessageContent(value: unknown): string | undefined {
   if (typeof message !== "object" || message === null || Array.isArray(message)) return undefined;
   const content = (message as Record<string, unknown>).content;
   return typeof content === "string" && content.trim() ? content.trim() : undefined;
+}
+
+function extractGeminiContent(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const candidates = (value as Record<string, unknown>).candidates;
+  if (!Array.isArray(candidates) || !candidates.length) return undefined;
+  const first = candidates[0];
+  if (typeof first !== "object" || first === null || Array.isArray(first)) return undefined;
+  const content = (first as Record<string, unknown>).content;
+  if (typeof content !== "object" || content === null || Array.isArray(content)) return undefined;
+  const parts = (content as Record<string, unknown>).parts;
+  if (!Array.isArray(parts)) return undefined;
+  const text = parts
+    .filter((part): part is Record<string, unknown> => typeof part === "object" && part !== null && !Array.isArray(part))
+    .map((part) => part.text)
+    .find((text): text is string => typeof text === "string" && text.trim().length > 0);
+  return text?.trim();
+}
+
+function stripJsonCodeFence(content: string): string {
+  return content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
 
 export function createConfiguredReasoningGenerator(
