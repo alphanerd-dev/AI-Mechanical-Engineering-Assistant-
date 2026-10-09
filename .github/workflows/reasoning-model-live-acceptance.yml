@@ -1,0 +1,44 @@
+name: Live Reasoning Model Acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-reasoning-model-acceptance
+  cancel-in-progress: false
+
+jobs:
+  live-acceptance:
+    name: Exercise configured live model provider
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: reasoning-model-acceptance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Call the configured provider through controlled reasoning execution
+        env:
+          ENGINEERING_REASONING_MODEL_URL: ${{ vars.ENGINEERING_REASONING_MODEL_URL }}
+          ENGINEERING_REASONING_MODEL_NAME: ${{ vars.ENGINEERING_REASONING_MODEL_NAME }}
+          ENGINEERING_REASONING_MODEL_API_KEY: ${{ secrets.ENGINEERING_REASONING_MODEL_API_KEY }}
+          ENGINEERING_REASONING_MODEL_TIMEOUT_MS: ${{ vars.ENGINEERING_REASONING_MODEL_TIMEOUT_MS }}
+          ENGINEERING_REASONING_ACCEPTANCE_DEPLOYMENT_REVISION: ${{ github.sha }}
+          ENGINEERING_REASONING_ACCEPTANCE_OUTPUT_PATH: ${{ runner.temp }}/reasoning-model-live-acceptance.json
+        run: npx tsx scripts/reasoning-model-live-acceptance.ts
+      - name: Upload redacted acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reasoning-model-live-acceptance-${{ github.run_id }}
+          path: ${{ runner.temp }}/reasoning-model-live-acceptance.json
+          if-no-files-found: warn
+          retention-days: 14
