@@ -127,6 +127,13 @@ export class NodeCADCommandRunner implements CADCommandRunner {
         child.kill("SIGKILL");
       }, options.timeoutMs);
 
+      if (!child.stdout || !child.stderr || !child.stdin) {
+        spawnError = "Spawned CAD command did not expose piped stdio.";
+        child.kill("SIGKILL");
+        finish(null, null);
+        return;
+      }
+
       child.stdout.on("data", (raw: Buffer | string) => {
         const chunk = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
         const remaining = Math.max(0, options.maxStdoutBytes - stdoutBytes);
@@ -149,7 +156,7 @@ export class NodeCADCommandRunner implements CADCommandRunner {
       });
       child.once("close", (code, signal) => finish(code, signal));
       child.stdin.on("error", (error) => {
-        if (error.code !== "EPIPE") spawnError = error.message;
+        if ((error as NodeJS.ErrnoException).code !== "EPIPE") spawnError = error.message;
       });
       child.stdin.end(stdin);
     });
