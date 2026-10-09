@@ -364,8 +364,11 @@ Notes:
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
 
 ## V2.1 — Multi-CAD Engineering Layer
-- [ ] Provider-neutral CAD document/model identity
+- [x] Provider-neutral CAD document/model identity (V2.1.1)
 - [ ] Multi-CAD capability routing
 - [ ] CAD artifact provenance and validation integration
 - [ ] First reference CAD provider
+
+Notes:
+- V2.1.1 establishes a project-scoped canonical model identity and an in-memory registry for linking provider-native references. This does not claim provider connectivity, geometry synchronization, revision parity, or validated CAD output. Those gates remain separate work.
 
