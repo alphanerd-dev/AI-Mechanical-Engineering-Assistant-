@@ -34,6 +34,13 @@ See:
 - `docs/artifacts-and-evidence.md`
 - `docs/roadmap.md`
 
+
+## V2.0.28 — Cross-domain completion
+
+The shared natural-intent completion path now has acceptance coverage for a mechanical shaft, a bounded steady-state DC electrical load, and a bounded single-phase sensible-heating duty. Thermal calculations use explicit mass flow, constant specific heat, inlet/outlet temperatures, and a maximum-duty limit; missing inputs escalate, failed limits emit no verified evidence, and passing results still require authorized approval. This is not a heat-exchanger design or broad thermal simulation capability.
+
+See [V2.0.28 cross-domain and thermal acceptance](docs/v2-0-28-cross-domain-thermal-acceptance.md) and the [roadmap](docs/roadmap.md).
+
 ## Benchmark
 
 Input: "Design a shaft that transmits 5 kW at 1500 rpm."
