@@ -130,7 +130,7 @@ async function loadWorkspace(
     throw new ApiError(400, "A registered project UUID is required for durable reasoning workspaces.");
   }
 
-  let db: any;
+  let db: Awaited<ReturnType<typeof createClient>>;
   try {
     db = await createClient();
   } catch {
@@ -200,7 +200,7 @@ async function saveWorkspace(
     return structuredClone(next);
   }
 
-  let db: any;
+  let db: Awaited<ReturnType<typeof createClient>>;
   try {
     db = await createClient();
   } catch {
