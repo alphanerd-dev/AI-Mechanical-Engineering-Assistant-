@@ -41,6 +41,23 @@ jobs:
           test -s .cad-smoke/part.step
           test -s .cad-smoke/part.stl
           test -s .cad-smoke/part.3mf
+      - name: Execute generated CAD from natural-language intent
+        shell: bash
+        run: |
+          rm -rf .cad-intent-smoke
+          mkdir -p .cad-intent-smoke
+          chmod 777 .cad-intent-smoke
+          npx tsx scripts/cad-intent-smoke-request.ts | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=64m -e CAD_ARTIFACT_DIR=/artifacts -v "$PWD/.cad-intent-smoke:/artifacts:rw" ai-mechanical-engineering-assistant-build123d:0.13.0 > .cad-intent-smoke/response.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path(".cad-intent-smoke")
+          response = json.loads((root / "response.json").read_text())
+          assert response["success"] is True
+          assert all(response.get(key) for key in ("solidArtifactPath", "stepArtifactPath", "stlArtifactPath", "threeMfArtifactPath"))
+          assert all((root / name).is_file() and (root / name).stat().st_size > 0 for name in ("part.brep", "part.step", "part.stl", "part.3mf"))
+          print("natural-language CAD intent produced BREP/STEP/STL/3MF artifacts")
+          PY
       - name: Build pinned open FEA runtime
         run: docker build --tag ai-mechanical-engineering-assistant-fea:1.18 --file worker/fea/calculix/Dockerfile worker
       - name: Test open FEA worker
