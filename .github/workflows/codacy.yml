@@ -37,7 +37,7 @@ jobs:
             {
               echo "## Codacy Security Scan"
               echo
-              echo "**Status: SKIPPED.** The repository secret `CODACY_PROJECT_TOKEN` is not configured, so Codacy's remote project rules cannot be loaded. This is not a passing Codacy scan."
+              echo "**Status: SKIPPED.** The repository Codacy project token is not configured, so remote project rules cannot be loaded. This is not a passing Codacy scan."
               echo
               echo "Engineering Core CI, ESLint, and CodeQL run independently."
             } >> "$GITHUB_STEP_SUMMARY"
