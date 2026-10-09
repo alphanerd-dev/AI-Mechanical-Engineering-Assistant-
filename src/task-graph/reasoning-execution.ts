@@ -1,4 +1,4 @@
-import type { FrameworkReasoningRecord, ReasoningFrameworkManifest } from "../reasoning-frameworks/types";
+import type { FrameworkReasoningRecord, ReasoningExecutionProvenance, ReasoningFrameworkManifest } from "../reasoning-frameworks/types";
 import type { ReasoningFrameworkRegistry } from "../reasoning-frameworks/registry";
 import { createFrameworkReasoningRecord } from "../reasoning-frameworks/records";
 import { getReasoningFramework } from "../reasoning-frameworks/registry";
@@ -19,6 +19,8 @@ export interface TaskReasoningProposalRequest {
   readonly framework: Readonly<ReasoningFrameworkManifest>;
   /** Snapshot assembled from task-graph state, never copied from provider output. */
   readonly inputs: Readonly<Record<string, unknown>>;
+  /** Evidence IDs supplied by a trusted host-side registry, never by the model. */
+  readonly trustedEvidenceReferences?: readonly string[];
 }
 
 export interface TaskReasoningProposer {
@@ -29,6 +31,10 @@ export interface ExecuteTaskReasoningOptions {
   frameworkRegistry?: ReasoningFrameworkRegistry;
   now?: string;
   recordId?: string;
+  /** Trusted host-side evidence allowlist. Defaults to none. */
+  trustedEvidenceReferences?: readonly string[];
+  /** Provenance selected by the host; provider output cannot assign it. */
+  provenance?: ReasoningExecutionProvenance;
 }
 
 export interface ExecuteTaskReasoningResult {
@@ -68,6 +74,9 @@ export async function executeTaskReasoning(
     throw new Error(`Selected framework is not registered at the pinned version: ${decision.frameworkId}@${decision.frameworkVersion}.`);
   }
 
+  const trustedEvidenceReferences = normalizeTrustedEvidenceReferences(options.trustedEvidenceReferences ?? []);
+  validateProvenance(options.provenance);
+
   const inputs: Record<string, unknown> = {
     ...structuredClone(task.input ?? {}),
     ...(task.goal.trim() ? { task: task.goal } : {})
@@ -82,9 +91,14 @@ export async function executeTaskReasoning(
   const rawProposal = await proposer.propose({
     task: structuredClone(task),
     framework: structuredClone(framework),
-    inputs: structuredClone(inputs)
+    inputs: structuredClone(inputs),
+    trustedEvidenceReferences: [...trustedEvidenceReferences]
   });
   const proposal = parseProposal(rawProposal);
+  const trustedEvidenceSet = new Set(trustedEvidenceReferences);
+  if (proposal.evidenceReferences.some((reference) => !trustedEvidenceSet.has(reference))) {
+    throw new Error("Reasoning provider referenced evidence outside the trusted evidence context.");
+  }
   const createdAt = options.now ?? new Date().toISOString();
   if (Number.isNaN(Date.parse(createdAt))) throw new Error("Reasoning execution timestamp must be valid.");
   const recordId = options.recordId ?? `reasoning-${task.id}-${Date.parse(createdAt)}-${(task.reasoning?.records ?? []).length + 1}`;
@@ -109,6 +123,7 @@ export async function executeTaskReasoning(
     ...(proposal.output === undefined ? {} : { output: proposal.output }),
     limitations: proposal.limitations,
     evidenceReferences: unique(proposal.evidenceReferences),
+    ...(options.provenance === undefined ? {} : { provenance: structuredClone(options.provenance) }),
     requiredGates
   }, options.frameworkRegistry);
 
@@ -187,4 +202,29 @@ function isJsonCompatible(value: unknown, seen = new Set<object>()): boolean {
   }
   seen.delete(value);
   return compatible;
+}
+
+
+function normalizeTrustedEvidenceReferences(value: readonly string[]): string[] {
+  if (!Array.isArray(value) || value.some((reference) => typeof reference !== "string" || !reference.trim())) {
+    throw new Error("Trusted evidence references must be a list of non-empty identifiers.");
+  }
+  return unique(value.map((reference) => reference.trim()));
+}
+
+function validateProvenance(value: ReasoningExecutionProvenance | undefined): void {
+  if (value === undefined) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Reasoning execution provenance must be a structured host-authored object.");
+  }
+  const allowedKeys = new Set(["mode", "providerId", "modelId", "deploymentRevision"]);
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+    throw new Error("Reasoning execution provenance contains unsupported fields.");
+  }
+  if (!["MODEL_BACKED", "DETERMINISTIC", "CUSTOM"].includes(value.mode) ||
+      typeof value.providerId !== "string" || !value.providerId.trim() ||
+      (value.modelId !== undefined && (typeof value.modelId !== "string" || !value.modelId.trim())) ||
+      (value.deploymentRevision !== undefined && (typeof value.deploymentRevision !== "string" || !value.deploymentRevision.trim()))) {
+    throw new Error("Reasoning execution provenance contains invalid provider identity fields.");
+  }
 }
