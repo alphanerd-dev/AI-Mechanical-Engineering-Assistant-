@@ -364,6 +364,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
               {[...(selectedTask.reasoning?.records ?? [])].reverse().map((record) => <article className="reasoningRecord" key={record.recordId}>
                 <div className="reasoningRecordHeader"><div><strong>{record.status}</strong><span className="muted"> · {record.frameworkId}@{record.frameworkVersion}</span></div><small>{new Date(record.createdAt).toLocaleString()}</small></div>
                 <div className="reasoningValidationBoundary"><strong>VALIDATION: NOT PERFORMED</strong><span>Advisory output; this record does not establish engineering correctness.</span></div>
+                {record.provenance && <div className="reasoningRecordSection"><h4>Provider provenance</h4><p>{record.provenance.providerId}{record.provenance.modelId ? ` · ${record.provenance.modelId}` : ""} · {record.provenance.mode}</p>{record.provenance.deploymentRevision && <small>Revision: {record.provenance.deploymentRevision}</small>}</div>}
                 {record.output !== undefined && <div className="reasoningRecordSection"><h4>Proposal output</h4><pre>{JSON.stringify(record.output, null, 2)}</pre></div>}
                 <RecordList title="Assumptions" values={record.assumptions} />
                 <RecordList title="Limitations" values={record.limitations} />
