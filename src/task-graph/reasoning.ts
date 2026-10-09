@@ -4,8 +4,8 @@ import type {
   ReasoningFrameworkRegistry,
   SkillManifestRegistry
 } from "../reasoning-frameworks/index.js";
-import { routeReasoningFramework } from "../reasoning-frameworks/router.js";
-import { parseFrameworkReasoningRecord, validateFrameworkReasoningRecord } from "../reasoning-frameworks/validation.js";
+import { routeReasoningFramework } from "../reasoning-frameworks/router";
+import { parseFrameworkReasoningRecord, validateFrameworkReasoningRecord } from "../reasoning-frameworks/validation";
 import type { EngineeringTask, EngineeringTaskGraph } from "./types.js";
 
 export interface RouteTaskReasoningOptions {
