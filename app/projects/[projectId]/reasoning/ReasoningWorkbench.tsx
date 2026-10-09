@@ -131,12 +131,14 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
 
   useEffect(() => {
     let active = true;
-    void refresh(() => active);
-    // Project changes represent a new workspace boundary.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void Promise.resolve().then(() => {
+      if (active) void refresh(() => active);
+    });
     return () => {
       active = false;
     };
+    // Project changes represent a new workspace boundary; keep refresh scoped to this prop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
   function updateInputDraft(value: string) {
     if (!selectedTask) return;
