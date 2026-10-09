@@ -91,7 +91,7 @@ describe("model-backed reasoning adapter", () => {
     });
     await executeTaskReasoning(graph, "task-1", proposer, { now: NOW, recordId: "isolated" });
     expect(graph.tasks[0].name).toBe("Design review");
-    expect(graph.tasks[0].reasoning?.records).toBeUndefined();
+    expect(graph.tasks[0].reasoning?.records).toEqual([]);
   });
 
   it("can be configured with a scoped registry without changing the provider contract", async () => {
