@@ -330,19 +330,24 @@ export async function POST(request: Request) {
       const risk = body.risk;
       const uncertainty = body.uncertainty;
       const input = body.input === undefined ? {} : getInputRecord(body.input);
-      const result = createWorkspaceReasoningTask(loaded.snapshot, {
-        taskId: randomUUID(),
-        name: body.name as string,
-        goal: body.goal as string,
-        taskType: body.taskType as string,
-        risk: risk as EngineeringTask["risk"],
-        uncertainty: uncertainty as "LOW" | "MEDIUM" | "HIGH",
-        requestedFramework: body.frameworkId as string,
-        requestedFrameworkVersion: body.frameworkVersion as string,
-        input,
-        approvalRequired: body.approvalRequired as boolean | undefined,
-        evidenceRequired: body.evidenceRequired as boolean | undefined
-      }, { frameworkRegistry: registry });
+      let result: ReturnType<typeof createWorkspaceReasoningTask>;
+      try {
+        result = createWorkspaceReasoningTask(loaded.snapshot, {
+          taskId: randomUUID(),
+          name: body.name as string,
+          goal: body.goal as string,
+          taskType: body.taskType as string,
+          risk: risk as EngineeringTask["risk"],
+          uncertainty: uncertainty as "LOW" | "MEDIUM" | "HIGH",
+          requestedFramework: body.frameworkId as string,
+          requestedFrameworkVersion: body.frameworkVersion as string,
+          input,
+          approvalRequired: body.approvalRequired as boolean | undefined,
+          evidenceRequired: body.evidenceRequired as boolean | undefined
+        }, { frameworkRegistry: registry });
+      } catch (error) {
+        throw new ApiError(422, error instanceof Error ? error.message : "The task could not be created.");
+      }
       const saved = await saveWorkspace(loaded, result.workspace);
       return NextResponse.json({
         ...taskResponse(saved.taskGraph, result.task.id),
@@ -356,12 +361,17 @@ export async function POST(request: Request) {
     if (!taskId) throw new ApiError(400, "taskId is required.");
 
     if (action === "UPDATE_INPUTS") {
-      const result = updateWorkspaceReasoningTaskInputs(
-        loaded.snapshot,
-        taskId,
-        getInputRecord(body.input),
-        { frameworkRegistry: registry }
-      );
+      let result: ReturnType<typeof updateWorkspaceReasoningTaskInputs>;
+      try {
+        result = updateWorkspaceReasoningTaskInputs(
+          loaded.snapshot,
+          taskId,
+          getInputRecord(body.input),
+          { frameworkRegistry: registry }
+        );
+      } catch (error) {
+        throw new ApiError(422, error instanceof Error ? error.message : "Task inputs could not be updated.");
+      }
       const saved = await saveWorkspace(loaded, result.workspace);
       return NextResponse.json({
         ...taskResponse(saved.taskGraph, taskId),
