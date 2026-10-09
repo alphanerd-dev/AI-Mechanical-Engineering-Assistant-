@@ -1,4 +1,4 @@
-import { parseSkillManifest } from "./validation.js";
+import { parseSkillManifest } from "./validation";
 import type { SkillManifest } from "./types.js";
 
 export interface SkillManifestRegistry {
