@@ -321,7 +321,7 @@ Notes:
 - [x] V2.0.19 domain-neutral decision/result contract
 - [x] V2.0.20 domain-neutral completion routing
 - [x] V2.0.21 first non-mechanical completion unit — Electrical DC load
-- [ ] V2.0.22 model-backed reasoning proposal adapter
+- [x] V2.0.22 model-backed reasoning proposal adapter
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
