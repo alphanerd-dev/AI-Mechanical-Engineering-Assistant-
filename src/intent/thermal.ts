@@ -61,7 +61,7 @@ export class DeterministicThermalIntentInterpreter implements EngineeringIntentI
     if (maximumHeatDutyKw === undefined) missingInputs.push("maximum heat duty");
 
     const contextUsed = Object.entries(extractedInputs)
-      .filter(([key, value]) => !new RegExp(String(value), "i").test(text))
+      .filter(([, value]) => !new RegExp(String(value), "i").test(text))
       .map(([key]) => key);
     const candidate = isThermalIntentCandidate(text, context);
     const hasAction = /\b(?:calculate|check|verify|determine|estimate|design|evaluate)\b/i.test(text);
