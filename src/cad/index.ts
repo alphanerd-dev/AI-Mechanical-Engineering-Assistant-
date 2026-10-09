@@ -12,3 +12,5 @@ export * from './regression.js';
 export * from './diff.js';
 export * from './dfm.js';
 export * from './judge.js';
+export * from './intent.js';
+export * from './completion.js';
