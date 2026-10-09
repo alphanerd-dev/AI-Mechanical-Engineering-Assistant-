@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -33,11 +35,47 @@ jobs:
       - name: Install pinned ESLint scanner
         run: npm install --no-save --package-lock=false eslint@9.31.0 eslint-config-next@16.0.0 @microsoft/eslint-formatter-sarif@3.1.0
 
-      - name: Run ESLint
+      - name: Run repository-wide ESLint scan
+        id: repository-scan
         env:
           SARIF_ESLINT_IGNORE_SUPPRESSED: "true"
         run: npx eslint . --config eslint.config.mjs --ext .js,.jsx,.ts,.tsx,.mjs,.cjs --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif
         continue-on-error: true
+
+      - name: Report repository-wide ESLint baseline
+        if: always()
+        env:
+          ESLINT_SCAN_OUTCOME: ${{ steps.repository-scan.outcome }}
+        shell: bash
+        run: |
+          if [[ "$ESLINT_SCAN_OUTCOME" == "success" ]]; then
+            echo "Repository-wide ESLint scan completed without findings." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Repository-wide ESLint reported findings. SARIF is uploaded for review; this report-only scan is not a claim that the entire existing repository is lint-clean. Changed files are checked separately below." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Enforce ESLint on changed source files
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+            git diff --name-only -z --diff-filter=ACMR "$base...$head" -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs' > /tmp/eslint-changed-files
+          else
+            base="${{ github.event.before }}"
+            if [[ "$base" =~ ^0+$ ]]; then
+              git ls-files -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs' > /tmp/eslint-changed-files
+            else
+              git diff --name-only -z --diff-filter=ACMR "$base" "$GITHUB_SHA" -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs' > /tmp/eslint-changed-files
+            fi
+          fi
+          if [[ ! -s /tmp/eslint-changed-files ]]; then
+            echo "No changed JavaScript or TypeScript source files required the ESLint gate."
+            exit 0
+          fi
+          xargs -0 -r npx eslint --config eslint.config.mjs --max-warnings 0 < /tmp/eslint-changed-files
 
       - name: Upload analysis results to GitHub
         if: always() && hashFiles('eslint-results.sarif') != ''
