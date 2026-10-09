@@ -171,8 +171,8 @@ export function updateWorkspaceReasoningTaskInputs(
   assertJsonRecord(input, "task input");
   const selectedTask = findTask(snapshot.taskGraph, taskId);
   const selection = selectedTask.reasoning?.routingDecision;
-  if (selection?.status !== "SELECTED" || !selection.frameworkId || !selection.frameworkVersion) {
-    throw new Error("Task must have a selected, version-pinned framework before its inputs can be updated.");
+  if (!selection || selection.status === "SKIPPED" || !selection.frameworkId || !selection.frameworkVersion) {
+    throw new Error("Task must have a version-pinned reasoning framework before its inputs can be updated.");
   }
 
   const now = options.now ?? new Date().toISOString();
