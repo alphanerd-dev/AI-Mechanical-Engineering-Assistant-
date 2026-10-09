@@ -1,7 +1,7 @@
 import {ProjectState} from "../core/types.js";
 import {EngineeringTask,EngineeringTaskGraph,ReadyTaskEvaluation} from "./types.js";
 import {validateEngineeringTaskGraph} from "./validation.js";
-import {getTaskReasoningGateErrors} from "./reasoning.js";
+import {getTaskReadinessGateErrors} from "./reasoning.js";
 
 function requirementsSatisfied(task:EngineeringTask,project:ProjectState|undefined):string[]{
   const required=task.requiredRequirementIds??[];
