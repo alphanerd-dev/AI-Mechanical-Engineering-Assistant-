@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   createConfiguredReasoningGenerator,
-  ModelTransportError,
   OpenAICompatibleModelReasoningGenerator
 } from "../src/reasoning-frameworks/openai-compatible-generator.js";
 import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
