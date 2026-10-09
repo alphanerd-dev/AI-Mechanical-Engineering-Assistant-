@@ -32,6 +32,10 @@ The UI renders the provider, model, mode, and deployment revision alongside the 
 
 The current HTTP route passes an empty evidence-reference allowlist because the workspace's authoritative artifact/evidence registry is not yet wired into this proposal endpoint. Do not populate that list from request-body values or model output. Future wiring must resolve IDs from a trusted server-side evidence registry and pass only the returned identifiers.
 
+## Security-scan configuration
+
+The repository's Codacy workflow requires a configured `CODACY_PROJECT_TOKEN` to load project-specific analysis rules. If the secret is absent, the workflow records an explicit **SKIPPED** status in the Actions summary; it must not describe this as a passing Codacy scan. The dedicated ESLint and CodeQL checks run independently. If a token is configured but the scanner fails, that failure remains visible and must be investigated rather than silently swallowed.
+
 ## Test coverage
 
 `tests/reasoning-model-hardening.test.ts` covers invented evidence rejection, the allowlist boundary, host-only provenance, malicious control-field injection, malformed/non-JSON output, input snapshot isolation, repeatability, and invalid host context. The transport acceptance suite additionally exercises a real `AbortSignal.timeout` expiration with an injected test transport; no external provider is needed for that test.
