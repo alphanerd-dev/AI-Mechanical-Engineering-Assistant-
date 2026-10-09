@@ -271,7 +271,7 @@ export class CADPartCompletionWorkflow {
           "VALIDATION",
           intent,
           [validation.reason ?? validation.providerResult?.error ?? "Independent geometry validation is unavailable; artifact remains unverified."],
-          ["CAD execution completed, but no accepted geometry-validation receipt was produced."]
+          ["CAD execution completed, but the artifact remains unverified because no accepted geometry-validation receipt was produced."]
         ),
         specification: intent.specification,
         source: generated.source,
