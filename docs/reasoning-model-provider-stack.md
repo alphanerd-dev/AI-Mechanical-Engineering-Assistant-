@@ -33,7 +33,7 @@ Reference: https://docs.litellm.ai/docs/
 
 OpenTelemetry is the preferred standards-based foundation for traces and metrics. A collector/exporter and a production telemetry destination have not yet been selected, so SDK instrumentation is deferred until the application can consume it operationally.
 
-The current live acceptance harness records a redacted evidence result containing outcome, deployment revision, model identifier, timestamp, duration, reasoning status, and validation status. It does not store API keys, raw prompts, or full model output.
+The current live acceptance harness records a redacted evidence result containing outcome, deployment revision, model identifier, timestamp, duration, reasoning status, and validation status. It does not store API keys, raw prompts, or full model output. Reasoning records also preserve host-authored provider ID, model ID, and deployment revision, and the workspace displays that provenance beside the proposal. Proposal evidence references must match a server-supplied allowlist; the current API route supplies an empty list until authoritative artifact/evidence-registry lookup is connected, so model-invented evidence IDs are rejected.
 
 Reference: https://opentelemetry.io/docs/languages/js/
 
