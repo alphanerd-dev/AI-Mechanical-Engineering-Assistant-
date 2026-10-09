@@ -47,6 +47,12 @@ The CAD layer now defines a canonical, project-scoped model identity that can be
 
 See [V2.1.1 identity contract](docs/v2-1-1-cad-identity.md).
 
+## V2.1.2 — Multi-CAD capability routing
+
+The CAD layer now has an explicit routing policy for provider priority, host-declared availability, preferred or required providers, and risk-sensitive fallback. Mock and planned providers are excluded by default, and provider execution does not imply geometry acceptance.
+
+See [V2.1.2 routing contract](docs/v2-1-2-cad-routing.md).
+
 ## Benchmark
 
 Input: "Design a shaft that transmits 5 kW at 1500 rpm."
