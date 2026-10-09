@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  ModelTransportError,
-  OpenAICompatibleModelReasoningGenerator
-} from "../src/reasoning-frameworks/openai-compatible-generator.js";
+import { OpenAICompatibleModelReasoningGenerator } from "../src/reasoning-frameworks/openai-compatible-generator.js";
 import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
 import { ModelBackedTaskReasoningProposer } from "../src/reasoning-frameworks/model-adapter.js";
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
@@ -139,10 +136,14 @@ describe("reasoning model transport acceptance", () => {
     }) as unknown as typeof fetch;
     const generator = generatorWith(fetchImpl);
 
-    await expect(generator.generate(request)).rejects.toThrow(
-      "could not be reached within the allowed time"
-    );
-    await expect(generator.generate(request)).rejects.not.toThrow("credential details");
+    let message = "";
+    try {
+      await generator.generate(request);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("could not be reached within the allowed time");
+    expect(message).not.toContain("credential details");
   });
 
   it("rejects invalid response envelopes and malformed proposal JSON", async () => {
