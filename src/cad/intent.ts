@@ -56,7 +56,7 @@ function extractDimension(raw: string, dimension: "diameter" | "length"): Dimens
     : "(?:long|length|height)";
   const expressions = [
     new RegExp(label + "\\s*(?:of|is|=|:)?\\s*" + NUMBER_PATTERN + "\\s*" + UNIT_PATTERN, "gi"),
-    new RegExp(NUMBER_PATTERN + "\\s*" + UNIT_PATTERN + "\\s*" + reverseLabel + "\\b", "gi")
+    new RegExp(NUMBER_PATTERN + "\\s*" + UNIT_PATTERN + "\\s*(?:in\\s+)?" + reverseLabel + "\\b", "gi")
   ];
   const values: number[] = [];
 
