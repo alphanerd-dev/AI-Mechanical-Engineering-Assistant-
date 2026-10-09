@@ -5,6 +5,7 @@ export * from './routing.js';
 export * from './acceptance.js';
 export * from './artifact-bridge.js';
 export * from './artifact-manifest.js';
+export * from './provenance.js';
 export * from './self-correction.js';
 export * from './metrics.js';
 export * from './regression.js';
