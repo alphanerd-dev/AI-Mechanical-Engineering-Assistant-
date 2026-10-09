@@ -151,6 +151,16 @@ describe("reasoning-framework integration with task graphs", () => {
     expect(result.decision).toMatchObject({ status: "SELECTED", frameworkId: "systems-thinking", frameworkVersion: "1.2.0" });
   });
 
+  it("freezes reasoning metadata once a task is READY", () => {
+    const graph = createGraph({ capability: "ANALYSIS.SHAFT_SIZE" });
+    graph.tasks[0].status = "READY";
+    expect(() => routeTaskReasoning(graph, "task-1", {
+      taskType: "novel-design",
+      requestedFramework: "first-principles",
+      now: NOW
+    })).toThrow(/after a task becomes ready/);
+  });
+
   it("blocks an explicitly requested framework when its required inputs are absent", () => {
     const result = routeTaskReasoning(createGraph(), "task-1", {
       taskType: "option-selection",
