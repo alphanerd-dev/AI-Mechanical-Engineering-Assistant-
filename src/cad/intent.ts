@@ -26,7 +26,7 @@ export interface CADPartIntentParserOptions {
 const DEFAULT_MIN_DIMENSION_MM = 0.01;
 const DEFAULT_MAX_DIMENSION_MM = 10_000;
 const NUMBER_PATTERN = "(?<value>\\d+(?:\\.\\d+)?|\\.\\d+)";
-const UNIT_PATTERN = "(?<unit>millimeters?|millimetres?|mm|centimeters?|centimetres?|cm|meters?|metres?|inches?|in)\\b";
+const UNIT_PATTERN = "(?<unit>millimeters?|millimetres?|mm|centimeters?|centimetres?|cm|meters?|metres?|m|inches?|in)\\b";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
