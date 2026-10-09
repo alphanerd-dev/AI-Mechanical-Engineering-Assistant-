@@ -1,6 +1,6 @@
 import type { ReasoningFrameworkRegistry, FrameworkReasoningRecord } from "../reasoning-frameworks/types";
 import type { TaskReasoningProposer } from "../task-graph/reasoning-execution";
-import { executeTaskReasoning } from "../task-graph/reasoning-execution.js";
+import { executeTaskReasoning } from "../task-graph/reasoning-execution";
 import { routeTaskReasoning } from "../task-graph/reasoning";
 import type { EngineeringTask, EngineeringTaskGraph } from "../task-graph/types";
 import type { EngineeringWorkspaceSnapshot } from "./types";
