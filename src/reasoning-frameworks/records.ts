@@ -42,6 +42,7 @@ export function createFrameworkReasoningRecord(
     ...(input.output === undefined ? {} : { output: structuredClone(input.output) }),
     limitations,
     evidenceReferences: [...input.evidenceReferences],
+    ...(input.provenance === undefined ? {} : { provenance: structuredClone(input.provenance) }),
     validationStatus: "NOT_PERFORMED",
     requiredGates: [...input.requiredGates]
   };
