@@ -1,5 +1,5 @@
-import {EngineeringWorkspaceSnapshot,ENGINEERING_WORKSPACE_SCHEMA_VERSION} from "./types.js";
-import {validateEngineeringTaskGraph} from "../task-graph/validation.js";
+import {EngineeringWorkspaceSnapshot,ENGINEERING_WORKSPACE_SCHEMA_VERSION} from "./types";
+import {validateEngineeringTaskGraph} from "../task-graph/validation";
 
 export function validateEngineeringWorkspaceSnapshot(snapshot:EngineeringWorkspaceSnapshot):void{
   if(snapshot.schemaVersion!==ENGINEERING_WORKSPACE_SCHEMA_VERSION)

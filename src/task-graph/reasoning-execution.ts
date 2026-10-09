@@ -1,7 +1,9 @@
-import type { FrameworkReasoningRecord, ReasoningFrameworkManifest, ReasoningFrameworkRegistry } from "../reasoning-frameworks/index.js";
-import { createFrameworkReasoningRecord, getReasoningFramework } from "../reasoning-frameworks/index.js";
-import type { EngineeringTask, EngineeringTaskGraph } from "./types.js";
-import { appendTaskReasoningRecord } from "./reasoning.js";
+import type { FrameworkReasoningRecord, ReasoningFrameworkManifest } from "../reasoning-frameworks/types";
+import type { ReasoningFrameworkRegistry } from "../reasoning-frameworks/registry";
+import { createFrameworkReasoningRecord } from "../reasoning-frameworks/records";
+import { getReasoningFramework } from "../reasoning-frameworks/registry";
+import type { EngineeringTask, EngineeringTaskGraph } from "./types";
+import { appendTaskReasoningRecord } from "./reasoning";
 
 export interface ReasoningProposal {
   status: "PROPOSED" | "INCOMPLETE" | "BLOCKED";
