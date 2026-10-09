@@ -1,6 +1,7 @@
 export * from './artifacts.js';
 export * from './execution.js';
 export * from './identity.js';
+export * from './routing.js';
 export * from './acceptance.js';
 export * from './artifact-bridge.js';
 export * from './artifact-manifest.js';
