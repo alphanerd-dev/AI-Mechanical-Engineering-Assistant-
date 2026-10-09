@@ -3,6 +3,16 @@ import type { CapabilityRisk } from "../core/types.js";
 export type ReasoningFrameworkId = string;
 export type FrameworkReasoningStatus = "PROPOSED" | "INCOMPLETE" | "BLOCKED";
 
+export type ReasoningProviderMode = "MODEL_BACKED" | "DETERMINISTIC" | "CUSTOM";
+
+/** Server-authored execution provenance; never accepted from model output. */
+export interface ReasoningExecutionProvenance {
+  mode: ReasoningProviderMode;
+  providerId: string;
+  modelId?: string;
+  deploymentRevision?: string;
+}
+
 export interface ReasoningFrameworkManifest {
   schemaVersion: 1;
   id: ReasoningFrameworkId;
@@ -60,6 +70,8 @@ export interface FrameworkReasoningRecord {
   output?: unknown;
   limitations: string[];
   evidenceReferences: string[];
+  /** Identifies the host-selected provider; it is not supplied by model output. */
+  provenance?: ReasoningExecutionProvenance;
   /** Reasoning records never certify engineering correctness. Validation remains external. */
   validationStatus: "NOT_PERFORMED";
   requiredGates: string[];
@@ -79,5 +91,6 @@ export interface CreateFrameworkReasoningRecordInput {
   output?: unknown;
   limitations: string[];
   evidenceReferences: string[];
+  provenance?: ReasoningExecutionProvenance;
   requiredGates: string[];
 }
