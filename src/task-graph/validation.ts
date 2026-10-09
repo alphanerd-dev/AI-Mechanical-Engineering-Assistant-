@@ -63,12 +63,14 @@ export function validateEngineeringTaskGraph(graph: EngineeringTaskGraph): strin
       if (skill !== undefined) {
         const skillErrors = validateSkillManifest(skill);
         errors.push(...skillErrors.map((error) => `Engineering task ${task.id} skill manifest: ${error}`));
-        if (riskRank[task.risk] > riskRank[skill.maximumRisk])
-          errors.push(`Engineering task risk exceeds assigned skill maximum risk: ${task.id}.`);
-        if (task.capability && !skill.allowedCapabilities.includes(task.capability))
-          errors.push(`Engineering task capability is outside assigned skill authority: ${task.id}.`);
-        if (skill.requiresApproval && !task.approvalRequired)
-          errors.push(`Assigned skill requires human approval for task: ${task.id}.`);
+        if (skillErrors.length === 0) {
+          if (riskRank[task.risk] > riskRank[skill.maximumRisk])
+            errors.push(`Engineering task risk exceeds assigned skill maximum risk: ${task.id}.`);
+          if (task.capability && !skill.allowedCapabilities.includes(task.capability))
+            errors.push(`Engineering task capability is outside assigned skill authority: ${task.id}.`);
+          if (skill.requiresApproval && !task.approvalRequired)
+            errors.push(`Assigned skill requires human approval for task: ${task.id}.`);
+        }
       }
 
       const decision = reasoning.routingDecision;
@@ -93,11 +95,14 @@ export function validateEngineeringTaskGraph(graph: EngineeringTaskGraph): strin
         for (const record of reasoning.records ?? []) {
           const recordErrors = validateFrameworkReasoningRecord(record);
           errors.push(...recordErrors.map((error) => `Engineering task ${task.id} reasoning record: ${error}`));
+          if (!record || typeof record !== "object" || Array.isArray(record)) continue;
           if (record.projectId !== task.projectId || record.taskId !== task.id)
             errors.push(`Reasoning record must reference its containing project and task: ${task.id}.`);
-          if (reasoningRecordIds.has(record.recordId))
-            errors.push(`Duplicate reasoning record id: ${record.recordId}.`);
-          reasoningRecordIds.add(record.recordId);
+          if (typeof record.recordId === "string") {
+            if (reasoningRecordIds.has(record.recordId))
+              errors.push(`Duplicate reasoning record id: ${record.recordId}.`);
+            reasoningRecordIds.add(record.recordId);
+          }
           if (decision?.status !== "SELECTED" ||
             record.frameworkId !== decision.frameworkId ||
             record.frameworkVersion !== decision.frameworkVersion) {
