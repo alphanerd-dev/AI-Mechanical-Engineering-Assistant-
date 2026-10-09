@@ -83,7 +83,8 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
               content: JSON.stringify({
                 task: request.task,
                 framework: request.framework,
-                inputs: request.inputs
+                inputs: request.inputs,
+                trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
               })
             }
           ]

@@ -42,4 +42,4 @@ jobs:
           name: reasoning-model-live-acceptance-${{ github.run_id }}
           path: ${{ runner.temp }}/reasoning-model-live-acceptance.json
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 90

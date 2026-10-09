@@ -1,61 +1,65 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-# This workflow checks out code, performs a Codacy security scan
-# and integrates the results with the
-# GitHub Advanced Security code scanning feature.  For more information on
-# the Codacy security scan action usage and parameters, see
-# https://github.com/codacy/codacy-analysis-cli-action.
-# For more information on Codacy Analysis CLI in general, see
-# https://github.com/codacy/codacy-analysis-cli.
+# Optional Codacy analysis is activated only when its repository token is configured.
+# Dedicated Engineering Core CI, ESLint, and CodeQL remain independently enforced.
 
 name: Codacy Security Scan
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "main" ]
+    branches: ["main"]
   schedule:
-    - cron: '36 18 * * 1'
+    - cron: "36 18 * * 1"
 
 permissions:
   contents: read
 
 jobs:
   codacy-security-scan:
-    permissions:
-      contents: read # for actions/checkout to fetch code
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
     name: Codacy Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    env:
+      CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
     steps:
-      # Checkout the repository to the GitHub Actions runner
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Execute Codacy Analysis CLI and generate a SARIF output with the security issues identified during the analysis
+      - name: Check whether Codacy is configured
+        id: codacy-config
+        shell: bash
+        run: |
+          if [[ -z "${CODACY_PROJECT_TOKEN}" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Codacy Security Scan"
+              echo
+              echo "**Status: SKIPPED.** The repository Codacy project token is not configured, so remote project rules cannot be loaded. This is not a passing Codacy scan."
+              echo
+              echo "Engineering Core CI, ESLint, and CodeQL run independently."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Codacy scan skipped: CODACY_PROJECT_TOKEN is not configured."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Codacy project token is configured; starting the scan."
+          fi
+
       - name: Run Codacy Analysis CLI
+        if: steps.codacy-config.outputs.configured == 'true'
         uses: codacy/codacy-analysis-cli-action@d840f886c4bd4edc059706d09c6a1586111c540b
         with:
-          # Check https://github.com/codacy/codacy-analysis-cli#project-token to get your project token from your Codacy repository
-          # You can also omit the token and run the tools that support default configurations
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           verbose: true
           output: results.sarif
           format: sarif
-          # Adjust severity of non-security issues
           gh-code-scanning-compat: true
-          # Force 0 exit code to allow SARIF file generation
-          # This will handover control about PR rejection to the GitHub side
           max-allowed-issues: 2147483647
 
-      # Upload the SARIF file generated in the previous step
       - name: Upload SARIF results file
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.codacy-config.outputs.configured == 'true' && hashFiles('results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif

@@ -11,6 +11,8 @@ export interface ModelReasoningGenerationRequest {
   framework: Readonly<ReasoningFrameworkManifest>;
   inputs: Readonly<Record<string, unknown>>;
   instructions: string;
+  /** Host-supplied allowlist. Model-generated identifiers are never trusted. */
+  trustedEvidenceReferences?: readonly string[];
 }
 
 export interface ModelReasoningGenerator {
@@ -29,7 +31,7 @@ export function buildModelReasoningInstructions(
     "status must be PROPOSED, INCOMPLETE, or BLOCKED. VERIFIED is forbidden.",
     "assumptions, limitations, evidenceReferences, and requiredGates must be arrays of non-empty strings.",
     "PROPOSED requires an output. If material information is missing, use INCOMPLETE and describe what is missing.",
-    "evidenceReferences are identifiers supplied as references only; never invent that evidence exists.",
+    "evidenceReferences must contain only exact identifiers from the host-supplied trusted evidence allowlist; if the list is empty, return an empty array.",
     "Keep output JSON-compatible and limited to the reasoning task; never include task/project identity or verification-control fields.",
     `Selected framework: ${framework.id}@${framework.version} (${framework.name}).`,
     `Framework purpose: ${framework.purpose}`,
@@ -57,7 +59,12 @@ export class ModelBackedTaskReasoningProposer implements TaskReasoningProposer {
       task: structuredClone(request.task),
       framework: structuredClone(request.framework),
       inputs: structuredClone(request.inputs),
-      instructions: buildModelReasoningInstructions(request.framework)
+      trustedEvidenceReferences: [...(request.trustedEvidenceReferences ?? [])],
+      instructions: [
+        buildModelReasoningInstructions(request.framework),
+        `Trusted evidence reference allowlist: ${JSON.stringify(request.trustedEvidenceReferences ?? [])}.`,
+        "Only copy exact identifiers from this allowlist into evidenceReferences. Never invent or transform identifiers."
+      ].join(" ")
     };
     return this.generator.generate(safeRequest);
   }

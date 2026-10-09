@@ -220,4 +220,31 @@ describe("reasoning model transport acceptance", () => {
       })).rejects.toThrow(/unsupported fields|VERIFIED is not allowed/);
     }
   });
+  it("converts an actual AbortSignal timeout into a bounded transport error", async () => {
+    let observedSignal: AbortSignal | undefined;
+    const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        observedSignal = init?.signal as AbortSignal;
+        if (observedSignal.aborted) {
+          reject(observedSignal.reason);
+          return;
+        }
+        observedSignal.addEventListener("abort", () => reject(observedSignal?.reason), { once: true });
+      })
+    ) as unknown as typeof fetch;
+    const generator = new OpenAICompatibleModelReasoningGenerator({
+      endpoint: ENDPOINT,
+      model: MODEL,
+      apiKey: API_KEY,
+      timeoutMs: 1_000,
+      fetchImpl
+    });
+
+    await expect(generator.generate(request)).rejects.toThrow(
+      "could not be reached within the allowed time"
+    );
+    expect(observedSignal).toBeDefined();
+    expect(observedSignal?.aborted).toBe(true);
+  });
+
 });

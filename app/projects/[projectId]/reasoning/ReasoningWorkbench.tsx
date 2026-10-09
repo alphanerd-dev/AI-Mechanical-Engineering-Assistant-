@@ -54,10 +54,10 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
   const [frameworks, setFrameworks] = useState<ReasoningFrameworkManifest[]>([]);
   const [workspaceRevision, setWorkspaceRevision] = useState<number>(0);
   const [storageMode, setStorageMode] = useState<"DURABLE" | "DEMO_EPHEMERAL">("DURABLE");
-  const [persisted, setPersisted] = useState(false);
   const [modelConfigured, setModelConfigured] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [loading, setLoading] = useState(true);
+  const [loadedProjectId, setLoadedProjectId] = useState<string>();
   const [busyAction, setBusyAction] = useState<string>();
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -69,12 +69,18 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
   const [uncertainty, setUncertainty] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
   const [frameworkId, setFrameworkId] = useState("first-principles");
   const [newInputsJson, setNewInputsJson] = useState("{}");
-  const [inputDraft, setInputDraft] = useState("{}");
+  const [inputDraftState, setInputDraftState] = useState<{ taskId: string; updatedAt: string; value: string }>();
 
   const selectedTask = useMemo(
     () => taskGraph?.tasks.find((task) => task.id === selectedTaskId),
     [taskGraph, selectedTaskId]
   );
+  const inputDraft = selectedTask && inputDraftState &&
+    inputDraftState.taskId === selectedTask.id &&
+    inputDraftState.updatedAt === selectedTask.updatedAt
+    ? inputDraftState.value
+    : JSON.stringify(selectedTask?.input ?? {}, null, 2);
+  const isLoading = loading || loadedProjectId !== projectId;
   const routingDecision = selectedTask?.reasoning?.routingDecision;
   const selectedFramework = frameworks.find((framework) => framework.id === frameworkId);
   const selectedTaskFramework = frameworks.find((framework) =>
@@ -86,7 +92,6 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     setTaskGraph(payload.taskGraph);
     setWorkspaceRevision(payload.workspaceRevision);
     setStorageMode(payload.storageMode);
-    setPersisted(payload.persisted);
     if ("frameworks" in payload) {
       setFrameworks(payload.frameworks);
       if (payload.frameworks.length && !payload.frameworks.some((item) => item.id === frameworkId)) {
@@ -95,15 +100,14 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     }
   }
 
-  async function refresh() {
-    setLoading(true);
-    setError(undefined);
+  async function refresh(isCurrent: () => boolean = () => true) {
     try {
       const response = await fetch(
-        `/api/engineering/reasoning?projectId=${encodeURIComponent(projectId)}`,
+        "/api/engineering/reasoning?projectId=" + encodeURIComponent(projectId),
         { cache: "no-store" }
       );
       const payload = await readApiResponse<WorkbenchPayload>(response);
+      if (!isCurrent()) return;
       applyWorkbenchPayload(payload);
       setModelConfigured(payload.modelConfigured);
       setNotice(payload.storageMode === "DEMO_EPHEMERAL"
@@ -114,22 +118,32 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
       if (payload.taskGraph.tasks.length && !payload.taskGraph.tasks.some((task) => task.id === selectedTaskId)) {
         setSelectedTaskId(payload.taskGraph.tasks[0].id);
       }
+      setError(undefined);
+      setLoadedProjectId(projectId);
     } catch (caught) {
+      if (!isCurrent()) return;
       setError(caught instanceof Error ? caught.message : "Could not load the reasoning workbench.");
+      setLoadedProjectId(projectId);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }
 
   useEffect(() => {
-    void refresh();
-    // Project changes represent a new workspace boundary.
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) void refresh(() => active);
+    });
+    return () => {
+      active = false;
+    };
+    // Project changes represent a new workspace boundary; keep refresh scoped to this prop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
-
-  useEffect(() => {
-    if (selectedTask) setInputDraft(JSON.stringify(selectedTask.input ?? {}, null, 2));
-  }, [selectedTaskId, selectedTask?.updatedAt]);
+  function updateInputDraft(value: string) {
+    if (!selectedTask) return;
+    setInputDraftState({ taskId: selectedTask.id, updatedAt: selectedTask.updatedAt, value });
+  }
 
   async function mutate(body: Record<string, unknown>): Promise<MutationPayload> {
     const response = await fetch("/api/engineering/reasoning", {
@@ -139,7 +153,6 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     });
     const payload = await readApiResponse<MutationPayload>(response);
     applyWorkbenchPayload(payload);
-    setPersisted(payload.persisted);
     setError(undefined);
     return payload;
   }
@@ -176,7 +189,6 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
       });
       if (payload.task) {
         setSelectedTaskId(payload.task.id);
-        setInputDraft(JSON.stringify(payload.task.input ?? {}, null, 2));
       }
       setName("");
       setGoal("");
@@ -255,7 +267,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     {notice && <div className="reasoningInfo" role="status">{notice}</div>}
     {error && <div className="notice" role="alert">{error}</div>}
 
-    {loading ? <div className="panel"><p>Loading project task graph…</p></div> : <>
+    {isLoading ? <div className="panel"><p>Loading project task graph…</p></div> : <>
       <div className="reasoningWorkbenchGrid">
         <div className="reasoningColumn">
           <section className="panel reasoningPanel">
@@ -338,7 +350,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
 
               <form onSubmit={saveInputs} className="reasoningForm">
                 <label>Task inputs (replace current JSON object)
-                  <textarea value={inputDraft} onChange={(event) => setInputDraft(event.target.value)} rows={6} spellCheck={false} className="codeField" disabled={Boolean(busyAction)} />
+                  <textarea value={inputDraft} onChange={(event) => updateInputDraft(event.target.value)} rows={6} spellCheck={false} className="codeField" disabled={Boolean(busyAction)} />
                 </label>
                 <p className="reasoningHint">Saving inputs re-runs framework routing and clears prior reasoning records because the input context has changed.</p>
                 <button className="button secondaryButton" type="submit" disabled={Boolean(busyAction) || !routingDecision?.frameworkId || !routingDecision?.frameworkVersion}>
@@ -364,6 +376,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
               {[...(selectedTask.reasoning?.records ?? [])].reverse().map((record) => <article className="reasoningRecord" key={record.recordId}>
                 <div className="reasoningRecordHeader"><div><strong>{record.status}</strong><span className="muted"> · {record.frameworkId}@{record.frameworkVersion}</span></div><small>{new Date(record.createdAt).toLocaleString()}</small></div>
                 <div className="reasoningValidationBoundary"><strong>VALIDATION: NOT PERFORMED</strong><span>Advisory output; this record does not establish engineering correctness.</span></div>
+                {record.provenance && <div className="reasoningRecordSection"><h4>Provider provenance</h4><p>{record.provenance.providerId}{record.provenance.modelId ? ` · ${record.provenance.modelId}` : ""} · {record.provenance.mode}</p>{record.provenance.deploymentRevision && <small>Revision: {record.provenance.deploymentRevision}</small>}</div>}
                 {record.output !== undefined && <div className="reasoningRecordSection"><h4>Proposal output</h4><pre>{JSON.stringify(record.output, null, 2)}</pre></div>}
                 <RecordList title="Assumptions" values={record.assumptions} />
                 <RecordList title="Limitations" values={record.limitations} />

@@ -130,7 +130,7 @@ async function loadWorkspace(
     throw new ApiError(400, "A registered project UUID is required for durable reasoning workspaces.");
   }
 
-  let db: any;
+  let db: Awaited<ReturnType<typeof createClient>>;
   try {
     db = await createClient();
   } catch {
@@ -200,7 +200,7 @@ async function saveWorkspace(
     return structuredClone(next);
   }
 
-  let db: any;
+  let db: Awaited<ReturnType<typeof createClient>>;
   try {
     db = await createClient();
   } catch {
@@ -410,7 +410,18 @@ export async function POST(request: Request) {
         loaded.snapshot,
         taskId,
         new ModelBackedTaskReasoningProposer(generator),
-        { frameworkRegistry: registry }
+        {
+          frameworkRegistry: registry,
+          trustedEvidenceReferences: [],
+          provenance: {
+            mode: "MODEL_BACKED",
+            providerId: "openai-compatible-http",
+            modelId: process.env.ENGINEERING_REASONING_MODEL_NAME!.trim(),
+            ...((process.env.VERCEL_GIT_COMMIT_SHA?.trim() || process.env.GITHUB_SHA?.trim())
+              ? { deploymentRevision: process.env.VERCEL_GIT_COMMIT_SHA?.trim() || process.env.GITHUB_SHA!.trim() }
+              : {})
+          }
+        }
       );
     } catch (error) {
       if (error instanceof ModelTransportError) throw new ApiError(502, error.message);
