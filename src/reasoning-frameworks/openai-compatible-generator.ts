@@ -84,16 +84,17 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       ? buildGeminiRequest(request)
       : buildOpenAIRequest(this.model, request);
 
+    const requestInit: RequestInit = {
+      method: "POST",
+      headers,
+      signal: AbortSignal.timeout(this.timeoutMs),
+      body: JSON.stringify(body)
+    };
     let response: Response;
     try {
-      response = await this.fetchImpl(this.endpoint, {
-        method: "POST",
-        headers,
-        signal: AbortSignal.timeout(this.timeoutMs),
-        body: JSON.stringify(body)
-      });
+      response = await this.fetchImpl(this.endpoint, requestInit);
     } catch {
-      if (init?.signal?.aborted) {
+      if (requestInit.signal?.aborted) {
         throw new ModelTransportError(
           "The configured reasoning model request exceeded the configured timeout.",
           "MODEL_REQUEST_TIMEOUT"
