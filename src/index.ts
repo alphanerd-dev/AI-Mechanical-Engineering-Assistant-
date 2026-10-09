@@ -64,6 +64,7 @@ export * from "./artifacts/persistence.js";
 export * from "./memory/persistence.js";
 export * from "./fea/index.js";
 export * from "./cad/index.js";
+export * from "./providers/build123d-intent-generator.js";
 export * from "./constraints/index.js";
 export * from "./tolerance/index.js";
 export * from "./manufacturing/index.js";
