@@ -5,4 +5,3 @@ export * from "./router.js";
 export * from "./validation.js";
 export * from "./records.js";
 export * from "./model-adapter.js";
-export * from "./openai-compatible-generator.js";
