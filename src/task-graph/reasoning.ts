@@ -59,7 +59,9 @@ export function assignTaskSkillManifest(
   const { task, index } = getMutableTask(graph, taskId);
   const skill = registry.get(skillId, skillVersion);
   if (!skill) throw new Error(`Registered skill manifest not found: ${skillId}@${skillVersion}.`);
-  if (riskRank[task.risk] > riskRank[skill.maximumRisk]) {
+  const taskRiskRank = riskRank[task.risk];
+  if (taskRiskRank === undefined) throw new Error(`Invalid engineering task risk: ${String(task.risk)}.`);
+  if (taskRiskRank > riskRank[skill.maximumRisk]) {
     throw new Error(`Task risk exceeds the skill's maximum risk: ${task.risk} > ${skill.maximumRisk}.`);
   }
   if (task.capability && !skill.allowedCapabilities.includes(task.capability)) {
