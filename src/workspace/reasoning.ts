@@ -1,4 +1,4 @@
-import type { FrameworkReasoningRecord } from "../reasoning-frameworks/types";
+import type { FrameworkReasoningRecord, ReasoningExecutionProvenance } from "../reasoning-frameworks/types";
 import type { ReasoningFrameworkRegistry } from "../reasoning-frameworks/registry";
 import type { TaskReasoningProposer } from "../task-graph/reasoning-execution";
 import { executeTaskReasoning } from "../task-graph/reasoning-execution";
@@ -24,6 +24,10 @@ export interface CreateWorkspaceReasoningTaskInput {
 export interface WorkspaceReasoningOptions {
   now?: string;
   frameworkRegistry?: ReasoningFrameworkRegistry;
+  /** Trusted host-side evidence identifiers, not task/user/model claims. */
+  trustedEvidenceReferences?: readonly string[];
+  /** Host-authored identity of the generator used for this proposal. */
+  provenance?: ReasoningExecutionProvenance;
 }
 
 export interface WorkspaceTaskMutationResult {
@@ -215,7 +219,9 @@ export async function proposeWorkspaceTaskReasoning(
   findTask(snapshot.taskGraph, taskId);
   const result = await executeTaskReasoning(snapshot.taskGraph, taskId, proposer, {
     frameworkRegistry: options.frameworkRegistry,
-    now: options.now
+    now: options.now,
+    trustedEvidenceReferences: options.trustedEvidenceReferences,
+    provenance: options.provenance
   });
   const workspace: EngineeringWorkspaceSnapshot = {
     ...structuredClone(snapshot),
