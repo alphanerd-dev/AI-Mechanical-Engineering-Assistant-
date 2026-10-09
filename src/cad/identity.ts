@@ -159,7 +159,7 @@ export class CADModelIdentityRegistry {
     }
 
     const identity = value as CADModelIdentity;
-    if (this.identities.has(identity.id)) {
+    if (this.identities.has(identity.id.trim())) {
       return { status: "REJECTED", errors: [`CAD model identity already registered: ${identity.id}.`] };
     }
 

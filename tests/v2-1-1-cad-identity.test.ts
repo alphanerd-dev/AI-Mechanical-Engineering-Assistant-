@@ -69,6 +69,14 @@ describe("CAD model identity", () => {
     expect(conflict.errors[0]).toContain("already linked");
   });
 
+  it("rejects canonical ids that collide after whitespace normalization", () => {
+    const registry = new CADModelIdentityRegistry();
+    registry.register(identity({ nativeReferences: [] }), "project-1");
+    const result = registry.register(identity({ id: " cad-model-1 ", nativeReferences: [] }), "project-1");
+    expect(result.status).toBe("REJECTED");
+    expect(result.errors[0]).toContain("already registered");
+  });
+
   it("isolates lookups by project and rejects cross-project registration", () => {
     const registry = new CADModelIdentityRegistry();
     registry.register(identity(), "project-1");
