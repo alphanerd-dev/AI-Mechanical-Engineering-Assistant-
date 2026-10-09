@@ -103,7 +103,7 @@ describe("CAD model identity", () => {
 
   it("rejects a native-reference collision with another canonical identity", () => {
     const registry = new CADModelIdentityRegistry();
-    registry.register(identity({ nativeReferences: [] }), "project-1");
+    registry.register(identity(), "project-1");
     registry.register(identity({ id: "cad-model-2", nativeReferences: [] }), "project-1");
     const result = registry.linkNativeReference("cad-model-2", "project-1", onshapeRef, "2026-10-09T10:05:00.000Z");
     expect(result.status).toBe("REJECTED");
