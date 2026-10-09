@@ -8,8 +8,19 @@ export interface OpenAICompatibleGeneratorOptions {
   fetchImpl?: typeof fetch;
 }
 
+export type ModelTransportErrorCode =
+  | "MODEL_NETWORK_ERROR"
+  | "MODEL_REQUEST_TIMEOUT"
+  | "MODEL_HTTP_ERROR"
+  | "MODEL_INVALID_RESPONSE_JSON"
+  | "MODEL_MISSING_RESPONSE_CONTENT"
+  | "MODEL_INVALID_PROPOSAL_JSON";
+
 export class ModelTransportError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code: ModelTransportErrorCode
+  ) {
     super(message);
     this.name = "ModelTransportError";
   }
@@ -73,34 +84,53 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       ? buildGeminiRequest(request)
       : buildOpenAIRequest(this.model, request);
 
+    const requestInit: RequestInit = {
+      method: "POST",
+      headers,
+      signal: AbortSignal.timeout(this.timeoutMs),
+      body: JSON.stringify(body)
+    };
     let response: Response;
     try {
-      response = await this.fetchImpl(this.endpoint, {
-        method: "POST",
-        headers,
-        signal: AbortSignal.timeout(this.timeoutMs),
-        body: JSON.stringify(body)
-      });
+      response = await this.fetchImpl(this.endpoint, requestInit);
     } catch {
-      throw new ModelTransportError("The configured reasoning model endpoint could not be reached within the allowed time.");
+      if (requestInit.signal?.aborted) {
+        throw new ModelTransportError(
+          "The configured reasoning model request exceeded the configured timeout.",
+          "MODEL_REQUEST_TIMEOUT"
+        );
+      }
+      throw new ModelTransportError(
+        "The configured reasoning model request failed before an HTTP response was received.",
+        "MODEL_NETWORK_ERROR"
+      );
     }
 
     if (!response.ok) {
-      throw new ModelTransportError(`The configured reasoning model endpoint returned HTTP ${response.status}.`);
+      throw new ModelTransportError(
+        `The configured reasoning model endpoint returned HTTP ${response.status}.`,
+        "MODEL_HTTP_ERROR"
+      );
     }
 
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      throw new ModelTransportError("The configured reasoning model endpoint did not return valid JSON.");
+      throw new ModelTransportError(
+        "The configured reasoning model endpoint did not return valid JSON.",
+        "MODEL_INVALID_RESPONSE_JSON"
+      );
     }
 
     const content = this.protocol === "gemini"
       ? extractGeminiContent(payload)
       : extractMessageContent(payload);
     if (!content) {
-      throw new ModelTransportError("The configured reasoning model response did not contain a message.");
+      throw new ModelTransportError(
+        "The configured reasoning model response did not contain a message.",
+        "MODEL_MISSING_RESPONSE_CONTENT"
+      );
     }
 
     try {
@@ -110,13 +140,19 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       }
       return parsed;
     } catch {
-      throw new ModelTransportError("The reasoning model did not return a valid JSON proposal object.");
+      throw new ModelTransportError(
+        "The reasoning model did not return a valid JSON proposal object.",
+        "MODEL_INVALID_PROPOSAL_JSON"
+      );
     }
   }
 }
 
 function isGeminiEndpoint(url: URL): boolean {
-  return url.hostname === "generativelanguage.googleapis.com" || url.pathname.includes(":generateContent");
+  // Select the wire protocol from the endpoint path, not the host. Google's
+  // /v1beta/openai/chat/completions endpoint is OpenAI-compatible even though
+  // it shares a hostname with native Gemini generateContent endpoints.
+  return url.pathname.includes(":generateContent");
 }
 
 function buildOpenAIRequest(model: string, request: ModelReasoningGenerationRequest) {

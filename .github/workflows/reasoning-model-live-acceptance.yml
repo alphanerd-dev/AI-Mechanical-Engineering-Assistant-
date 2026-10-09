@@ -35,6 +35,41 @@ jobs:
           ENGINEERING_REASONING_ACCEPTANCE_DEPLOYMENT_REVISION: ${{ github.sha }}
           ENGINEERING_REASONING_ACCEPTANCE_OUTPUT_PATH: ${{ runner.temp }}/reasoning-model-live-acceptance.json
         run: npx tsx scripts/reasoning-model-live-acceptance.ts
+      - name: Print redacted acceptance result
+        if: always()
+        env:
+          ACCEPTANCE_FILE: ${{ runner.temp }}/reasoning-model-live-acceptance.json
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const file = process.env.ACCEPTANCE_FILE;
+          if (!fs.existsSync(file)) {
+            console.error("Acceptance result file was not created; no response content is printed.");
+            process.exitCode = 1;
+          } else {
+            try {
+              const result = JSON.parse(fs.readFileSync(file, "utf8"));
+              console.log(JSON.stringify({
+                schemaVersion: result.schemaVersion,
+                test: result.test,
+                outcome: result.outcome,
+                timestamp: result.timestamp,
+                durationMs: result.durationMs,
+                deploymentRevision: result.deploymentRevision,
+                model: result.model,
+                checks: result.checks,
+                recordStatus: result.recordStatus,
+                validationStatus: result.validationStatus,
+                failureCategory: result.failureCategory,
+                failureMessage: result.failureMessage,
+              }, null, 2));
+            } catch {
+              console.error("Acceptance result file is invalid JSON; contents are suppressed.");
+              process.exitCode = 1;
+            }
+          }
+          NODE
       - name: Upload redacted acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4

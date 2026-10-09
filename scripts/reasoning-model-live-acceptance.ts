@@ -2,6 +2,10 @@ import { appendFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { createConfiguredReasoningGenerator, ModelTransportError } from "../src/reasoning-frameworks/openai-compatible-generator.js";
+import {
+  AcceptanceConfigurationError,
+  validateLiveProviderConfiguration
+} from "./lib/reasoning-model-live-acceptance-config.js";
 import { ModelBackedTaskReasoningProposer } from "../src/reasoning-frameworks/model-adapter.js";
 import type { ModelReasoningGenerator } from "../src/reasoning-frameworks/model-adapter.js";
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
@@ -58,20 +62,24 @@ async function main(): Promise<void> {
     "reasoning-model-live-acceptance.json";
 
   try {
-    if (!process.env.ENGINEERING_REASONING_MODEL_URL?.trim() || !model) {
-      throw new Error(
-        "ENGINEERING_REASONING_MODEL_URL and ENGINEERING_REASONING_MODEL_NAME must be configured in the acceptance environment."
-      );
-    }
+    const providerConfig = validateLiveProviderConfiguration(process.env);
 
     const liveFetch: typeof fetch = async (input, init) => {
       const response = await fetch(input, init);
       evidence.checks.realEndpointCalled = true;
       return response;
     };
-    const configured = createConfiguredReasoningGenerator(process.env, liveFetch);
+    const configured = createConfiguredReasoningGenerator({
+      ...process.env,
+      ENGINEERING_REASONING_MODEL_URL: providerConfig.endpoint,
+      ENGINEERING_REASONING_MODEL_NAME: providerConfig.model,
+      ENGINEERING_REASONING_MODEL_API_KEY: providerConfig.apiKey,
+      ENGINEERING_REASONING_MODEL_TIMEOUT_MS: String(providerConfig.timeoutMs)
+    }, liveFetch);
     if (!configured) {
-      throw new Error("The configured reasoning model generator is unavailable.");
+      throw new AcceptanceConfigurationError(
+        "The configured reasoning model generator could not be initialized."
+      );
     }
     evidence.checks.configurationPresent = true;
     const generator: ModelReasoningGenerator = {
@@ -183,11 +191,13 @@ async function main(): Promise<void> {
   } catch (error) {
     evidence.outcome = "FAILED";
     evidence.failureCategory =
-      error instanceof ModelTransportError
-        ? "MODEL_TRANSPORT_ERROR"
-        : error instanceof Error
-          ? error.name
-          : "UNKNOWN_ERROR";
+      error instanceof AcceptanceConfigurationError
+        ? "CONFIGURATION_ERROR"
+        : error instanceof ModelTransportError
+          ? error.code
+          : error instanceof Error
+            ? "ACCEPTANCE_VALIDATION_ERROR"
+            : "UNKNOWN_ERROR";
     evidence.failureMessage =
       error instanceof Error
         ? error.message.slice(0, 320)
@@ -221,9 +231,11 @@ async function main(): Promise<void> {
         `- **Duration:** ${evidence.durationMs} ms`,
         `- **Record status:** ${evidence.recordStatus ?? "not produced"}`,
         `- **Validation status:** ${evidence.validationStatus ?? "not produced"}`,
+        `- **Failure category:** ${evidence.failureCategory ?? "none"}`,
+        `- **Checks:** ${JSON.stringify(evidence.checks)}`,
         evidence.failureMessage ? `- **Failure:** ${evidence.failureMessage}` : "",
         "",
-        "No API key, raw prompt, or full model output is recorded in this summary.",
+        "No API key, raw prompt, authorization header, or full model output is recorded in this summary.",
         ""
       ].filter(Boolean).join("\n");
       try {

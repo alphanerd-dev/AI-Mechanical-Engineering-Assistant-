@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { OpenAICompatibleModelReasoningGenerator } from "../src/reasoning-frameworks/openai-compatible-generator.js";
+import { ModelTransportError, OpenAICompatibleModelReasoningGenerator } from "../src/reasoning-frameworks/openai-compatible-generator.js";
 import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
 import { ModelBackedTaskReasoningProposer } from "../src/reasoning-frameworks/model-adapter.js";
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
@@ -119,15 +119,18 @@ describe("reasoning model transport acceptance", () => {
     const generator = generatorWith(fetchImpl);
 
     let message = "";
+    let failureCode: string | undefined;
     try {
       await generator.generate(request);
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);
+      if (error instanceof ModelTransportError) failureCode = error.code;
     }
 
     expect(message).toContain("HTTP 401");
     expect(message).not.toContain("private upstream details");
     expect(message).not.toContain("secret material");
+    expect(failureCode).toBe("MODEL_HTTP_ERROR");
   });
 
   it("converts network failures to a bounded transport error", async () => {
@@ -137,13 +140,16 @@ describe("reasoning model transport acceptance", () => {
     const generator = generatorWith(fetchImpl);
 
     let message = "";
+    let failureCode: string | undefined;
     try {
       await generator.generate(request);
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);
+      if (error instanceof ModelTransportError) failureCode = error.code;
     }
-    expect(message).toContain("could not be reached within the allowed time");
+    expect(message).toContain("failed before an HTTP response was received");
     expect(message).not.toContain("credential details");
+    expect(failureCode).toBe("MODEL_NETWORK_ERROR");
   });
 
   it("rejects invalid response envelopes and malformed proposal JSON", async () => {
@@ -240,9 +246,11 @@ describe("reasoning model transport acceptance", () => {
       fetchImpl
     });
 
-    await expect(generator.generate(request)).rejects.toThrow(
-      "could not be reached within the allowed time"
-    );
+    await expect(generator.generate(request)).rejects.toMatchObject({
+      name: "ModelTransportError",
+      code: "MODEL_REQUEST_TIMEOUT",
+      message: "The configured reasoning model request exceeded the configured timeout."
+    });
     expect(observedSignal).toBeDefined();
     expect(observedSignal?.aborted).toBe(true);
   });

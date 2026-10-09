@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   createConfiguredReasoningGenerator,
-  ModelTransportError,
   OpenAICompatibleModelReasoningGenerator
 } from "../src/reasoning-frameworks/openai-compatible-generator.js";
 import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
@@ -70,13 +69,81 @@ describe("OpenAI-compatible reasoning transport", () => {
     expect(JSON.parse(body.messages[1].content).framework.version).toBe("1.0.0");
   });
 
+  it("uses OpenAI-compatible protocol for Gemini's OpenAI chat-completions endpoint", async () => {
+    let capturedInit: RequestInit | undefined;
+    const proposal = {
+      status: "PROPOSED",
+      assumptions: [],
+      output: { nextStep: "List facts." },
+      limitations: ["Not validated."],
+      evidenceReferences: [],
+      requiredGates: []
+    };
+    const generator = new OpenAICompatibleModelReasoningGenerator({
+      endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      model: "gemini-3.8-flash",
+      apiKey: "placeholder-test-key",
+      fetchImpl: async (_input, init) => {
+        capturedInit = init;
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(proposal) } }]
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+    });
+
+    expect(await generator.generate(generationRequest)).toEqual(proposal);
+    expect((capturedInit?.headers as Record<string, string>).authorization).toBe("Bearer placeholder-test-key");
+    expect((capturedInit?.headers as Record<string, string>)["x-goog-api-key"]).toBeUndefined();
+    const body = JSON.parse(String(capturedInit?.body));
+    expect(body.model).toBe("gemini-3.8-flash");
+    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.messages).toHaveLength(2);
+    expect(body).not.toHaveProperty("systemInstruction");
+    expect(body).not.toHaveProperty("contents");
+  });
+
+  it("keeps native Gemini generateContent requests on the native protocol", async () => {
+    let capturedInit: RequestInit | undefined;
+    const proposal = {
+      status: "PROPOSED",
+      assumptions: [],
+      output: { nextStep: "List facts." },
+      limitations: ["Not validated."],
+      evidenceReferences: [],
+      requiredGates: []
+    };
+    const generator = new OpenAICompatibleModelReasoningGenerator({
+      endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent",
+      model: "gemini-test",
+      apiKey: "placeholder-test-key",
+      fetchImpl: async (_input, init) => {
+        capturedInit = init;
+        return new Response(JSON.stringify({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(proposal) }] } }]
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+    });
+
+    expect(await generator.generate(generationRequest)).toEqual(proposal);
+    expect((capturedInit?.headers as Record<string, string>)["x-goog-api-key"]).toBe("placeholder-test-key");
+    expect((capturedInit?.headers as Record<string, string>).authorization).toBeUndefined();
+    const body = JSON.parse(String(capturedInit?.body));
+    expect(body.systemInstruction.parts[0].text).toBe("Return JSON only.");
+    expect(body.contents).toHaveLength(1);
+    expect(body).not.toHaveProperty("messages");
+    expect(body).not.toHaveProperty("model");
+  });
+
   it("fails closed when transport output is missing or malformed", async () => {
     const noMessage = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://model.example/v1/chat/completions",
       model: "reasoning-model",
       fetchImpl: async () => new Response(JSON.stringify({ choices: [] }), { status: 200 })
     });
-    await expect(noMessage.generate(generationRequest)).rejects.toBeInstanceOf(ModelTransportError);
+    await expect(noMessage.generate(generationRequest)).rejects.toMatchObject({
+      name: "ModelTransportError",
+      code: "MODEL_MISSING_RESPONSE_CONTENT"
+    });
 
     const malformed = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://model.example/v1/chat/completions",
@@ -85,7 +152,11 @@ describe("OpenAI-compatible reasoning transport", () => {
         choices: [{ message: { content: "{not-json" } }]
       }), { status: 200 })
     });
-    await expect(malformed.generate(generationRequest)).rejects.toThrow(/valid JSON proposal object/);
+    await expect(malformed.generate(generationRequest)).rejects.toMatchObject({
+      name: "ModelTransportError",
+      code: "MODEL_INVALID_PROPOSAL_JSON",
+      message: expect.stringMatching(/valid JSON proposal object/)
+    });
   });
 
   it("rejects embedded credentials and invalid timeout values", () => {
