@@ -1,6 +1,7 @@
 import {EngineeringCompletionUnit} from "./types";
 import {ShaftEngineeringCompletionUnit} from "./shaft-unit";
 import {DcLoadEngineeringCompletionUnit} from "./electrical-unit";
+import {SensibleHeatingEngineeringCompletionUnit} from "./thermal-unit";
 
 export class EngineeringCompletionUnitRegistry{
   private readonly units=new Map<string,EngineeringCompletionUnit>();
@@ -23,5 +24,6 @@ export function createDefaultEngineeringCompletionUnitRegistry():EngineeringComp
   const registry=new EngineeringCompletionUnitRegistry();
   registry.register(new ShaftEngineeringCompletionUnit());
   registry.register(new DcLoadEngineeringCompletionUnit());
+  registry.register(new SensibleHeatingEngineeringCompletionUnit());
   return registry;
 }
