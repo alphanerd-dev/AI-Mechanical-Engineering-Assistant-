@@ -27,6 +27,17 @@
       "minContains": 1
     },
     "evidenceReferences": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "providerId"],
+      "properties": {
+        "mode": { "enum": ["MODEL_BACKED", "DETERMINISTIC", "CUSTOM"] },
+        "providerId": { "type": "string", "minLength": 1 },
+        "modelId": { "type": "string", "minLength": 1 },
+        "deploymentRevision": { "type": "string", "minLength": 1 }
+      }
+    },
     "validationStatus": { "const": "NOT_PERFORMED" },
     "requiredGates": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
   },
