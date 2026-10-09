@@ -1,5 +1,4 @@
 import {
-  CapabilityDefinition,
   CapabilityRequest,
   CapabilityResult,
   CapabilityRisk
@@ -128,7 +127,7 @@ export class CADCapabilityRouter {
       return blocked("Capability is not routable while its status is " + definition.status + ".");
     }
 
-    if (!Array.isArray(request.input) && (typeof request.input !== "object" || request.input === null)) {
+    if (Array.isArray(request.input) || typeof request.input !== "object" || request.input === null) {
       return blocked("CAD routing requires an input object.");
     }
 
@@ -216,7 +215,7 @@ export class CADCapabilityRouter {
     }
 
     const preferences = uniqueStrings(requestedProviders);
-    const preferenceRank = new Map(preferences.map((id, index) => [id, index]));
+    const preferenceRank = new Map<string, number>(preferences.map((id, index) => [id, index] as const));
     const ordered = [...eligible].sort((a, b) => {
       const rankA = preferenceRank.get(a.id);
       const rankB = preferenceRank.get(b.id);
@@ -331,7 +330,7 @@ export class CADCapabilityRouter {
       ...(lastResult ? { providerResult: lastResult } : {}),
       plan,
       attempts,
-      fallbackUsed: false,
+      fallbackUsed: attempts.length > 1,
       reason: plan.fallbackAllowed
         ? "All permitted CAD provider attempts failed."
         : "The selected CAD provider failed and policy did not permit fallback."

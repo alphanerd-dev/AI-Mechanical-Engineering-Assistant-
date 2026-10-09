@@ -204,6 +204,17 @@ describe("V2.1.2 provider-neutral CAD capability routing", () => {
     ])).toThrow("Duplicate CAD provider profile");
   });
 
+  it("rejects array inputs instead of treating them as CAD input records", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerCatalog(ENGINEERING_CAPABILITIES);
+    const router = new CADCapabilityRouter(registry, []);
+    expect(router.plan({
+      capability: "CAD.CREATE_PART",
+      input: [] as unknown as Record<string, unknown>,
+      risk: "LOW"
+    }).status).toBe("BLOCKED");
+  });
+
   it("blocks a required provider that is not registered or not explicitly available", () => {
     const router = setup([
       makeProvider("cad.build123d", ["CAD.CREATE_PART"], async () => ({
