@@ -49,7 +49,8 @@ async function main(): Promise<void> {
       trustedIdentityPreserved: false,
       validationNotClaimed: false,
       taskStateUnchanged: false,
-      advisoryLimitationPresent: false
+      advisoryLimitationPresent: false,
+      providerIdentityRecorded: false
     }
   };
   const outputPath =
@@ -122,7 +123,17 @@ async function main(): Promise<void> {
       routed.graph,
       taskId,
       new ModelBackedTaskReasoningProposer(generator),
-      { now, recordId: `live-model-acceptance-${startedAt}` }
+      {
+        now,
+        recordId: `live-model-acceptance-${startedAt}`,
+        trustedEvidenceReferences: [],
+        provenance: {
+          mode: "MODEL_BACKED",
+          providerId: "openai-compatible-http",
+          modelId: model,
+          deploymentRevision: evidence.deploymentRevision
+        }
+      }
     );
     evidence.checks.proposalAcceptedByControlledValidator = true;
     evidence.recordStatus = result.record.status;
@@ -139,6 +150,15 @@ async function main(): Promise<void> {
       result.record.frameworkVersion === "1.0.0";
     if (!evidence.checks.trustedIdentityPreserved) {
       throw new Error("The accepted record did not preserve trusted project/task/framework identity.");
+    }
+
+    evidence.checks.providerIdentityRecorded =
+      result.record.provenance?.mode === "MODEL_BACKED" &&
+      result.record.provenance.providerId === "openai-compatible-http" &&
+      result.record.provenance.modelId === model &&
+      result.record.provenance.deploymentRevision === evidence.deploymentRevision;
+    if (!evidence.checks.providerIdentityRecorded) {
+      throw new Error("The reasoning record did not preserve host-authored provider provenance.");
     }
 
     evidence.checks.validationNotClaimed =
