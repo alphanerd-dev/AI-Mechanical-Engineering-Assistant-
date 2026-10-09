@@ -1,6 +1,6 @@
 import type { EngineeringTaskGraph, EngineeringTask, EngineeringTaskTransition } from "./types.js";
 import { validateFrameworkReasoningRecord, validateSkillManifest } from "../reasoning-frameworks/validation.js";
-import { getTaskReasoningGateErrors } from "./reasoning.js";
+import { getTaskReadinessGateErrors } from "./reasoning.js";
 
 const allowed: Record<EngineeringTask["status"], EngineeringTaskTransition[]> = {
   PROPOSED: ["READY", "BLOCKED"],
