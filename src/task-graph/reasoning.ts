@@ -66,10 +66,12 @@ export function assignTaskSkillManifest(
     throw new Error(`Task capability is outside the skill's allowedCapabilities: ${task.capability}.`);
   }
 
+  const sameSkill = task.reasoning?.skillManifest?.id === skill.id &&
+    task.reasoning?.skillManifest?.version === skill.version;
   const reasoning = {
     ...task.reasoning,
     skillManifest: skill,
-    records: task.reasoning?.records ? [...task.reasoning.records] : []
+    records: sameSkill ? [...(task.reasoning?.records ?? [])] : []
   };
   const nextTask: EngineeringTask = {
     ...task,
@@ -102,18 +104,15 @@ export function routeTaskReasoning(
     requestedFrameworkVersion: options.requestedFrameworkVersion
   }, options.frameworkRegistry);
 
-  const previousDecision = task.reasoning?.routingDecision;
-  const sameSelection = decision.status === "SELECTED" &&
-    previousDecision?.status === "SELECTED" &&
-    decision.frameworkId === previousDecision.frameworkId &&
-    decision.frameworkVersion === previousDecision.frameworkVersion;
   const reasoning = {
     ...task.reasoning,
     required: options.required ?? task.reasoning?.required ?? false,
     taskType,
     uncertainty,
     routingDecision: decision,
-    records: sameSelection ? [...(task.reasoning?.records ?? [])] : []
+    // Every explicit re-route invalidates prior records so changes in task inputs
+    // cannot accidentally reuse reasoning generated against an earlier context.
+    records: []
   };
 
   const nextTask: EngineeringTask = { ...task, reasoning };
