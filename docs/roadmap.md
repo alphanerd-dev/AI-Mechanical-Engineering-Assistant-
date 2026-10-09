@@ -322,7 +322,7 @@ Notes:
 - [x] V2.0.20 domain-neutral completion routing
 - [x] V2.0.21 first non-mechanical completion unit — Electrical DC load
 - [x] V2.0.22 model-backed reasoning proposal adapter
-- [ ] V2.0.23 workspace integration for controlled reasoning
+- [x] V2.0.23 workspace integration for controlled reasoning
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
