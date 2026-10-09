@@ -172,18 +172,34 @@ export function appendTaskReasoningRecord(
  * complete for planning purposes only after a PROPOSED record exists; downstream
  * engineering validation/evidence gates remain independent.
  */
-export function getTaskReasoningGateErrors(task: EngineeringTask): string[] {
+export function getTaskReadinessGateErrors(task: EngineeringTask): string[] {
   const reasoning = task.reasoning;
-  if (!reasoning?.required) return [];
+  const errors: string[] = [];
+
+  if (reasoning?.skillManifest) {
+    const availableInputs = new Set(Object.keys(task.input ?? {}));
+    if (task.goal.trim()) availableInputs.add("task");
+    const missingSkillInputs = reasoning.skillManifest.requiredInputs.filter((name) => !availableInputs.has(name));
+    errors.push(...missingSkillInputs.map((name) => `Required skill input is missing: ${name}.`));
+  }
+
+  if (!reasoning?.required) return errors;
   const decision = reasoning.routingDecision;
-  if (!decision) return ["Required reasoning framework has not been routed."];
+  if (!decision) {
+    errors.push("Required reasoning framework has not been routed.");
+    return errors;
+  }
   if (decision.status !== "SELECTED" || !decision.frameworkId || !decision.frameworkVersion) {
-    return ["Required reasoning framework is blocked or skipped; required inputs must be resolved."];
+    errors.push("Required reasoning framework is blocked or skipped; required inputs must be resolved.");
+    return errors;
   }
   const hasProposedRecord = (reasoning.records ?? []).some((record) =>
     record.frameworkId === decision.frameworkId &&
     record.frameworkVersion === decision.frameworkVersion &&
     record.status === "PROPOSED"
   );
-  return hasProposedRecord ? [] : ["Required reasoning record is missing; create a PROPOSED record before readiness."];
+  if (!hasProposedRecord) {
+    errors.push("Required reasoning record is missing; create a PROPOSED record before readiness.");
+  }
+  return errors;
 }
