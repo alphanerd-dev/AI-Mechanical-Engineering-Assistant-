@@ -1,5 +1,5 @@
 import type { FrameworkRoutingDecision, FrameworkRoutingRequest, ReasoningFrameworkId } from "./types.js";
-import { getReasoningFramework, type ReasoningFrameworkRegistry } from "./registry.js";
+import { getReasoningFramework, type ReasoningFrameworkRegistry } from "./registry";
 
 /** Selects a reasoning method only; it never executes engineering capabilities or verifies results. */
 export function routeReasoningFramework(
