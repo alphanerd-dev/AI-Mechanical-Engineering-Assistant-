@@ -28,8 +28,8 @@ function getMutableTask(graph: EngineeringTaskGraph, taskId: string): { task: En
   if (index < 0) throw new Error(`Engineering task not found: ${taskId}.`);
   const task = graph.tasks[index];
   if (task.projectId !== graph.projectId) throw new Error("Task and graph project ids must match.");
-  if (["RUNNING", "COMPLETED", "VERIFIED"].includes(task.status)) {
-    throw new Error(`Reasoning metadata cannot be changed after execution starts: ${task.id}.`);
+  if (["READY", "RUNNING", "COMPLETED", "VERIFIED"].includes(task.status)) {
+    throw new Error(`Reasoning metadata cannot be changed after a task becomes ready: ${task.id}.`);
   }
   return { task, index };
 }
