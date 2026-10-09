@@ -103,6 +103,27 @@ describe("reasoning-framework integration with task graphs", () => {
     expect(validateEngineeringTaskGraph(next)).toEqual([]);
   });
 
+  it("enforces skill-mandated approval during READY transitions", () => {
+    const registry = new InMemorySkillManifestRegistry([createSkill()]);
+    const assigned = assignTaskSkillManifest(
+      createGraph({ capability: "ANALYSIS.SHAFT_SIZE" }),
+      "task-1",
+      "engineering-rd",
+      "1.0.0",
+      registry,
+      NOW
+    );
+    expect(evaluateTaskReady(assigned, "task-1").reasons).toContain(
+      "Explicit human approval is required before this task can become READY."
+    );
+    expect(() => transitionTask(assigned, "task-1", "READY", NOW))
+      .toThrow(/Assigned skill requires explicit human approval/);
+
+    const approved = structuredClone(assigned);
+    approved.tasks[0].approvalGranted = true;
+    expect(transitionTask(approved, "task-1", "READY", NOW).tasks[0].status).toBe("READY");
+  });
+
   it("rejects assigning a skill outside its declared capability or risk boundary", () => {
     const registry = new InMemorySkillManifestRegistry([createSkill()]);
     expect(() => assignTaskSkillManifest(createGraph({ capability: "CAD.CREATE_PART" }), "task-1", "engineering-rd", "1.0.0", registry, NOW))
