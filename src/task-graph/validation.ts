@@ -163,7 +163,7 @@ export function transitionTask(
     if (task.reasoning?.skillManifest?.requiresApproval && !task.approvalGranted) {
       throw new Error("Assigned skill requires explicit human approval before the task can become READY.");
     }
-    const reasoningGateErrors = getTaskReasoningGateErrors(task);
+    const reasoningGateErrors = getTaskReadinessGateErrors(task);
     if (reasoningGateErrors.length) throw new Error(reasoningGateErrors.join(" "));
   }
   const next = structuredClone(graph);
