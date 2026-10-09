@@ -194,3 +194,7 @@ registry.register(new AIEngineeringIntentProvider(router,createDefaultDeterminis
 const agent=new EngineeringAgent(router);
 const result=agent.start("Design a shaft that transmits 5 kW at 1500 rpm.");
 console.log(JSON.stringify(result,null,2));
+
+// Opt-in reference CAD provider and isolated worker transport.
+export * from "./execution/docker-build123d-transport.js";
+export * from "./providers/build123d-cad.js";

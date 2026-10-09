@@ -59,6 +59,14 @@ CAD execution outputs can now be bound to a canonical project/model identity, ho
 
 See [V2.1.3 provenance contract](docs/v2-1-3-cad-provenance.md).
 
+## V2.1.4 — First reference CAD provider: build123d
+
+The first executable CAD provider is wired to the repository's isolated build123d worker through a Docker stdio transport. The host sends one JSON request over stdin, receives a JSON response over stdout, applies timeout/resource/network/read-only-container controls, verifies each returned artifact path, and records source/model/provider provenance. It does not run generated Python in the application process or claim geometry is verified without an independent validator receipt.
+
+The adapter is opt-in. Create it with trusted server-side Docker image and artifact-root configuration, register it in the capability registry, and mark the provider AVAILABLE in CADCapabilityRouter only when the runtime is provisioned and reachable. The provider executes CAD source supplied by the engineering workflow; it does not yet generate parametric source from natural language or dimensions.
+
+See [V2.1.4 deployment and provider contract](docs/v2-1-4-build123d-provider.md).
+
 ## Benchmark
 
 Input: "Design a shaft that transmits 5 kW at 1500 rpm."
