@@ -324,6 +324,8 @@ Notes:
 - [x] V2.0.22 model-backed reasoning proposal adapter
 - [x] V2.0.23 workspace integration for controlled reasoning
 - [x] V2.0.24 reasoning model transport/configuration acceptance
+- [x] V2.0.25 transport failure + controlled response acceptance suite
+- [x] V2.0.26 live-provider acceptance harness + restricted manual workflow
 - [ ] Live external-provider acceptance in a configured deployment
 - [ ] Domain expansion beyond Mechanical Engineering
 
