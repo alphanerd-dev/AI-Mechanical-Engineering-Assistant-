@@ -58,4 +58,4 @@ The live reasoning provider was exercised against the V2.0.27 provider-provenanc
 - [x] A missing thermal input escalates instead of being invented.
 - [x] Thermal limit violation fails closed and emits no evidence.
 - [x] Passing results remain awaiting explicit authorized approval.
-- [ ] Repository CI (unit tests, type-check/build, lint, and security checks) is green for this change.
+- [x] Repository CI (unit tests, type-check/build, lint, and security checks) is green for this change.
