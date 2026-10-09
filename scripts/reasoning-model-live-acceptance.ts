@@ -11,6 +11,66 @@ import type { EngineeringTaskGraph } from "../src/task-graph/types.js";
 const ADVISORY_LIMITATION =
   "Reasoning output is advisory and does not establish engineering correctness.";
 
+class AcceptanceConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AcceptanceConfigurationError";
+  }
+}
+
+interface LiveProviderConfiguration {
+  endpoint: string;
+  model: string;
+  apiKey: string;
+  timeoutMs: number;
+}
+
+function validateLiveProviderConfiguration(
+  env: Record<string, string | undefined>
+): LiveProviderConfiguration {
+  const requiredKeys = [
+    "ENGINEERING_REASONING_MODEL_URL",
+    "ENGINEERING_REASONING_MODEL_NAME",
+    "ENGINEERING_REASONING_MODEL_API_KEY",
+    "ENGINEERING_REASONING_MODEL_TIMEOUT_MS"
+  ] as const;
+  const missing = requiredKeys.filter((key) => !env[key]?.trim());
+  if (missing.length > 0) {
+    throw new AcceptanceConfigurationError(
+      `Missing required configuration: ${missing.join(", ")}.`
+    );
+  }
+
+  const endpointValue = env.ENGINEERING_REASONING_MODEL_URL!.trim();
+  let endpoint: URL;
+  try {
+    endpoint = new URL(endpointValue);
+  } catch {
+    throw new AcceptanceConfigurationError(
+      "ENGINEERING_REASONING_MODEL_URL must be an absolute HTTPS URL."
+    );
+  }
+  if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) {
+    throw new AcceptanceConfigurationError(
+      "ENGINEERING_REASONING_MODEL_URL must use HTTPS without embedded credentials."
+    );
+  }
+
+  const timeoutValue = Number(env.ENGINEERING_REASONING_MODEL_TIMEOUT_MS);
+  if (!Number.isInteger(timeoutValue) || timeoutValue < 1_000 || timeoutValue > 120_000) {
+    throw new AcceptanceConfigurationError(
+      "ENGINEERING_REASONING_MODEL_TIMEOUT_MS must be an integer from 1000 to 120000."
+    );
+  }
+
+  return {
+    endpoint: endpointValue,
+    model: env.ENGINEERING_REASONING_MODEL_NAME!.trim(),
+    apiKey: env.ENGINEERING_REASONING_MODEL_API_KEY!.trim(),
+    timeoutMs: timeoutValue
+  };
+}
+
 interface AcceptanceEvidence {
   schemaVersion: 1;
   test: "reasoning-model-live-acceptance";
@@ -58,20 +118,24 @@ async function main(): Promise<void> {
     "reasoning-model-live-acceptance.json";
 
   try {
-    if (!process.env.ENGINEERING_REASONING_MODEL_URL?.trim() || !model) {
-      throw new Error(
-        "ENGINEERING_REASONING_MODEL_URL and ENGINEERING_REASONING_MODEL_NAME must be configured in the acceptance environment."
-      );
-    }
+    const providerConfig = validateLiveProviderConfiguration(process.env);
 
     const liveFetch: typeof fetch = async (input, init) => {
       const response = await fetch(input, init);
       evidence.checks.realEndpointCalled = true;
       return response;
     };
-    const configured = createConfiguredReasoningGenerator(process.env, liveFetch);
+    const configured = createConfiguredReasoningGenerator({
+      ...process.env,
+      ENGINEERING_REASONING_MODEL_URL: providerConfig.endpoint,
+      ENGINEERING_REASONING_MODEL_NAME: providerConfig.model,
+      ENGINEERING_REASONING_MODEL_API_KEY: providerConfig.apiKey,
+      ENGINEERING_REASONING_MODEL_TIMEOUT_MS: String(providerConfig.timeoutMs)
+    }, liveFetch);
     if (!configured) {
-      throw new Error("The configured reasoning model generator is unavailable.");
+      throw new AcceptanceConfigurationError(
+        "The configured reasoning model generator could not be initialized."
+      );
     }
     evidence.checks.configurationPresent = true;
     const generator: ModelReasoningGenerator = {
@@ -183,11 +247,13 @@ async function main(): Promise<void> {
   } catch (error) {
     evidence.outcome = "FAILED";
     evidence.failureCategory =
-      error instanceof ModelTransportError
-        ? "MODEL_TRANSPORT_ERROR"
-        : error instanceof Error
-          ? error.name
-          : "UNKNOWN_ERROR";
+      error instanceof AcceptanceConfigurationError
+        ? "CONFIGURATION_ERROR"
+        : error instanceof ModelTransportError
+          ? error.code
+          : error instanceof Error
+            ? "ACCEPTANCE_VALIDATION_ERROR"
+            : "UNKNOWN_ERROR";
     evidence.failureMessage =
       error instanceof Error
         ? error.message.slice(0, 320)
@@ -221,9 +287,11 @@ async function main(): Promise<void> {
         `- **Duration:** ${evidence.durationMs} ms`,
         `- **Record status:** ${evidence.recordStatus ?? "not produced"}`,
         `- **Validation status:** ${evidence.validationStatus ?? "not produced"}`,
+        `- **Failure category:** ${evidence.failureCategory ?? "none"}`,
+        `- **Checks:** ${JSON.stringify(evidence.checks)}`,
         evidence.failureMessage ? `- **Failure:** ${evidence.failureMessage}` : "",
         "",
-        "No API key, raw prompt, or full model output is recorded in this summary.",
+        "No API key, raw prompt, authorization header, or full model output is recorded in this summary.",
         ""
       ].filter(Boolean).join("\n");
       try {
