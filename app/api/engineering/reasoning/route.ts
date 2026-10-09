@@ -248,6 +248,14 @@ async function saveWorkspace(
   return validateStoredSnapshot(data.snapshot, next.project.id, Number(data.revision));
 }
 
+async function authorizeProject(permission: "PROJECT.READ" | "PROJECT.WRITE", projectId: string) {
+  try {
+    return await authorizeSupabaseRequest(permission, projectId);
+  } catch {
+    throw new ApiError(503, "The project authorization service is unavailable. Check Supabase server configuration and sign-in state.");
+  }
+}
+
 function getProjectId(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) throw new ApiError(400, "projectId is required.");
   return value.trim();
@@ -283,7 +291,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const projectId = getProjectId(url.searchParams.get("projectId"));
-    const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
+    const authorization = await authorizeProject("PROJECT.READ", projectId);
     if (!authorization.allowed) return NextResponse.json({ error: authorization.reason }, { status: 403 });
 
     const registry = createDefaultReasoningFrameworkRegistry();
@@ -294,7 +302,7 @@ export async function GET(request: Request) {
       workspaceRevision: loaded.snapshot.revision,
       frameworks: registry.list(),
       storageMode: loaded.storageMode,
-      persisted: loaded.persisted,
+      persisted: loaded.storageMode === "DURABLE" && loaded.persisted,
       modelConfigured: Boolean(
         process.env.ENGINEERING_REASONING_MODEL_URL?.trim() &&
         process.env.ENGINEERING_REASONING_MODEL_NAME?.trim()
@@ -320,7 +328,7 @@ export async function POST(request: Request) {
       throw new ApiError(400, "action must be CREATE_TASK, UPDATE_INPUTS, or PROPOSE_REASONING.");
     }
 
-    const authorization = await authorizeSupabaseRequest("PROJECT.WRITE", projectId);
+    const authorization = await authorizeProject("PROJECT.WRITE", projectId);
     if (!authorization.allowed) return NextResponse.json({ error: authorization.reason }, { status: 403 });
 
     const loaded = await loadWorkspace(projectId, authorization.subject);
@@ -381,7 +389,12 @@ export async function POST(request: Request) {
       });
     }
 
-    const generator = createConfiguredReasoningGenerator();
+    let generator;
+    try {
+      generator = createConfiguredReasoningGenerator();
+    } catch {
+      throw new ApiError(503, "Reasoning model configuration is invalid. Check the server-side endpoint, model name, API key, and timeout values.");
+    }
     if (!generator) {
       throw new ApiError(503, "No reasoning model is configured. Set the server-side ENGINEERING_REASONING_MODEL_URL and ENGINEERING_REASONING_MODEL_NAME values.");
     }
