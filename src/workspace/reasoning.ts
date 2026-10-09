@@ -1,10 +1,10 @@
-import type { ReasoningFrameworkRegistry, FrameworkReasoningRecord } from "../reasoning-frameworks/index.js";
-import type { TaskReasoningProposer } from "../task-graph/reasoning-execution.js";
+import type { ReasoningFrameworkRegistry, FrameworkReasoningRecord } from "../reasoning-frameworks/types";
+import type { TaskReasoningProposer } from "../task-graph/reasoning-execution";
 import { executeTaskReasoning } from "../task-graph/reasoning-execution.js";
-import { routeTaskReasoning } from "../task-graph/reasoning.js";
-import type { EngineeringTask, EngineeringTaskGraph } from "../task-graph/types.js";
-import type { EngineeringWorkspaceSnapshot } from "./types.js";
-import { validateEngineeringWorkspaceSnapshot } from "./validation.js";
+import { routeTaskReasoning } from "../task-graph/reasoning";
+import type { EngineeringTask, EngineeringTaskGraph } from "../task-graph/types";
+import type { EngineeringWorkspaceSnapshot } from "./types";
+import { validateEngineeringWorkspaceSnapshot } from "./validation";
 
 export interface CreateWorkspaceReasoningTaskInput {
   taskId: string;
