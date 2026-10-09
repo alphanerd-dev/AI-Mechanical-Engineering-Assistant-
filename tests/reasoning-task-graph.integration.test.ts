@@ -124,6 +124,23 @@ describe("reasoning-framework integration with task graphs", () => {
     expect(transitionTask(approved, "task-1", "READY", NOW).tasks[0].status).toBe("READY");
   });
 
+  it("blocks readiness when a bound skill's required input is missing", () => {
+    const registry = new InMemorySkillManifestRegistry([
+      createSkill({ requiredInputs: ["task", "material-specification"], requiresApproval: false })
+    ]);
+    const assigned = assignTaskSkillManifest(
+      createGraph({ capability: "ANALYSIS.SHAFT_SIZE" }),
+      "task-1",
+      "engineering-rd",
+      "1.0.0",
+      registry,
+      NOW
+    );
+    const ready = evaluateTaskReady(assigned, "task-1");
+    expect(ready.ready).toBe(false);
+    expect(ready.reasons).toContain("Required skill input is missing: material-specification.");
+  });
+
   it("rejects assigning a skill outside its declared capability or risk boundary", () => {
     const registry = new InMemorySkillManifestRegistry([createSkill()]);
     expect(() => assignTaskSkillManifest(createGraph({ capability: "CAD.CREATE_PART" }), "task-1", "engineering-rd", "1.0.0", registry, NOW))
