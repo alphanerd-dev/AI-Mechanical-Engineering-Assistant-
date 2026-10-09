@@ -91,7 +91,7 @@ function validateStoredSnapshot(value: unknown, projectId: string, rowRevision: 
   } catch {
     throw new ApiError(503, "The saved workspace snapshot failed validation. Changes were not applied.");
   }
-  if (snapshot.project.id !== projectId || snapshot.taskGraph.projectId !== projectId || snapshot.id !== projectId) {
+  if (snapshot.project.id !== projectId || snapshot.taskGraph.projectId !== projectId) {
     throw new ApiError(503, "Saved workspace project identity does not match the requested project.");
   }
   if (snapshot.revision !== rowRevision) {
