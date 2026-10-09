@@ -9,6 +9,8 @@
   "properties": {
     "schemaVersion": { "const": 1 },
     "recordId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "taskId": { "type": "string", "minLength": 1 },
     "createdAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$" },
     "taskType": { "type": "string", "minLength": 1 },
     "frameworkId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "minLength": 1 },

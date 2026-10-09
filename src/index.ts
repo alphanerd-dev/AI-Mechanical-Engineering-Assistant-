@@ -70,6 +70,7 @@ export * from "./robotics/index.js";
 export * from "./system-simulation/index.js";
 export * from "./workspace/index.js";
 export * from "./task-graph/index.js";
+export * from "./reasoning-frameworks/index.js";
 export * from "./agents/specialists.js";
 export * from "./agents/runtime.js";
 export * from "./agents/langgraph-adapter.js";

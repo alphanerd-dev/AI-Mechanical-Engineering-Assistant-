@@ -1,11 +1,11 @@
 import type { CapabilityRisk } from "../core/types.js";
 
-export type ReasoningFrameworkId = "first-principles" | "weighted-decision-matrix" | "five-whys";
+export type ReasoningFrameworkId = string;
 export type FrameworkReasoningStatus = "PROPOSED" | "INCOMPLETE" | "BLOCKED";
 
 export interface ReasoningFrameworkManifest {
   schemaVersion: 1;
-  id: string;
+  id: ReasoningFrameworkId;
   version: string;
   name: string;
   purpose: string;
@@ -20,11 +20,13 @@ export interface FrameworkRoutingRequest {
   uncertainty: "LOW" | "MEDIUM" | "HIGH";
   availableInputs: string[];
   requestedFramework?: ReasoningFrameworkId;
+  requestedFrameworkVersion?: string;
 }
 
 export interface FrameworkRoutingDecision {
   status: "SELECTED" | "SKIPPED" | "BLOCKED";
   frameworkId?: ReasoningFrameworkId;
+  frameworkVersion?: string;
   reasons: string[];
   missingInputs: string[];
 }
@@ -47,6 +49,8 @@ export interface FrameworkReasoningRecord {
   schemaVersion: 1;
   recordId: string;
   createdAt: string;
+  projectId?: string;
+  taskId?: string;
   taskType: string;
   frameworkId: string;
   frameworkVersion: string;
@@ -64,8 +68,11 @@ export interface FrameworkReasoningRecord {
 export interface CreateFrameworkReasoningRecordInput {
   recordId: string;
   createdAt: string;
+  projectId?: string;
+  taskId?: string;
   taskType: string;
   frameworkId: ReasoningFrameworkId;
+  frameworkVersion?: string;
   status: FrameworkReasoningStatus;
   inputs: Record<string, unknown>;
   assumptions: string[];
