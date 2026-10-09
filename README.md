@@ -41,6 +41,12 @@ The shared natural-intent completion path now has acceptance coverage for a mech
 
 See [V2.0.28 cross-domain and thermal acceptance](docs/v2-0-28-cross-domain-thermal-acceptance.md) and the [roadmap](docs/roadmap.md).
 
+## V2.1.1 — Provider-neutral CAD model identity
+
+The CAD layer now defines a canonical, project-scoped model identity that can be linked to multiple provider-native references. The reference registry fails closed on cross-project access and duplicate native mappings. It is an in-memory identity primitive only; it does not synchronize geometry or claim provider connectivity.
+
+See [V2.1.1 identity contract](docs/v2-1-1-cad-identity.md).
+
 ## Benchmark
 
 Input: "Design a shaft that transmits 5 kW at 1500 rpm."
