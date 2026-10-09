@@ -1,5 +1,5 @@
 import type { ReasoningFrameworkId, ReasoningFrameworkManifest } from "./types.js";
-import { parseFrameworkManifest } from "./validation.js";
+import { parseFrameworkManifest } from "./validation";
 
 const builtInFrameworks: ReasoningFrameworkManifest[] = [
   {
