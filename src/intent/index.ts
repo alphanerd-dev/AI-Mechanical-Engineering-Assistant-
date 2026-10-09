@@ -4,3 +4,4 @@ export * from "./session.js";
 export * from "./model-adapter.js";
 export * from "./electrical.js";
 export * from "./deterministic.js";
+export * from "./thermal.js";

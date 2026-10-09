@@ -50,9 +50,12 @@ import {RiskAdaptiveExperienceProvider} from "./providers/experience.js";
 import {EngineeringContextProvider} from "./providers/context.js";
 import {V2_0_14_CAPABILITIES} from "./capabilities/v2-0-14.js";
 import {V2_0_21_CAPABILITIES} from "./capabilities/v2-0-21.js";
+import {V2_0_28_CAPABILITIES} from "./capabilities/v2-0-28.js";
 import {AIEngineeringIntentProvider} from "./providers/ai-intent.js";
 import {ElectricalAnalysisProvider} from "./providers/electrical.js";
 import {ElectricalEngineeringCompletionProvider} from "./providers/electrical-completion.js";
+import {ThermalAnalysisProvider} from "./providers/thermal.js";
+import {ThermalEngineeringCompletionProvider} from "./providers/thermal-completion.js";
 import {createDefaultDeterministicEngineeringIntentInterpreter} from "./intent/deterministic.js";
 
 // V1.15 project-state persistence remains available from ./state/persistence.js.
@@ -103,6 +106,7 @@ registry.registerCatalog(V2_0_11_CAPABILITIES);
 registry.registerCatalog(V2_0_12_CAPABILITIES);
 registry.registerCatalog(V2_0_14_CAPABILITIES);
 registry.registerCatalog(V2_0_21_CAPABILITIES);
+registry.registerCatalog(V2_0_28_CAPABILITIES);
 registry.register(new NumericalAnalysisProvider());
 registry.register(new UnitComputationProvider());
 const pythonWorkerClient:PythonWorkerClient={run:async()=>({success:false,outputs:{},warnings:["Python worker client is not configured for this entrypoint."],artifactIds:[]})};
@@ -183,6 +187,8 @@ registry.register(new RiskAdaptiveExperienceProvider());
 registry.register(new EngineeringContextProvider());
 registry.register(new ElectricalAnalysisProvider());
 registry.register(new ElectricalEngineeringCompletionProvider(router));
+registry.register(new ThermalAnalysisProvider());
+registry.register(new ThermalEngineeringCompletionProvider(router));
 registry.register(new AIEngineeringIntentProvider(router,createDefaultDeterministicEngineeringIntentInterpreter()));
 
 const agent=new EngineeringAgent(router);
