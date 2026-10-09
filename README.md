@@ -40,10 +40,16 @@ Input: "Design a shaft that transmits 5 kW at 1500 rpm."
 
 The core calculates torque (~31.83 N·m) and reports critical missing design inputs rather than inventing them.
 
+## Live reasoning model acceptance
+
+The configured model transport is optional during development. To run the real-provider acceptance, configure the GitHub Environment and follow [the provider stack decision and setup guide](docs/reasoning-model-provider-stack.md). Trigger **Actions → Live Reasoning Model Acceptance** on `main`; the workflow calls the real endpoint and uploads redacted evidence. Ordinary CI uses deterministic fixtures and never requires a live API key.
+
+See also [Phase G acceptance scope](docs/reasoning-frameworks-phase-g.md).
+
 ## Development
 
 ```bash
-npm install
+npm ci
 npm test
 npm run build
 ```
