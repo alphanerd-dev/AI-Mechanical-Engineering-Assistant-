@@ -40,7 +40,7 @@ The default IDs are cad.build123d for execution and cad.occt for validation. The
 
 The acceptance suite in tests/cad-intent-completion.test.ts exercises parsing, unit conversion, missing input, ambiguity, size bounds, source generation, provider routing, successful end-to-end orchestration, validator unavailability, invalid geometry, and fail-closed behavior when execution is not explicitly available.
 
-The workflow tests use fake executors and a fake validation adapter to verify application contracts. They do not claim that the deployed Docker image or a separately deployed OCCT/FreeCAD validator has run in production. The repository CI separately builds and smoke-tests the pinned build123d worker image.
+The application-level orchestration tests use fake execution and validation adapters to verify contract behavior. CI also sends the parsed natural-language intent through the deterministic generator into the pinned build123d Docker worker, then asserts that real BREP, STEP, STL, and 3MF files are created. This proves the generated source runs in the CI worker image; it does not claim that an independent OCCT/FreeCAD validator has been deployed or that production VERIFIED evidence has been emitted.
 
 ## Current boundary
 
