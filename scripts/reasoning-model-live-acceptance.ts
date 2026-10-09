@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { createConfiguredReasoningGenerator, ModelTransportError } from "../src/reasoning-frameworks/openai-compatible-generator.js";
 import { ModelBackedTaskReasoningProposer } from "../src/reasoning-frameworks/model-adapter.js";
+import type { ModelReasoningGenerator } from "../src/reasoning-frameworks/model-adapter.js";
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
 import { routeTaskReasoning } from "../src/task-graph/reasoning.js";
 import type { EngineeringTaskGraph } from "../src/task-graph/types.js";
@@ -62,11 +63,22 @@ async function main(): Promise<void> {
       );
     }
 
-    const generator = createConfiguredReasoningGenerator(process.env);
-    if (!generator) {
+    const liveFetch: typeof fetch = async (input, init) => {
+      evidence.checks.realEndpointCalled = true;
+      return fetch(input, init);
+    };
+    const configured = createConfiguredReasoningGenerator(process.env, liveFetch);
+    if (!configured) {
       throw new Error("The configured reasoning model generator is unavailable.");
     }
     evidence.checks.configurationPresent = true;
+    const generator: ModelReasoningGenerator = {
+      async generate(request) {
+        const proposal = await configured.generate(request);
+        evidence.checks.proposalReturned = true;
+        return proposal;
+      }
+    };
 
     const projectId = "live-model-acceptance-project";
     const taskId = "live-model-acceptance-task";
@@ -111,8 +123,6 @@ async function main(): Promise<void> {
       new ModelBackedTaskReasoningProposer(generator),
       { now, recordId: `live-model-acceptance-${startedAt}` }
     );
-    evidence.checks.realEndpointCalled = true;
-    evidence.checks.proposalReturned = true;
     evidence.checks.proposalAcceptedByControlledValidator = true;
     evidence.recordStatus = result.record.status;
     evidence.validationStatus = result.record.validationStatus;
