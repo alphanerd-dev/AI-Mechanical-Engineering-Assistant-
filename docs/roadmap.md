@@ -327,7 +327,8 @@ Notes:
 - [x] V2.0.25 transport failure + controlled response acceptance suite
 - [x] V2.0.26 live-provider acceptance harness + restricted manual workflow
 - [x] Live external-provider acceptance in a configured deployment
-- [ ] V2.0.27 model trust-boundary hardening + evidence traceability
+- [x] V2.0.27 model trust-boundary hardening + evidence traceability
+- [ ] Refresh live-provider acceptance evidence against the V2.0.27 provider-provenance assertion
 - [ ] Domain expansion beyond Mechanical Engineering
 
 Notes:
@@ -356,7 +357,7 @@ Notes:
 - V2.0.20 removes the remaining shaft-specific completion-routing coupling. A provider-neutral completion-unit registry now declares required inputs and the capability used for execution, while the AI-native provider resolves a registered unit and delegates through the existing CapabilityRouter. The canonical shaft completion remains the current registered unit; no second domain is added in this milestone.
 - V2.0.21 adds the first genuine non-mechanical completion unit: a bounded steady-state Electrical DC load workflow. It proves domain-aware intent routing, deterministic electrical calculations, fail-closed validation, evidence-by-product, approval/final verification, context reuse, and model-backed structured electrical intent without changing the reusable workspace architecture. Broader Electrical Engineering, transient/thermal/power-electronics/ECAD capabilities remain deferred.
 - Live external-provider acceptance passed on 2026-10-09. The redacted artifact recorded `outcome: PASSED`, `realEndpointCalled: true`, proposal acceptance, trusted identity preservation, `recordStatus: PROPOSED`, `validationStatus: NOT_PERFORMED`, and deployment revision `7299cf996f736215ffef154f8f787d7d5fe02d12`. This verifies the configured integration test only, not the correctness of engineering proposals.
-- V2.0.27 adds host-authored provider provenance to workspace records, rejects model-invented evidence references unless a server-side allowlist explicitly authorizes them, and expands negative-path/adversarial/repeatability acceptance tests. Keep this milestone open until CI verifies the implementation.
+- V2.0.27 implements host-authored provider provenance, rejects model-invented evidence references unless a server-side allowlist explicitly authorizes them, and expands negative-path/adversarial/repeatability acceptance tests. The implementation is merged and CI-verified on 2026-10-09: 79 test files and 386 tests passed, the production build passed, changed-file ESLint passed, and all CodeQL jobs passed. The existing live-provider artifact is from deployment revision `7299cf996f736215ffef154f8f787d7d5fe02d12`; the updated harness now checks `providerIdentityRecorded`, but that added assertion has not yet been exercised against a fresh external-provider call. Refresh the live-provider evidence before closing the remaining sub-gate. The Codacy workflow is explicitly skipped until `CODACY_PROJECT_TOKEN` is configured; its workflow status is not a Codacy-analysis pass.
 - Product/UX work must obey the peer principles: "AI proposes. Deterministic systems execute. Validation decides. Evidence proves." and "Fast by default. Rigorous when it matters. Explicit when risk increases."
 
 ## V2.1 — Multi-CAD Engineering Layer
