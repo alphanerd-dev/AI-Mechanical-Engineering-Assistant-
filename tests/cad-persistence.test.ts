@@ -41,7 +41,10 @@ describe("CAD completion persistence boundary", () => {
         evidence: { id: "evidence-1", type: "GEOMETRY_CHECK", status: "VERIFIED",
           artifactIds: ["solid-1", "solid-1-engineering"], value: {
             artifactSha256: "b".repeat(64), artifactId: "solid-1", sourceSha256: "a".repeat(64),
-            validatorProviderId: "cad.occt"
+            validatorProviderId: "cad.occt",
+            validatorVersion: "occt-test-1",
+            checkedAt: "2026-10-10T00:00:00.000Z",
+            validation: { valid: true, solidCount: 1 }
           } }
       }
     } as unknown as CADPartCompletionResult;
