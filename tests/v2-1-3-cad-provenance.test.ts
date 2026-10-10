@@ -26,10 +26,13 @@ function manifestFor(overrides:Partial<CADExecutionResult>={}) {
 }
 function receiptFor(manifest=manifestFor(),overrides:Record<string,unknown>={}):CADValidationReceipt {
   const solid=manifest.artifacts.find(a=>a.kind==="SOLID")!;
+  const artifactSha256="b".repeat(64);
+  solid.provenance!.artifactSha256=artifactSha256;
   return {
     id:"validation-1",projectId:"project-1",artifactId:solid.id,modelIdentityId:model.id,
-    sourceSha256:solid.provenance!.sourceSha256,backend:solid.backend,checkedBy:"occt",
-    checkedAt:"2026-10-09T10:06:00.000Z",validation,
+    sourceSha256:solid.provenance!.sourceSha256,backend:solid.backend,
+    validatorProviderId:"cad.occt",validatorVersion:"occt-test-1",artifactSha256,
+    checkedBy:"occt",checkedAt:"2026-10-09T10:06:00.000Z",validation,
     ...overrides
   } as CADValidationReceipt;
 }
@@ -84,6 +87,16 @@ describe("V2.1.3 CAD artifact provenance and validation integration",()=>{
     expect(wrongArtifact.errors.join(" ")).toContain("exact solid artifact");
     expect(wrongProject.status).toBe("INCOMPLETE");
     expect(wrongProject.bundle).toBeUndefined();
+  });
+
+  it("fails closed if validator identity aliases the execution provider or output digest is mismatched",()=>{
+    const manifest=manifestFor();
+    const sameProvider=createCADArtifactBundleFromManifest(manifest,receiptFor(manifest,{validatorProviderId:"cad.build123d"}));
+    expect(sameProvider.status).toBe("INCOMPLETE");
+    expect(sameProvider.errors.join(" ")).toContain("distinct providers");
+    const badArtifactDigest=createCADArtifactBundleFromManifest(manifest,receiptFor(manifest,{artifactSha256:"c".repeat(64)}));
+    expect(badArtifactDigest.status).toBe("INCOMPLETE");
+    expect(badArtifactDigest.errors.join(" ")).toContain("artifact digest");
   });
 
   it("fails closed if the validator reports a different source digest or backend",()=>{

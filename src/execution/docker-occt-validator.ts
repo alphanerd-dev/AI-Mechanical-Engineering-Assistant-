@@ -1,4 +1,6 @@
 import { stat, realpath } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import {
   CADCommandRunner,
@@ -42,6 +44,8 @@ interface ValidationWorkerResult {
   solidCount: number;
   checkedBy: string;
   warnings: string[];
+  validatorVersion: string;
+  artifactSha256?: string;
   [key: string]: unknown;
 }
 
@@ -75,6 +79,13 @@ function mountPath(value: string, label: string): string {
 
 function finitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  const stream = createReadStream(filePath);
+  for await (const chunk of stream) hash.update(chunk as Buffer);
+  return hash.digest("hex");
 }
 
 /**
@@ -154,6 +165,7 @@ export class DockerOCCTValidatorExecutor implements OcctExecutor {
     if (input.backend !== "build123d") {
       throw new Error("The configured OCCT validator accepts build123d BREP artifacts only.");
     }
+    if (input.artifactKind !== "SOLID") throw new Error("OCCT validation requires the exact SOLID artifact kind.");
     if (!nonEmptyString(input.artifactUri)) throw new Error("OCCT validation requires a host artifact URI.");
 
     const [artifactRoot, artifactPath, scriptPath] = await Promise.all([
@@ -219,6 +231,7 @@ export class DockerOCCTValidatorExecutor implements OcctExecutor {
       this.image,
       CONTAINER_VALIDATOR_ROOT + "/" + scriptName
     ];
+    const artifactSha256Before = await sha256File(artifactPath);
     const runOptions: CADCommandRunOptions = {
       timeoutMs: this.timeoutMs,
       maxStdoutBytes: this.maxStdoutBytes,
@@ -242,10 +255,14 @@ export class DockerOCCTValidatorExecutor implements OcctExecutor {
     }
     if (!isRecord(result) || typeof result.valid !== "boolean" ||
         !Number.isInteger(result.solidCount) || (result.solidCount as number) < 0 ||
-        !nonEmptyString(result.checkedBy) ||
+        !nonEmptyString(result.checkedBy) || !nonEmptyString(result.validatorVersion) ||
         !Array.isArray(result.warnings) || result.warnings.some((warning) => typeof warning !== "string")) {
       throw new Error("OCCT BREP validator response did not match the validation contract.");
     }
-    return result as ValidationWorkerResult;
+    const artifactSha256After = await sha256File(artifactPath);
+    if (artifactSha256Before !== artifactSha256After) {
+      throw new Error("CAD solid bytes changed while independent geometry validation was running.");
+    }
+    return { ...(result as ValidationWorkerResult), artifactSha256: artifactSha256Before };
   }
 }

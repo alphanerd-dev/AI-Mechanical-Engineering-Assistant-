@@ -72,6 +72,62 @@ function stringArray(value: unknown): string[] | undefined {
   return value as string[];
 }
 
+function validSha256(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+/** Successful validator verdicts need measured dimensions, not just a boolean claim. */
+function validateCylinderMeasurements(value: Record<string, unknown>, specification: CADPartSpecification): string[] {
+  const errors: string[] = [];
+  if (typeof value.volumeMm3 !== "number" || !Number.isFinite(value.volumeMm3) || value.volumeMm3 <= 0) {
+    errors.push("A successful geometry verdict must include a finite positive measured volume.");
+  }
+  if (!isRecord(value.boundingBoxMm)) {
+    errors.push("A successful cylinder verdict must include measured boundingBoxMm dimensions.");
+  }
+  const checks = value.dimensionChecks;
+  if (!Array.isArray(checks) || checks.length !== 3 || checks.some((item) => !isRecord(item))) {
+    errors.push("A successful cylinder verdict must include exactly three measured dimension checks.");
+    return errors;
+  }
+  const expected: Record<string, number> = {
+    x: specification.diameterMm,
+    y: specification.diameterMm,
+    z: specification.lengthMm
+  };
+  const seen = new Set<string>();
+  for (const item of checks as Record<string, unknown>[]) {
+    const axis = item.axis;
+    if (typeof axis !== "string" || !(axis in expected) || seen.has(axis)) {
+      errors.push("Cylinder dimension checks must include each of x, y and z exactly once.");
+      continue;
+    }
+    seen.add(axis);
+    const target = expected[axis];
+    const actual = item.actualMm;
+    const expectedValue = item.expectedMm;
+    const tolerance = item.toleranceMm;
+    if (typeof actual !== "number" || !Number.isFinite(actual) || actual <= 0 ||
+        typeof expectedValue !== "number" || !Number.isFinite(expectedValue) ||
+        typeof tolerance !== "number" || !Number.isFinite(tolerance) || tolerance <= 0 || tolerance > 1 ||
+        item.passed !== true) {
+      errors.push("Cylinder dimension check for " + axis + " is malformed or failed.");
+      continue;
+    }
+    if (Math.abs(expectedValue - target) > 1e-9 ||
+        Math.abs(actual - target) > tolerance + target * 1e-6) {
+      errors.push("Measured cylinder " + axis + " extent does not match the requested specification.");
+    }
+    const measuredBounds = value.boundingBoxMm;
+    if (isRecord(measuredBounds) && typeof measuredBounds[axis] === "number" &&
+        Math.abs((measuredBounds[axis] as number) - actual) > 1e-9) {
+      errors.push("Cylinder dimension check " + axis + " does not match boundingBoxMm.");
+    }
+  }
+  if (seen.size !== 3) errors.push("Cylinder dimension checks are incomplete.");
+  return [...new Set(errors)];
+}
+
 function emptyResult(
   status: CADPartCompletionStatus,
   stage: CADPartCompletionStage,
@@ -288,13 +344,15 @@ export class CADPartCompletionWorkflow {
     const rawValidation = validation.providerResult.output;
     if (!isRecord(rawValidation) || typeof rawValidation.valid !== "boolean" ||
         !Number.isInteger(rawValidation.solidCount) || (rawValidation.solidCount as number) < 0 ||
-        !nonEmptyString(rawValidation.checkedBy) || stringArray(rawValidation.warnings) === undefined) {
+        !nonEmptyString(rawValidation.checkedBy) || !nonEmptyString(rawValidation.validatorVersion) ||
+        !validSha256(rawValidation.artifactSha256) || stringArray(rawValidation.warnings) === undefined ||
+        validation.selectedProviderId !== this.validationProviderId) {
       return {
         ...emptyResult(
           "INCOMPLETE",
           "VALIDATION",
           intent,
-          ["Geometry validator returned a malformed result; artifact remains unverified."]
+          ["Geometry validator response is malformed or does not match the host-selected validator; artifact remains unverified."]
         ),
         specification: intent.specification,
         source: generated.source,
@@ -304,12 +362,39 @@ export class CADPartCompletionWorkflow {
       };
     }
 
+    if (rawValidation.valid === true) {
+      const measurementErrors = validateCylinderMeasurements(rawValidation, intent.specification);
+      if (measurementErrors.length) {
+        return {
+          ...emptyResult(
+            "INCOMPLETE",
+            "VALIDATION",
+            intent,
+            measurementErrors,
+            ["The validator claimed success without complete, specification-matched geometry measurements."]
+          ),
+          specification: intent.specification,
+          source: generated.source,
+          execution,
+          validation,
+          manifest
+        };
+      }
+    }
+
+    // Computed at the trusted host boundary; never accept an output-byte digest from generated CAD source.
+    solid.provenance.artifactSha256 = rawValidation.artifactSha256;
     const checkedAt = this.now();
+    const validatorWarnings = stringArray(rawValidation.warnings) ?? [];
+    const exactlyOneSolid = rawValidation.solidCount === 1;
     const validationData: GeometryValidation = {
-      valid: rawValidation.valid,
+      // This bounded workflow generates a single cylinder/shaft, not an assembly.
+      valid: rawValidation.valid === true && exactlyOneSolid,
       solidCount: rawValidation.solidCount as number,
       checkedBy: rawValidation.checkedBy,
-      warnings: stringArray(rawValidation.warnings) ?? []
+      warnings: !exactlyOneSolid
+        ? [...validatorWarnings, "The bounded cylinder completion requires exactly one solid."]
+        : validatorWarnings
     };
     const receipt: CADValidationReceipt = {
       id: this.createReceiptId(),
@@ -318,6 +403,9 @@ export class CADPartCompletionWorkflow {
       modelIdentityId: request.modelIdentity.id,
       sourceSha256,
       backend: generated.backend,
+      validatorProviderId: validation.selectedProviderId!,
+      validatorVersion: rawValidation.validatorVersion as string,
+      artifactSha256: rawValidation.artifactSha256 as string,
       checkedBy: validationData.checkedBy,
       checkedAt,
       validation: validationData

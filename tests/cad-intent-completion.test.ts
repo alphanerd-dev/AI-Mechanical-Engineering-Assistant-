@@ -47,11 +47,21 @@ function makeWorkflow(options: {
     createExecutionId: () => "execution-shaft",
     now: () => "2026-10-10T00:30:00.000Z"
   });
-  const validationOutput = options.validation ?? {
+  const validationOutput = {
     valid: true,
     solidCount: 1,
-    checkedBy: "occt",
-    warnings: []
+    checkedBy: "occt.brepcheck",
+    validatorVersion: "build123d-0.13.0/OCCT-BRepCheck",
+    artifactSha256: "a".repeat(64),
+    volumeMm3: Math.PI * 15 * 15 * 200,
+    boundingBoxMm: { x: 30, y: 30, z: 200 },
+    dimensionChecks: [
+      { axis: "x", actualMm: 30, expectedMm: 30, toleranceMm: 0.01, passed: true },
+      { axis: "y", actualMm: 30, expectedMm: 30, toleranceMm: 0.01, passed: true },
+      { axis: "z", actualMm: 200, expectedMm: 200, toleranceMm: 0.01, passed: true }
+    ],
+    warnings: [],
+    ...(options.validation ?? {})
   };
   const validator = new CADValidationProvider("occt", {
     validate: async () => validationOutput
@@ -197,6 +207,22 @@ describe("end-to-end CAD part completion orchestration", () => {
 
     expect(result.status).toBe("REJECTED");
     expect(result.bundle?.cad.validationStatus).toBe("FAIL");
+    expect(result.bundle?.cad.informationStatus).toBe("CALCULATED");
+    expect(result.bundle?.evidence.status).toBe("CALCULATED");
+  });
+
+  it("does not accept a success boolean without measured dimensions and output digest", async () => {
+    const { workflow } = makeWorkflow({ validation: { dimensionChecks: [], artifactSha256: "bad" } });
+    const result = await workflow.complete({ projectId: "project-shaft", modelIdentity, rawIntent: shaftIntent });
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.stage).toBe("VALIDATION");
+    expect(result.bundle).toBeUndefined();
+  });
+
+  it("rejects contradictory validator claims that report multiple solids", async () => {
+    const { workflow } = makeWorkflow({ validation: { solidCount: 2 } });
+    const result = await workflow.complete({ projectId: "project-shaft", modelIdentity, rawIntent: shaftIntent });
+    expect(result.status).toBe("REJECTED");
     expect(result.bundle?.cad.informationStatus).toBe("CALCULATED");
     expect(result.bundle?.evidence.status).toBe("CALCULATED");
   });

@@ -5,10 +5,10 @@
   "description": "Portable AI Mechanical R&D Engineering core.",
   "type": "module",
   "scripts": {
-    "build": "next build && tsc --noEmit",
+    "build": "next build --webpack && tsc --noEmit",
     "test": "vitest run",
     "benchmark": "tsx benchmarks/v2-0-suite.ts",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "core": "tsx src/index.ts"
   },
   "devDependencies": {
@@ -24,6 +24,7 @@
     "ajv": "8.20.0",
     "next": "^16.0.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "@supabase/supabase-js": "2.117.3"
   }
 }

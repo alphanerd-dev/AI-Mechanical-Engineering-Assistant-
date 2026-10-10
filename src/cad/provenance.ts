@@ -59,6 +59,9 @@ export function validateCADArtifactProvenance(
   if (value.sourceArtifactUri !== undefined && !nonEmptyString(value.sourceArtifactUri)) {
     errors.push("CAD artifact provenance sourceArtifactUri must be non-empty when supplied.");
   }
+  if (value.artifactSha256 !== undefined && (typeof value.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.artifactSha256))) {
+    errors.push("CAD artifact provenance artifactSha256 must be a lowercase SHA-256 digest when supplied.");
+  }
 
   const comparisons: Array<[keyof CADProvenanceExpectation, string]> = [
     ["projectId", "projectId"],
