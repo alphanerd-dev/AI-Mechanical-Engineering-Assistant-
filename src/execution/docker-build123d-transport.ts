@@ -312,7 +312,16 @@ export class DockerBuild123dWorkerTransport implements CADWorkerTransport {
         : ["Worker warnings were missing or malformed."];
 
       if (response.success !== true) {
-        throw new Error(nonEmptyString(response.error) ? response.error : "Generated CAD program failed.");
+        const diagnostics = [
+          nonEmptyString(response.error) ? response.error : "Generated CAD program failed.",
+          typeof response.stderr === "string" && response.stderr.trim()
+            ? "Worker stderr: " + response.stderr.slice(-2000)
+            : "",
+          typeof response.stdout === "string" && response.stdout.trim()
+            ? "Worker stdout: " + response.stdout.slice(-1000)
+            : ""
+        ].filter(Boolean);
+        throw new Error(diagnostics.join("\\n"));
       }
       if (result.exitCode !== 0) {
         throw new Error("Docker worker returned success with a non-zero process exit code.");
