@@ -370,7 +370,10 @@ Notes:
 - [x] First reference CAD provider — isolated build123d worker (V2.1.4)
 - [x] Bounded natural-language cylinder/shaft intent-to-acceptance application workflow (V2.1.5)
 - [x] Isolated OpenCascade BREP validation worker and host Docker executor (V2.1.5)
-- [ ] Production validator deployment, durable verified artifact/evidence persistence, and live workspace acceptance
+- [ ] V2.1.6 measured-geometry acceptance and host-computed output-byte digest binding (PR #49; pending CI verification)
+- [ ] V2.1.6 project-scoped CAD model/completion APIs, private artifact storage and time-limited signed links (PR #49; pending CI verification)
+- [ ] V2.1.6 authenticated CAD workspace UI and persistent completion/evidence history (PR #49; pending CI verification)
+- [ ] Apply the V2.1.6 migration, configure immutable production CAD image digests and server secrets, and pass a live persisted workspace acceptance smoke test
 
 Notes:
 - V2.1.1 establishes a project-scoped canonical model identity and an in-memory registry for linking provider-native references. This does not claim provider connectivity, geometry synchronization, revision parity, or validated CAD output.
@@ -379,3 +382,6 @@ Notes:
 - V2.1.4 implements the host adapter and isolated Docker transport for the pinned build123d worker protocol. A provider is routable only after trusted host configuration explicitly marks it AVAILABLE; worker execution remains distinct from independent geometry validation.
 - V2.1.5 connects bounded natural-language interpretation, deterministic build123d source generation, exact-provider routing, artifact/provenance checks, a separate geometry-validation provider, and the existing acceptance bridge. CI executes the parsed natural-language request through the real build123d worker, verifies actual BREP/STEP/STL/3MF output, validates the BREP in a separate constrained OpenCascade process, and exercises the application workflow through its real Docker execution/validation adapters and acceptance bridge, requiring ACCEPTED/VERIFIED evidence for the CI fixture. Unit tests still use fake adapters for negative-path coverage. Production host configuration/deployment, durable verified artifact/evidence persistence, and a live workspace ACCEPTED/VERIFIED record remain open work. The validator uses OpenCascade through the pinned build123d/OCP runtime rather than a second CAD kernel.
 
+
+
+V2.1.6 implementation notes (PR #49): the acceptance path binds the receipt to the exact BREP bytes and measured cylinder dimensions; completion INSERTs are restricted to the server-only service-role boundary after project authorization; object reads are private and issued with short-lived signed links. The repository implementation and migration remain pending CI and deployment verification, and must not be represented as production-verified until a live project artifact and its evidence have been inspected.

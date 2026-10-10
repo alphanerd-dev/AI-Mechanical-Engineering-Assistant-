@@ -29,8 +29,8 @@ export function evaluateCADAcceptance(validation:GeometryValidation|undefined):C
   if (!validation.valid) {
     return {accepted:false,status:"REJECTED",blockingReasons:["Geometry validation failed."],warnings:validation.warnings};
   }
-  if (validation.solidCount !== 1) {
-    return {accepted:false,status:"REJECTED",blockingReasons:["Exactly one valid solid is required for this CAD completion path."],warnings:validation.warnings};
+  if (validation.solidCount < 1) {
+    return {accepted:false,status:"REJECTED",blockingReasons:["No valid solid was detected."],warnings:validation.warnings};
   }
   return {accepted:true,status:"ACCEPTED",blockingReasons:[],warnings:validation.warnings};
 }

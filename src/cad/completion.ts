@@ -385,11 +385,16 @@ export class CADPartCompletionWorkflow {
     // Computed at the trusted host boundary; never accept an output-byte digest from generated CAD source.
     solid.provenance.artifactSha256 = rawValidation.artifactSha256;
     const checkedAt = this.now();
+    const validatorWarnings = stringArray(rawValidation.warnings) ?? [];
+    const exactlyOneSolid = rawValidation.solidCount === 1;
     const validationData: GeometryValidation = {
-      valid: rawValidation.valid,
+      // This bounded workflow generates a single cylinder/shaft, not an assembly.
+      valid: rawValidation.valid === true && exactlyOneSolid,
       solidCount: rawValidation.solidCount as number,
       checkedBy: rawValidation.checkedBy,
-      warnings: stringArray(rawValidation.warnings) ?? []
+      warnings: !exactlyOneSolid
+        ? [...validatorWarnings, "The bounded cylinder completion requires exactly one solid."]
+        : validatorWarnings
     };
     const receipt: CADValidationReceipt = {
       id: this.createReceiptId(),

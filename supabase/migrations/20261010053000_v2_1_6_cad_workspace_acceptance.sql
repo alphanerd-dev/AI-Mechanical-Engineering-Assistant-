@@ -46,9 +46,12 @@ create index engineering_cad_completions_project_created_idx
 alter table public.engineering_cad_models enable row level security;
 alter table public.engineering_cad_completions enable row level security;
 revoke all on table public.engineering_cad_models from anon, authenticated;
-revoke all on table public.engineering_cad_completions from anon, authenticated;
+revoke all on table public.engineering_cad_completions from anon, authenticated, service_role;
 grant select, insert on table public.engineering_cad_models to authenticated;
-grant select, insert on table public.engineering_cad_completions to authenticated;
+grant select on table public.engineering_cad_completions to authenticated;
+-- Only the authenticated, project-authorized server endpoint writes completion/evidence records.
+-- Authenticated clients cannot forge ACCEPTED status, evidence, or storage-object paths directly.
+grant select, insert on table public.engineering_cad_completions to service_role;
 
 create policy engineering_cad_models_select_member on public.engineering_cad_models
   for select to authenticated using ((select private.is_project_member(project_id)));

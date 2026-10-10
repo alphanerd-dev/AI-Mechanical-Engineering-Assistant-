@@ -19,7 +19,7 @@ function identityFromRow(row: Record<string, unknown>) {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
-  const validation = validateCADModelIdentity(model, String(row.project_id ?? ""));
+  const validation = validateCADModelIdentity(model as unknown as Parameters<typeof validateCADModelIdentity>[0], String(row.project_id ?? ""));
   if (validation.status !== "PASS") throw new Error("Stored CAD model identity failed validation.");
   return model;
 }

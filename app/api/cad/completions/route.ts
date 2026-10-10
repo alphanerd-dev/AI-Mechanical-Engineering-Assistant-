@@ -4,6 +4,7 @@ import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
+import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog";
 import { CapabilityRegistry } from "../../../../src/capabilities/registry";
@@ -60,7 +61,7 @@ function rowModel(row: Row): CADModelIdentity {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
-  const checked = validateCADModelIdentity(model, String(row.project_id ?? ""));
+  const checked = validateCADModelIdentity(model as unknown as CADModelIdentity, String(row.project_id ?? ""));
   if (checked.status !== "PASS") throw new Error("Stored CAD model identity failed validation.");
   return model as CADModelIdentity;
 }
@@ -140,7 +141,9 @@ function storedArtifactRecords(result: CADPartCompletionResult, objectPaths: Map
   };
   return (result.manifest?.artifacts ?? []).map((artifact) => {
     const uri = mappedUri(artifact);
-    const { uri: _localUri, provenance: _localProvenance, ...clean } = artifact;
+    const clean = { ...artifact };
+    delete clean.uri;
+    delete clean.provenance;
     const provenance = artifact.provenance ? {
       ...artifact.provenance,
       outputUri: uri,
@@ -185,9 +188,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > 64 * 1024) {
+    return httpError("CAD request body exceeds the 64 KiB limit.", 413);
+  }
   let parsed: unknown;
-  try { parsed = await request.json(); }
-  catch { return httpError("Request body must be valid JSON.", 400); }
+  try {
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, "utf8") > 64 * 1024) return httpError("CAD request body exceeds the 64 KiB limit.", 413);
+    parsed = JSON.parse(rawBody);
+  } catch { return httpError("Request body must be valid JSON.", 400); }
   if (!isRecord(parsed)) return httpError("Request body must be a JSON object.", 400);
   const projectId = parsed.projectId;
   const modelIdentityId = parsed.modelIdentityId;
@@ -203,12 +213,14 @@ export async function POST(request: Request) {
 
   let authorization;
   let db: Awaited<ReturnType<typeof createClient>>;
+  let serviceDb: ReturnType<typeof createServiceRoleClient>;
   try {
     authorization = await authorizeSupabaseRequest("TASK.EXECUTE", projectId);
     if (!authorization.allowed) return httpError(authorization.reason, 403);
     db = await createClient();
+    serviceDb = createServiceRoleClient();
   } catch {
-    return httpError("CAD project authorization or persistence is unavailable.", 503);
+    return httpError("CAD project authorization or trusted server-side persistence is unavailable. Configure Supabase service-role access on the server.", 503);
   }
   const { data: modelRow, error: modelError } = await db
     .from("engineering_cad_models")
@@ -256,7 +268,7 @@ export async function POST(request: Request) {
       warnings: intent.warnings,
       created_by: authorization.subject
     };
-    const { data, error } = await db.from("engineering_cad_completions").insert(record).select("*").single();
+    const { data, error } = await serviceDb.from("engineering_cad_completions").insert(record).select("*").single();
     if (error || !data) return httpError("The incomplete CAD request could not be recorded.", 503);
     return NextResponse.json({ completion: data, signedUrls: {}, persisted: true }, { status: 200 });
   }
@@ -303,6 +315,11 @@ export async function POST(request: Request) {
       }
       if (!executionId || !UUID.test(executionId)) throw new Error("Provider execution identity is missing or malformed.");
       const artifacts = result.manifest.artifacts;
+      const kinds = artifacts.map((artifact) => artifact.kind);
+      if (new Set(kinds).size !== kinds.length) throw new Error("CAD artifact manifest contains duplicate artifact kinds.");
+      for (const requiredKind of ["SOURCE", "SOLID", "STEP", "STL", "THREE_MF"] as const) {
+        if (!kinds.includes(requiredKind)) throw new Error("Accepted CAD completion is missing the required " + requiredKind + " artifact.");
+      }
       for (const artifact of artifacts) {
         if (!artifact.uri) throw new Error("Accepted CAD completion included an artifact without a host file URI.");
         const file = await safeArtifactUri(artifact.uri, configured.artifactRoot);
@@ -323,13 +340,14 @@ export async function POST(request: Request) {
       }
       for (const artifact of artifacts) {
         const objectPath = objectPaths.get(artifact.id)!;
+        // Track the intended key before upload so cleanup also covers ambiguous network errors.
+        persistedPaths.push(objectPath);
         const { error } = await db.storage.from(CAD_ARTIFACT_BUCKET).upload(
           objectPath,
           artifactBytes.get(artifact.id)!,
           { upsert: false, contentType: contentType(artifact.kind) }
         );
         if (error) throw new Error("Private CAD artifact upload failed.");
-        persistedPaths.push(objectPath);
       }
     }
 
@@ -340,6 +358,10 @@ export async function POST(request: Request) {
           uri: cadArtifactStorageUri(objectPaths.get(result.bundle.cad.id)!),
           provenance: {
             ...result.bundle.engineering.provenance,
+            outputUri: cadArtifactStorageUri(objectPaths.get(result.bundle.cad.id)!),
+            ...(objectPaths.get(result.manifest!.artifacts.find((item) => item.kind === "SOURCE")!.id)
+              ? { sourceArtifactUri: cadArtifactStorageUri(objectPaths.get(result.manifest!.artifacts.find((item) => item.kind === "SOURCE")!.id)!) }
+              : { sourceArtifactUri: undefined }),
             artifactSha256: result.bundle.cad.provenance?.artifactSha256,
             sourceArtifactIds: [result.bundle.cad.id]
           }
@@ -366,7 +388,7 @@ export async function POST(request: Request) {
       warnings: errorStrings(result.warnings),
       created_by: authorization.subject
     };
-    const { data, error } = await db.from("engineering_cad_completions").insert(dbRecord).select("*").single();
+    const { data, error } = await serviceDb.from("engineering_cad_completions").insert(dbRecord).select("*").single();
     if (error || !data) throw new Error("CAD completion metadata could not be persisted.");
     return NextResponse.json({
       completion: data,

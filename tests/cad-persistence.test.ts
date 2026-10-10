@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cadArtifactStoragePath, cadArtifactStorageUri, isVerifiedCADCompletion } from "../src/cad/persistence.js";
 import type { CADPartCompletionResult } from "../src/cad/completion.js";
+import type { CADArtifactKind } from "../src/cad/artifacts.js";
 
 const projectId = "5f7d1b40-5b7e-4f5b-9d77-30a8f81eaa01";
 const modelIdentityId = "664f11d1-20ef-46fd-9fa4-42f8f2a9a602";
@@ -19,7 +20,9 @@ describe("CAD completion persistence boundary", () => {
   it("rejects traversal and unsupported artifact kinds", () => {
     expect(() => cadArtifactStoragePath({ projectId, modelIdentityId: "../other", executionId, kind: "SOLID" })).toThrow("unsafe path");
     expect(() => cadArtifactStorageUri("../private/secret.brep")).toThrow("invalid");
-    expect(() => cadArtifactStoragePath({ projectId, modelIdentityId, executionId, kind: "DRAWING" })).toThrow("Unsupported");
+    expect(() => cadArtifactStorageUri(projectId + "/" + modelIdentityId + "/" + executionId + "/../secret.brep")).toThrow("invalid");
+    expect(() => cadArtifactStorageUri(projectId + "/" + modelIdentityId + "/" + executionId + "/other.bin")).toThrow("invalid");
+    expect(() => cadArtifactStoragePath({ projectId, modelIdentityId, executionId, kind: "DRAWING" as CADArtifactKind })).toThrow("Unsupported");
   });
 
   it("never treats a claimed status as verified without a consistent bundle", () => {

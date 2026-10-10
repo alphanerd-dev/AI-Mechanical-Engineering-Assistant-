@@ -30,7 +30,12 @@ export function cadArtifactStoragePath(input: {
 }
 
 export function cadArtifactStorageUri(objectPath: string): string {
-  if (!objectPath || objectPath.startsWith("/") || objectPath.split("/").some((part) => !SAFE_SEGMENT.test(part) && !/^[a-z0-9_.-]+$/.test(part))) {
+  const segments = typeof objectPath === "string" ? objectPath.split("/") : [];
+  const validSegment = (part: string) => /^[A-Za-z0-9_.-]{1,128}$/.test(part) && part !== "." && part !== "..";
+  const allowedFiles = new Set(["source.py", "solid.brep", "step.step", "stl.stl", "three_mf.3mf"]);
+  if (!objectPath || objectPath.startsWith("/") || objectPath.includes("\\") ||
+      segments.length !== 4 || segments.some((part) => !validSegment(part)) ||
+      !allowedFiles.has(segments[3].toLowerCase())) {
     throw new Error("CAD artifact storage object path is invalid.");
   }
   return "storage://" + CAD_ARTIFACT_BUCKET + "/" + objectPath;

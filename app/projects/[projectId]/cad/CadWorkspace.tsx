@@ -71,7 +71,6 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     refresh().catch((caught: unknown) => {
       if (active) setError(caught instanceof Error ? caught.message : "CAD workspace could not be loaded.");
     }).finally(() => { if (active) setLoading(false); });
@@ -197,7 +196,7 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
         <div><p className="eyebrow">STEP 03</p><h3>Completion history and evidence</h3></div>
         <button className="button secondaryButton" type="button" onClick={() => refresh().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Refresh failed."))} disabled={loading || busy}>Refresh</button>
       </div>
-      {loading && <p className="muted">Loading the project's persisted CAD history…</p>}
+      {loading && <p className="muted">Loading the project&apos;s persisted CAD history…</p>}
       {!loading && completions.length === 0 && <p className="muted">No CAD requests have been recorded for this project yet.</p>}
       <div className="cadCompletionList">
         {completions.map((completion) => {
