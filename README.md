@@ -79,6 +79,17 @@ The configured model transport is optional during development. To run the real-p
 
 See also [Phase G acceptance scope](docs/reasoning-frameworks-phase-g.md).
 
+## V2.1.6 — Verified CAD workspace and live readiness
+
+The bounded CAD workspace supports explicitly dimensioned cylindrical shafts/cylinders. Before enabling execution, apply the Supabase migration, configure the server-only CAD runtime, and pin production worker images by immutable SHA-256 digest.
+
+- Workspace: `/projects/[projectId]/cad`
+- Readiness: `GET /api/cad/readiness?projectId=<project-uuid>`
+- End-to-end acceptance smoke: `npm run smoke:cad-live`
+- Deployment, environment variables, evidence guarantees and smoke-test instructions: [V2.1.6 verified CAD workspace](docs/v2-1-6-cad-verified-workspace.md).
+
+The live smoke test requires a short-lived authenticated test session, a registered project and a registered CAD model. Keep `CAD_WORKSPACE_COOKIE` and `SUPABASE_SERVICE_ROLE_KEY` out of source control and logs. The workspace must not be called production-verified until a live run confirms that the downloaded BREP bytes match the persisted validation receipt and metadata.
+
 ## Development
 
 ```bash
