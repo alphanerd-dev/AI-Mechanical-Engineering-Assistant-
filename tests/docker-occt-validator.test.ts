@@ -61,9 +61,7 @@ async function setup() {
     image: "local/ama-build123d:0.13.0",
     artifactRoot,
     workerScriptPath,
-    runner,
-    runAsUid: 10001,
-    runAsGid: 10001
+    runner
   });
   const input = {
     projectId: "project-shaft",
@@ -111,7 +109,9 @@ describe("DockerOCCTValidatorExecutor", () => {
     expect(call.args).toContain("--cap-drop=ALL");
     expect(call.args).toContain("--security-opt=no-new-privileges");
     expect(call.args).toContain("--pull=never");
-    expect(call.args[call.args.indexOf("--user") + 1]).toBe("10001:10001");
+    const expectedUid = typeof process.getuid === "function" && process.getuid() > 0 ? process.getuid() : 10001;
+    const expectedGid = typeof process.getgid === "function" && process.getgid() > 0 ? process.getgid() : 10001;
+    expect(call.args[call.args.indexOf("--user") + 1]).toBe(expectedUid + ":" + expectedGid);
     expect(call.args).toContain("--entrypoint");
     expect(call.args[call.args.indexOf("--entrypoint") + 1]).toBe("python");
     expect(call.args.some((arg) => arg.includes("dst=/artifacts,readonly"))).toBe(true);
