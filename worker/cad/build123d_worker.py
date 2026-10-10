@@ -100,6 +100,10 @@ def main():
 
     env={
         "PATH":os.environ.get("PATH",""),
+        "HOME":"/tmp",
+        "XDG_CACHE_HOME":"/tmp/.cache",
+        "XDG_CONFIG_HOME":"/tmp/.config",
+        "TMPDIR":"/tmp",
         "PYTHONUNBUFFERED":"1",
         "PYTHONDONTWRITEBYTECODE":"1",
         "CAD_ARTIFACT_DIR":str(artifact_dir),
