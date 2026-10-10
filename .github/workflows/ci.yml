@@ -58,6 +58,24 @@ jobs:
           assert all((root / name).is_file() and (root / name).stat().st_size > 0 for name in ("part.brep", "part.step", "part.stl", "part.3mf"))
           print("natural-language CAD intent produced BREP/STEP/STL/3MF artifacts")
           PY
+      - name: Independently validate generated BREP with OpenCascade
+        shell: bash
+        run: |
+          printf '%s' '{"artifactPath":"/artifacts/part.brep","expected":{"kind":"CYLINDER","diameterMm":30,"lengthMm":200,"toleranceMm":0.01}}' | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 64 --memory=1g --cpus=1 --tmpfs /tmp:rw,noexec,nosuid,size=32m --user 10001:10001 --mount type=bind,src="$PWD/.cad-intent-smoke",dst=/artifacts,readonly --mount type=bind,src="$PWD/worker/cad/occt",dst=/validator,readonly --entrypoint python --pull=never ai-mechanical-engineering-assistant-build123d:0.13.0 /validator/validate_brep.py > .cad-intent-smoke/validation.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path(".cad-intent-smoke/validation.json").read_text())
+          assert result["valid"] is True, result
+          assert result["solidCount"] == 1, result
+          assert result["checkedBy"] == "occt.brepcheck", result
+          assert result["boundingBoxMm"]["x"] == 30.0, result
+          assert result["boundingBoxMm"]["y"] == 30.0, result
+          assert result["boundingBoxMm"]["z"] == 200.0, result
+          assert result["volumeMm3"] > 0, result
+          assert all(item["passed"] for item in result["dimensionChecks"]), result
+          print("OpenCascade independently validated the generated BREP and requested dimensions")
+          PY
       - name: Build pinned open FEA runtime
         run: docker build --tag ai-mechanical-engineering-assistant-fea:1.18 --file worker/fea/calculix/Dockerfile worker
       - name: Test open FEA worker
