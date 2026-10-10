@@ -373,7 +373,8 @@ Notes:
 - [x] V2.1.6 measured-geometry acceptance and host-computed output-byte digest binding (PR #49; repository CI verified at `c5463c3`)
 - [x] V2.1.6 project-scoped CAD model/completion APIs, private artifact storage and time-limited signed links (PR #49; repository CI verified at `c5463c3`)
 - [x] V2.1.6 authenticated CAD workspace UI and persistent completion/evidence history (PR #49; repository CI verified at `c5463c3`)
-- [ ] Apply the V2.1.6 migration, configure immutable production CAD image digests and server secrets, and pass a live persisted workspace acceptance smoke test
+- [x] Apply the V2.1.6 migration to the connected Supabase project; confirm the CAD tables have RLS, authenticated users cannot INSERT completion/evidence rows, service_role can INSERT, and the artifact bucket is private (verified 2026-10-10)
+- [ ] Configure immutable production CAD image digests and server-only secrets, then pass a live authenticated workspace acceptance smoke test that inspects persisted artifact bytes and evidence
 
 Notes:
 - V2.1.1 establishes a project-scoped canonical model identity and an in-memory registry for linking provider-native references. This does not claim provider connectivity, geometry synchronization, revision parity, or validated CAD output.
@@ -384,4 +385,4 @@ Notes:
 
 
 
-V2.1.6 implementation notes (PR #49): the acceptance path binds the receipt to the exact BREP bytes and measured cylinder dimensions; completion INSERTs are restricted to the server-only service-role boundary after project authorization; object reads are private and issued with short-lived signed links. Repository CI has passed at `c5463c3`. The deployment migration and live project smoke test remain outstanding; do not represent this capability as production-verified until a live project artifact and its persisted evidence have been inspected.
+V2.1.6 implementation notes (PR #49): the acceptance path binds the receipt to the exact BREP bytes and measured cylinder dimensions; completion INSERTs are restricted to the server-only service-role boundary after project authorization; object reads are private and issued with short-lived signed links. Repository CI passed on the merged PR head `a5c3425` and post-merge `main` commit `bfd949f`. The migration is applied to the connected Supabase project and its schema, RLS, grants, and private bucket were verified live on 2026-10-10. The live authenticated CAD artifact smoke test remains outstanding because no linked Vercel project was available through the connected Vercel account and production CAD runtime/secrets have not been verified. Do not represent the workflow as production-verified until a real authenticated request has generated, persisted, and re-read a BREP with matching evidence.
