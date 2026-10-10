@@ -75,6 +75,14 @@ The web app uses `next dev --webpack` and `next build --webpack` for now. The re
   - Optional `CAD_WORKSPACE_TEST_NEEDS_INPUT=1` to additionally verify that missing dimensions are recorded as `NEEDS_INPUT` without producing CAD artifacts.
 - The smoke runner checks readiness, posts the supported cylinder request, verifies the persisted accepted status, checks that a full geometry measurement set is present in the stored receipt, downloads the BREP from its private signed URL, recomputes SHA-256 over the downloaded bytes and compares it with the stored receipt/artifact record, and confirms the accepted completion can be read back from history.
 
+## Repeatable live acceptance through GitHub Actions
+
+The repository includes a manual workflow at `.github/workflows/cad-workspace-live-acceptance.yml`. It runs `npm run smoke:cad-live` against the configured application origin and records pass/fail in GitHub Actions.
+
+Configure a GitHub Environment named `cad-workspace-live-acceptance` with these environment variables: `CAD_WORKSPACE_BASE_URL`, `CAD_WORKSPACE_PROJECT_ID`, and `CAD_WORKSPACE_MODEL_ID`. Add the full, short-lived authenticated session cookie as the environment secret `CAD_WORKSPACE_COOKIE`. Configure environment protection/required reviewers before storing a credential.
+
+Use a **non-production test project and model identity**. Each successful run creates a durable completion record and CAD artifacts; the smoke run intentionally does not delete the evidence after inspecting it. Use a dedicated test engineer account, keep the cookie out of source control and logs, and revoke/rotate it after testing. The optional `test_needs_input` input also verifies that a missing-dimension request is persisted as `NEEDS_INPUT` without generated artifacts.
+
 ## Deployment checklist
 
 Before enabling this workspace in a deployment:
