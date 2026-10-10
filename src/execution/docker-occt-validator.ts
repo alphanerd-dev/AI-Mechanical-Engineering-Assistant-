@@ -109,8 +109,10 @@ export class DockerOCCTValidatorExecutor implements OcctExecutor {
     this.memoryLimit = options.memoryLimit ?? DEFAULT_MEMORY_LIMIT;
     this.cpus = options.cpus ?? DEFAULT_CPUS;
     this.pidsLimit = options.pidsLimit ?? DEFAULT_PIDS_LIMIT;
-    this.runAsUid = options.runAsUid ?? 10001;
-    this.runAsGid = options.runAsGid ?? 10001;
+    const hostUid = typeof process.getuid === "function" ? process.getuid() : undefined;
+    const hostGid = typeof process.getgid === "function" ? process.getgid() : undefined;
+    this.runAsUid = options.runAsUid ?? (hostUid !== undefined && hostUid > 0 ? hostUid : 10001);
+    this.runAsGid = options.runAsGid ?? (hostGid !== undefined && hostGid > 0 ? hostGid : 10001);
     this.runner = options.runner ?? new NodeCADCommandRunner();
 
     if (!Number.isInteger(this.timeoutMs) || this.timeoutMs < 100 || this.timeoutMs > 120_000) {
@@ -128,6 +130,10 @@ export class DockerOCCTValidatorExecutor implements OcctExecutor {
         !Number.isInteger(this.runAsUid) || this.runAsUid < 1 ||
         !Number.isInteger(this.runAsGid) || this.runAsGid < 1) {
       throw new Error("OCCT validator resource and identity limits are invalid.");
+    }
+    if (hostUid !== undefined && hostUid > 0 &&
+        (this.runAsUid !== hostUid || this.runAsGid !== hostGid)) {
+      throw new Error("On non-root hosts, OCCT validation must use the host process UID/GID to read the private CAD artifact directory.");
     }
     if (!/^[0-9]+(?:\.[0-9]+)?[kKmMgG]?$/.test(this.memoryLimit)) {
       throw new Error("OCCT validator memoryLimit must be a numeric Docker memory quantity.");
