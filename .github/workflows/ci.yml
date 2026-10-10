@@ -76,6 +76,13 @@ jobs:
           assert all(item["passed"] for item in result["dimensionChecks"]), result
           print("OpenCascade independently validated the generated BREP and requested dimensions")
           PY
+      - name: End-to-end CAD intent-to-verified artifact through production provider adapters
+        shell: bash
+        run: |
+          rm -rf .cad-completion-e2e
+          mkdir -p .cad-completion-e2e
+          chmod 777 .cad-completion-e2e
+          npx tsx scripts/cad-completion-e2e.ts
       - name: Build pinned open FEA runtime
         run: docker build --tag ai-mechanical-engineering-assistant-fea:1.18 --file worker/fea/calculix/Dockerfile worker
       - name: Test open FEA worker
