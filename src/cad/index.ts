@@ -14,3 +14,4 @@ export * from './dfm.js';
 export * from './judge.js';
 export * from './intent.js';
 export * from './completion.js';
+export * from './persistence.js';
