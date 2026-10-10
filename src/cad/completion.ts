@@ -191,8 +191,10 @@ export class CADPartCompletionWorkflow {
       };
     }
     if (execution.status !== "EXECUTED" || !execution.providerResult?.success) {
+      const providerError = execution.providerResult?.error ??
+        [...execution.attempts].reverse().find((attempt) => attempt.error)?.error;
       return {
-        ...emptyResult("FAILED", "EXECUTION", intent, [execution.reason ?? execution.providerResult?.error ?? "CAD execution failed."]),
+        ...emptyResult("FAILED", "EXECUTION", intent, [providerError ?? execution.reason ?? "CAD execution failed."]),
         specification: intent.specification,
         source: generated.source,
         execution
@@ -265,12 +267,14 @@ export class CADPartCompletionWorkflow {
     });
 
     if (validation.status !== "EXECUTED" || !validation.providerResult?.success) {
+      const providerError = validation.providerResult?.error ??
+        [...validation.attempts].reverse().find((attempt) => attempt.error)?.error;
       return {
         ...emptyResult(
           "INCOMPLETE",
           "VALIDATION",
           intent,
-          [validation.reason ?? validation.providerResult?.error ?? "Independent geometry validation is unavailable; artifact remains unverified."],
+          [providerError ?? validation.reason ?? "Independent geometry validation is unavailable; artifact remains unverified."],
           ["CAD execution completed, but the artifact remains unverified because no accepted geometry-validation receipt was produced."]
         ),
         specification: intent.specification,
