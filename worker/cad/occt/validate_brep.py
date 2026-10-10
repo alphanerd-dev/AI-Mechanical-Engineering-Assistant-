@@ -101,49 +101,65 @@ def main():
             warnings.append("The shape has invalid or degenerate 3D bounding-box dimensions.")
 
         dimension_checks = []
+        dimension_checks_complete = False
+        measured_volume_matches_expected = False
         expected = request.get("expected")
-        if expected is not None:
-            if not isinstance(expected, dict):
-                warnings.append("Expected geometry constraints must be a JSON object.")
-            else:
-                kind = expected.get("kind")
-                tolerance_mm = expected.get("toleranceMm", 0.01)
-                if not finite_positive(tolerance_mm) or tolerance_mm > 1:
-                    warnings.append("Geometry tolerance must be greater than 0 and no more than 1 mm.")
-                elif kind == "CYLINDER":
-                    diameter_mm = expected.get("diameterMm")
-                    length_mm = expected.get("lengthMm")
-                    if not finite_positive(diameter_mm) or not finite_positive(length_mm):
-                        warnings.append("Cylinder diameter and length must be finite positive millimetre values.")
-                    else:
-                        checks = [
-                            ("x", float(diameter_mm)),
-                            ("y", float(diameter_mm)),
-                            ("z", float(length_mm)),
-                        ]
-                        for axis, expected_value in checks:
-                            actual_value = bounding_box_mm[axis]
-                            passed = math.isclose(
-                                actual_value,
-                                expected_value,
-                                rel_tol=1e-6,
-                                abs_tol=float(tolerance_mm),
-                            )
-                            dimension_checks.append({
-                                "axis": axis,
-                                "actualMm": actual_value,
-                                "expectedMm": expected_value,
-                                "toleranceMm": float(tolerance_mm),
-                                "passed": passed,
-                            })
-                            if not passed:
-                                warnings.append(
-                                    "Measured " + axis.upper() + " extent does not match the requested part dimension."
-                                )
+        if expected is None:
+            warnings.append("Expected geometry constraints are required for this validator.")
+        elif not isinstance(expected, dict):
+            warnings.append("Expected geometry constraints must be a JSON object.")
+        else:
+            kind = expected.get("kind")
+            tolerance_mm = expected.get("toleranceMm", 0.01)
+            if not finite_positive(tolerance_mm) or tolerance_mm > 1:
+                warnings.append("Geometry tolerance must be greater than 0 and no more than 1 mm.")
+            elif kind == "CYLINDER":
+                diameter_mm = expected.get("diameterMm")
+                length_mm = expected.get("lengthMm")
+                if not finite_positive(diameter_mm) or not finite_positive(length_mm):
+                    warnings.append("Cylinder diameter and length must be finite positive millimetre values.")
                 else:
-                    warnings.append("The requested geometry kind has no deterministic dimension checker.")
+                    checks = [
+                        ("x", float(diameter_mm)),
+                        ("y", float(diameter_mm)),
+                        ("z", float(length_mm)),
+                    ]
+                    for axis, expected_value in checks:
+                        actual_value = bounding_box_mm[axis]
+                        passed = math.isclose(
+                            actual_value,
+                            expected_value,
+                            rel_tol=1e-6,
+                            abs_tol=float(tolerance_mm),
+                        )
+                        dimension_checks.append({
+                            "axis": axis,
+                            "actualMm": actual_value,
+                            "expectedMm": expected_value,
+                            "toleranceMm": float(tolerance_mm),
+                            "passed": passed,
+                        })
+                        if not passed:
+                            warnings.append(
+                                "Measured " + axis.upper() + " extent does not match the requested part dimension."
+                            )
 
-        dimensions_valid = all(check["passed"] for check in dimension_checks)
+                    expected_volume_mm3 = math.pi * (float(diameter_mm) / 2) ** 2 * float(length_mm)
+                    volume_tolerance_mm3 = max(expected_volume_mm3 * 1e-3, 1e-9)
+                    measured_volume_matches_expected = (
+                        math.isfinite(volume_mm3)
+                        and abs(volume_mm3 - expected_volume_mm3) <= volume_tolerance_mm3
+                    )
+                    if not measured_volume_matches_expected:
+                        warnings.append("Measured solid volume does not match the requested cylindrical specification.")
+
+                    dimension_checks_complete = (
+                        len(dimension_checks) == 3
+                        and all(check["passed"] for check in dimension_checks)
+                    )
+            else:
+                warnings.append("The requested geometry kind has no deterministic dimension checker.")
+
         valid = (
             topology_valid
             and solid_count == 1
@@ -151,8 +167,9 @@ def main():
             and math.isfinite(volume_mm3)
             and volume_mm3 > 0
             and all(math.isfinite(v) and v > 0 for v in bounding_box_mm.values())
-            and dimensions_valid
-            and not any("must be" in warning or "no deterministic" in warning for warning in warnings)
+            and dimension_checks_complete
+            and measured_volume_matches_expected
+            and not any("must be" in warning or "no deterministic" in warning or "are required" in warning for warning in warnings)
         )
         print(json.dumps(result(
             valid,

@@ -227,6 +227,38 @@ describe("end-to-end CAD part completion orchestration", () => {
     expect(result.bundle?.evidence.status).toBe("CALCULATED");
   });
 
+  it("rejects a valid-looking solid whose measured volume contradicts a cylinder", async () => {
+    const expectedVolume = Math.PI * 15 * 15 * 200;
+    const { workflow } = makeWorkflow({ validation: { volumeMm3: expectedVolume * 1.02 } });
+    const result = await workflow.complete({ projectId: "project-shaft", modelIdentity, rawIntent: shaftIntent });
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.stage).toBe("VALIDATION");
+    expect(result.errors?.join(" ")).toContain("volume does not match");
+    expect(result.bundle).toBeUndefined();
+  });
+
+  it("requires all bounding-box axes and the fixed host-selected tolerance", async () => {
+    const incompleteBounds = makeWorkflow({ validation: { boundingBoxMm: { x: 30, y: 30 } } });
+    const missingAxis = await incompleteBounds.workflow.complete({
+      projectId: "project-shaft", modelIdentity, rawIntent: shaftIntent
+    });
+    expect(missingAxis.status).toBe("INCOMPLETE");
+    expect(missingAxis.errors?.join(" ")).toContain("boundingBoxMm.z");
+
+    const relaxedChecks = [
+      { axis: "x", actualMm: 30, expectedMm: 30, toleranceMm: 1, passed: true },
+      { axis: "y", actualMm: 30, expectedMm: 30, toleranceMm: 1, passed: true },
+      { axis: "z", actualMm: 200, expectedMm: 200, toleranceMm: 1, passed: true }
+    ];
+    const relaxedTolerance = makeWorkflow({ validation: { dimensionChecks: relaxedChecks } });
+    const result = await relaxedTolerance.workflow.complete({
+      projectId: "project-shaft", modelIdentity, rawIntent: shaftIntent
+    });
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.errors?.join(" ")).toContain("host-selected tolerance");
+    expect(result.bundle).toBeUndefined();
+  });
+
   it("blocks rather than silently switching providers when the execution provider is unavailable", async () => {
     const executor = new FakeExecutor();
     const build123d = new Build123dCADProvider(executor, {
