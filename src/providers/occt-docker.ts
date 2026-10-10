@@ -7,5 +7,5 @@ import { OcctProvider } from "./occt.js";
  * trusted deployment configuration, never from the engineering request.
  */
 export function createDockerOCCTValidationProvider(options: DockerOCCTValidatorOptions): OcctProvider {
-  return new OcctProvider(new DockerOCCTValidatorExecutor(options));
+  return new OcctProvider(new DockerOCCTValidatorExecutor(options), ["CAD.VALIDATE_GEOMETRY"]);
 }
