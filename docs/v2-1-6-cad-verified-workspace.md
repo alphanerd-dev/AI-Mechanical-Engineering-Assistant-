@@ -79,6 +79,6 @@ Before enabling this workspace in a deployment:
 
 ## Verification and limitations
 
-Automated tests cover the host digest agreement, receipt/provider mismatch, exactly-one-solid completion rule, path traversal and acceptance bundle consistency. Repository CI also executes the provisioned CAD runtime and independently checks a real generated BREP. The new workspace API still needs CI verification for the current pull request and a deployment-level smoke test after the migration/secrets are configured.
+Automated tests cover host digest agreement, receipt/provider mismatch, exactly-one-solid completion, path traversal and acceptance bundle consistency. Repository CI passed at commit `c5463c3`, including the production-provider CAD intent-to-verified-artifact path, independent OpenCascade BREP validation, repository tests, and the Next.js production build plus TypeScript check. A deployment-level smoke test remains necessary after applying the migration and configuring the target environment.
 
 The migration being committed does not mean it has been applied to the live Supabase project. The presence of the API/UI does not mean Docker or production image configuration is available. Until a real project request has been executed and its persisted evidence inspected, report the capability as implemented in the repository but not production-verified.
