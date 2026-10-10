@@ -273,7 +273,7 @@ export class DockerBuild123dWorkerTransport implements CADWorkerTransport {
         "--cpus", String(this.cpus), "--memory", this.memoryLimit,
         "--pids-limit", String(this.pidsLimit), "--ulimit", "nofile=1024:1024",
         "--stop-timeout", "2", "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
-        "--mount", "type=bind,src=" + runDirectory + ",dst=" + WORKER_ARTIFACT_ROOT + ",rw",
+        "--mount", "type=bind,src=" + runDirectory + ",dst=" + WORKER_ARTIFACT_ROOT,
         "--env", "CAD_ARTIFACT_DIR=" + WORKER_ARTIFACT_ROOT,
         "--env", "HOME=/tmp",
         "--user", this.resolveContainerUser(),
