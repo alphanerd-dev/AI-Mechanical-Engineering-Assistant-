@@ -89,7 +89,7 @@ async function main(): Promise<void> {
       result.bundle.evidence.status !== "VERIFIED" ||
       result.execution?.selectedProviderId !== "cad.build123d" ||
       result.validation?.selectedProviderId !== "cad.occt" ||
-      !result.bundle.evidence.requirementIds.includes("CI-SHAFT-DIMENSIONS")) {
+      !(result.bundle.evidence.requirementIds ?? []).includes("CI-SHAFT-DIMENSIONS")) {
     throw new Error("CAD intent-to-acceptance CI smoke failed closed; no VERIFIED artifact may be claimed.");
   }
 }
