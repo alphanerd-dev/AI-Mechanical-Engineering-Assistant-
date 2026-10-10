@@ -85,7 +85,7 @@ The bounded CAD workspace supports explicitly dimensioned cylindrical shafts/cyl
 
 - Workspace: `/projects/[projectId]/cad`
 - Readiness: `GET /api/cad/readiness?projectId=<project-uuid>`
-- End-to-end acceptance smoke: `npm run smoke:cad-live`
+- End-to-end acceptance smoke: `npm run smoke:cad-live` or Actions → **CAD Workspace Live Acceptance** after configuring the `cad-workspace-live-acceptance` GitHub Environment
 - Deployment, environment variables, evidence guarantees and smoke-test instructions: [V2.1.6 verified CAD workspace](docs/v2-1-6-cad-verified-workspace.md).
 
 The live smoke test requires a short-lived authenticated test session, a registered project and a registered CAD model. Keep `CAD_WORKSPACE_COOKIE` and `SUPABASE_SERVICE_ROLE_KEY` out of source control and logs. The workspace must not be called production-verified until a live run confirms that the downloaded BREP bytes match the persisted validation receipt and metadata.

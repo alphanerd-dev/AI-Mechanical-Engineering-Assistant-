@@ -1,0 +1,62 @@
+name: CAD Workspace Live Acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_needs_input:
+        description: Also check that missing dimensions stop before CAD execution
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cad-workspace-live-acceptance
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Authenticated CAD artifact persistence smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: cad-workspace-live-acceptance
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify environment configuration without exposing values
+        shell: bash
+        env:
+          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
+          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
+          CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
+          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
+        run: |
+          set -euo pipefail
+          for key in CAD_WORKSPACE_BASE_URL CAD_WORKSPACE_PROJECT_ID CAD_WORKSPACE_MODEL_ID CAD_WORKSPACE_COOKIE; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::The ${key} value is missing from the cad-workspace-live-acceptance GitHub Environment."
+              exit 1
+            fi
+          done
+          echo "All required live-smoke inputs are present; values are not printed."
+
+      - name: Run authenticated live CAD acceptance
+        env:
+          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
+          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
+          CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
+          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
+          CAD_WORKSPACE_TEST_NEEDS_INPUT: ${{ inputs.test_needs_input && '1' || '0' }}
+        run: npm run smoke:cad-live
