@@ -368,11 +368,14 @@ Notes:
 - [x] Multi-CAD capability routing (V2.1.2)
 - [x] CAD artifact provenance and validation integration (V2.1.3)
 - [x] First reference CAD provider — isolated build123d worker (V2.1.4)
-- [ ] Independent OCCT/FreeCAD validation runtime
+- [x] Bounded natural-language cylinder/shaft intent-to-acceptance application workflow (V2.1.5)
+- [x] Isolated OpenCascade BREP validation worker and host Docker executor (V2.1.5)
+- [ ] Production validator deployment, durable verified artifact/evidence persistence, and live workspace acceptance
 
 Notes:
 - V2.1.1 establishes a project-scoped canonical model identity and an in-memory registry for linking provider-native references. This does not claim provider connectivity, geometry synchronization, revision parity, or validated CAD output.
 - V2.1.2 adds provider-neutral CAD routing on the existing capability registry. Host configuration must explicitly report provider availability; routing success is not geometry validation or verified engineering evidence.
 - V2.1.3 binds worker-reported CAD output paths to canonical model identity, host-authored provider identity, execution ID, and SHA-256 of the exact source text. Geometry evidence is verified only when a validation receipt matches the exact solid artifact and source digest. Output-file byte hashing and existence checks remain responsibilities of a trusted artifact storage/worker boundary.
 - V2.1.4 implements the host adapter and isolated Docker transport for the pinned build123d worker protocol. A provider is routable only after trusted host configuration explicitly marks it AVAILABLE; worker execution remains distinct from independent geometry validation.
+- V2.1.5 connects bounded natural-language interpretation, deterministic build123d source generation, exact-provider routing, artifact/provenance checks, a separate geometry-validation provider, and the existing acceptance bridge. CI executes the parsed natural-language request through the real build123d worker, verifies actual BREP/STEP/STL/3MF output, validates the BREP in a separate constrained OpenCascade process, and exercises the application workflow through its real Docker execution/validation adapters and acceptance bridge, requiring ACCEPTED/VERIFIED evidence for the CI fixture. Unit tests still use fake adapters for negative-path coverage. Production host configuration/deployment, durable verified artifact/evidence persistence, and a live workspace ACCEPTED/VERIFIED record remain open work. The validator uses OpenCascade through the pinned build123d/OCP runtime rather than a second CAD kernel.
 

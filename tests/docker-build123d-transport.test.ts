@@ -40,7 +40,7 @@ function mountDirectory(args: string[]): string {
   if (index < 0) throw new Error("Docker mount was not configured.");
   const raw = args[index + 1];
   const marker = "type=bind,src=";
-  const suffix = ",dst=/artifacts,rw";
+  const suffix = ",dst=/artifacts";
   if (!raw.startsWith(marker) || !raw.endsWith(suffix)) throw new Error("Unexpected mount argument.");
   return raw.slice(marker.length, -suffix.length);
 }
