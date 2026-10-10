@@ -24,6 +24,9 @@ jobs:
         run: python worker/cad/build123d/test_worker.py
       - name: Build pinned build123d runtime
         run: docker build --tag ai-mechanical-engineering-assistant-build123d:0.13.0 --file worker/cad/build123d/Dockerfile worker/cad
+      - name: Test OCCT validator acceptance and failure paths
+        run: |
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=64m --tmpfs /artifacts:rw,noexec,nosuid,size=16m,mode=1777 --mount type=bind,src="$PWD/worker/cad/occt",dst=/validator,readonly --env CAD_ARTIFACT_DIR=/artifacts --entrypoint python --pull=never ai-mechanical-engineering-assistant-build123d:0.13.0 /validator/test_validate_brep.py
       - name: Smoke test build123d runtime
         shell: bash
         run: |
