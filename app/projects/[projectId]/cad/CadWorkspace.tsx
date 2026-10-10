@@ -71,9 +71,13 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     let active = true;
-    refresh().catch((caught: unknown) => {
-      if (active) setError(caught instanceof Error ? caught.message : "CAD workspace could not be loaded.");
-    }).finally(() => { if (active) setLoading(false); });
+    // Defer the async state synchronization out of the effect's synchronous body.
+    queueMicrotask(() => {
+      if (!active) return;
+      refresh().catch((caught: unknown) => {
+        if (active) setError(caught instanceof Error ? caught.message : "CAD workspace could not be loaded.");
+      }).finally(() => { if (active) setLoading(false); });
+    });
     return () => { active = false; };
   }, [refresh]);
 
