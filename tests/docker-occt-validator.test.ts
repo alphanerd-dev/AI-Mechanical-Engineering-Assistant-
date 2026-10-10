@@ -8,6 +8,7 @@ import {
   CADCommandRunResult
 } from "../src/execution/docker-build123d-transport.js";
 import { DockerOCCTValidatorExecutor } from "../src/execution/docker-occt-validator.js";
+import { createDockerOCCTValidationProvider } from "../src/providers/occt-docker.js";
 
 class FakeRunner implements CADCommandRunner {
   calls: Array<{ command: string; args: string[]; stdin: string; options: CADCommandRunOptions }> = [];
@@ -83,6 +84,16 @@ afterEach(async () => {
 });
 
 describe("DockerOCCTValidatorExecutor", () => {
+  it("advertises only geometry validation for the Docker validator provider", () => {
+    const provider = createDockerOCCTValidationProvider({
+      image: "local/ama-build123d:0.13.0",
+      artifactRoot: path.join(os.tmpdir(), "not-created-yet"),
+      workerScriptPath: path.join(os.tmpdir(), "validate_brep.py")
+    });
+    expect(provider.id).toBe("cad.occt");
+    expect(provider.capabilities).toEqual(["CAD.VALIDATE_GEOMETRY"]);
+  });
+
   it("mounts only the specific artifact run read-only and invokes the isolated validator", async () => {
     const { artifactPath, runner, executor, input } = await setup();
     const result = await executor.call("validate_geometry", input);
