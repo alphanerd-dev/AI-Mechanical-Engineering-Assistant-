@@ -12,6 +12,18 @@ export interface CADArtifactBundle {
   acceptance:CADAcceptance;
 }
 
+export interface CADGeometryMeasurements {
+  volumeMm3:number;
+  boundingBoxMm:{x:number;y:number;z:number};
+  dimensionChecks:Array<{
+    axis:"x"|"y"|"z";
+    actualMm:number;
+    expectedMm:number;
+    toleranceMm:number;
+    passed:boolean;
+  }>;
+}
+
 export interface CADValidationReceipt {
   id:string;
   projectId:string;
@@ -27,6 +39,8 @@ export interface CADValidationReceipt {
   checkedBy:string;
   checkedAt:string;
   validation:GeometryValidation;
+  /** Raw measurements that supported the accepted geometry claim. */
+  geometryMeasurements?:CADGeometryMeasurements;
 }
 
 export interface CADArtifactBundleResult {

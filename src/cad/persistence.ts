@@ -1,4 +1,5 @@
 import type { CADArtifactKind } from "./artifacts.js";
+import { validateCADCylinderMeasurements } from "./completion.js";
 import type { CADPartCompletionResult } from "./completion.js";
 
 export const CAD_ARTIFACT_BUCKET = "engineering-cad-artifacts";
@@ -56,6 +57,12 @@ export function isVerifiedCADCompletion(result: CADPartCompletionResult): boolea
   if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) return false;
   const record = receipt as Record<string, unknown>;
   const validation = record.validation;
+  const geometryMeasurements = record.geometryMeasurements;
+  if (!result.specification || !geometryMeasurements ||
+      typeof geometryMeasurements !== "object" || Array.isArray(geometryMeasurements) ||
+      validateCADCylinderMeasurements(geometryMeasurements as Record<string, unknown>, result.specification).length > 0) {
+    return false;
+  }
   return typeof record.artifactSha256 === "string" && /^[a-f0-9]{64}$/.test(record.artifactSha256) &&
     record.artifactSha256 === bundle.cad.provenance?.artifactSha256 &&
     record.artifactId === bundle.cad.id &&

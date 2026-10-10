@@ -3,7 +3,7 @@ import { CapabilityRisk } from "../core/types.js";
 import { CADCodeGenerator } from "../providers/cad-code.js";
 import { CADArtifact, CADExecutionProvenance, GeometryValidation } from "./artifacts.js";
 import { CADArtifactManifest } from "./artifact-manifest.js";
-import { CADArtifactBundle, CADArtifactBundleResult, CADValidationReceipt, createCADArtifactBundleFromManifest } from "./artifact-bridge.js";
+import { CADArtifactBundle, CADArtifactBundleResult, CADGeometryMeasurements, CADValidationReceipt, createCADArtifactBundleFromManifest } from "./artifact-bridge.js";
 import { CADModelIdentity, validateCADModelIdentity } from "./identity.js";
 import { CADIntentResolution, CADPartSpecification, parseCADPartIntent } from "./intent.js";
 import { CADCapabilityRouter, CADRoutingResult } from "./routing.js";
@@ -79,7 +79,7 @@ function validSha256(value: unknown): value is string {
 /** Successful validator verdicts need measured dimensions, not just a boolean claim. */
 const HOST_DIMENSION_TOLERANCE_MM = 0.01;
 
-function validateCylinderMeasurements(value: Record<string, unknown>, specification: CADPartSpecification): string[] {
+export function validateCADCylinderMeasurements(value: Record<string, unknown>, specification: CADPartSpecification): string[] {
   const errors: string[] = [];
   const expected: Record<string, number> = {
     x: specification.diameterMm,
@@ -122,7 +122,7 @@ function validateCylinderMeasurements(value: Record<string, unknown>, specificat
   const seen = new Set<string>();
   for (const item of checks as Record<string, unknown>[]) {
     const axis = item.axis;
-    if (typeof axis !== "string" || !(axis in expected) || seen.has(axis)) {
+    if (typeof axis !== "string" || !Object.hasOwn(expected, axis) || seen.has(axis)) {
       errors.push("Cylinder dimension checks must include each of x, y and z exactly once.");
       continue;
     }
@@ -388,7 +388,7 @@ export class CADPartCompletionWorkflow {
     }
 
     if (rawValidation.valid === true) {
-      const measurementErrors = validateCylinderMeasurements(rawValidation, intent.specification);
+      const measurementErrors = validateCADCylinderMeasurements(rawValidation, intent.specification);
       if (measurementErrors.length) {
         return {
           ...emptyResult(
@@ -421,6 +421,17 @@ export class CADPartCompletionWorkflow {
         ? [...validatorWarnings, "The bounded cylinder completion requires exactly one solid."]
         : validatorWarnings
     };
+    const geometryMeasurements: CADGeometryMeasurements | undefined = rawValidation.valid === true
+      ? {
+          volumeMm3: rawValidation.volumeMm3 as number,
+          boundingBoxMm: {
+            x: (rawValidation.boundingBoxMm as Record<string, unknown>).x as number,
+            y: (rawValidation.boundingBoxMm as Record<string, unknown>).y as number,
+            z: (rawValidation.boundingBoxMm as Record<string, unknown>).z as number
+          },
+          dimensionChecks: rawValidation.dimensionChecks as CADGeometryMeasurements["dimensionChecks"]
+        }
+      : undefined;
     const receipt: CADValidationReceipt = {
       id: this.createReceiptId(),
       projectId,
@@ -433,7 +444,8 @@ export class CADPartCompletionWorkflow {
       artifactSha256: rawValidation.artifactSha256 as string,
       checkedBy: validationData.checkedBy,
       checkedAt,
-      validation: validationData
+      validation: validationData,
+      ...(geometryMeasurements ? { geometryMeasurements } : {})
     };
 
     const acceptance = createCADArtifactBundleFromManifest(manifest, receipt, requirementIds);
