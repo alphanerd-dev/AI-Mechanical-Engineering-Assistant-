@@ -77,24 +77,48 @@ function validSha256(value: unknown): value is string {
 }
 
 /** Successful validator verdicts need measured dimensions, not just a boolean claim. */
+const HOST_DIMENSION_TOLERANCE_MM = 0.01;
+
 function validateCylinderMeasurements(value: Record<string, unknown>, specification: CADPartSpecification): string[] {
   const errors: string[] = [];
-  if (typeof value.volumeMm3 !== "number" || !Number.isFinite(value.volumeMm3) || value.volumeMm3 <= 0) {
-    errors.push("A successful geometry verdict must include a finite positive measured volume.");
-  }
-  if (!isRecord(value.boundingBoxMm)) {
-    errors.push("A successful cylinder verdict must include measured boundingBoxMm dimensions.");
-  }
-  const checks = value.dimensionChecks;
-  if (!Array.isArray(checks) || checks.length !== 3 || checks.some((item) => !isRecord(item))) {
-    errors.push("A successful cylinder verdict must include exactly three measured dimension checks.");
-    return errors;
-  }
   const expected: Record<string, number> = {
     x: specification.diameterMm,
     y: specification.diameterMm,
     z: specification.lengthMm
   };
+
+  const measuredVolume = value.volumeMm3;
+  if (typeof measuredVolume !== "number" || !Number.isFinite(measuredVolume) || measuredVolume <= 0) {
+    errors.push("A successful geometry verdict must include a finite positive measured volume.");
+  } else {
+    const expectedVolume = Math.PI * (specification.diameterMm / 2) ** 2 * specification.lengthMm;
+    const allowedVolumeDeviation = Math.max(expectedVolume * 1e-3, 1e-9);
+    if (Math.abs(measuredVolume - expectedVolume) > allowedVolumeDeviation) {
+      errors.push("Measured solid volume does not match the requested cylindrical specification.");
+    }
+  }
+
+  const measuredBounds = value.boundingBoxMm;
+  if (!isRecord(measuredBounds)) {
+    errors.push("A successful cylinder verdict must include measured boundingBoxMm dimensions.");
+  } else {
+    for (const axis of ["x", "y", "z"] as const) {
+      const extent = measuredBounds[axis];
+      const target = expected[axis];
+      if (typeof extent !== "number" || !Number.isFinite(extent) || extent <= 0) {
+        errors.push("A successful cylinder verdict must include a finite positive boundingBoxMm." + axis + ".");
+      } else if (Math.abs(extent - target) > HOST_DIMENSION_TOLERANCE_MM + target * 1e-6) {
+        errors.push("Measured boundingBoxMm." + axis + " does not match the requested cylinder dimension.");
+      }
+    }
+  }
+
+  const checks = value.dimensionChecks;
+  if (!Array.isArray(checks) || checks.length !== 3 || checks.some((item) => !isRecord(item))) {
+    errors.push("A successful cylinder verdict must include exactly three measured dimension checks.");
+    return [...new Set(errors)];
+  }
+
   const seen = new Set<string>();
   for (const item of checks as Record<string, unknown>[]) {
     const axis = item.axis;
@@ -109,19 +133,19 @@ function validateCylinderMeasurements(value: Record<string, unknown>, specificat
     const tolerance = item.toleranceMm;
     if (typeof actual !== "number" || !Number.isFinite(actual) || actual <= 0 ||
         typeof expectedValue !== "number" || !Number.isFinite(expectedValue) ||
-        typeof tolerance !== "number" || !Number.isFinite(tolerance) || tolerance <= 0 || tolerance > 1 ||
-        item.passed !== true) {
-      errors.push("Cylinder dimension check for " + axis + " is malformed or failed.");
+        typeof tolerance !== "number" || !Number.isFinite(tolerance) ||
+        tolerance !== HOST_DIMENSION_TOLERANCE_MM || item.passed !== true) {
+      errors.push("Cylinder dimension check for " + axis + " is malformed or does not use the host-selected tolerance.");
       continue;
     }
     if (Math.abs(expectedValue - target) > 1e-9 ||
-        Math.abs(actual - target) > tolerance + target * 1e-6) {
+        Math.abs(actual - target) > HOST_DIMENSION_TOLERANCE_MM + target * 1e-6) {
       errors.push("Measured cylinder " + axis + " extent does not match the requested specification.");
     }
-    const measuredBounds = value.boundingBoxMm;
-    if (isRecord(measuredBounds) && typeof measuredBounds[axis] === "number" &&
+    if (!isRecord(measuredBounds) || typeof measuredBounds[axis] !== "number" ||
+        !Number.isFinite(measuredBounds[axis]) ||
         Math.abs((measuredBounds[axis] as number) - actual) > 1e-9) {
-      errors.push("Cylinder dimension check " + axis + " does not match boundingBoxMm.");
+      errors.push("Cylinder dimension check " + axis + " does not match the measured boundingBoxMm.");
     }
   }
   if (seen.size !== 3) errors.push("Cylinder dimension checks are incomplete.");
@@ -232,6 +256,7 @@ export class CADPartCompletionWorkflow {
           lengthMm: intent.specification.lengthMm,
           units: "mm"
         },
+        toleranceMm: HOST_DIMENSION_TOLERANCE_MM,
         requirementIds
       },
       requiredProviderId: this.cadProviderId,
