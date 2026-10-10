@@ -62,3 +62,48 @@
 @media(max-width:980px){.reasoningWorkbenchGrid{grid-template-columns:1fr}.reasoningWorkbenchHeader{flex-direction:column}.reasoningHeaderMeta{justify-content:flex-start}}
 @media(max-width:560px){.reasoningFormRow{grid-template-columns:1fr}.reasoningTaskSummary{flex-direction:column}.reasoningSummaryPills{justify-content:flex-start}.reasoningRecordHeader{flex-direction:column}.reasoningRecordHeader small{text-align:left}.reasoningTaskItemTop{flex-direction:column}.reasoningTaskItemBottom{flex-direction:column;gap:5px}}
 
+
+.cadWorkspace{display:flex;flex-direction:column;gap:16px}
+.cadIntro,.cadHistoryHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.cadIntro h2{font-size:clamp(24px,4vw,34px);margin:6px 0 10px}
+.cadIntro>div{max-width:820px}
+.cadWorkspaceGrid{display:grid;grid-template-columns:1fr 1.15fr;gap:16px;align-items:start}
+.cadWorkspace h3{font-size:19px;margin:4px 0 8px}
+.cadWorkspace .panel>p.muted{font-size:13px}
+.cadField{display:flex;flex-direction:column;gap:7px;color:#b7c4d1;font-size:12px;font-weight:700;margin:14px 0}
+.cadField input,.cadField select,.cadField textarea{width:100%;min-width:0;border:1px solid #3a4856;border-radius:8px;background:#0b1015;color:#e8edf3;padding:11px 12px;font:inherit;font-size:14px;line-height:1.5;outline:none}
+.cadField input:focus,.cadField select:focus,.cadField textarea:focus{border-color:#8194a7}
+.cadField textarea{resize:vertical}
+.cadModelForm,.cadRunForm{display:flex;flex-direction:column;gap:8px}
+.cadRunForm .button,.cadModelForm .button{align-self:flex-start}
+.cadDivider{height:1px;background:#273340;margin:18px 0 12px}
+.cadSmall{font-size:11px!important;color:#8393a3;line-height:1.55;margin:0}
+.cadExamples{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;color:#8493a3;font-size:11px}
+.cadTextButton{padding:0;border:0;background:transparent;color:#b8c7d5;text-decoration:underline;cursor:pointer;font:inherit}
+.cadTextButton:disabled{opacity:.5}
+.cadNotice{padding:14px 16px;border:1px solid #3b6653;border-radius:9px;color:#b7e0c5;background:#101d17;line-height:1.5}
+.cadError{border-color:#73564a;background:#201613;color:#efc7b7}
+.cadHistoryHeader{align-items:center;margin-bottom:10px}
+.cadCompletionList{display:flex;flex-direction:column;gap:12px}
+.cadCompletionCard{padding:18px;border:1px solid #293744;border-radius:11px;background:#0e151c}
+.cadCompletionHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.cadCompletionHeader h4{font-size:15px;line-height:1.5;margin:7px 0 0;color:#dce5ed;font-weight:650}
+.cadStatus{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid #4a5866;border-radius:99px;padding:5px 8px;font-size:10px;letter-spacing:.06em;color:#b5c0cb}
+.cadStatusGood{border-color:#41684e;color:#a5d9b2;background:#122219}
+.cadStatusWarn{border-color:#71613f;color:#e1c994;background:#201c12}
+.cadStatusBad{border-color:#754b49;color:#f0b4b0;background:#251515}
+.cadSummary{display:flex;flex-wrap:wrap;gap:8px 18px;margin:13px 0;color:#8796a5;font-size:11px}
+.cadSummary strong{color:#c5d1dc;font-weight:650}
+.cadFollowup{padding:11px 12px;border-left:3px solid #8d774e;background:#1a1711;color:#decba7;font-size:12px;margin:12px 0}
+.cadMessageList,.cadArtifacts,.cadEvidenceList{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.cadMessageList>strong,.cadArtifacts>strong,.cadEvidenceList>strong{font-size:11px;color:#9eafbd;letter-spacing:.04em}
+.cadMessageList p{margin:0;border:1px solid #3f3434;background:#1b1314;border-radius:6px;padding:9px 10px;font-size:11px;color:#d1aaa8;overflow-wrap:anywhere}
+.cadArtifactRow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 12px;border:1px solid #273441;border-radius:8px;background:#0a1016}
+.cadArtifactRow>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cadArtifactRow>div>span{font-size:9px;letter-spacing:.11em;color:#8293a4}
+.cadArtifactRow b{font-size:12px;color:#d7e1ea;font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+.cadArtifactRow small{font-size:10px;color:#8d9ba8}
+.cadDownloadLink{font-size:11px;white-space:nowrap;color:#c7d7e6;text-decoration:none;border:1px solid #405163;border-radius:6px;padding:7px 9px}
+.cadDownloadLink:hover{border-color:#8da1b5}
+@media(max-width:840px){.cadWorkspaceGrid{grid-template-columns:1fr}.cadIntro{flex-direction:column}}
+@media(max-width:540px){.cadCompletionHeader{flex-direction:column}.cadArtifactRow{align-items:flex-start;flex-direction:column}.cadDownloadLink{white-space:normal}.cadHistoryHeader{align-items:flex-start;flex-direction:column}}

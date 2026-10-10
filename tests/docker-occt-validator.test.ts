@@ -19,6 +19,7 @@ class FakeRunner implements CADCommandRunner {
       valid: true,
       solidCount: 1,
       checkedBy: "occt.brepcheck",
+      validatorVersion: "build123d-0.13.0/OCCT-BRepCheck",
       warnings: [],
       volumeMm3: 141371.6694,
       boundingBoxMm: { x: 30, y: 30, z: 200 },
@@ -66,6 +67,7 @@ async function setup() {
   const input = {
     projectId: "project-shaft",
     artifactId: "shaft-solid-1",
+    artifactKind: "SOLID",
     artifactUri: artifactPath,
     modelIdentityId: "model-shaft",
     executionId: "execution-shaft",

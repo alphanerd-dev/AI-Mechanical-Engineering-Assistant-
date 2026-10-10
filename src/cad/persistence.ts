@@ -50,10 +50,16 @@ export function isVerifiedCADCompletion(result: CADPartCompletionResult): boolea
   const receipt = bundle.evidence.value;
   if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) return false;
   const record = receipt as Record<string, unknown>;
+  const validation = record.validation;
   return typeof record.artifactSha256 === "string" && /^[a-f0-9]{64}$/.test(record.artifactSha256) &&
     record.artifactSha256 === bundle.cad.provenance?.artifactSha256 &&
     record.artifactId === bundle.cad.id &&
     record.sourceSha256 === bundle.cad.provenance?.sourceSha256 &&
-    typeof record.validatorProviderId === "string" &&
-    record.validatorProviderId !== bundle.cad.provenance?.providerId;
+    typeof record.validatorProviderId === "string" && record.validatorProviderId.trim().length > 0 &&
+    record.validatorProviderId !== bundle.cad.provenance?.providerId &&
+    typeof record.validatorVersion === "string" && record.validatorVersion.trim().length > 0 &&
+    typeof record.checkedAt === "string" && !Number.isNaN(Date.parse(record.checkedAt)) &&
+    !!validation && typeof validation === "object" && !Array.isArray(validation) &&
+    (validation as Record<string, unknown>).valid === true &&
+    (validation as Record<string, unknown>).solidCount === 1;
 }

@@ -1,2 +1,21 @@
 import Link from "next/link";
-export default function CadPage(){return <main className="shell"><Link href="/projects/demo">← Project</Link><header className="moduleHead"><p className="eyebrow">CAD CAPABILITY LAYER</p><h1>Geometry pipeline</h1><p className="muted">Provider-independent CAD orchestration.</p></header><section className="pipeline">{["Parameters","build123d / CadQuery","Sandbox execution","OCCT / FreeCAD validation","Onshape / PDM"].map((x,i)=><div className="pipe" key={x}><span>0{i+1}</span><b>{x}</b>{i<4&&<i>→</i>}</div>)}</section><section className="panel"><h2>Current gate</h2><p className="notice">BLOCKED — missing critical engineering inputs.</p></section></main>}
+import CadWorkspace from "./CadWorkspace";
+
+export default async function CadPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  return <main className="shell">
+    <nav className="topbar">
+      <Link href={`/projects/${projectId}`}>← Project</Link>
+      <span>CAD / {projectId}</span>
+      <span className="pill">V2.1.6</span>
+    </nav>
+    <header className="moduleHead">
+      <div>
+        <p className="eyebrow">ENGINEERING CORE · CAD</p>
+        <h1>Geometry pipeline</h1>
+        <p className="muted">Generate a bounded CAD part, validate the actual BREP independently, then store immutable evidence and project-scoped artifacts.</p>
+      </div>
+    </header>
+    <CadWorkspace projectId={projectId} />
+  </main>;
+}
