@@ -24,9 +24,7 @@ async function main(): Promise<void> {
     maxStderrBytes: 64_000,
     memoryLimit: "1g",
     cpus: 2,
-    pidsLimit: 128,
-    runAsUid: 10001,
-    runAsGid: 10001
+    pidsLimit: 128
   }));
   registry.register(createDockerOCCTValidationProvider({
     image,
@@ -38,9 +36,7 @@ async function main(): Promise<void> {
     maxArtifactBytes: 100 * 1024 * 1024,
     memoryLimit: "1g",
     cpus: 1,
-    pidsLimit: 64,
-    runAsUid: 10001,
-    runAsGid: 10001
+    pidsLimit: 64
   }));
 
   const router = new CADCapabilityRouter(registry, [
