@@ -274,7 +274,7 @@ export async function POST(request: Request) {
   }
 
   const configured = configuredRuntime();
-  if ("error" in configured) return httpError(configured.error, 503);
+  if ("error" in configured && typeof configured.error === "string") return httpError(configured.error, 503);
   let result: CADPartCompletionResult;
   try {
     const registry = new CapabilityRegistry();
