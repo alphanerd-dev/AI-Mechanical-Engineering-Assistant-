@@ -5,10 +5,10 @@
   "description": "Portable AI Mechanical R&D Engineering core.",
   "type": "module",
   "scripts": {
-    "build": "next build && tsc --noEmit",
+    "build": "next build --webpack && tsc --noEmit",
     "test": "vitest run",
     "benchmark": "tsx benchmarks/v2-0-suite.ts",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "core": "tsx src/index.ts"
   },
   "devDependencies": {

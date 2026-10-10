@@ -60,6 +60,10 @@ In production, both CAD images must be pinned by immutable `@sha256:<digest>` re
 
 The API uses the authenticated Supabase client for project reads and storage uploads so project RLS remains active. Only completion-record INSERT uses the server-only service-role client after the route has checked the user and project. Keep that key in server deployment secrets and rotate it according to the deployment's secret-management policy.
 
+## Next.js source-module resolution
+
+The web app uses `next dev --webpack` and `next build --webpack` for now. The reusable engineering-core TypeScript modules use explicit Node-compatible `.js` import specifiers; Next 16's default Turbopack does not currently resolve those explicit specifiers to corresponding `.ts` sources. The Next configuration therefore uses Webpack's `resolve.extensionAlias` to map `.js` imports to TypeScript source while preserving the core's ESM import convention. This is a deliberate, supported bundler selection rather than a code-path-specific import rewrite.
+
 ## Deployment checklist
 
 Before enabling this workspace in a deployment:
