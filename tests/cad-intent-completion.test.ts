@@ -163,6 +163,17 @@ describe("end-to-end CAD part completion orchestration", () => {
     expect(result.bundle?.cad.informationStatus).toBe("VERIFIED");
     expect(result.bundle?.evidence.status).toBe("VERIFIED");
     expect(result.bundle?.evidence.requirementIds).toContain("REQ-SHAFT");
+    expect(result.bundle?.evidence.value).toMatchObject({
+      geometryMeasurements: {
+        volumeMm3: Math.PI * 15 * 15 * 200,
+        boundingBoxMm: { x: 30, y: 30, z: 200 },
+        dimensionChecks: [
+          { axis: "x", actualMm: 30, expectedMm: 30, toleranceMm: 0.01, passed: true },
+          { axis: "y", actualMm: 30, expectedMm: 30, toleranceMm: 0.01, passed: true },
+          { axis: "z", actualMm: 200, expectedMm: 200, toleranceMm: 0.01, passed: true }
+        ]
+      }
+    });
     expect(result.bundle?.cad.provenance?.sourceSha256).toBe(result.manifest?.provenance?.sourceSha256);
   });
 

@@ -64,18 +64,30 @@ The API uses the authenticated Supabase client for project reads and storage upl
 
 The web app uses `next dev --webpack` and `next build --webpack` for now. The reusable engineering-core TypeScript modules use explicit Node-compatible `.js` import specifiers; Next 16's default Turbopack does not currently resolve those explicit specifiers to corresponding `.ts` sources. The Next configuration therefore uses Webpack's `resolve.extensionAlias` to map `.js` imports to TypeScript source while preserving the core's ESM import convention. This is a deliberate, supported bundler selection rather than a code-path-specific import rewrite.
 
+## Runtime readiness and live acceptance
+
+- `GET /api/cad/readiness?projectId=<project-uuid>` checks server-side image configuration and pinning, artifact-root access, validator script presence, Docker daemon reachability, availability of both local pinned images, the privileged Supabase client, CAD tables and private bucket. It requires an authenticated project member and returns only pass/fail diagnostics; it never returns environment values, image names, filesystem paths, or raw provider errors.
+- `npm run smoke:cad-live` performs an authenticated HTTP-level acceptance run. It requires the environment variables below and does not print the cookie or signed URL:
+  - `CAD_WORKSPACE_BASE_URL` — deployed application origin (HTTPS outside localhost).
+  - `CAD_WORKSPACE_PROJECT_ID` — an existing project UUID where the user can execute tasks.
+  - `CAD_WORKSPACE_MODEL_ID` — an existing CAD model identity UUID in that project.
+  - `CAD_WORKSPACE_COOKIE` — the full authenticated session Cookie header value from a safe, short-lived test session. Keep it out of source control, CI logs, chat and tickets; unset it immediately after the test.
+  - Optional `CAD_WORKSPACE_TEST_NEEDS_INPUT=1` to additionally verify that missing dimensions are recorded as `NEEDS_INPUT` without producing CAD artifacts.
+- The smoke runner checks readiness, posts the supported cylinder request, verifies the persisted accepted status, checks that a full geometry measurement set is present in the stored receipt, downloads the BREP from its private signed URL, recomputes SHA-256 over the downloaded bytes and compares it with the stored receipt/artifact record, and confirms the accepted completion can be read back from history.
+
 ## Deployment checklist
 
 Before enabling this workspace in a deployment:
 
 1. Review and apply the migration to the target Supabase project.
 2. Verify the `engineering_projects` and `engineering_project_memberships` table names, helper functions and `ADMIN`/`ENGINEER` enum values match the existing V2.0.9 authorization migration.
-3. Set the server-only runtime/storage variables and pin image digests for production.
-4. Build and smoke-test both images from the repository-controlled Dockerfiles; verify the actual host artifact root permissions allow the configured non-root worker and read-only validator.
-5. Confirm a project member can read only that project's model/completion rows and storage objects; confirm a viewer cannot create a model or upload artifacts.
-6. Run the supported cylinder request in a non-production project. Compare the BREP digest in the host validation receipt, completion evidence, metadata and the stored byte content.
-7. Exercise missing dimensions, unsupported shapes, dimension mismatch, empty/corrupt BREP, multiple solids, malformed validator results, BREP mutation, storage upload failure and database failure. In all negative paths, no accepted/verified row or surviving unreferenced uploaded object should be left behind.
-8. Verify signed URLs expire and that no public object URL or host filesystem path is persisted.
+3. Set the server-only runtime/storage variables and pin image digests for production. The V2.1.6 migration is already applied to the currently connected Supabase project; verify the target environment separately.
+4. Build and provision the pinned build123d and OpenCascade-capable worker images on the same Docker daemon that the application can reach; verify the actual artifact root is mounted at a path the Docker daemon can access and the configured non-root worker/read-only validator can read it.
+5. Run the authenticated readiness endpoint and ensure every check is PASS.
+6. Confirm a project member can read only that project's model/completion rows and storage objects; confirm a viewer cannot create a model or upload artifacts.
+7. Run `npm run smoke:cad-live` against a non-production test project. Compare the BREP digest in the host validation receipt, geometry evidence, artifact metadata and the exact bytes downloaded from private storage.
+8. Exercise unsupported geometry, dimension mismatch, empty/corrupt BREP, multiple solids, malformed validator results, BREP mutation, storage upload failure and database failure. In all negative paths, no accepted/verified row or surviving unreferenced uploaded object should be left behind.
+9. Verify signed URLs expire and that no public object URL, user cookie, secret or host filesystem path is persisted.
 
 ## Verification and limitations
 

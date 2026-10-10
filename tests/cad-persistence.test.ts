@@ -33,6 +33,7 @@ describe("CAD completion persistence boundary", () => {
   it("requires the host-computed digest to match the accepted CAD artifact", () => {
     const result = {
       status: "ACCEPTED",
+      specification: { kind: "CYLINDER", name: "shaft", diameterMm: 30, lengthMm: 200 },
       acceptance: { status: "ACCEPTED", acceptance: { accepted: true } },
       bundle: {
         cad: { id: "solid-1", kind: "SOLID", validationStatus: "PASS", informationStatus: "VERIFIED",
@@ -44,11 +45,26 @@ describe("CAD completion persistence boundary", () => {
             validatorProviderId: "cad.occt",
             validatorVersion: "occt-test-1",
             checkedAt: "2026-10-10T00:00:00.000Z",
-            validation: { valid: true, solidCount: 1 }
+            validation: { valid: true, solidCount: 1 },
+            geometryMeasurements: {
+              volumeMm3: Math.PI * 15 * 15 * 200,
+              boundingBoxMm: { x: 30, y: 30, z: 200 },
+              dimensionChecks: [
+                { axis: "x", actualMm: 30, expectedMm: 30, toleranceMm: 0.01, passed: true },
+                { axis: "y", actualMm: 30, expectedMm: 30, toleranceMm: 0.01, passed: true },
+                { axis: "z", actualMm: 200, expectedMm: 200, toleranceMm: 0.01, passed: true }
+              ]
+            }
           } }
       }
     } as unknown as CADPartCompletionResult;
     expect(isVerifiedCADCompletion(result)).toBe(true);
+    const receipt = result.bundle!.evidence.value as Record<string, unknown>;
+    const measuredReceipt = { ...receipt };
+    delete measuredReceipt.geometryMeasurements;
+    result.bundle!.evidence.value = measuredReceipt;
+    expect(isVerifiedCADCompletion(result)).toBe(false);
+    result.bundle!.evidence.value = receipt;
     result.bundle!.cad.provenance!.artifactSha256 = "c".repeat(64);
     expect(isVerifiedCADCompletion(result)).toBe(false);
   });
