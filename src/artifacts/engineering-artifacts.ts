@@ -18,6 +18,8 @@ export interface ArtifactProvenance {
   modelIdentityId?:string;
   backend?:string;
   sourceSha256?:string;
+  /** Hash of exact persisted artifact bytes, distinct from sourceSha256. */
+  artifactSha256?:string;
   sourceArtifactIds?:string[];
 }
 

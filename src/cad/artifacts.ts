@@ -20,6 +20,8 @@ export interface CADExecutionProvenance extends ArtifactProvenance {
 
 export interface CADArtifactProvenance extends CADExecutionProvenance {
   outputUri:string;
+  /** SHA-256 of exact output bytes, computed on the trusted host boundary. */
+  artifactSha256?:string;
 }
 
 export interface CADArtifact {

@@ -37,10 +37,13 @@ describe("engineering verification integration",()=>{
     });
     const solid=manifest.artifacts.find(item=>item.kind==="SOLID")!;
     const validation={valid:true,solidCount:1,warnings:[],checkedBy:"occt"};
+    const artifactSha256="d".repeat(64);
+    solid.provenance!.artifactSha256=artifactSha256;
     const bundleResult=createCADArtifactBundleFromManifest(manifest,{
       id:"validation-bracket",projectId:project.id,artifactId:solid.id,modelIdentityId:model.id,
-      sourceSha256:solid.provenance!.sourceSha256,backend:solid.backend,checkedBy:"occt",
-      checkedAt:"2026-10-09T10:01:00.000Z",validation
+      sourceSha256:solid.provenance!.sourceSha256,backend:solid.backend,
+      validatorProviderId:"cad.occt",validatorVersion:"occt-test-1",artifactSha256,
+      checkedBy:"occt",checkedAt:"2026-10-09T10:01:00.000Z",validation
     },["REQ-STRENGTH"]);
     expect(bundleResult.status).toBe("ACCEPTED");
     const cad=bundleResult.bundle!;

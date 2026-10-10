@@ -19,6 +19,11 @@ export interface CADValidationReceipt {
   modelIdentityId:string;
   sourceSha256:string;
   backend:string;
+  /** Provider id from the trusted CAD router, not worker-supplied text. */
+  validatorProviderId:string;
+  validatorVersion:string;
+  /** SHA-256 of the exact bytes inspected by the validator. */
+  artifactSha256:string;
   checkedBy:string;
   checkedAt:string;
   validation:GeometryValidation;
@@ -107,6 +112,11 @@ export function createCADArtifactBundleFromManifest(
     if (receipt.modelIdentityId !== p.modelIdentityId) errors.push("Validation receipt model identity does not match the CAD artifact.");
     if (receipt.sourceSha256 !== p.sourceSha256) errors.push("Validation receipt source digest does not match the generated source.");
     if (receipt.backend !== p.backend) errors.push("Validation receipt backend does not match the generated artifact.");
+    if (!nonEmptyString(receipt.validatorProviderId)) errors.push("Validation receipt must identify the host-selected validator provider.");
+    if (receipt.validatorProviderId === p.providerId) errors.push("CAD execution and validation must be performed by distinct providers.");
+    if (!nonEmptyString(receipt.validatorVersion)) errors.push("Validation receipt must identify the validator version.");
+    if (typeof receipt.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(receipt.artifactSha256)) errors.push("Validation receipt must contain the host-computed artifact SHA-256 digest.");
+    if (p.artifactSha256 !== receipt.artifactSha256) errors.push("Validation receipt artifact digest does not match the exact solid artifact.");
     if (!nonEmptyString(receipt.checkedBy)) errors.push("Validation receipt must identify the geometry validator.");
     if (!validDate(receipt.checkedAt)) errors.push("Validation receipt checkedAt must be a valid date string.");
     if (validDate(receipt.checkedAt) && validDate(p.generatedAt) && Date.parse(receipt.checkedAt)<Date.parse(p.generatedAt)) {
