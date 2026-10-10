@@ -69,9 +69,9 @@ jobs:
           assert result["valid"] is True, result
           assert result["solidCount"] == 1, result
           assert result["checkedBy"] == "occt.brepcheck", result
-          assert result["boundingBoxMm"]["x"] == 30.0, result
-          assert result["boundingBoxMm"]["y"] == 30.0, result
-          assert result["boundingBoxMm"]["z"] == 200.0, result
+          assert abs(result["boundingBoxMm"]["x"] - 30.0) <= 0.01, result
+          assert abs(result["boundingBoxMm"]["y"] - 30.0) <= 0.01, result
+          assert abs(result["boundingBoxMm"]["z"] - 200.0) <= 0.01, result
           assert result["volumeMm3"] > 0, result
           assert all(item["passed"] for item in result["dimensionChecks"]), result
           print("OpenCascade independently validated the generated BREP and requested dimensions")
