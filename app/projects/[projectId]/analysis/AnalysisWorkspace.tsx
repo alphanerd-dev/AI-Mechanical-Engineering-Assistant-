@@ -50,7 +50,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
 
   useEffect(() => {
     let active = true;
-    if (demo) { setLoading(false); return () => { active = false; }; }
+    if (demo) return () => { active = false; };
     queueMicrotask(() => {
       if (!active) return;
       fetch(`/api/projects/${encodeURIComponent(projectId)}/workspace`, { cache: "no-store" })
