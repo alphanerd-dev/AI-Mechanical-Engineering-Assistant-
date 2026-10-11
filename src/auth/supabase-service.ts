@@ -3,7 +3,7 @@ import { InMemoryAuditTrail } from "../audit/trail";
 import { type AuditActor, type AuditAction, type AuditOutcome } from "../audit/types";
 import { authorize } from "./policy";
 import type { AuthenticatedIdentity, EngineeringPermission } from "./types";
-import { identityFromSupabaseClaims } from "./supabase-identity";
+import { identityFromSupabaseClaims, identityFromSupabaseUser, type SupabaseClaims } from "./supabase-identity";
 
 const globalKey = "__ENGINEERING_SUPABASE_AUTH_AUDIT__";
 type GlobalWithAudit = typeof globalThis & { [globalKey]?: InMemoryAuditTrail };
@@ -43,8 +43,20 @@ function audit(
 export async function getAuthenticatedIdentity(): Promise<AuthenticatedIdentity | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
-  if (error || !data?.claims) return null;
-  return identityFromSupabaseClaims(data.claims);
+  const claims = !error && data?.claims ? data.claims as SupabaseClaims : undefined;
+
+  // Fast path: validate the signed JWT and use its trusted app_metadata role claims.
+  const claimsIdentity = claims ? identityFromSupabaseClaims(claims) : null;
+  if (claimsIdentity) return claimsIdentity;
+
+  // Recovery path: an access token can be older than the server-managed user role.
+  // Ask Supabase Auth to validate the current session and return the current user
+  // record, then build identity only from that verified user's app_metadata.
+  // If Auth cannot validate the session or no trusted role exists, deny by default.
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) return null;
+
+  return identityFromSupabaseUser(userData.user, claims);
 }
 
 export async function authorizeSupabaseRequest(
