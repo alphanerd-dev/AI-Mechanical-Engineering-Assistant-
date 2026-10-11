@@ -12,6 +12,7 @@ type CADArtifact = {
   informationStatus?: string;
   evidenceIds?: string[];
 };
+type CADReadiness = { ready: boolean; status: string; checks: Array<{ name: string; status: string; detail: string }> };
 type CADCompletion = {
   id: string;
   status: string;
@@ -46,6 +47,7 @@ function signedUrlFor(uri: string | undefined, links: Record<string, string> | u
 export default function CadWorkspace({ projectId }: { projectId: string }) {
   const [models, setModels] = useState<CADModel[]>([]);
   const [completions, setCompletions] = useState<CADCompletion[]>([]);
+  const [readiness, setReadiness] = useState<CADReadiness>();
   const [modelId, setModelId] = useState("");
   const [modelName, setModelName] = useState("New CAD model");
   const [intent, setIntent] = useState(EXAMPLE);
@@ -55,12 +57,19 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
   const [notice, setNotice] = useState("");
 
   const refresh = useCallback(async () => {
-    const [modelsResponse, completionsResponse] = await Promise.all([
+    const [modelsResponse, completionsResponse, readinessResponse] = await Promise.all([
       fetch("/api/cad/models?projectId=" + encodeURIComponent(projectId), { cache: "no-store" }),
-      fetch("/api/cad/completions?projectId=" + encodeURIComponent(projectId), { cache: "no-store" })
+      fetch("/api/cad/completions?projectId=" + encodeURIComponent(projectId), { cache: "no-store" }),
+      fetch("/api/cad/readiness?projectId=" + encodeURIComponent(projectId), { cache: "no-store" })
     ]);
     const modelsBody = await modelsResponse.json().catch(() => ({}));
     const completionsBody = await completionsResponse.json().catch(() => ({}));
+    const readinessBody = await readinessResponse.json().catch(() => ({})) as Partial<CADReadiness>;
+    setReadiness(Array.isArray(readinessBody.checks) ? {
+      ready: readinessBody.ready === true,
+      status: typeof readinessBody.status === "string" ? readinessBody.status : "NOT_READY",
+      checks: readinessBody.checks
+    } as CADReadiness : undefined);
     if (!modelsResponse.ok) throw new Error(typeof modelsBody.error === "string" ? modelsBody.error : "CAD models could not be loaded.");
     if (!completionsResponse.ok) throw new Error(typeof completionsBody.error === "string" ? completionsBody.error : "CAD completion history could not be loaded.");
     const nextModels = Array.isArray(modelsBody.models) ? modelsBody.models as CADModel[] : [];
@@ -112,6 +121,10 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
   async function runCompletion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !modelId || !intent.trim()) return;
+    if (readiness?.ready !== true) {
+      setError("CAD execution is blocked because the trusted runtime readiness checks are not all passing. No CAD execution was attempted; inspect the readiness checks below.");
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -144,6 +157,16 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
   }
 
   return <section className="cadWorkspace">
+    <section className={`panel cadReadinessPanel ${readiness?.ready ? "cadReady" : "cadNotReady"}`}>
+      <div className="projectListHeader">
+        <div><p className="eyebrow">EXECUTION PRECONDITIONS</p><h3>Trusted CAD runtime</h3></div>
+        <span className={statusClass(readiness?.ready ? "PASS" : "BLOCKED")}>{readiness?.status ?? "CHECKING"}</span>
+      </div>
+      <p className="muted">Geometry execution is available only when the build worker, independent OCCT validator, artifact storage and trusted database writer are configured. A valid login does not imply CAD runtime readiness.</p>
+      {readiness?.checks?.length ? <div className="readinessChecks">{readiness.checks.map((check) => <div className="readinessCheck" key={check.name}>
+        <span className={statusClass(check.status)}>{check.status}</span><div><strong>{check.name.replaceAll("_", " ")}</strong><p>{check.detail}</p></div>
+      </div>)}</div> : <p className="cadSmall">Readiness could not be determined. Refresh to retry the server diagnostic.</p>}
+    </section>
     <div className="cadIntro">
       <div>
         <p className="eyebrow">V2.1.6 · CAD COMPLETION WORKSPACE</p>
@@ -189,7 +212,8 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
             <span>Example: “shaft, 30 mm diameter, 200 mm length”</span>
             <button type="button" className="cadTextButton" onClick={() => setIntent(EXAMPLE)} disabled={busy}>Use example</button>
           </div>
-          <button className="button" type="submit" disabled={busy || loading || !modelId || !intent.trim()}>{busy ? "Executing verified workflow…" : "Generate and validate CAD"}</button>
+          <button className="button" type="submit" disabled={busy || loading || !modelId || !intent.trim() || readiness?.ready !== true}>{busy ? "Executing verified workflow…" : readiness?.ready === true ? "Generate and validate CAD" : "CAD runtime not ready"}</button>
+          <p className="cadSmall">Geometric validation is not design approval. Only an ACCEPTED completion with independent validation evidence is presented as accepted.</p>
           {!modelId && <p className="cadSmall">Create or select a model before sending a CAD request.</p>}
         </form>
       </section>
