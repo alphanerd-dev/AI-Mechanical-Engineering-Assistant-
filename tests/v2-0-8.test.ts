@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identityFromSupabaseClaims } from "../src/auth/supabase-identity.js";
+import { identityFromSupabaseClaims, identityFromSupabaseUser } from "../src/auth/supabase-identity.js";
 import { authorize, permissionsForRoles } from "../src/auth/policy.js";
 
 const stamp = new Date("2026-10-07T00:00:00.000Z");
@@ -37,13 +37,30 @@ describe("V2.0.8 Supabase production authentication boundary", () => {
     }, stamp)).toBeNull();
   });
 
-  it("does not treat user-editable metadata as authorization data", () => {
-    const identity = identityFromSupabaseClaims({
-      sub: "user-1",
+  it("recovers a trusted role from the verified Supabase user when JWT role claims are stale", () => {
+    const identity = identityFromSupabaseUser({
+      id: "verified-user",
+      app_metadata: { engineering_roles: ["ENGINEER"], engineering_project_ids: ["P-1"] },
+      user_metadata: { engineering_roles: ["ADMIN"] },
+    }, {
+      sub: "stale-jwt-subject",
+      session_id: "session-1",
+      auth_time: Math.floor(stamp.getTime() / 1000),
       app_metadata: {},
     }, stamp);
 
-    expect(identity).toBeNull();
+    expect(identity?.subject).toBe("verified-user");
+    expect(identity?.roles).toEqual(["ENGINEER"]);
+    expect(identity?.projectIds).toEqual(["P-1"]);
+    expect(identity?.sessionId).toBe("session-1");
+  });
+
+  it("does not grant a role from user-editable metadata on the verified user", () => {
+    expect(identityFromSupabaseUser({
+      id: "verified-user",
+      app_metadata: {},
+      user_metadata: { engineering_roles: ["ADMIN"] },
+    }, undefined, stamp)).toBeNull();
   });
 
   it("preserves the existing deny-by-default engineering policy", () => {
