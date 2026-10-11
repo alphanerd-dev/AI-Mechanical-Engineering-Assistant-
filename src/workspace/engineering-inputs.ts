@@ -108,15 +108,22 @@ export function assessRequirementCompleteness(requirements: Requirement[]) {
   const awaitingEvidence = mustHave.filter((requirement) =>
     requirement.status !== "SATISFIED"
   );
-  const status = missingData.length > 0
+  const noRequirementsDefined = requirements.length === 0;
+  const noMustHaveRequirements = requirements.length > 0 && mustHave.length === 0;
+  const status = noRequirementsDefined || noMustHaveRequirements || missingData.length > 0
     ? "BLOCKED"
     : awaitingEvidence.length > 0
       ? "REVIEW_REQUIRED"
       : "PASS";
+  const explicitMissingData = noRequirementsDefined
+    ? [{ id: "REQUIREMENTS", name: "No project requirements have been defined." }]
+    : noMustHaveRequirements
+      ? [{ id: "REQUIREMENTS", name: "Define at least one MUST requirement before review." }]
+      : missingData.map(({ id, name }) => ({ id, name }));
   return {
     status,
     mustHaveCount: mustHave.length,
-    missingData: missingData.map(({ id, name }) => ({ id, name })),
+    missingData: explicitMissingData,
     awaitingEvidence: awaitingEvidence.map(({ id, name }) => ({ id, name }))
   } as const;
 }
