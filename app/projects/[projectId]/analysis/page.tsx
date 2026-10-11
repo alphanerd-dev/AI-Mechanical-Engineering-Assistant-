@@ -1,2 +1,11 @@
 import Link from "next/link";
-export default function AnalysisPage(){return <main className="shell"><Link href="/projects/demo">← Project</Link><header className="moduleHead"><p className="eyebrow">ANALYSIS ENGINE</p><h1>Preliminary shaft analysis</h1><p className="muted">Numerical providers calculate; the engineering core interprets and validates.</p></header><section className="metrics"><div className="metric"><span>Power</span><strong>5 kW</strong></div><div className="metric"><span>Speed</span><strong>1500 rpm</strong></div><div className="metric"><span>Torque</span><strong>31.83 N·m</strong></div></section><section className="panel"><h2>Design gate</h2><p>CAD remains blocked until the load arrangement, material, allowable stress, safety factor and critical load cases are defined.</p><div className="notice">CALCULATED — preliminary result only</div></section></main>}
+import AnalysisWorkspace from "./AnalysisWorkspace";
+
+export default async function AnalysisPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  return <main className="shell">
+    <nav className="topbar"><Link href={`/projects/${projectId}`}>← Project</Link><span>ANALYSIS / {projectId === "demo" ? "DEMO" : "WORKSPACE"}</span><span className="pill">DETERMINISTIC CORE</span></nav>
+    <header className="moduleHead"><p className="eyebrow">ANALYSIS ENGINE</p><h1>Engineering analysis</h1><p className="muted">Deterministic providers calculate; the engineering core records assumptions and distinguishes calculation from verification.</p></header>
+    <AnalysisWorkspace projectId={projectId} />
+  </main>;
+}
