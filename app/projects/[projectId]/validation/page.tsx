@@ -1,3 +1,11 @@
 import Link from "next/link";
-export default function ValidationPage(){return <main className="shell"><Link href="/projects/demo">← Project</Link><header className="moduleHead"><p className="eyebrow">EVIDENCE & VALIDATION</p><h1>Engineering evidence</h1><p className="muted">No success claim without evidence.</p></header><section className="panel"><Status name="Torque calculation" kind="CALCULATION" state="VERIFIED" /><Status name="Requirements completeness" kind="HUMAN REVIEW" state="BLOCKED" /><Status name="Geometry validation" kind="GEOMETRY CHECK" state="PENDING" /></section></main>}
-function Status({name,kind,state}:{name:string;kind:string;state:string}){return <div className="evidence"><div><b>{name}</b><small>{kind}</small></div><strong>{state}</strong></div>}
+import ValidationWorkspace from "./ValidationWorkspace";
+
+export default async function ValidationPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  return <main className="shell">
+    <nav className="topbar"><Link href={`/projects/${projectId}`}>← Project</Link><span>VALIDATION / {projectId === "demo" ? "DEMO" : "WORKSPACE"}</span><span className="pill">EVIDENCE FIRST</span></nav>
+    <header className="moduleHead"><p className="eyebrow">EVIDENCE & VALIDATION</p><h1>Validation and evidence</h1><p className="muted">Checks are persisted with the project. No success claim without evidence; a calculation is not the same as verification or approval.</p></header>
+    <ValidationWorkspace projectId={projectId} />
+  </main>;
+}
