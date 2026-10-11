@@ -79,7 +79,7 @@ export async function GET(request: Request) {
   const dockerBinary = env(process.env.CAD_DOCKER_BINARY) || "docker";
   const production = process.env.NODE_ENV === "production";
 
-  if (remoteConfig.error) {
+  if (!remoteConfig.configured && remoteConfig.error) {
     addCheck(checks, "cad_worker_configuration", "FAIL", remoteConfig.error);
   }
 
