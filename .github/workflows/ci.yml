@@ -27,6 +27,17 @@ jobs:
       - name: Test OCCT validator acceptance and failure paths
         run: |
           docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=64m --tmpfs /artifacts:rw,noexec,nosuid,size=16m,mode=1777 --mount type=bind,src="$PWD/worker/cad/occt",dst=/validator,readonly --env CAD_ARTIFACT_DIR=/artifacts --entrypoint python --pull=never ai-mechanical-engineering-assistant-build123d:0.13.0 /validator/test_validate_brep.py
+      - name: Build authenticated remote CAD worker image
+        run: docker build --tag ai-mechanical-engineering-assistant-remote-cad:ci --file worker/cad/remote/Dockerfile .
+      - name: Smoke test authenticated remote CAD worker end to end
+        shell: bash
+        run: |
+          TOKEN="$(openssl rand -hex 32)"
+          docker rm -f remote-cad-worker-ci >/dev/null 2>&1 || true
+          docker run --detach --name remote-cad-worker-ci --publish 127.0.0.1:10000:10000 --env PORT=10000 --env "WORKER_API_TOKEN=$TOKEN" ai-mechanical-engineering-assistant-remote-cad:ci
+          cleanup() { docker rm -f remote-cad-worker-ci >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          python worker/cad/remote/test_service.py http://127.0.0.1:10000 "$TOKEN"
       - name: Smoke test build123d runtime
         shell: bash
         run: |
