@@ -27,13 +27,6 @@ export type RemoteCADWorkerConfigResult =
   | { configured: true; value: RemoteCADWorkerConfig }
   | { configured: false; error?: string };
 
-type RemoteArtifact = {
-  filename: string;
-  contentBase64: string;
-  sha256: string;
-  sizeBytes: number;
-};
-
 type RemoteJSON = Record<string, unknown>;
 
 function isRecord(value: unknown): value is RemoteJSON {
