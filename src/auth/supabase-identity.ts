@@ -19,6 +19,13 @@ export interface SupabaseClaims {
   app_metadata?: unknown;
 }
 
+export interface SupabaseVerifiedUser {
+  id?: unknown;
+  app_metadata?: unknown;
+  // Exposed only to make the trust boundary explicit; never used for roles.
+  user_metadata?: unknown;
+}
+
 export function identityFromSupabaseClaims(claims: SupabaseClaims, now = new Date()): AuthenticatedIdentity | null {
   if (typeof claims.sub !== "string" || !claims.sub.trim()) return null;
 
@@ -46,4 +53,24 @@ export function identityFromSupabaseClaims(claims: SupabaseClaims, now = new Dat
     sessionId: typeof claims.session_id === "string" ? claims.session_id : undefined,
     authenticatedAt: authTime,
   };
+}
+
+/**
+ * Builds an engineering identity from the user record verified by Supabase Auth.
+ * The verified user's server-managed app_metadata takes precedence over JWT claims
+ * because access tokens can retain older role claims after server-side role changes.
+ * User-editable user_metadata is intentionally never consulted.
+ */
+export function identityFromSupabaseUser(
+  user: SupabaseVerifiedUser,
+  claims?: SupabaseClaims,
+  now = new Date(),
+): AuthenticatedIdentity | null {
+  if (typeof user.id !== "string" || !user.id.trim()) return null;
+
+  return identityFromSupabaseClaims({
+    ...claims,
+    sub: user.id,
+    app_metadata: user.app_metadata,
+  }, now);
 }
