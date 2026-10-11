@@ -62,19 +62,41 @@ export async function POST(request: Request) {
         if (roleError) {
           return authFailure(request, isJsonRequest, 503, "role-provisioning-failed", "Sign-in succeeded, but engineering access could not be provisioned.");
         }
-
-        if (!data.session?.refresh_token) {
-          return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Engineering access was provisioned. Sign in again to refresh your session.");
-        }
-        const { error: refreshError } = await supabase.auth.refreshSession({
-          refresh_token: data.session.refresh_token,
-        });
-        if (refreshError) {
-          return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Engineering access was provisioned. Sign in again to refresh your session.");
-        }
       } catch {
         return authFailure(request, isJsonRequest, 503, "role-provisioning-failed", "Sign-in succeeded, but engineering access could not be provisioned.");
       }
+    }
+
+    // Refresh on every successful sign-in, not only when provisioning a new role.
+    // Existing app_metadata may be correct in Auth storage while a JWT still has
+    // older role claims. Always issue a session whose claims reflect current trusted metadata.
+    if (!data.session?.refresh_token) {
+      return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Sign-in succeeded, but the session could not be refreshed. Sign in again.");
+    }
+
+    try {
+      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession({
+        refresh_token: data.session.refresh_token,
+      });
+      if (refreshError || !refreshed.session) {
+        return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Sign-in succeeded, but the session could not be refreshed. Sign in again.");
+      }
+
+      const refreshedMetadata = refreshed.user?.app_metadata ?? refreshed.session.user.app_metadata ?? {};
+      const refreshedRoles = refreshedMetadata.engineering_roles ?? refreshedMetadata.engineering_role;
+      const assignedRole = provisionRoleForAuthenticatedUser({
+        userId: refreshed.user?.id ?? refreshed.session.user.id,
+        existingRoles: refreshedRoles,
+        bootstrapAdminUserId: process.env.BOOTSTRAP_ADMIN_USER_ID,
+      });
+      // A remaining null here is expected for users with a recognized role.
+      // A non-null result means this response did not carry recognized trusted
+      // role metadata; don't pretend authorization is fixed.
+      if (assignedRole) {
+        return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Your session refreshed, but its trusted engineering role is still missing. Sign in again or contact the administrator.");
+      }
+    } catch {
+      return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Sign-in succeeded, but the session could not be refreshed. Sign in again.");
     }
 
     getAuthenticationAuditTrail().append({
@@ -82,8 +104,8 @@ export async function POST(request: Request) {
       actor: { subject: data.user.id, actorType: "USER" },
       action: "AUTHENTICATION",
       outcome: "SUCCESS",
-      reason: "Supabase authentication succeeded.",
-      metadata: { sessionId: data.session?.user?.id ?? "supabase-session" },
+      reason: "Supabase authentication succeeded and session was refreshed.",
+      metadata: { sessionId: data.user.id },
     });
 
     // Use 303 so the browser follows the successful POST with a GET to "/".
