@@ -11,6 +11,9 @@ export const runtime = "nodejs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type RouteContext = { params: Promise<{ projectId: string }> };
+class WorkspaceApiError extends Error {
+  constructor(readonly status: number, message: string) { super(message); this.name = "WorkspaceApiError"; }
+}
 type WorkspaceRow = { revision: number; snapshot: EngineeringWorkspaceSnapshot };
 
 function jsonError(error: string, status: number) {
@@ -23,25 +26,26 @@ async function loadOrInitializeWorkspace(db: Awaited<ReturnType<typeof createCli
     .select("id,name,stage,status")
     .eq("id", projectId)
     .maybeSingle();
-  if (projectError || !project) return null;
+  if (projectError) throw new WorkspaceApiError(503, "The registered project could not be loaded.");
+  if (!project) return null;
 
   const { data: existing, error: loadError } = await db
     .from("engineering_workspaces")
     .select("revision,snapshot")
     .eq("project_id", projectId)
     .maybeSingle();
-  if (loadError) throw new Error("The project workspace could not be loaded.");
+  if (loadError) throw new WorkspaceApiError(503, "The project workspace could not be loaded.");
 
   if (existing) {
     const snapshot = existing.snapshot as EngineeringWorkspaceSnapshot;
     try {
       validateEngineeringWorkspaceSnapshot(snapshot);
     } catch {
-      throw new Error("The saved workspace failed schema validation; no changes were applied.");
+      throw new WorkspaceApiError(503, "The saved workspace failed schema validation; no changes were applied.");
     }
     if (snapshot.project.id !== projectId || snapshot.taskGraph.projectId !== projectId ||
         snapshot.revision !== Number(existing.revision)) {
-      throw new Error("The saved workspace identity or revision is inconsistent; no changes were applied.");
+      throw new WorkspaceApiError(503, "The saved workspace identity or revision is inconsistent; no changes were applied.");
     }
     return { revision: Number(existing.revision), snapshot };
   }
@@ -64,7 +68,7 @@ async function loadOrInitializeWorkspace(db: Awaited<ReturnType<typeof createCli
     .select("revision,snapshot")
     .eq("project_id", projectId)
     .maybeSingle();
-  if (racedError || !raced) throw new Error("The first workspace snapshot could not be initialized.");
+  if (racedError || !raced) throw new WorkspaceApiError(503, "The first workspace snapshot could not be initialized.");
   const racedSnapshot = raced.snapshot as EngineeringWorkspaceSnapshot;
   try { validateEngineeringWorkspaceSnapshot(racedSnapshot); }
   catch { throw new Error("The saved workspace failed schema validation; no changes were applied."); }
@@ -212,6 +216,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       result: operationResult
     }, { headers: { "cache-control": "no-store" } });
   } catch (caught) {
+    if (caught instanceof WorkspaceApiError) return jsonError(caught.message, caught.status);
     return jsonError(caught instanceof Error ? caught.message : "Workspace update failed.", 400);
   }
 }
