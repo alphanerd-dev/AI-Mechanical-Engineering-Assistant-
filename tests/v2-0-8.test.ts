@@ -60,7 +60,10 @@ describe("V2.0.8 Supabase production authentication boundary", () => {
       id: "verified-user",
       app_metadata: {},
       user_metadata: { engineering_roles: ["ADMIN"] },
-    }, undefined, stamp)).toBeNull();
+    }, {
+      sub: "verified-user",
+      app_metadata: { engineering_roles: ["ADMIN"] },
+    }, stamp)).toBeNull();
   });
 
   it("preserves the existing deny-by-default engineering policy", () => {
