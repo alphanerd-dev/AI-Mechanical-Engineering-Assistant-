@@ -42,7 +42,9 @@ export async function POST(request: Request) {
       metadata: { sessionId: data.session?.user?.id ?? "supabase-session" },
     });
 
-    return NextResponse.redirect(new URL("/", request.url));
+    // Use 303 so the browser follows the successful POST with a GET to "/".
+    // A 307 preserves POST and can cause the home page to return HTTP 405.
+    return NextResponse.redirect(new URL("/", request.url), { status: 303 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Authentication is not configured." },
