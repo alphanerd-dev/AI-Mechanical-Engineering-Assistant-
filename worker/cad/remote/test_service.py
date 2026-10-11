@@ -5,13 +5,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import sys
 import time
 import urllib.error
 import urllib.request
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:10000").rstrip("/")
-TOKEN = sys.argv[2] if len(sys.argv) > 2 else "test-token-for-ci"
+TOKEN = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("WORKER_API_TOKEN", "")
 
 
 def request(path: str, payload: dict | None = None, auth: bool = True, allow_error: bool = False):
@@ -33,6 +34,10 @@ def request(path: str, payload: dict | None = None, auth: bool = True, allow_err
         raise AssertionError(f"{path} returned HTTP {exc.code}: {body}") from exc
 
 
+def number_text(value: float) -> str:
+    return f"{value:.9f}".rstrip("0").rstrip(".")
+
+
 def source_template(name: str, diameter: float, length: float) -> str:
     return (
         "# Deterministic " + name + " generator; dimensions are millimetres.\n"
@@ -42,7 +47,7 @@ def source_template(name: str, diameter: float, length: float) -> str:
         "from build123d import Align, Cylinder, Mesher, export_brep, export_step, export_stl\n"
         "\n"
         "output_dir = Path(os.environ['CAD_ARTIFACT_DIR'])\n"
-        "part = Cylinder(radius=" + str(diameter / 2) + ", height=" + str(length) + ", align=(Align.CENTER, Align.CENTER, Align.MIN))\n"
+        "part = Cylinder(radius=" + number_text(diameter / 2) + ", height=" + number_text(length) + ", align=(Align.CENTER, Align.CENTER, Align.MIN))\n"
         "export_brep(part, output_dir / 'part.brep')\n"
         "export_step(part, output_dir / 'part.step')\n"
         "export_stl(part, output_dir / 'part.stl')\n"
@@ -118,7 +123,7 @@ def main() -> None:
     code, rejected = request("/v1/cad/execute", {
         "id": "ci-cad-execution-002",
         "backend": "build123d",
-        "source": source + "import os; os.system('echo unsafe')\n",
+        "source": source + "raise RuntimeError('source must never execute')\n",
         "filename": "shaft.py",
         "timeoutMs": 60000,
         "parameters": dimensions
