@@ -1,3 +1,11 @@
 import Link from "next/link";
-export default function RequirementsPage(){return <Module title="Requirements" subtitle="Make the design problem explicit before geometry." items={[["REQ-001","Transmit power","5 kW","MUST"],["REQ-002","Operating speed","1500 rpm","MUST"],["REQ-003","Material","OPEN","MUST"],["REQ-004","Allowable shear stress","OPEN","MUST"]]} />}
-function Module({title,subtitle,items}:{title:string;subtitle:string;items:string[][]}){return <main className="shell"><Link href="/projects/demo">← Project</Link><header className="moduleHead"><p className="eyebrow">ENGINEERING GATE</p><h1>{title}</h1><p className="muted">{subtitle}</p></header><section className="panel"><table><thead><tr><th>ID</th><th>Requirement</th><th>Value</th><th>Priority</th></tr></thead><tbody>{items.map(x=><tr key={x[0]}>{x.map((v,i)=><td key={i}>{v}</td>)}</tr>)}</tbody></table></section></main>}
+import RequirementsWorkspace from "./RequirementsWorkspace";
+
+export default async function RequirementsPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  return <main className="shell">
+    <nav className="topbar"><Link href={`/projects/${projectId}`}>← Project</Link><span>REQUIREMENTS / {projectId === "demo" ? "DEMO" : "WORKSPACE"}</span><span className="pill">PERSISTED REGISTER</span></nav>
+    <header className="moduleHead"><p className="eyebrow">ENGINEERING GATE</p><h1>Requirements</h1><p className="muted">Define constraints, priorities, units and verification methods before design approval.</p></header>
+    <RequirementsWorkspace projectId={projectId} />
+  </main>;
+}
