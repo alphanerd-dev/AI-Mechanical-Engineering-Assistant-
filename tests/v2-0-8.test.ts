@@ -46,7 +46,7 @@ describe("V2.0.8 Supabase production authentication boundary", () => {
       sub: "stale-jwt-subject",
       session_id: "session-1",
       auth_time: Math.floor(stamp.getTime() / 1000),
-      app_metadata: {},
+      app_metadata: { engineering_roles: ["ADMIN"], engineering_project_ids: ["P-OLD"] },
     }, stamp);
 
     expect(identity?.subject).toBe("verified-user");
