@@ -74,7 +74,7 @@ function safeImage(value: string): boolean {
 }
 function configuredRuntime() {
   const remote = getRemoteCADWorkerConfig();
-  if (remote.error) return { error: remote.error } as const;
+  if (!remote.configured && remote.error) return { error: remote.error } as const;
   if (remote.configured) return { mode: "remote" as const, ...remote.value };
 
   const buildImage = env(process.env.CAD_BUILD123D_IMAGE);
