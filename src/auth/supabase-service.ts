@@ -3,7 +3,7 @@ import { InMemoryAuditTrail } from "../audit/trail";
 import { type AuditActor, type AuditAction, type AuditOutcome } from "../audit/types";
 import { authorize } from "./policy";
 import type { AuthenticatedIdentity, EngineeringPermission } from "./types";
-import { identityFromSupabaseClaims, identityFromSupabaseUser, type SupabaseClaims } from "./supabase-identity";
+import { identityFromSupabaseUser, type SupabaseClaims } from "./supabase-identity";
 
 const globalKey = "__ENGINEERING_SUPABASE_AUTH_AUDIT__";
 type GlobalWithAudit = typeof globalThis & { [globalKey]?: InMemoryAuditTrail };
@@ -42,17 +42,16 @@ function audit(
 
 export async function getAuthenticatedIdentity(): Promise<AuthenticatedIdentity | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
-  const claims = !error && data?.claims ? data.claims as SupabaseClaims : undefined;
 
-  // Fast path: validate the signed JWT and use its trusted app_metadata role claims.
-  const claimsIdentity = claims ? identityFromSupabaseClaims(claims) : null;
-  if (claimsIdentity) return claimsIdentity;
+  // Claims retain useful session context for auditing, but are snapshots. Never
+  // authorize from them alone because an otherwise valid JWT can retain revoked
+  // or missing engineering role claims after app_metadata changes.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const claims = !claimsError && claimsData?.claims ? claimsData.claims as SupabaseClaims : undefined;
 
-  // Recovery path: an access token can be older than the server-managed user role.
-  // Ask Supabase Auth to validate the current session and return the current user
-  // record, then build identity only from that verified user's app_metadata.
-  // If Auth cannot validate the session or no trusted role exists, deny by default.
+  // Fetch the current user from Supabase Auth for every protected authorization
+  // decision. identityFromSupabaseUser trusts only this verified user's
+  // server-managed app_metadata, not the JWT's possibly stale roles or user_metadata.
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) return null;
 
