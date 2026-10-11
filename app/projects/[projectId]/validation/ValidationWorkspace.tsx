@@ -70,7 +70,7 @@ export default function ValidationWorkspace({ projectId }: { projectId: string }
 
   useEffect(() => {
     let active = true;
-    if (demo) { setLoading(false); return () => { active = false; }; }
+    if (demo) return () => { active = false; };
     queueMicrotask(() => {
       if (!active) return;
       refresh().catch((caught: unknown) => { if (active) setError(caught instanceof Error ? caught.message : "Validation records could not be loaded."); })
