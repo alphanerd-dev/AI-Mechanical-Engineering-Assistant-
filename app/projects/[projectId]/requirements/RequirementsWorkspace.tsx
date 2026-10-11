@@ -44,7 +44,7 @@ export default function RequirementsWorkspace({ projectId }: { projectId: string
 
   useEffect(() => {
     let active = true;
-    if (projectId === "demo") { setLoading(false); return () => { active = false; }; }
+    if (projectId === "demo") return () => { active = false; };
     queueMicrotask(() => {
       if (!active) return;
       load().catch((caught: unknown) => {
