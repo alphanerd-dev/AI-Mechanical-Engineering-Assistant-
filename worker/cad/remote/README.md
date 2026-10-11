@@ -16,3 +16,13 @@ The worker caps request size, per-artifact size, total output size, concurrency,
 Render's free service can sleep when idle and does not provide durable local artifact storage. This design returns bounded artifact bytes directly to the Vercel application, which verifies their digests and persists accepted artifacts into the existing private Supabase Storage bucket. A sleeping service may add cold-start latency; this service should be upgraded or moved to durable worker infrastructure before relying on production availability or higher-throughput workloads.
 
 This is a first bounded CAD completion worker, not a general-purpose CAD interpreter. It supports cylindrical shafts/cylinders only. A positive geometry verdict is not design approval or a complete mechanical safety assessment.
+
+## Vercel integration
+
+For the matching Vercel Preview branch (and, after the production rollout is approved), configure these **server-side only** environment variables:
+
+- `CAD_WORKER_URL=https://ai-mechanical-cad-worker.onrender.com`
+- `CAD_WORKER_API_TOKEN` — the same 64-character random token configured as `WORKER_API_TOKEN` in Render, stored as a sensitive Vercel variable
+- `CAD_ARTIFACT_ROOT=/tmp/engineering-cad-artifacts`
+
+Do not prefix the token with `NEXT_PUBLIC_`, commit it, or put it in logs. The application's readiness API checks worker readiness and private Supabase artifact persistence before it allows CAD execution.
