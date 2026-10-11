@@ -6,10 +6,17 @@ import { getAuthenticationAuditTrail } from "../../../../src/auth/supabase-servi
 
 export const runtime = "nodejs";
 
+function authFailure(request: Request, isJsonRequest: boolean, status: number, code: string, message: string) {
+  if (isJsonRequest) return NextResponse.json({ error: message, code }, { status });
+  return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(code)}`, request.url), { status: 303 });
+}
+
 export async function POST(request: Request) {
+  const contentType = request.headers.get("content-type") ?? "";
+  const isJsonRequest = contentType.includes("application/json");
+
   try {
-    const contentType = request.headers.get("content-type") ?? "";
-    const body = contentType.includes("application/json")
+    const body = isJsonRequest
       ? await request.json().catch(() => ({}))
       : Object.fromEntries(await request.formData().catch(() => new FormData()));
 
@@ -17,7 +24,7 @@ export async function POST(request: Request) {
     const password = typeof body.password === "string" ? body.password : "";
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
+      return authFailure(request, isJsonRequest, 400, "missing-fields", "Email and password are required.");
     }
 
     const supabase = await createClient();
@@ -32,7 +39,7 @@ export async function POST(request: Request) {
         reason: "Supabase authentication failed.",
         metadata: { email },
       });
-      return NextResponse.json({ error: "Authentication failed." }, { status: 401 });
+      return authFailure(request, isJsonRequest, 401, "authentication-failed", "Sign-in failed.");
     }
 
     const appMetadata = data.user.app_metadata ?? {};
@@ -53,32 +60,20 @@ export async function POST(request: Request) {
           },
         });
         if (roleError) {
-          return NextResponse.json(
-            { error: "Sign-in succeeded, but engineering access could not be provisioned. Please try again or contact the platform administrator." },
-            { status: 503 },
-          );
+          return authFailure(request, isJsonRequest, 503, "role-provisioning-failed", "Sign-in succeeded, but engineering access could not be provisioned.");
         }
 
         if (!data.session?.refresh_token) {
-          return NextResponse.json(
-            { error: "Engineering access was provisioned. Sign out and sign in again to refresh your session." },
-            { status: 503 },
-          );
+          return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Engineering access was provisioned. Sign in again to refresh your session.");
         }
         const { error: refreshError } = await supabase.auth.refreshSession({
           refresh_token: data.session.refresh_token,
         });
         if (refreshError) {
-          return NextResponse.json(
-            { error: "Engineering access was provisioned. Sign out and sign in again to refresh your session." },
-            { status: 503 },
-          );
+          return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Engineering access was provisioned. Sign in again to refresh your session.");
         }
       } catch {
-        return NextResponse.json(
-          { error: "Sign-in succeeded, but engineering access could not be provisioned. Please try again or contact the platform administrator." },
-          { status: 503 },
-        );
+        return authFailure(request, isJsonRequest, 503, "role-provisioning-failed", "Sign-in succeeded, but engineering access could not be provisioned.");
       }
     }
 
@@ -92,12 +87,8 @@ export async function POST(request: Request) {
     });
 
     // Use 303 so the browser follows the successful POST with a GET to "/".
-    // A 307 preserves POST and can cause the home page to return HTTP 405.
     return NextResponse.redirect(new URL("/", request.url), { status: 303 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Authentication is not configured." },
-      { status: 503 },
-    );
+  } catch {
+    return authFailure(request, isJsonRequest, 503, "auth-unavailable", "Authentication is temporarily unavailable.");
   }
 }
