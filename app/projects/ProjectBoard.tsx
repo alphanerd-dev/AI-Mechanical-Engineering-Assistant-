@@ -108,7 +108,7 @@ export default function ProjectBoard() {
 
     {roleRequired && <section className="projectNotice projectNoticeWarning" role="status">
       <strong>Engineering role required</strong>
-      <p>Your session is valid, but the API did not find an authorized engineering role in this session. Sign out and sign in again to refresh your session. The sign-in service provisions standard <code>ENGINEER</code> access for accounts without a trusted role; if this message remains after signing in again, the platform administrator must inspect the user's trusted Supabase <code>app_metadata.engineering_roles</code>. User Metadata does not grant access.</p>
+      <p>Your session is valid, but the API did not find an authorized engineering role in this session. Sign out and sign in again to refresh your session. The sign-in service provisions standard <code>ENGINEER</code> access for accounts without a trusted role; if this message remains after signing in again, the platform administrator must inspect the user&apos;s trusted Supabase <code>app_metadata.engineering_roles</code>. User Metadata does not grant access.</p>
     </section>}
 
     <section className="projectBoardGrid">
