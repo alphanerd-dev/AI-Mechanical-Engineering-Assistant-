@@ -40,7 +40,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
     .eq("project_id", projectId)
     .maybeSingle();
   const snapshot = (workspaceRow?.snapshot ?? {}) as ProjectSnapshot;
-  const state = snapshot.project ?? {};
+  const state: NonNullable<ProjectSnapshot["project"]> = snapshot.project ?? {};
   const requirements = Array.isArray(state.requirements) ? state.requirements : [];
   const events = Array.isArray(state.events) ? state.events : [];
   const mustCount = requirements.filter((item) => item.priority === "MUST").length;
