@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type EngineeringEvent = { id: string; timestamp: string; actor: string; action: string; input?: unknown; output?: unknown; evidence?: string[] };
 type Requirement = { name: string; value?: number | string; unit?: string };
@@ -38,15 +38,16 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
   const [notice, setNotice] = useState("");
   const demo = projectId === "demo";
 
-  const lastCalculation = useMemo(() => {
-    for (const event of [...events].reverse()) {
+  const lastCalculation = (() => {
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index];
       if (event.action === "ANALYSIS.SHAFT_TORQUE") {
         const found = readCalculation(event);
         if (found) return { event, calculation: found };
       }
     }
     return undefined;
-  }, [events]);
+  })();
 
   useEffect(() => {
     let active = true;
