@@ -98,7 +98,7 @@ export default function RequirementsWorkspace({ projectId }: { projectId: string
     {readOnly && <p className="projectNotice projectNoticeWarning">Demo sandbox: the rows below are illustrative examples and are not saved to Supabase.</p>}
     {error && <p className="projectError" role="alert">{error}</p>}
     {notice && <p className="projectNoticeText" role="status">{notice}</p>}
-    {loading && <p className="muted">Loading persisted requirements…</p>}
+    {loading && !readOnly && <p className="muted">Loading persisted requirements…</p>}
 
     <section className="panel">
       <div className="projectListHeader"><div><p className="eyebrow">REQUIREMENT REGISTER</p><h2>Design constraints</h2></div><span className="projectState">Revision {revision || "—"}</span></div>
