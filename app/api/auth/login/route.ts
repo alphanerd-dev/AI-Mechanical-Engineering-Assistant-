@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { provisionRoleForAuthenticatedUser } from "../../../../src/auth/role-provisioning";
+import { identityFromSupabaseUser } from "../../../../src/auth/supabase-identity";
 import { getAuthenticationAuditTrail } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
@@ -82,17 +83,8 @@ export async function POST(request: Request) {
         return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Sign-in succeeded, but the session could not be refreshed. Sign in again.");
       }
 
-      const refreshedMetadata = refreshed.user?.app_metadata ?? refreshed.session.user.app_metadata ?? {};
-      const refreshedRoles = refreshedMetadata.engineering_roles ?? refreshedMetadata.engineering_role;
-      const assignedRole = provisionRoleForAuthenticatedUser({
-        userId: refreshed.user?.id ?? refreshed.session.user.id,
-        existingRoles: refreshedRoles,
-        bootstrapAdminUserId: process.env.BOOTSTRAP_ADMIN_USER_ID,
-      });
-      // A remaining null here is expected for users with a recognized role.
-      // A non-null result means this response did not carry recognized trusted
-      // role metadata; don't pretend authorization is fixed.
-      if (assignedRole) {
+      const refreshedUser = refreshed.user ?? refreshed.session.user;
+      if (!identityFromSupabaseUser(refreshedUser)) {
         return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Your session refreshed, but its trusted engineering role is still missing. Sign in again or contact the administrator.");
       }
     } catch {
