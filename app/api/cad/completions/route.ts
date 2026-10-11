@@ -22,6 +22,10 @@ import { CADCapabilityRouter } from "../../../../src/cad/routing";
 import { createCADSourceSha256 } from "../../../../src/cad/provenance";
 import { parseCADPartIntent } from "../../../../src/cad/intent";
 import { DockerOCCTValidatorOptions } from "../../../../src/execution/docker-occt-validator";
+import { Build123dWorkerExecutor } from "../../../../src/execution/build123d-worker";
+import { getRemoteCADWorkerConfig, RemoteCADWorkerTransport, RemoteOCCTValidatorExecutor } from "../../../../src/execution/remote-cad-worker";
+import { Build123dCADProvider } from "../../../../src/providers/build123d-cad";
+import { OcctProvider } from "../../../../src/providers/occt";
 import { Build123dIntentCodeGenerator } from "../../../../src/providers/build123d-intent-generator";
 import { createDockerBuild123dCADProvider } from "../../../../src/providers/build123d-cad";
 import { createDockerOCCTValidationProvider } from "../../../../src/providers/occt-docker";
@@ -69,12 +73,16 @@ function safeImage(value: string): boolean {
   return Boolean(value) && !value.startsWith("-") && !/[\r\n\0]/.test(value);
 }
 function configuredRuntime() {
+  const remote = getRemoteCADWorkerConfig();
+  if (!remote.configured && remote.error) return { error: remote.error } as const;
+  if (remote.configured) return { mode: "remote" as const, ...remote.value };
+
   const buildImage = env(process.env.CAD_BUILD123D_IMAGE);
   const occtImage = env(process.env.CAD_OCCT_IMAGE);
   const artifactRoot = env(process.env.CAD_ARTIFACT_ROOT);
   const dockerBinary = env(process.env.CAD_DOCKER_BINARY) || "docker";
   const workerScriptPath = path.resolve(env(process.env.CAD_OCCT_WORKER_PATH) || path.join(process.cwd(), "worker/cad/occt/validate_brep.py"));
-  if (!buildImage || !occtImage || !artifactRoot) return { error: "CAD execution is not configured. Set CAD_BUILD123D_IMAGE, CAD_OCCT_IMAGE and CAD_ARTIFACT_ROOT on the server." } as const;
+  if (!buildImage || !occtImage || !artifactRoot) return { error: "CAD execution is not configured. Configure the authenticated CAD_WORKER_URL and CAD_WORKER_API_TOKEN, or provision a trusted local Docker runtime." } as const;
   if (!path.isAbsolute(artifactRoot) || !safeImage(buildImage) || !safeImage(occtImage) ||
       !dockerBinary || /[\r\n\0]/.test(dockerBinary)) {
     return { error: "CAD runtime configuration is invalid; no CAD execution was attempted." } as const;
@@ -83,7 +91,7 @@ function configuredRuntime() {
       (![buildImage, occtImage].every((image) => /@sha256:[a-f0-9]{64}$/i.test(image)))) {
     return { error: "Production CAD images must be pinned by immutable @sha256 image digests." } as const;
   }
-  return { buildImage, occtImage, artifactRoot: path.resolve(artifactRoot), dockerBinary, workerScriptPath } as const;
+  return { mode: "docker" as const, buildImage, occtImage, artifactRoot: path.resolve(artifactRoot), dockerBinary, workerScriptPath } as const;
 }
 function safeArtifactUri(uri: unknown, artifactRoot: string): Promise<{ path: string; bytes: Buffer; sha256: string }> {
   if (!nonEmpty(uri)) return Promise.reject(new Error("CAD artifact has no host artifact URI."));
@@ -279,18 +287,23 @@ export async function POST(request: Request) {
   try {
     const registry = new CapabilityRegistry();
     registry.registerCatalog(ENGINEERING_CAPABILITIES);
-    registry.register(createDockerBuild123dCADProvider({
-      image: configured.buildImage,
-      artifactRoot: configured.artifactRoot,
-      dockerBinary: configured.dockerBinary
-    }));
-    const occtOptions: DockerOCCTValidatorOptions = {
-      image: configured.occtImage,
-      artifactRoot: configured.artifactRoot,
-      workerScriptPath: configured.workerScriptPath,
-      dockerBinary: configured.dockerBinary
-    };
-    registry.register(createDockerOCCTValidationProvider(occtOptions));
+    if (configured.mode === "remote") {
+      registry.register(new Build123dCADProvider(new Build123dWorkerExecutor(new RemoteCADWorkerTransport(configured))));
+      registry.register(new OcctProvider(new RemoteOCCTValidatorExecutor(configured), ["CAD.VALIDATE_GEOMETRY"]));
+    } else {
+      registry.register(createDockerBuild123dCADProvider({
+        image: configured.buildImage,
+        artifactRoot: configured.artifactRoot,
+        dockerBinary: configured.dockerBinary
+      }));
+      const occtOptions: DockerOCCTValidatorOptions = {
+        image: configured.occtImage,
+        artifactRoot: configured.artifactRoot,
+        workerScriptPath: configured.workerScriptPath,
+        dockerBinary: configured.dockerBinary
+      };
+      registry.register(createDockerOCCTValidationProvider(occtOptions));
+    }
     const router = new CADCapabilityRouter(registry, [
       { providerId: "cad.build123d", availability: "AVAILABLE" },
       { providerId: "cad.occt", availability: "AVAILABLE" }

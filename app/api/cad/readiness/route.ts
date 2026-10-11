@@ -1,12 +1,14 @@
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
-import { access, realpath, stat } from "node:fs/promises";
+import { access, mkdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { CAD_ARTIFACT_BUCKET } from "../../../../src/cad/persistence";
+import { getRemoteCADWorkerConfig, probeRemoteCADWorker } from "../../../../src/execution/remote-cad-worker";
 
 export const runtime = "nodejs";
 
@@ -68,6 +70,8 @@ export async function GET(request: Request) {
   }
 
   const checks: ReadinessCheck[] = [];
+  const remoteConfig = getRemoteCADWorkerConfig();
+  const remoteEnabled = remoteConfig.configured;
   const buildImage = env(process.env.CAD_BUILD123D_IMAGE);
   const occtImage = env(process.env.CAD_OCCT_IMAGE);
   const artifactRootSetting = env(process.env.CAD_ARTIFACT_ROOT);
@@ -75,64 +79,106 @@ export async function GET(request: Request) {
   const dockerBinary = env(process.env.CAD_DOCKER_BINARY) || "docker";
   const production = process.env.NODE_ENV === "production";
 
-  const imagesConfigured = validImageReference(buildImage) && validImageReference(occtImage);
-  addCheck(
-    checks,
-    "cad_images_configured",
-    imagesConfigured ? "PASS" : "FAIL",
-    imagesConfigured ? "Both trusted CAD image references are configured." : "Set valid server-side CAD_BUILD123D_IMAGE and CAD_OCCT_IMAGE values."
-  );
+  if (!remoteConfig.configured && remoteConfig.error) {
+    addCheck(checks, "cad_worker_configuration", "FAIL", remoteConfig.error);
+  }
 
-  const imagesPinned = !production || (SHA256_IMAGE.test(buildImage) && SHA256_IMAGE.test(occtImage));
-  addCheck(
-    checks,
-    "immutable_image_references",
-    imagesPinned ? "PASS" : "FAIL",
-    imagesPinned ? "Image references satisfy the deployment pinning policy." : "Production images must use immutable @sha256:<64-hex-digest> references."
-  );
-
-  const artifactRootAbsolute = Boolean(artifactRootSetting) && path.isAbsolute(artifactRootSetting);
-  addCheck(
-    checks,
-    "artifact_root_configured",
-    artifactRootAbsolute ? "PASS" : "FAIL",
-    artifactRootAbsolute ? "The artifact root is configured as an absolute path." : "CAD_ARTIFACT_ROOT must be an absolute server-side path."
-  );
-
-  const workerScriptPath = path.resolve(
-    workerScriptSetting || path.join(process.cwd(), "worker/cad/occt/validate_brep.py")
-  );
-  let artifactRootUsable = false;
-  if (artifactRootAbsolute) {
+  if (remoteEnabled) {
+    addCheck(checks, "cad_worker_configuration", "PASS", "The authenticated remote CAD worker is configured.");
+    const rootPath = remoteConfig.value.artifactRoot;
+    let artifactRootUsable = false;
     try {
-      const root = await realpath(artifactRootSetting);
+      await mkdir(rootPath, { recursive: true, mode: 0o700 });
+      const root = await realpath(rootPath);
       const info = await stat(root);
       await access(root, constants.R_OK | constants.W_OK | constants.X_OK);
-      artifactRootUsable = info.isDirectory();
+      if (!info.isDirectory() || root === path.parse(root).root) throw new Error("Invalid artifact root.");
+      const probePath = path.join(root, ".cad-readiness-" + randomUUID());
+      await writeFile(probePath, "readiness", { flag: "wx", mode: 0o600 });
+      await rm(probePath, { force: true });
+      artifactRootUsable = true;
     } catch {
       // Do not expose filesystem paths or raw deployment errors in readiness output.
     }
-  }
-  addCheck(
-    checks,
-    "artifact_root_access",
-    artifactRootUsable ? "PASS" : "FAIL",
-    artifactRootUsable ? "The application can read, write and traverse the configured artifact directory." : "The configured artifact directory must exist and be readable, writable and traversable by the application process."
-  );
+    addCheck(
+      checks,
+      "artifact_root_access",
+      artifactRootUsable ? "PASS" : "FAIL",
+      artifactRootUsable ? "The serverless runtime can create and remove files in its temporary CAD artifact directory." : "The temporary CAD artifact directory is not writable."
+    );
 
-  let validatorScriptUsable = false;
-  try {
-    const script = await realpath(workerScriptPath);
-    validatorScriptUsable = (await stat(script)).isFile();
-  } catch {
-    // Keep the diagnostic generic; detailed host paths belong in private operator logs.
+    const worker = await probeRemoteCADWorker(remoteConfig.value);
+    addCheck(
+      checks,
+      "remote_cad_worker",
+      worker.ready ? "PASS" : "FAIL",
+      worker.ready
+        ? "The authenticated Render worker reports its build123d/OpenCascade runtime ready (" + (worker.build123dVersion ?? "version unknown") + ")."
+        : "The authenticated Render worker is unreachable or its runtime checks are not all passing."
+    );
+    for (const item of worker.checks) {
+      addCheck(checks, "remote_" + item.name, item.status === "PASS" ? "PASS" : item.status === "BLOCKED" ? "BLOCKED" : "FAIL", item.detail);
+    }
+  } else {
+    const imagesConfigured = validImageReference(buildImage) && validImageReference(occtImage);
+    addCheck(
+      checks,
+      "cad_images_configured",
+      imagesConfigured ? "PASS" : "FAIL",
+      imagesConfigured ? "Both trusted CAD image references are configured." : "Configure the authenticated remote CAD worker or set local CAD image references."
+    );
+
+    const imagesPinned = !production || (SHA256_IMAGE.test(buildImage) && SHA256_IMAGE.test(occtImage));
+    addCheck(
+      checks,
+      "immutable_image_references",
+      imagesPinned ? "PASS" : "FAIL",
+      imagesPinned ? "Image references satisfy the deployment pinning policy." : "Production images must use immutable @sha256:<64-hex-digest> references."
+    );
+
+    const artifactRootAbsolute = Boolean(artifactRootSetting) && path.isAbsolute(artifactRootSetting);
+    addCheck(
+      checks,
+      "artifact_root_configured",
+      artifactRootAbsolute ? "PASS" : "FAIL",
+      artifactRootAbsolute ? "The artifact root is configured as an absolute path." : "CAD_ARTIFACT_ROOT must be an absolute server-side path."
+    );
+
+    const workerScriptPath = path.resolve(
+      workerScriptSetting || path.join(process.cwd(), "worker/cad/occt/validate_brep.py")
+    );
+    let artifactRootUsable = false;
+    if (artifactRootAbsolute) {
+      try {
+        const root = await realpath(artifactRootSetting);
+        const info = await stat(root);
+        await access(root, constants.R_OK | constants.W_OK | constants.X_OK);
+        artifactRootUsable = info.isDirectory();
+      } catch {
+        // Do not expose filesystem paths or raw deployment errors in readiness output.
+      }
+    }
+    addCheck(
+      checks,
+      "artifact_root_access",
+      artifactRootUsable ? "PASS" : "FAIL",
+      artifactRootUsable ? "The application can read, write and traverse the configured artifact directory." : "The configured artifact directory must exist and be readable, writable and traversable by the application process."
+    );
+
+    let validatorScriptUsable = false;
+    try {
+      const script = await realpath(workerScriptPath);
+      validatorScriptUsable = (await stat(script)).isFile();
+    } catch {
+      // Keep the diagnostic generic; detailed host paths belong in private operator logs.
+    }
+    addCheck(
+      checks,
+      "occt_validator_script",
+      validatorScriptUsable ? "PASS" : "FAIL",
+      validatorScriptUsable ? "The trusted OCCT validator script exists." : "The configured OCCT validator script is missing or is not a regular file."
+    );
   }
-  addCheck(
-    checks,
-    "occt_validator_script",
-    validatorScriptUsable ? "PASS" : "FAIL",
-    validatorScriptUsable ? "The trusted OCCT validator script exists." : "The configured OCCT validator script is missing or is not a regular file."
-  );
 
   let serviceDb: ReturnType<typeof createServiceRoleClient> | undefined;
   try {
@@ -176,28 +222,32 @@ export async function GET(request: Request) {
     addCheck(checks, "private_artifact_bucket", "BLOCKED", "Cannot check storage until the trusted database writer is configured.");
   }
 
-  const runtimePrerequisites = imagesConfigured && artifactRootAbsolute && validImageReference(dockerBinary);
-  if (!runtimePrerequisites) {
-    addCheck(checks, "docker_daemon", "BLOCKED", "Configure the CAD images, absolute artifact root and trusted Docker executable before probing the daemon.");
-    addCheck(checks, "build123d_image_available", "BLOCKED", "Image availability cannot be checked until the CAD runtime configuration is complete.");
-    addCheck(checks, "occt_image_available", "BLOCKED", "Image availability cannot be checked until the CAD runtime configuration is complete.");
-  } else {
-    try {
-      const serverVersion = await runCommand(dockerBinary, ["info", "--format", "{{.ServerVersion}}"]);
-      if (!serverVersion) throw new Error("Docker daemon returned no server version.");
-      addCheck(checks, "docker_daemon", "PASS", "The configured Docker executable can reach its daemon.");
-      for (const [name, image] of [["build123d_image_available", buildImage], ["occt_image_available", occtImage]] as const) {
-        try {
-          await runCommand(dockerBinary, ["image", "inspect", "--format", "{{.Id}}", image]);
-          addCheck(checks, name, "PASS", "The trusted image is present locally; runtime execution can use --pull=never.");
-        } catch {
-          addCheck(checks, name, "FAIL", "The configured image is not available to the Docker daemon. Provision the pinned image before enabling CAD execution.");
+  if (!remoteEnabled) {
+    const artifactRootAbsolute = Boolean(artifactRootSetting) && path.isAbsolute(artifactRootSetting);
+    const imagesConfigured = validImageReference(buildImage) && validImageReference(occtImage);
+    const runtimePrerequisites = imagesConfigured && artifactRootAbsolute && validImageReference(dockerBinary);
+    if (!runtimePrerequisites) {
+      addCheck(checks, "docker_daemon", "BLOCKED", "Configure the CAD images, absolute artifact root and trusted Docker executable before probing the daemon.");
+      addCheck(checks, "build123d_image_available", "BLOCKED", "Image availability cannot be checked until the CAD runtime configuration is complete.");
+      addCheck(checks, "occt_image_available", "BLOCKED", "Image availability cannot be checked until the CAD runtime configuration is complete.");
+    } else {
+      try {
+        const serverVersion = await runCommand(dockerBinary, ["info", "--format", "{{.ServerVersion}}"]);
+        if (!serverVersion) throw new Error("Docker daemon returned no server version.");
+        addCheck(checks, "docker_daemon", "PASS", "The configured Docker executable can reach its daemon.");
+        for (const [name, image] of [["build123d_image_available", buildImage], ["occt_image_available", occtImage]] as const) {
+          try {
+            await runCommand(dockerBinary, ["image", "inspect", "--format", "{{.Id}}", image]);
+            addCheck(checks, name, "PASS", "The trusted image is present locally; runtime execution can use --pull=never.");
+          } catch {
+            addCheck(checks, name, "FAIL", "The configured image is not available to the Docker daemon. Provision the pinned image before enabling CAD execution.");
+          }
         }
+      } catch {
+        addCheck(checks, "docker_daemon", "FAIL", "The Docker executable or daemon is unavailable to this application runtime.");
+        addCheck(checks, "build123d_image_available", "BLOCKED", "Image availability cannot be checked without the Docker daemon.");
+        addCheck(checks, "occt_image_available", "BLOCKED", "Image availability cannot be checked without the Docker daemon.");
       }
-    } catch {
-      addCheck(checks, "docker_daemon", "FAIL", "The Docker executable or daemon is unavailable to this application runtime.");
-      addCheck(checks, "build123d_image_available", "BLOCKED", "Image availability cannot be checked without the Docker daemon.");
-      addCheck(checks, "occt_image_available", "BLOCKED", "Image availability cannot be checked without the Docker daemon.");
     }
   }
 
