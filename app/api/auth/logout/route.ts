@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     if (error) return NextResponse.json({ error: "Sign out failed." }, { status: 500 });
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", request.url), { status: 303 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Authentication is not configured." },
