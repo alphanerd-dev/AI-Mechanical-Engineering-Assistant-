@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
+import { getPublicUrl } from "../../../../lib/http/public-origin";
 import { provisionRoleForAuthenticatedUser } from "../../../../src/auth/role-provisioning";
 import { identityFromSupabaseUser } from "../../../../src/auth/supabase-identity";
 import { getAuthenticationAuditTrail } from "../../../../src/auth/supabase-service";
@@ -9,7 +10,10 @@ export const runtime = "nodejs";
 
 function authFailure(request: Request, isJsonRequest: boolean, status: number, code: string, message: string) {
   if (isJsonRequest) return NextResponse.json({ error: message, code }, { status });
-  return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(code)}`, request.url), { status: 303 });
+  return NextResponse.redirect(
+    getPublicUrl("/login?error=" + encodeURIComponent(code), request),
+    { status: 303 },
+  );
 }
 
 export async function POST(request: Request) {
@@ -68,9 +72,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Refresh on every successful sign-in, not only when provisioning a new role.
-    // Existing app_metadata may be correct in Auth storage while a JWT still has
-    // older role claims. Always issue a session whose claims reflect current trusted metadata.
+    // Refresh after every successful sign-in so trusted role claims are current.
     if (!data.session?.refresh_token) {
       return authFailure(request, isJsonRequest, 503, "role-refresh-required", "Sign-in succeeded, but the session could not be refreshed. Sign in again.");
     }
@@ -100,8 +102,8 @@ export async function POST(request: Request) {
       metadata: { sessionId: data.user.id },
     });
 
-    // Use 303 so the browser follows the successful POST with a GET to "/".
-    return NextResponse.redirect(new URL("/", request.url), { status: 303 });
+    // Redirect using the browser-facing origin, never the container bind address.
+    return NextResponse.redirect(getPublicUrl("/", request), { status: 303 });
   } catch {
     return authFailure(request, isJsonRequest, 503, "auth-unavailable", "Authentication is temporarily unavailable.");
   }
