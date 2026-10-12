@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getPublicUrl } from "../lib/http/public-origin";
+import { getPublicUrl } from "../lib/http/public-origin.js";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -7,6 +7,7 @@ afterEach(() => {
 
 describe("public authentication redirect origin", () => {
   it("uses Render's public HTTPS URL instead of the internal bind host", () => {
+    vi.stubEnv("APP_BASE_URL", "");
     vi.stubEnv("RENDER_EXTERNAL_URL", "https://ai-mechanical-engineering-assistant-test.onrender.com");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://ai-mechanical-engineering-assistant.vercel.app");
 
@@ -20,6 +21,7 @@ describe("public authentication redirect origin", () => {
     vi.stubEnv("APP_BASE_URL", "");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
     vi.stubEnv("VERCEL_URL", "ai-mechanical-engineering-assistant-git-test.vercel.app");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
 
     const request = new Request("http://0.0.0.0:10000/api/auth/logout");
     expect(getPublicUrl("/login", request).origin).toBe("https://ai-mechanical-engineering-assistant-git-test.vercel.app");
