@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
+import { getPublicUrl } from "../../../../lib/http/public-origin";
 import { getAuthenticatedIdentity, getAuthenticationAuditTrail } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
@@ -22,10 +23,10 @@ export async function POST(request: Request) {
     }
 
     if (error) return NextResponse.json({ error: "Sign out failed." }, { status: 500 });
-    return NextResponse.redirect(new URL("/login", request.url), { status: 303 });
-  } catch (error) {
+    return NextResponse.redirect(getPublicUrl("/login", request), { status: 303 });
+  } catch {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Authentication is not configured." },
+      { error: "Authentication is not configured." },
       { status: 503 },
     );
   }

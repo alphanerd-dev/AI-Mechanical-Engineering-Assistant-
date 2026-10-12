@@ -10,7 +10,6 @@ create table public.engineering_cad_models (
   updated_at timestamptz not null default now(),
   unique (project_id, id)
 );
-
 create table public.engineering_cad_completions (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.engineering_projects(id) on delete cascade,
@@ -42,7 +41,6 @@ create index engineering_cad_models_project_created_idx
   on public.engineering_cad_models(project_id, created_at desc);
 create index engineering_cad_completions_project_created_idx
   on public.engineering_cad_completions(project_id, created_at desc);
-
 alter table public.engineering_cad_models enable row level security;
 alter table public.engineering_cad_completions enable row level security;
 revoke all on table public.engineering_cad_models from anon, authenticated;
@@ -52,7 +50,6 @@ grant select on table public.engineering_cad_completions to authenticated;
 -- Only the authenticated, project-authorized server endpoint writes completion/evidence records.
 -- Authenticated clients cannot forge ACCEPTED status, evidence, or storage-object paths directly.
 grant select, insert on table public.engineering_cad_completions to service_role;
-
 create policy engineering_cad_models_select_member on public.engineering_cad_models
   for select to authenticated using ((select private.is_project_member(project_id)));
 create policy engineering_cad_models_insert_engineer on public.engineering_cad_models
@@ -67,13 +64,11 @@ create policy engineering_cad_completions_insert_engineer on public.engineering_
     created_by = (select auth.uid())
     and (select private.has_project_role(project_id, array['ADMIN','ENGINEER']::public.engineering_project_role[]))
   );
-
 -- Objects are private. Project UUID is always the first path segment; SELECT is membership-scoped,
 -- while upload/delete also require an engineering write role.
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('engineering-cad-artifacts', 'engineering-cad-artifacts', false, 104857600)
 on conflict (id) do nothing;
-
 create policy engineering_cad_artifacts_select_member on storage.objects
   for select to authenticated using (
     bucket_id = 'engineering-cad-artifacts'

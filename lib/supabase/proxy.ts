@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getPublicUrl } from "../http/public-origin";
 
 function isAuthApi(pathname: string) {
   return pathname.startsWith("/api/auth/");
@@ -24,7 +25,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.json({ error: "Authentication is not configured." }, { status: 503 });
     }
     if (isProtectedPage(pathname)) {
-      return NextResponse.redirect(new URL("/login?error=auth_not_configured", request.url));
+      return NextResponse.redirect(getPublicUrl("/login?error=auth_not_configured", request));
     }
     return response;
   }
@@ -48,7 +49,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (!claims && isProtectedPage(pathname)) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(getPublicUrl("/login", request));
   }
 
   if (!claims && isProtectedApi(pathname)) {
