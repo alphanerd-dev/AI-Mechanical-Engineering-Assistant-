@@ -7,6 +7,36 @@ export const runtime = "nodejs";
 const MAX_PROJECT_NAME = 120;
 const MAX_PROBLEM_STATEMENT = 2000;
 
+function logProjectDatabaseFailure(
+  operation: string,
+  error: { code?: unknown; status?: unknown } | null | undefined,
+  subject?: string,
+) {
+  let projectRef = "unknown";
+  try {
+    const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (value) projectRef = new URL(value).hostname.split(".")[0] || "unknown";
+  } catch {
+    // Never log environment values.
+  }
+  const provider = process.env.VERCEL === "1"
+    ? "vercel"
+    : process.env.RENDER === "true"
+      ? "render"
+      : "node";
+  console.error("[engineering-project-diagnostic]", JSON.stringify({
+    timestamp: new Date().toISOString(),
+    event: "database_operation_failed",
+    operation,
+    provider,
+    projectRef,
+    errorCode: typeof error?.code === "string" ? error.code : undefined,
+    errorStatus: typeof error?.status === "number" ? error.status : undefined,
+    ownershipPolicyDenied: error?.code === "42501",
+    userIdSuffix: typeof subject === "string" && subject.length >= 6 ? subject.slice(-6) : undefined,
+  }));
+}
+
 export async function GET() {
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.READ");
@@ -19,7 +49,10 @@ export async function GET() {
       .select("id,name,stage,status,revision,created_at,updated_at")
       .order("updated_at", { ascending: false })
       .limit(100);
-    if (error) return NextResponse.json({ error: "Projects could not be loaded from the workspace database." }, { status: 503 });
+    if (error) {
+      logProjectDatabaseFailure("projects_select", error);
+      return NextResponse.json({ error: "Projects could not be loaded from the workspace database." }, { status: 503 });
+    }
     return NextResponse.json({ projects: data ?? [] }, { headers: { "cache-control": "no-store" } });
   } catch {
     return NextResponse.json({ error: "Project service is unavailable." }, { status: 503 });
@@ -63,6 +96,7 @@ export async function POST(request: Request) {
       .single();
 
     if (projectError || !project) {
+      logProjectDatabaseFailure("engineering_projects_insert", projectError, authorization.subject);
       const ownershipDenied = projectError?.code === "42501";
       return NextResponse.json({
         error: ownershipDenied
@@ -96,6 +130,9 @@ export async function POST(request: Request) {
       revision: snapshot.revision,
       snapshot
     });
+    if (workspaceError) {
+      logProjectDatabaseFailure("engineering_workspaces_insert", workspaceError, authorization.subject);
+    }
 
     return NextResponse.json({
       project,

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isEngineeringRoleRequiredFailure } from "../../src/auth/http-error-classification";
 
 type Project = {
   id: string;
@@ -15,6 +16,12 @@ type Project = {
 };
 
 type ApiBody = { projects?: Project[]; project?: Project; error?: string; code?: string; workspaceInitialized?: boolean; warning?: string };
+
+function isEngineeringRoleAuthorizationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const details = error as Error & { status?: unknown; code?: unknown };
+  return isEngineeringRoleRequiredFailure(details.status, details.code);
+}
 
 async function apiBody(response: Response): Promise<ApiBody> {
   const body = await response.json().catch(() => ({}));
@@ -50,7 +57,7 @@ export default function ProjectBoard() {
         .then(async (response) => {
           try { return await apiBody(response); }
           catch (error) {
-            if (active && error instanceof Error && "status" in error && (error as Error & {status?: number}).status === 403) {
+            if (active && isEngineeringRoleAuthorizationError(error)) {
               setRoleRequired(true);
             }
             throw error;
@@ -90,7 +97,7 @@ export default function ProjectBoard() {
       }
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : "Project creation failed.");
-      if (error instanceof Error && "status" in error && (error as Error & {status?: number}).status === 403) setRoleRequired(true);
+      if (isEngineeringRoleAuthorizationError(error)) setRoleRequired(true);
     } finally {
       setCreating(false);
     }
