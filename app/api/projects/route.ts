@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../lib/supabase/server";
+import { createServiceRoleClient } from "../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../src/auth/supabase-service";
 import { createEmptyEngineeringWorkspaceSnapshot } from "../../../src/workspace/snapshot";
 
@@ -86,12 +87,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: authorization.reason, code: "ENGINEERING_ROLE_REQUIRED" }, { status: 403 });
     }
 
-    const db = await createClient();
+    // The request is authenticated and role-authorized above. Use the server-only
+    // service client for this trusted write and bind ownership to the verified
+    // Supabase user ID; never accept owner_id from the request body.
+    const db = createServiceRoleClient();
     const { data: project, error: projectError } = await db
       .from("engineering_projects")
-      // The database derives owner_id from auth.uid(), the same authenticated
-      // identity evaluated by the RLS INSERT policy; do not supply it separately.
-      .insert({ name, stage: "PROBLEM", status: "ACTIVE" })
+      .insert({ owner_id: authorization.subject, name, stage: "PROBLEM", status: "ACTIVE" })
       .select("id,name,stage,status,revision,created_at,updated_at")
       .single();
 
