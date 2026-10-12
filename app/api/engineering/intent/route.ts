@@ -24,8 +24,18 @@ export const runtime="nodejs";
 const sessionStore=new InMemoryEngineeringIntentSessionStore();
 
 export async function POST(request:Request){
-  const body=await request.json().catch(()=>({}));
+  const parsedBody=await request.json().catch(()=>({}));
+  const body=parsedBody&&typeof parsedBody==="object"&&!Array.isArray(parsedBody)
+    ?parsedBody as Record<string,unknown>
+    :{};
   const projectId=typeof body.projectId==="string"&&body.projectId.trim()?body.projectId.trim():undefined;
+  let sessionId:string|undefined;
+  if(body.sessionId!==undefined){
+    if(typeof body.sessionId!=="string"||!body.sessionId.trim()||body.sessionId.length>128){
+      return NextResponse.json({error:"sessionId must be a non-empty string of at most 128 characters when provided."},{status:400});
+    }
+    sessionId=body.sessionId.trim();
+  }
 
   const authorization=await authorizeSupabaseRequest("TASK.EXECUTE",projectId);
   if(!authorization.allowed){
@@ -63,6 +73,7 @@ export async function POST(request:Request){
     input:{
       rawIntent:body.rawIntent.trim(),
       projectId,
+      sessionId,
       context:body.context,
       approval:body.approval
     }
