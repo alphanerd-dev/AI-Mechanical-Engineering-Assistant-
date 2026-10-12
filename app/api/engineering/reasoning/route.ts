@@ -250,7 +250,10 @@ async function saveWorkspace(
 
 async function authorizeProject(permission: "PROJECT.READ" | "PROJECT.WRITE", projectId: string) {
   try {
-    return await authorizeSupabaseRequest(permission, projectId);
+    // The demo workspace is intentionally ephemeral and keyed by the verified
+    // caller subject in loadWorkspace/saveWorkspace. It is not a durable project,
+    // so it must not require a row in engineering_project_memberships.
+    return await authorizeSupabaseRequest(permission, projectId === "demo" ? undefined : projectId);
   } catch {
     throw new ApiError(503, "The project authorization service is unavailable. Check Supabase server configuration and sign-in state.");
   }

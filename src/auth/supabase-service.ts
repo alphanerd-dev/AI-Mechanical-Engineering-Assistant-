@@ -128,7 +128,56 @@ export async function authorizeSupabaseRequest(
     return decision;
   }
 
-  const decision = authorize({ identity, permission, projectId });
+  let decision = authorize({ identity, permission, projectId });
+
+  // Project IDs are untrusted request input. app_metadata.engineering_project_ids
+  // is an optional additional restriction, not proof of membership. Require a
+  // current membership row from the caller's session before project-scoped work
+  // can proceed, including routes that later use a server-only privileged writer.
+  if (decision.allowed && projectId) {
+    try {
+      const supabase = await createClient();
+      const { data: membership, error } = await supabase
+        .from("engineering_project_memberships")
+        .select("role")
+        .eq("project_id", projectId)
+        .eq("user_id", identity.subject)
+        .maybeSingle();
+
+      if (error) {
+        logAuthDiagnostic("project_membership_lookup_failed", {
+          permission,
+          userIdSuffix: userIdSuffix(identity.subject),
+          projectIdProvided: true,
+          errorCode: typeof error.code === "string" ? error.code : undefined,
+        });
+        decision = { ...decision, allowed: false, reason: "Project membership could not be verified." };
+      } else if (
+        !membership ||
+        typeof membership.role !== "string" ||
+        !KNOWN_ENGINEERING_ROLES.includes(membership.role as EngineeringRole)
+      ) {
+        decision = { ...decision, allowed: false, reason: "Project membership is required to access this resource." };
+      } else {
+        // Enforce both the user's trusted platform permission and the role
+        // assigned within this specific project. A project membership must never
+        // elevate the user beyond their server-managed platform permissions.
+        decision = authorize({
+          identity: { ...identity, roles: [membership.role as EngineeringRole] },
+          permission,
+          projectId,
+        });
+      }
+    } catch {
+      logAuthDiagnostic("project_membership_lookup_failed", {
+        permission,
+        userIdSuffix: userIdSuffix(identity.subject),
+        projectIdProvided: true,
+      });
+      decision = { ...decision, allowed: false, reason: "Project membership could not be verified." };
+    }
+  }
+
   if (!decision.allowed) {
     logAuthDiagnostic("authorization_denied", {
       permission,
