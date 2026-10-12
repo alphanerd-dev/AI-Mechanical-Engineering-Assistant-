@@ -150,7 +150,6 @@ export async function authorizeSupabaseRequest(
           userIdSuffix: userIdSuffix(identity.subject),
           projectIdProvided: true,
           errorCode: typeof error.code === "string" ? error.code : undefined,
-          errorStatus: typeof error.status === "number" ? error.status : undefined,
         });
         decision = { ...decision, allowed: false, reason: "Project membership could not be verified." };
       } else if (
