@@ -56,16 +56,20 @@ export async function POST(request: Request) {
     const db = await createClient();
     const { data: project, error: projectError } = await db
       .from("engineering_projects")
-      .insert({ owner_id: authorization.subject, name, stage: "PROBLEM", status: "ACTIVE" })
+      // The database derives owner_id from auth.uid(), the same authenticated
+      // identity evaluated by the RLS INSERT policy; do not supply it separately.
+      .insert({ name, stage: "PROBLEM", status: "ACTIVE" })
       .select("id,name,stage,status,revision,created_at,updated_at")
       .single();
 
     if (projectError || !project) {
+      const ownershipDenied = projectError?.code === "42501";
       return NextResponse.json({
-        error: projectError?.code === "42501"
-          ? "The database denied project creation. Confirm that this account has an ADMIN or ENGINEER project role."
-          : "Project creation failed; no project was reported as created."
-      }, { status: projectError?.code === "42501" ? 403 : 503 });
+        error: ownershipDenied
+          ? "The database rejected the project ownership check. No project was created."
+          : "Project creation failed; no project was reported as created.",
+        code: ownershipDenied ? "PROJECT_OWNER_POLICY_DENIED" : "PROJECT_CREATION_FAILED"
+      }, { status: ownershipDenied ? 403 : 503 });
     }
 
     const snapshot = createEmptyEngineeringWorkspaceSnapshot({
