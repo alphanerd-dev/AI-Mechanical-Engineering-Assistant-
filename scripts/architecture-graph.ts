@@ -26,7 +26,7 @@ export interface DependencyGraph {
 }
 
 const SOURCE_ROOTS = ["app", "components", "lib", "src"];
-const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"];
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 const NON_CODE_IMPORT_EXTENSIONS = new Set([".css", ".scss", ".sass", ".less", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"]);
 const INDEX_EXTENSIONS = SOURCE_EXTENSIONS.map((extension) => `/index${extension}`);
 
@@ -217,10 +217,11 @@ function collectSourceFiles(directory: string, root: string, output: SourceModul
   for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
+      if (entry.name === "__tests__") continue;
       collectSourceFiles(absolutePath, root, output);
       continue;
     }
-    if (!entry.isFile() || !/\.(ts|tsx|mts|cts|js|jsx)$/.test(entry.name) || /\.d\.(ts|mts|cts)$/.test(entry.name)) {
+    if (!entry.isFile() || !/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(entry.name) || /\.d\.(ts|mts|cts)$/.test(entry.name) || /\.(test|spec)\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(entry.name)) {
       continue;
     }
     output.push({
