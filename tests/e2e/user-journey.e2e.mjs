@@ -38,8 +38,15 @@ async function signIn(page, email, password) {
 
   await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
+
+  // The heading can render before the initial projects request finishes. Wait for
+  // that request's UI state before asserting the user's authorization is valid.
+  await expect(page.getByText("Loading projects…")).toHaveCount(0);
   await expect(page.getByText("Engineering role required")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Account" }).getByRole("button", { name: "Sign out" })
+  ).toBeVisible();
 }
 
 test("sign-in, project persistence, sign-out, and cross-user isolation", async ({ browser }, testInfo) => {
@@ -69,7 +76,9 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
     await test.step("Create a project through the workspace UI", async () => {
       await pageA.getByLabel("Project name").fill(projectName);
       await pageA.getByLabel(/Problem statement/).fill(problemStatement);
-      await pageA.getByRole("button", { name: "Create project" }).click();
+      const createButton = pageA.getByRole("button", { name: "Create project" });
+      await expect(createButton, "project creation should be enabled after valid form input").toBeEnabled();
+      await createButton.click();
 
       await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}$/i);
       await expect(pageA.getByRole("heading", { name: projectName })).toBeVisible();
@@ -90,7 +99,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
     });
 
     await test.step("Sign out and confirm protected API access is denied", async () => {
-      await pageA.getByRole("button", { name: "Sign out" }).click();
+      await pageA.getByRole("navigation", { name: "Account" }).getByRole("button", { name: "Sign out" }).click();
       await expect(pageA).toHaveURL(/\/login(?:\?.*)?$/);
       const anonymousResponse = await pageA.request.get("/api/projects");
       // A protected route may deliberately return 404 to avoid revealing resource existence.
