@@ -43,7 +43,9 @@ async function signIn(page, email, password) {
   // that request's UI state before asserting the user's authorization is valid.
   await expect(page.getByText("Loading projects…")).toHaveCount(0);
   await expect(page.getByText("Engineering role required")).toHaveCount(0);
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  // Scope this check to the app's actual error component; Next.js's hidden route
+  // announcer also exposes role="alert" and should not make a successful login fail.
+  await expect(page.locator('.projectError[role="alert"]')).toHaveCount(0);
   await expect(
     page.getByRole("navigation", { name: "Account" }).getByRole("button", { name: "Sign out" })
   ).toBeVisible();
