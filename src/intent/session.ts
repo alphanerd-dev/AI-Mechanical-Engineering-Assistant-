@@ -1,9 +1,24 @@
-import type { EngineeringIntentInterpretation } from "./types.js";
+import type { EngineeringIntentDecision, EngineeringIntentInterpretation } from "./types.js";
+
+export const ENGINEERING_INTENT_SESSION_SCHEMA_VERSION = 1 as const;
+export const MAX_CONVERSATION_MESSAGES = 200;
+export const MAX_MESSAGE_TEXT_LENGTH = 8000;
+
+export type ConversationRole = "engineer" | "assistant";
+
+export interface ConversationMessage {
+  role: ConversationRole;
+  text: string;
+  decision?: EngineeringIntentDecision;
+  at?: string;
+}
 
 export interface EngineeringIntentSession {
   sessionId: string;
   projectId: string;
+  schemaVersion: number;
   interpretation: EngineeringIntentInterpretation;
+  conversation: ConversationMessage[];
   updatedAt: string;
 }
 
@@ -41,6 +56,46 @@ function isInterpretation(value: unknown): value is EngineeringIntentInterpretat
   return true;
 }
 
+function isDecision(value: unknown): value is EngineeringIntentDecision {
+  if (!isRecord(value)) return false;
+  if (typeof value.status !== "string" || typeof value.validationPassed !== "boolean") return false;
+  if (!Array.isArray(value.metrics) || !Array.isArray(value.evidenceIds)) return false;
+  if (value.nextAction !== undefined && typeof value.nextAction !== "string") return false;
+  if (value.nextQuestion !== undefined && typeof value.nextQuestion !== "string") return false;
+  if (!value.evidenceIds.every((id) => typeof id === "string")) return false;
+  return true;
+}
+
+export function parseConversation(value: unknown): ConversationMessage[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error("conversation must be an array.");
+  if (value.length > MAX_CONVERSATION_MESSAGES) {
+    throw new Error(`conversation must contain at most ${MAX_CONVERSATION_MESSAGES} messages.`);
+  }
+  return value.map((item, index) => {
+    if (!isRecord(item)) throw new Error(`conversation[${index}] must be an object.`);
+    if (item.role !== "engineer" && item.role !== "assistant") {
+      throw new Error(`conversation[${index}].role must be engineer or assistant.`);
+    }
+    if (typeof item.text !== "string" || !item.text.trim() || item.text.length > MAX_MESSAGE_TEXT_LENGTH) {
+      throw new Error(`conversation[${index}].text must be a non-empty string of at most ${MAX_MESSAGE_TEXT_LENGTH} characters.`);
+    }
+    if (item.at !== undefined && (typeof item.at !== "string" || Number.isNaN(Date.parse(item.at)))) {
+      throw new Error(`conversation[${index}].at must be a valid timestamp when provided.`);
+    }
+    if (item.decision !== undefined && !isDecision(item.decision)) {
+      throw new Error(`conversation[${index}].decision is invalid.`);
+    }
+    const message: ConversationMessage = {
+      role: item.role,
+      text: item.text,
+    };
+    if (item.at) message.at = item.at;
+    if (item.decision) message.decision = item.decision;
+    return message;
+  });
+}
+
 function cloneInterpretation(value: EngineeringIntentInterpretation): EngineeringIntentInterpretation {
   return {
     ...value,
@@ -51,17 +106,51 @@ function cloneInterpretation(value: EngineeringIntentInterpretation): Engineerin
   };
 }
 
-function cloneSession(session: EngineeringIntentSession): EngineeringIntentSession {
-  return { ...session, interpretation: cloneInterpretation(session.interpretation) };
+function cloneConversation(messages: ConversationMessage[]): ConversationMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    decision: message.decision
+      ? {
+          ...message.decision,
+          metrics: [...message.decision.metrics],
+          evidenceIds: [...message.decision.evidenceIds],
+        }
+      : undefined,
+  }));
 }
 
-function assertSession(session: EngineeringIntentSession): void {
+function cloneSession(session: EngineeringIntentSession): EngineeringIntentSession {
+  return {
+    ...session,
+    interpretation: cloneInterpretation(session.interpretation),
+    conversation: cloneConversation(session.conversation),
+  };
+}
+
+export function assertSession(session: EngineeringIntentSession): void {
   if (!session.sessionId.trim() || session.sessionId.length > 128) {
     throw new Error("sessionId must be a non-empty string of at most 128 characters.");
   }
   if (!session.projectId.trim()) throw new Error("projectId is required.");
+  if (!Number.isInteger(session.schemaVersion) || session.schemaVersion < 1) {
+    throw new Error("schemaVersion must be a positive integer.");
+  }
   if (Number.isNaN(Date.parse(session.updatedAt))) throw new Error("updatedAt must be a valid timestamp.");
   if (!isInterpretation(session.interpretation)) throw new Error("Engineering intent interpretation is invalid.");
+  parseConversation(session.conversation);
+}
+
+function emptyInterpretation(): EngineeringIntentInterpretation {
+  return {
+    raw: "",
+    goal: "engineering task",
+    extractedInputs: {},
+    missingInputs: [],
+    confidence: "LOW",
+    ambiguity: "HIGH",
+    contextUsed: [],
+    assumptions: [],
+  };
 }
 
 type MutationResult = { error: unknown | null };
@@ -83,7 +172,38 @@ interface SessionRow {
   project_id: string;
   session_id: string;
   interpretation: unknown;
+  conversation?: unknown;
+  schema_version?: unknown;
   updated_at: string;
+}
+
+function rowToSession(row: Partial<SessionRow>, sessionId: string, projectId: string): EngineeringIntentSession {
+  if (
+    row.project_id !== projectId ||
+    row.session_id !== sessionId ||
+    typeof row.updated_at !== "string" ||
+    Number.isNaN(Date.parse(row.updated_at))
+  ) {
+    throw new Error("Stored engineering intent session is invalid.");
+  }
+
+  const interpretation = isInterpretation(row.interpretation)
+    ? cloneInterpretation(row.interpretation)
+    : emptyInterpretation();
+
+  const schemaVersion =
+    typeof row.schema_version === "number" && Number.isInteger(row.schema_version) && row.schema_version >= 1
+      ? row.schema_version
+      : ENGINEERING_INTENT_SESSION_SCHEMA_VERSION;
+
+  return {
+    sessionId,
+    projectId,
+    schemaVersion,
+    interpretation,
+    conversation: parseConversation(row.conversation),
+    updatedAt: row.updated_at,
+  };
 }
 
 export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentSessionStore {
@@ -97,7 +217,7 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
     let result: QueryResult;
     try {
       result = await this.table()
-        .select("project_id,session_id,interpretation,updated_at")
+        .select("project_id,session_id,interpretation,conversation,schema_version,updated_at")
         .eq("project_id", projectId)
         .eq("session_id", sessionId)
         .maybeSingle();
@@ -107,24 +227,11 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
     if (result.error) throw new EngineeringIntentSessionPersistenceError("read");
     if (result.data === null || result.data === undefined) return undefined;
 
-    const row = result.data as Partial<SessionRow> | null;
-    if (
-      !row ||
-      row.project_id !== projectId ||
-      row.session_id !== sessionId ||
-      typeof row.updated_at !== "string" ||
-      Number.isNaN(Date.parse(row.updated_at)) ||
-      !isInterpretation(row.interpretation)
-    ) {
+    try {
+      return rowToSession(result.data as Partial<SessionRow>, sessionId, projectId);
+    } catch {
       throw new Error("Stored engineering intent session is invalid.");
     }
-
-    return {
-      sessionId,
-      projectId,
-      interpretation: cloneInterpretation(row.interpretation),
-      updatedAt: row.updated_at,
-    };
   }
 
   async save(session: EngineeringIntentSession): Promise<void> {
@@ -134,6 +241,8 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
         project_id: session.projectId,
         session_id: session.sessionId,
         interpretation: cloneInterpretation(session.interpretation) as unknown as Record<string, unknown>,
+        conversation: cloneConversation(session.conversation) as unknown as Record<string, unknown>[],
+        schema_version: session.schemaVersion,
         updated_at: session.updatedAt,
       }, { onConflict: "project_id,session_id" });
       if (result.error) throw new EngineeringIntentSessionPersistenceError("write");
@@ -177,4 +286,15 @@ export class InMemoryEngineeringIntentSessionStore implements EngineeringIntentS
   async delete(sessionId: string, projectId: string): Promise<void> {
     this.sessions.delete(this.key(sessionId, projectId));
   }
+}
+
+export function createEmptySession(sessionId: string, projectId: string): EngineeringIntentSession {
+  return {
+    sessionId,
+    projectId,
+    schemaVersion: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+    interpretation: emptyInterpretation(),
+    conversation: [],
+    updatedAt: new Date().toISOString(),
+  };
 }
