@@ -2,13 +2,25 @@
 
 **Status:** Current target architecture, aligned to the implemented bounded workflows as of 13 October 2026. This document distinguishes existing behavior from planned work.
 
-## Product invariant
+## Product principle
+
+> **Engineering outcomes, not engineering overhead.**
+
+Turn engineering intent into a usable, evidence-backed result with less manual work, less rework, and lower total cost. Fit into the engineer's workflow. Automate coordination, execution, checking, and documentation where the current capability can do so reliably. Bring the engineer in when judgment, approval, or missing information genuinely matters.
+
+The user-facing outcome is: **“I stated the problem. I got a checked result and a clear decision.”** This is a direction and acceptance standard, not a claim that every domain or provider is supported today.
+
+See [Product Doctrine](product-doctrine.md) for the full product promise, product-led adoption loop, feature acceptance gate, economics, and validation requirements.
+
+## Core engineering invariants
 
 > **AI proposes. Deterministic systems execute. Validation decides. Evidence proves.**
 
 > **Fast by default. Rigorous when it matters. Explicit when risk increases.**
 
-Never claim success without evidence. Provider availability, a successful process exit, an LLM response, or a stored artifact is not by itself engineering verification.
+> **NEVER CLAIM SUCCESS WITHOUT EVIDENCE.**
+
+Provider availability, a successful process exit, an LLM response, or a stored artifact is not by itself engineering verification. Validation proves only what its checks and evidence contract cover; it does not replace sound requirements, adequate physical models, or human judgment where required.
 
 ## System view
 
@@ -44,6 +56,21 @@ Authorized approval when required -> project state transition
 ```
 
 The user interface is not an authority for project ownership or engineering validity. The server resolves the authenticated identity and project membership before reading or mutating project-scoped records. Client-supplied labels, provider IDs, filesystem paths, and claims such as `valid: true` are not trusted evidence.
+
+## Product-to-system contract
+
+The product's primary path is organized around the engineer's work, not the internal module order:
+
+`intent → trusted context → minimum material questions → bounded execution → validation and evidence → decision or safe continuation`
+
+- Reuse project-scoped context only after authorization and provenance checks. Context can remove questions; it never licenses invented values.
+- The UI must distinguish a pending request from an actual completion and must present structured `NEEDS_INPUT`, `WAITING_APPROVAL`, `FAILED`, and `UNSUPPORTED` outcomes as decisions or blockers when the server returns them—not disguise them as generic transport errors.
+- Preserve user input after transport, authorization, provider, persistence, or validation failures. Retry only when safe; do not repeat non-idempotent side effects blindly.
+- Decision-ready responses expose only claims supported by the result contract: values and units, validation status, linked evidence, assumptions/limitations, blockers, and next action where available.
+- Measure cost per accepted outcome from trustworthy execution and product telemetry plus validated user/task baselines. Do not add an analytics store or cost-estimation precision merely for symmetry; first reuse existing run IDs, provider metadata, audit, and evidence seams.
+- Low-risk UX shortcuts may reduce ceremony but cannot bypass resource authorization, deterministic validation, evidence gates, or required human approvals.
+
+The exact completion boundary remains capability-specific. See the acceptance and exclusions in each capability's documentation before making a product-wide claim.
 
 ## Architectural modules and seams
 
