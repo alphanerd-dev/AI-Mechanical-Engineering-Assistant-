@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   routeInput: vi.fn(),
+  createClient: vi.fn(),
 }));
 
+vi.mock("../lib/supabase/server.js", () => ({
+  createClient: mocks.createClient,
+}));
 vi.mock("../src/auth/supabase-service.js", () => ({
   authorizeSupabaseRequest: mocks.authorize,
 }));
@@ -37,6 +41,7 @@ describe("POST /api/engineering/intent session continuity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.authorize.mockResolvedValue({ allowed: true, reason: "Authorized." });
+    mocks.createClient.mockResolvedValue({});
   });
 
   it("forwards the validated session ID into the capability request", async () => {
@@ -66,6 +71,19 @@ describe("POST /api/engineering/intent session continuity", () => {
     }));
 
     expect(response.status).toBe(400);
+    expect(mocks.routeInput).not.toHaveBeenCalled();
+  });
+
+  it("returns a controlled 503 when the request-scoped session client cannot be created", async () => {
+    mocks.createClient.mockRejectedValueOnce(new Error("database configuration unavailable"));
+
+    const response = await POST(request({
+      projectId: "project-1",
+      sessionId: "session-123",
+      rawIntent: "Continue the shaft design",
+    }));
+
+    expect(response.status).toBe(503);
     expect(mocks.routeInput).not.toHaveBeenCalled();
   });
 

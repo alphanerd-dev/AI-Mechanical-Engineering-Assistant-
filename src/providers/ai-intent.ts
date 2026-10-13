@@ -40,7 +40,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
 
     const effectiveProjectId=input.projectId.trim();
     const prior=input.sessionId&&this.sessions
-      ?this.sessions.get(input.sessionId,effectiveProjectId)
+      ?await this.sessions.get(input.sessionId,effectiveProjectId)
       :undefined;
 
     const sessionKnownInputs={
@@ -153,7 +153,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
     if(resolvedMissing.length>0){
       const nextQuestion=experience.nextQuestion??resolvedMissing[0];
       if(input.sessionId&&this.sessions){
-        this.sessions.save({
+        await this.sessions.save({
           sessionId:input.sessionId,
           projectId:effectiveProjectId,
           interpretation:{...interpretation,missingInputs:resolvedMissing},
