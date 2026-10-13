@@ -118,6 +118,19 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
 
   const beginNewSession = useCallback(async () => {
     const nextId = createSessionId();
+
+    // Persist the browser's session identity first. If storage is blocked, do not
+    // create a server session that cannot be recovered after the page reloads.
+    try {
+      sessionStorage.setItem(storageKey(projectId), nextId);
+    } catch {
+      sessionRevisionRef.current = undefined;
+      setSessionId(undefined);
+      setRestoreState("restore_failed");
+      setRestoreDetail("Browser session storage is unavailable. No new session was created because its identity could not be retained across refresh.");
+      return;
+    }
+
     sessionRevisionRef.current = undefined;
     setSessionId(nextId);
     setMessages([WELCOME]);
@@ -130,15 +143,10 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
     const saved = await persistConversation(nextId, [WELCOME]);
     if (!saved) {
       setRestoreState("restore_failed");
-      setRestoreDetail("The new session could not be saved. No engineering request has been sent.");
+      setRestoreDetail("The new session identity is retained in this browser, but the server could not save its initial snapshot. No engineering request has been sent.");
       return;
     }
 
-    try {
-      sessionStorage.setItem(storageKey(projectId), nextId);
-    } catch {
-      setPersistError("Browser storage is unavailable. This session may not be recoverable after a refresh.");
-    }
     setRestoreState("ready");
   }, [persistConversation, projectId]);
 
@@ -149,14 +157,19 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
       setRestoreState("loading");
       setRestoreDetail(undefined);
 
-      let storedId: string | null = null;
+      let storedId: string | null;
       try {
         storedId = sessionStorage.getItem(storageKey(projectId));
       } catch {
-        storedId = null;
+        if (!cancelled) {
+          setSessionId(undefined);
+          setRestoreState("restore_failed");
+          setRestoreDetail("Browser session storage is unavailable. The previous session identity could not be read, so no replacement session was started.");
+        }
+        return;
       }
 
-      // No prior session identity → start a new conversation explicitly.
+      // No saved identity for this project → create an initial conversation.
       if (!storedId) {
         if (!cancelled) await beginNewSession();
         return;
