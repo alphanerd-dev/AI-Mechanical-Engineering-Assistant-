@@ -21,6 +21,7 @@ jobs:
     name: Auth, persistence, and ownership
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    environment: e2e-staging
     env:
       E2E_BASE_URL: ${{ inputs.base_url }}
       E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
