@@ -5,48 +5,63 @@ import { SupabaseEngineeringIntentSessionStore } from "../src/providers/supabase
 
 type Row = Record<string, unknown>;
 
+type FakeQuery = {
+  select: () => FakeQuery;
+  eq: (column: string, value: unknown) => FakeQuery;
+  maybeSingle: () => Promise<{ data: Row | null; error: unknown | null }>;
+  upsert: (row: Row) => Promise<{ error: unknown | null }>;
+  delete: () => FakeQuery;
+  then: (
+    resolve: (value: unknown) => unknown,
+    reject?: (reason: unknown) => unknown,
+  ) => Promise<unknown>;
+};
+
 function createSupabaseHarness(seed: Row[] = [], errors: { read?: unknown; write?: unknown } = {}) {
   const rows = seed.map((row) => ({ ...row }));
-  const from = vi.fn((_table: string) => {
+  const from = vi.fn((table: string) => {
+    if (table !== "engineering_intent_sessions") {
+      throw new Error(`Unexpected table: ${table}`);
+    }
+
     const filters: Record<string, unknown> = {};
     let deleting = false;
-    const query: any = {
-      select: vi.fn(() => query),
-      eq: vi.fn((column: string, value: unknown) => {
-        filters[column] = value;
-        return query;
-      }),
-      maybeSingle: vi.fn(async () => {
-        if (errors.read) return { data: null, error: errors.read };
-        const row = rows.find((candidate) =>
-          Object.entries(filters).every(([key, value]) => candidate[key] === value),
-        );
-        return { data: row ? { ...row } : null, error: null };
-      }),
-      upsert: vi.fn(async (row: Row) => {
-        if (errors.write) return { error: errors.write };
-        const index = rows.findIndex((candidate) =>
-          candidate.project_id === row.project_id && candidate.session_id === row.session_id,
-        );
-        if (index >= 0) rows[index] = { ...row };
-        else rows.push({ ...row });
-        return { error: null };
-      }),
-      delete: vi.fn(() => {
-        deleting = true;
-        return query;
-      }),
-      then(resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) {
-        if (errors.write) return Promise.resolve({ error: errors.write }).then(resolve, reject);
-        if (deleting) {
-          for (let index = rows.length - 1; index >= 0; index -= 1) {
-            if (Object.entries(filters).every(([key, value]) => rows[index][key] === value)) {
-              rows.splice(index, 1);
-            }
+    const query = {} as FakeQuery;
+    query.select = vi.fn(() => query);
+    query.eq = vi.fn((column: string, value: unknown) => {
+      filters[column] = value;
+      return query;
+    });
+    query.maybeSingle = vi.fn(async () => {
+      if (errors.read) return { data: null, error: errors.read };
+      const row = rows.find((candidate) =>
+        Object.entries(filters).every(([key, value]) => candidate[key] === value),
+      );
+      return { data: row ? { ...row } : null, error: null };
+    });
+    query.upsert = vi.fn(async (row: Row) => {
+      if (errors.write) return { error: errors.write };
+      const index = rows.findIndex((candidate) =>
+        candidate.project_id === row.project_id && candidate.session_id === row.session_id,
+      );
+      if (index >= 0) rows[index] = { ...row };
+      else rows.push({ ...row });
+      return { error: null };
+    });
+    query.delete = vi.fn(() => {
+      deleting = true;
+      return query;
+    });
+    query.then = (resolve, reject) => {
+      if (errors.write) return Promise.resolve({ error: errors.write }).then(resolve, reject);
+      if (deleting) {
+        for (let index = rows.length - 1; index >= 0; index -= 1) {
+          if (Object.entries(filters).every(([key, value]) => rows[index][key] === value)) {
+            rows.splice(index, 1);
           }
         }
-        return Promise.resolve({ error: null }).then(resolve, reject);
-      },
+      }
+      return Promise.resolve({ error: null }).then(resolve, reject);
     };
     return query;
   });
