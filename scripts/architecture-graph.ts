@@ -102,11 +102,11 @@ function resolveRelativeImport(
 }
 
 export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
-  const normalizedModules = modules.map((module) => ({
+  const normalizedModules = modules.map((sourceModule) => ({
     path: normalizeSourcePath(sourceModule.path),
     source: sourceModule.source,
   }));
-  const knownPaths = new Set(normalizedModules.map((module) => sourceModule.path));
+  const knownPaths = new Set(normalizedModules.map((sourceModule) => sourceModule.path));
   const edgeKeys = new Set<string>();
   const unresolvedKeys = new Set<string>();
   const externalKeys = new Set<string>();
@@ -114,7 +114,7 @@ export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
   const unresolved: UnresolvedDependency[] = [];
   const externalImports: UnresolvedDependency[] = [];
 
-  for (const sourceModule of normalizedModules {
+  for (const sourceModule of normalizedModules) {
     for (const specifier of collectModuleSpecifiers(sourceModule.source)) {
       if (!specifier.startsWith(".")) {
         const key = `${sourceModule.path}\u0000${specifier}`;
