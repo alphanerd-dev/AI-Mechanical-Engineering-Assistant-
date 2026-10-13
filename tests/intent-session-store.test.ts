@@ -29,6 +29,24 @@ type Row = {
   updated_at: string;
 };
 
+interface UpdateQuery {
+  eq(column: string, value: unknown): UpdateQuery;
+  select(columns: string): UpdateQuery;
+  maybeSingle(): Promise<{
+    data: { snapshot_revision?: number } | null;
+    error: unknown | null;
+  }>;
+}
+
+function rowValue(row: Row, column: string): unknown {
+  switch (column) {
+    case "project_id": return row.project_id;
+    case "session_id": return row.session_id;
+    case "snapshot_revision": return row.snapshot_revision;
+    default: return undefined;
+  }
+}
+
 function createSharedDatabase() {
   const rows = new Map<string, Row>();
   const key = (projectId: string, sessionId: string) => `${projectId}::${sessionId}`;
@@ -74,7 +92,7 @@ function createSharedDatabase() {
         update(values: Record<string, unknown>) {
           const updates = values as Partial<Row>;
           const filters: Array<[string, unknown]> = [];
-          const builder: any = {
+          const builder: UpdateQuery = {
             eq(column: string, value: unknown) { filters.push([column, value]); return builder; },
             select() { return builder; },
             maybeSingle: async () => {
@@ -82,7 +100,7 @@ function createSharedDatabase() {
               const sessionId = filters.find(([column]) => column === "session_id")?.[1];
               const rowKey = key(String(projectId), String(sessionId));
               const row = rows.get(rowKey);
-              if (!row || !filters.every(([column, value]) => (row as any)[column] === value)) {
+              if (!row || !filters.every(([column, value]) => rowValue(row, column) === value)) {
                 return { data: null, error: null };
               }
               const updated = { ...row, ...updates };
