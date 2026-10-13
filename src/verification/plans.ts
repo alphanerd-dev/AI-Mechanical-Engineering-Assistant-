@@ -1,7 +1,7 @@
 import {EvidenceRecord} from "../artifacts/engineering-artifacts";
 import {ProjectState} from "../core/types";
 import {RequirementTraceability} from "../requirements/traceability";
-import {EngineeringVerificationEngine} from "./engine";
+import { EngineeringVerificationEngine } from "./engine-core.js";
 import {VerificationPlan,VerificationPlanResult} from "./types";
 
 function dependencyIsSatisfied(
