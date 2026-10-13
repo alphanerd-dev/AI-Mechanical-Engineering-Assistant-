@@ -164,7 +164,7 @@ export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
 }
 
 const APPROVED_SRC_TO_LIB_EDGES = new Set([
-  "src/auth/supabase-service.ts\\u0000lib/supabase/server.ts",
+  "src/auth/supabase-service.ts|lib/supabase/server.ts",
 ]);
 
 /**
@@ -193,7 +193,7 @@ export function findArchitectureBoundaryViolations(
     }
 
     if (sourceRoot === "src" && targetRoot === "lib" &&
-        !APPROVED_SRC_TO_LIB_EDGES.has(`${edge.from}\\u0000${edge.to}`)) {
+        !APPROVED_SRC_TO_LIB_EDGES.has(`${edge.from}|${edge.to}`)) {
       violations.push({ ...edge, rule: "unapproved-src-to-lib" });
     }
 
