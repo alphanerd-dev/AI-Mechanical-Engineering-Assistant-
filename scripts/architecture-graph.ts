@@ -26,7 +26,7 @@ export interface DependencyGraph {
 }
 
 const SOURCE_ROOTS = ["app", "components", "lib", "src"];
-const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"];
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"];\nconst NON_CODE_IMPORT_EXTENSIONS = new Set([".css", ".scss", ".sass", ".less", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"]);
 const INDEX_EXTENSIONS = SOURCE_EXTENSIONS.map((extension) => `/index${extension}`);
 
 export function collectModuleSpecifiers(sourceText: string): string[] {
@@ -65,7 +65,7 @@ export function collectModuleSpecifiers(sourceText: string): string[] {
   };
 
   visit(sourceFile);
-  return [...specifiers].sort();
+  return [...specifiers];
 }
 
 function normalizeSourcePath(filePath: string): string {
@@ -124,7 +124,7 @@ export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
         continue;
       }
 
-      const target = resolveRelativeImport(module.path, specifier, knownPaths);
+      if (NON_CODE_IMPORT_EXTENSIONS.has(path.posix.extname(specifier).toLowerCase())) continue;\n\n      const target = resolveRelativeImport(module.path, specifier, knownPaths);
       if (!target) {
         const key = `${module.path}\u0000${specifier}`;
         if (!unresolvedKeys.has(key)) {
