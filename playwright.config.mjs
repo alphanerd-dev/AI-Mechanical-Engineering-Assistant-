@@ -7,7 +7,7 @@ if (!baseURL) {
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: "**/*.spec.cjs",
+  testMatch: "**/*.e2e.mjs",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
