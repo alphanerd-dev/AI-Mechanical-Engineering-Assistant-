@@ -17,14 +17,26 @@ export interface EngineeringIntentSession {
   sessionId: string;
   projectId: string;
   schemaVersion: number;
+  snapshotRevision: number;
   interpretation: EngineeringIntentInterpretation;
   conversation: ConversationMessage[];
   updatedAt: string;
 }
 
+export type SessionSaveOptions =
+  | { createOnly: true }
+  | { expectedRevision: number };
+
+export class EngineeringIntentSessionConflictError extends Error {
+  constructor() {
+    super("Engineering intent session changed since it was read. Reload the session before saving.");
+    this.name = "EngineeringIntentSessionConflictError";
+  }
+}
+
 export interface EngineeringIntentSessionStore {
   get(sessionId: string, projectId: string): Promise<EngineeringIntentSession | undefined>;
-  save(session: EngineeringIntentSession): Promise<void>;
+  save(session: EngineeringIntentSession, options?: SessionSaveOptions): Promise<void>;
   delete(sessionId: string, projectId: string): Promise<void>;
 }
 
@@ -132,8 +144,11 @@ export function assertSession(session: EngineeringIntentSession): void {
     throw new Error("sessionId must be a non-empty string of at most 128 characters.");
   }
   if (!session.projectId.trim()) throw new Error("projectId is required.");
-  if (!Number.isInteger(session.schemaVersion) || session.schemaVersion < 1) {
-    throw new Error("schemaVersion must be a positive integer.");
+  if (session.schemaVersion !== ENGINEERING_INTENT_SESSION_SCHEMA_VERSION) {
+    throw new Error("schemaVersion is unsupported.");
+  }
+  if (!Number.isInteger(session.snapshotRevision) || session.snapshotRevision < 1) {
+    throw new Error("snapshotRevision must be a positive integer.");
   }
   if (Number.isNaN(Date.parse(session.updatedAt))) throw new Error("updatedAt must be a valid timestamp.");
   if (!isInterpretation(session.interpretation)) throw new Error("Engineering intent interpretation is invalid.");
@@ -158,9 +173,11 @@ type QueryResult = { data: unknown; error: unknown | null };
 
 interface SupabaseQueryBuilder extends PromiseLike<MutationResult> {
   select(columns: string): SupabaseQueryBuilder;
-  eq(column: string, value: string): SupabaseQueryBuilder;
+  eq(column: string, value: unknown): SupabaseQueryBuilder;
   maybeSingle(): PromiseLike<QueryResult>;
   upsert(values: Record<string, unknown>, options: { onConflict: string }): SupabaseQueryBuilder;
+  insert(values: Record<string, unknown>): SupabaseQueryBuilder;
+  update(values: Record<string, unknown>): SupabaseQueryBuilder;
   delete(): SupabaseQueryBuilder;
 }
 
@@ -174,6 +191,7 @@ interface SessionRow {
   interpretation: unknown;
   conversation?: unknown;
   schema_version?: unknown;
+  snapshot_revision?: unknown;
   updated_at: string;
 }
 
@@ -187,21 +205,39 @@ function rowToSession(row: Partial<SessionRow>, sessionId: string, projectId: st
     throw new Error("Stored engineering intent session is invalid.");
   }
 
-  const interpretation = isInterpretation(row.interpretation)
-    ? cloneInterpretation(row.interpretation)
-    : emptyInterpretation();
+  if (!isInterpretation(row.interpretation)) {
+    throw new Error("Stored engineering intent session is invalid.");
+  }
 
-  const schemaVersion =
-    typeof row.schema_version === "number" && Number.isInteger(row.schema_version) && row.schema_version >= 1
-      ? row.schema_version
-      : ENGINEERING_INTENT_SESSION_SCHEMA_VERSION;
+  const schemaVersion = row.schema_version === undefined
+    ? ENGINEERING_INTENT_SESSION_SCHEMA_VERSION
+    : row.schema_version;
+  const snapshotRevision = row.snapshot_revision === undefined ? 1 : row.snapshot_revision;
+  if (
+    typeof schemaVersion !== "number" ||
+    !Number.isInteger(schemaVersion) ||
+    schemaVersion !== ENGINEERING_INTENT_SESSION_SCHEMA_VERSION ||
+    typeof snapshotRevision !== "number" ||
+    !Number.isInteger(snapshotRevision) ||
+    snapshotRevision < 1
+  ) {
+    throw new Error("Stored engineering intent session is invalid.");
+  }
+
+  let conversation: ConversationMessage[];
+  try {
+    conversation = parseConversation(row.conversation);
+  } catch {
+    throw new Error("Stored engineering intent session is invalid.");
+  }
 
   return {
     sessionId,
     projectId,
     schemaVersion,
-    interpretation,
-    conversation: parseConversation(row.conversation),
+    snapshotRevision,
+    interpretation: cloneInterpretation(row.interpretation),
+    conversation,
     updatedAt: row.updated_at,
   };
 }
@@ -234,20 +270,69 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
     }
   }
 
-  async save(session: EngineeringIntentSession): Promise<void> {
+  async save(
+    session: EngineeringIntentSession,
+    options?: SessionSaveOptions,
+  ): Promise<void> {
     assertSession(session);
+
+    let policy = options;
+    if (!policy) {
+      const current = await this.get(session.sessionId, session.projectId);
+      policy = current
+        ? { expectedRevision: current.snapshotRevision }
+        : { createOnly: true };
+    }
+
+    const snapshotRevision = "createOnly" in policy
+      ? 1
+      : policy.expectedRevision + 1;
+    const next: EngineeringIntentSession = {
+      ...cloneSession(session),
+      snapshotRevision,
+    };
+    const values: Record<string, unknown> = {
+      project_id: next.projectId,
+      session_id: next.sessionId,
+      interpretation: next.interpretation,
+      conversation: next.conversation,
+      schema_version: next.schemaVersion,
+      snapshot_revision: next.snapshotRevision,
+      updated_at: next.updatedAt,
+    };
+
     try {
-      const result = await this.table().upsert({
-        project_id: session.projectId,
-        session_id: session.sessionId,
-        interpretation: cloneInterpretation(session.interpretation) as unknown as Record<string, unknown>,
-        conversation: cloneConversation(session.conversation) as unknown as Record<string, unknown>[],
-        schema_version: session.schemaVersion,
-        updated_at: session.updatedAt,
-      }, { onConflict: "project_id,session_id" });
-      if (result.error) throw new EngineeringIntentSessionPersistenceError("write");
+      let result: QueryResult;
+      if ("createOnly" in policy) {
+        result = await this.table()
+          .insert(values)
+          .select("project_id,session_id,snapshot_revision")
+          .maybeSingle();
+      } else {
+        result = await this.table()
+          .update(values)
+          .eq("project_id", next.projectId)
+          .eq("session_id", next.sessionId)
+          .eq("snapshot_revision", policy.expectedRevision)
+          .select("project_id,session_id,snapshot_revision")
+          .maybeSingle();
+      }
+
+      if (result.error) {
+        const errorCode = isRecord(result.error) ? result.error.code : undefined;
+        if ("createOnly" in policy && errorCode === "23505") {
+          throw new EngineeringIntentSessionConflictError();
+        }
+        throw new EngineeringIntentSessionPersistenceError("write");
+      }
+      if (!result.data) throw new EngineeringIntentSessionConflictError();
     } catch (error) {
-      if (error instanceof EngineeringIntentSessionPersistenceError) throw error;
+      if (
+        error instanceof EngineeringIntentSessionConflictError ||
+        error instanceof EngineeringIntentSessionPersistenceError
+      ) {
+        throw error;
+      }
       throw new EngineeringIntentSessionPersistenceError("write");
     }
   }
@@ -278,9 +363,35 @@ export class InMemoryEngineeringIntentSessionStore implements EngineeringIntentS
     return session ? cloneSession(session) : undefined;
   }
 
-  async save(session: EngineeringIntentSession): Promise<void> {
+  async save(
+    session: EngineeringIntentSession,
+    options?: SessionSaveOptions,
+  ): Promise<void> {
     assertSession(session);
-    this.sessions.set(this.key(session.sessionId, session.projectId), cloneSession(session));
+    const key = this.key(session.sessionId, session.projectId);
+    const current = this.sessions.get(key);
+    let policy = options;
+    if (!policy) {
+      policy = current
+        ? { expectedRevision: current.snapshotRevision }
+        : { createOnly: true };
+    }
+
+    if ("createOnly" in policy) {
+      if (current) throw new EngineeringIntentSessionConflictError();
+      const created = { ...cloneSession(session), snapshotRevision: 1 };
+      this.sessions.set(key, created);
+      return;
+    }
+
+    if (!current || current.snapshotRevision !== policy.expectedRevision) {
+      throw new EngineeringIntentSessionConflictError();
+    }
+    const updated = {
+      ...cloneSession(session),
+      snapshotRevision: policy.expectedRevision + 1,
+    };
+    this.sessions.set(key, updated);
   }
 
   async delete(sessionId: string, projectId: string): Promise<void> {
@@ -293,6 +404,7 @@ export function createEmptySession(sessionId: string, projectId: string): Engine
     sessionId,
     projectId,
     schemaVersion: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+    snapshotRevision: 1,
     interpretation: emptyInterpretation(),
     conversation: [],
     updatedAt: new Date().toISOString(),

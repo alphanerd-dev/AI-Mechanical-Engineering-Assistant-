@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+  EngineeringIntentSessionConflictError,
   InMemoryEngineeringIntentSessionStore,
   assertSession,
   createEmptySession,
@@ -55,6 +56,7 @@ describe("InMemoryEngineeringIntentSessionStore", () => {
       sessionId: "session-a",
       projectId: "project-1",
       schemaVersion: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+      snapshotRevision: 1,
       interpretation,
       conversation: [
         { role: "engineer" as const, text: "Design a shaft that transmits 5 kW at 1500 rpm." },
@@ -78,6 +80,7 @@ describe("InMemoryEngineeringIntentSessionStore", () => {
       sessionId: "",
       projectId: "project-1",
       schemaVersion: 1,
+      snapshotRevision: 1,
       interpretation,
       conversation: [],
       updatedAt: "2026-10-13T12:00:00.000Z",
@@ -91,6 +94,32 @@ describe("InMemoryEngineeringIntentSessionStore", () => {
     await store.save(base);
     await store.delete("session-a", "project-1");
     expect(await store.get("session-a", "project-1")).toBeUndefined();
+  });
+});
+
+
+describe("session snapshot compare-and-set", () => {
+  it("rejects a stale writer instead of overwriting a newer conversation", async () => {
+    const store = new InMemoryEngineeringIntentSessionStore();
+    await store.save(createEmptySession("cas-session", "project-1"), { createOnly: true });
+    const first = (await store.get("cas-session", "project-1"))!;
+    await store.save({
+      ...first,
+      conversation: [{ role: "engineer", text: "Design a shaft" }],
+      updatedAt: "2026-10-13T12:01:00.000Z",
+    }, { expectedRevision: first.snapshotRevision });
+    const updated = (await store.get("cas-session", "project-1"))!;
+
+    expect(updated.snapshotRevision).toBe(first.snapshotRevision + 1);
+    await expect(store.save({
+      ...first,
+      conversation: [{ role: "engineer", text: "Stale write" }],
+      updatedAt: "2026-10-13T12:02:00.000Z",
+    }, { expectedRevision: first.snapshotRevision })).rejects.toBeInstanceOf(EngineeringIntentSessionConflictError);
+
+    expect((await store.get("cas-session", "project-1"))?.conversation).toEqual([
+      { role: "engineer", text: "Design a shaft" },
+    ]);
   });
 });
 

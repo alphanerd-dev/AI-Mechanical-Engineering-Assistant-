@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type DecisionMetric = { key: string; value: number | string; unit?: string };
 type Decision = {
@@ -17,6 +17,7 @@ type AssistantResponse = {
   decision: Decision;
   decisionSummary: string;
   nextQuestion?: string;
+  sessionRevision?: number;
 };
 
 type Message = { role: "engineer" | "assistant"; text: string; decision?: Decision; at?: string };
@@ -63,11 +64,13 @@ function isMessageArray(value: unknown): value is Message[] {
 
 export default function EngineeringInteraction({ projectId }: { projectId: string }) {
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const sessionRevisionRef = useRef<number | undefined>(undefined);
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [persistError, setPersistError] = useState<string>();
+  const [sessionConflict, setSessionConflict] = useState(false);
   const [restoreState, setRestoreState] = useState<RestoreState>("loading");
   const [restoreDetail, setRestoreDetail] = useState<string>();
 
@@ -76,22 +79,10 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
     [messages],
   );
 
-  const beginNewSession = useCallback(() => {
-    const nextId = createSessionId();
-    setSessionId(nextId);
-    setMessages([WELCOME]);
-    setError(undefined);
-    setPersistError(undefined);
-    setRestoreDetail(undefined);
-    setRestoreState("ready");
-    try {
-      sessionStorage.setItem(storageKey(projectId), nextId);
-    } catch {
-      // sessionStorage may be unavailable; server identity still works for this page load.
-    }
-  }, [projectId]);
-
-  const persistConversation = useCallback(async (activeSessionId: string, nextMessages: Message[]) => {
+  const persistConversation = useCallback(async (
+    activeSessionId: string,
+    nextMessages: Message[],
+  ): Promise<boolean> => {
     try {
       const response = await fetch("/api/engineering/intent", {
         method: "PUT",
@@ -99,21 +90,57 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
         body: JSON.stringify({
           projectId,
           sessionId: activeSessionId,
+          expectedRevision: sessionRevisionRef.current ?? null,
           conversation: nextMessages.filter((message) => message.text.trim()),
         }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
+        setSessionConflict(response.status === 409);
         setPersistError(typeof body.error === "string"
           ? body.error
-          : "Conversation could not be saved. Your current view remains available.");
-        return;
+          : "Conversation could not be saved. Restore the latest session before continuing.");
+        return false;
       }
+      if (typeof body.snapshotRevision !== "number" || !Number.isInteger(body.snapshotRevision)) {
+        setPersistError("The server saved the conversation but did not confirm its snapshot revision. Refresh recovery cannot be confirmed.");
+        return false;
+      }
+      sessionRevisionRef.current = body.snapshotRevision;
+      setSessionConflict(false);
       setPersistError(undefined);
+      return true;
     } catch {
-      setPersistError("Conversation could not be saved. Your current view remains available.");
+      setPersistError("Conversation could not be saved. Restore the latest session before continuing.");
+      return false;
     }
   }, [projectId]);
+
+  const beginNewSession = useCallback(async () => {
+    const nextId = createSessionId();
+    sessionRevisionRef.current = undefined;
+    setSessionId(nextId);
+    setMessages([WELCOME]);
+    setError(undefined);
+    setPersistError(undefined);
+    setSessionConflict(false);
+    setRestoreDetail(undefined);
+    setRestoreState("loading");
+
+    const saved = await persistConversation(nextId, [WELCOME]);
+    if (!saved) {
+      setRestoreState("restore_failed");
+      setRestoreDetail("The new session could not be saved. No engineering request has been sent.");
+      return;
+    }
+
+    try {
+      sessionStorage.setItem(storageKey(projectId), nextId);
+    } catch {
+      setPersistError("Browser storage is unavailable. This session may not be recoverable after a refresh.");
+    }
+    setRestoreState("ready");
+  }, [persistConversation, projectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +158,7 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
 
       // No prior session identity → start a new conversation explicitly.
       if (!storedId) {
-        if (!cancelled) beginNewSession();
+        if (!cancelled) await beginNewSession();
         return;
       }
 
@@ -145,8 +172,9 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
         if (cancelled) return;
 
         if (response.status === 404) {
-          // Prior session was deleted or never persisted — start clean without pretending restore succeeded.
-          beginNewSession();
+          setSessionId(storedId);
+          setRestoreState("restore_failed");
+          setRestoreDetail("This browser still references a session that the server could not find. The previous session was not replaced; start a new session only if you want to continue separately.");
           return;
         }
 
@@ -159,7 +187,22 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
           return;
         }
 
-        const conversation = isMessageArray(body.conversation) ? body.conversation : [];
+        if (
+          body.schemaVersion !== 1 ||
+          typeof body.snapshotRevision !== "number" ||
+          !Number.isInteger(body.snapshotRevision) ||
+          body.snapshotRevision < 1 ||
+          !isMessageArray(body.conversation)
+        ) {
+          setSessionId(storedId);
+          setRestoreState("restore_failed");
+          setRestoreDetail("The stored session snapshot is malformed or uses an unsupported schema. No replacement session was started.");
+          return;
+        }
+
+        sessionRevisionRef.current = body.snapshotRevision;
+        setSessionConflict(false);
+        const conversation = body.conversation as Message[];
         setSessionId(storedId);
         setMessages(conversation.length > 0 ? conversation : [WELCOME]);
         setRestoreState("ready");
@@ -175,6 +218,43 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
     return () => { cancelled = true; };
   }, [projectId, beginNewSession]);
 
+  const restoreLatestSession = useCallback(async () => {
+    if (!sessionId) return;
+    setRestoreState("loading");
+    setRestoreDetail(undefined);
+    try {
+      const response = await fetch(
+        "/api/engineering/intent?projectId=" + encodeURIComponent(projectId) + "&sessionId=" + encodeURIComponent(sessionId),
+        { method: "GET", headers: { accept: "application/json" } },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (
+        !response.ok ||
+        body.schemaVersion !== 1 ||
+        typeof body.snapshotRevision !== "number" ||
+        !Number.isInteger(body.snapshotRevision) ||
+        body.snapshotRevision < 1 ||
+        !isMessageArray(body.conversation)
+      ) {
+        setRestoreState("restore_failed");
+        setRestoreDetail(typeof body.error === "string"
+          ? body.error
+          : "The latest session snapshot could not be restored.");
+        return;
+      }
+
+      sessionRevisionRef.current = body.snapshotRevision;
+      setMessages(body.conversation.length > 0 ? body.conversation as Message[] : [WELCOME]);
+      setError(undefined);
+      setPersistError(undefined);
+      setSessionConflict(false);
+      setRestoreState("ready");
+    } catch {
+      setRestoreState("restore_failed");
+      setRestoreDetail("The latest session could not be restored because the server or storage is unavailable.");
+    }
+  }, [projectId, sessionId]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const rawIntent = draft.trim();
@@ -186,10 +266,22 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
       text: rawIntent,
       at: new Date().toISOString(),
     };
-    setMessages((current) => [...current, engineerMessage]);
+    const priorMessages = messages;
+    const pendingMessages = [...priorMessages, engineerMessage];
+    setMessages(pendingMessages);
     setBusy(true);
 
     try {
+      // Persist the user's turn before dispatching an engineering operation.
+      const pendingSaved = await persistConversation(sessionId, pendingMessages);
+      if (!pendingSaved) {
+        setMessages(priorMessages);
+        setDraft(rawIntent);
+        setError("The engineering request was not sent because its session snapshot could not be saved. Retry after restoring or starting a session.");
+        return;
+      }
+
+      setDraft("");
       const response = await fetch("/api/engineering/intent", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -202,8 +294,13 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
         throw new Error(typeof body.error === "string" ? body.error : "Engineering request failed.");
       }
       if (!result) {
-        throw new Error("The engineering service returned no usable decision. Your draft is still available.");
+        throw new Error("The engineering service returned no usable decision. Your submitted turn remains saved in the session.");
       }
+      if (typeof result.sessionRevision !== "number" || !Number.isInteger(result.sessionRevision) || result.sessionRevision < 1) {
+        throw new Error("The service did not confirm the saved session revision. Your submitted turn remains saved, but the result was not added to durable conversation history.");
+      }
+
+      sessionRevisionRef.current = result.sessionRevision;
 
       const decision = result.decision;
       const followUp = decision?.nextQuestion
@@ -218,28 +315,30 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
         at: new Date().toISOString(),
       };
 
-      setMessages((current) => {
-        const next = [...current, assistantMessage];
-        void persistConversation(sessionId, next);
-        return next;
-      });
+      const nextMessages = [...pendingMessages, assistantMessage];
+      setMessages(nextMessages);
+      const answerSaved = await persistConversation(sessionId, nextMessages);
+      if (!answerSaved) {
+        setPersistError("The engineering response is visible, but its final conversation snapshot was not saved. Restore the session before assuming it will survive a refresh.");
+      }
 
-      if (decision.status !== "FAILED") setDraft("");
+      if (decision.status === "FAILED") setDraft(rawIntent);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Engineering request failed.";
       setError(message);
-      setMessages((current) => {
-        const next: Message[] = [
-          ...current,
-          {
-            role: "assistant",
-            text: "No usable engineering decision was returned. Your draft is still available to edit or retry.",
-            at: new Date().toISOString(),
-          },
-        ];
-        void persistConversation(sessionId, next);
-        return next;
-      });
+      const nextMessages: Message[] = [
+        ...pendingMessages,
+        {
+          role: "assistant",
+          text: "The engineering service did not return a usable decision. The submitted request remains in the saved conversation when storage is available.",
+          at: new Date().toISOString(),
+        },
+      ];
+      setMessages(nextMessages);
+      const failureSaved = await persistConversation(sessionId, nextMessages);
+      if (!failureSaved) {
+        setPersistError("The failure state could not be appended because the session revision changed or storage is unavailable. Refresh to restore the server's latest session.");
+      }
     } finally {
       setBusy(false);
     }
@@ -312,6 +411,11 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
 
     {error && <div className="notice" role="alert">{error}</div>}
     {persistError && <div className="notice" role="status">{persistError}</div>}
+    {sessionConflict && <div className="composerFooter">
+      <button className="button" type="button" disabled={busy} onClick={() => void restoreLatestSession()}>
+        Restore latest session
+      </button>
+    </div>}
 
     <form className="composer" onSubmit={submit}>
       <textarea

@@ -18,6 +18,7 @@ import { AIEngineeringIntentProvider } from "../../../../src/providers/ai-intent
 import { createDefaultDeterministicEngineeringIntentInterpreter } from "../../../../src/intent/deterministic";
 import {
   ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+  EngineeringIntentSessionConflictError,
   EngineeringIntentSessionPersistenceError,
   SupabaseEngineeringIntentSessionStore,
   parseConversation,
@@ -46,6 +47,14 @@ function parseSessionId(value: unknown): string | undefined {
 function parseProjectId(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   return value.trim();
+}
+
+function parseExpectedRevision(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw new Error("expectedRevision must be a positive integer when provided.");
+  }
+  return value;
 }
 
 async function createSessionStore() {
@@ -93,6 +102,7 @@ export async function GET(request: Request) {
       sessionId: session.sessionId,
       projectId: session.projectId,
       schemaVersion: session.schemaVersion,
+      snapshotRevision: session.snapshotRevision,
       interpretation: session.interpretation,
       conversation: session.conversation,
       updatedAt: session.updatedAt,
@@ -123,10 +133,12 @@ export async function PUT(request: Request) {
   let sessionId: string | undefined;
   let projectId: string | undefined;
   let conversation: ConversationMessage[];
+  let expectedRevision: number | undefined;
   try {
     sessionId = parseSessionId(body.sessionId);
     projectId = parseProjectId(body.projectId);
     conversation = parseConversation(body.conversation);
+    expectedRevision = parseExpectedRevision(body.expectedRevision);
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Invalid conversation payload.", 400);
   }
@@ -146,32 +158,69 @@ export async function PUT(request: Request) {
     const store = await createSessionStore();
     const existing = await store.get(sessionId, projectId);
     const now = new Date().toISOString();
-    await store.save({
-      sessionId,
-      projectId,
-      schemaVersion: existing?.schemaVersion ?? ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
-      interpretation: existing?.interpretation ?? {
-        raw: "",
-        goal: "engineering task",
-        extractedInputs: {},
-        missingInputs: [],
-        confidence: "LOW",
-        ambiguity: "HIGH",
-        contextUsed: [],
-        assumptions: [],
-      },
-      conversation,
-      updatedAt: now,
-    });
+    let snapshotRevision: number;
+
+    if (existing) {
+      if (expectedRevision !== existing.snapshotRevision) {
+        return jsonError("The engineering session changed in another request. Restore the latest session before saving.", 409, {
+          code: "SESSION_REVISION_CONFLICT",
+          snapshotRevision: existing.snapshotRevision,
+          recoverable: true,
+          lastTurnSaved: false,
+        });
+      }
+      snapshotRevision = existing.snapshotRevision + 1;
+      await store.save({
+        ...existing,
+        conversation,
+        updatedAt: now,
+      }, { expectedRevision: existing.snapshotRevision });
+    } else {
+      if (expectedRevision !== undefined) {
+        return jsonError("The engineering session no longer exists. Start a new session explicitly to continue.", 409, {
+          code: "SESSION_REVISION_CONFLICT",
+          recoverable: true,
+          lastTurnSaved: false,
+        });
+      }
+      snapshotRevision = 1;
+      await store.save({
+        sessionId,
+        projectId,
+        schemaVersion: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+        snapshotRevision,
+        interpretation: {
+          raw: "",
+          goal: "engineering task",
+          extractedInputs: {},
+          missingInputs: [],
+          confidence: "LOW",
+          ambiguity: "HIGH",
+          contextUsed: [],
+          assumptions: [],
+        },
+        conversation,
+        updatedAt: now,
+      }, { createOnly: true });
+    }
+
     return NextResponse.json({
       sessionId,
       projectId,
       schemaVersion: existing?.schemaVersion ?? ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+      snapshotRevision,
       conversation,
       updatedAt: now,
       saved: true,
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
+    if (error instanceof EngineeringIntentSessionConflictError) {
+      return jsonError("The engineering session changed in another request. Restore the latest session before saving.", 409, {
+        code: "SESSION_REVISION_CONFLICT",
+        recoverable: true,
+        lastTurnSaved: false,
+      });
+    }
     if (error instanceof EngineeringIntentSessionPersistenceError) {
       return jsonError("Engineering intent session storage is unavailable.", 503, {
         code: "SESSION_STORAGE_UNAVAILABLE",
@@ -265,6 +314,12 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof EngineeringIntentSessionConflictError) {
+      return jsonError("The engineering session changed in another request. Restore the latest session before retrying.", 409, {
+        code: "SESSION_REVISION_CONFLICT",
+        recoverable: true,
+      });
+    }
     if (error instanceof EngineeringIntentSessionPersistenceError) {
       return jsonError("Engineering intent session storage is unavailable.", 503, {
         code: "SESSION_STORAGE_UNAVAILABLE",

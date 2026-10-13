@@ -6,6 +6,7 @@ import { EngineeringIntentInterpreter, EngineeringIntentDecision, EngineeringInt
 import {
   ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
   EngineeringIntentSessionStore,
+  type EngineeringIntentSession,
 } from "../intent/session.js";
 import { EngineeringApprovalRequest, EngineeringCompletionReport } from "../completion/types.js";
 import { EngineeringCompletionUnitRegistry, createDefaultEngineeringCompletionUnitRegistry } from "../completion/registry";
@@ -25,17 +26,21 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
     sessionId: string | undefined,
     projectId: string,
     interpretation: EngineeringIntentInterpretation,
-  ): Promise<void> {
-    if (!sessionId || !this.sessions) return;
-    const prior = await this.sessions.get(sessionId, projectId);
+    prior?: EngineeringIntentSession,
+  ): Promise<number | undefined> {
+    if (!sessionId || !this.sessions) return undefined;
     await this.sessions.save({
       sessionId,
       projectId,
       schemaVersion: prior?.schemaVersion ?? ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+      snapshotRevision: prior?.snapshotRevision ?? 1,
       interpretation,
       conversation: prior?.conversation ?? [],
       updatedAt: new Date().toISOString(),
-    });
+    }, prior
+      ? { expectedRevision: prior.snapshotRevision }
+      : { createOnly: true });
+    return prior ? prior.snapshotRevision + 1 : 1;
   }
 
   async execute(request: CapabilityRequest): Promise<CapabilityResult> {
@@ -155,13 +160,14 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
         evidenceIds: [],
         nextQuestion: "Clarify the engineering completion unit or design objective.",
       };
-      await this.persistInterpretation(input.sessionId, effectiveProjectId, interpretation);
+      const sessionRevision = await this.persistInterpretation(input.sessionId, effectiveProjectId, interpretation, prior);
       return {
         capability: request.capability,
         provider: this.id,
         success: true,
         output: {
           interpretation,
+          sessionRevision,
           experience,
           status: "NEEDS_INPUT",
           decision,
@@ -174,7 +180,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
     if (resolvedMissing.length > 0) {
       const nextQuestion = experience.nextQuestion ?? resolvedMissing[0];
       const withMissing = { ...interpretation, missingInputs: resolvedMissing };
-      await this.persistInterpretation(input.sessionId, effectiveProjectId, withMissing);
+      const sessionRevision = await this.persistInterpretation(input.sessionId, effectiveProjectId, withMissing, prior);
       const decision: EngineeringIntentDecision = {
         status: "NEEDS_INPUT",
         validationPassed: false,
@@ -188,6 +194,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
         success: true,
         output: {
           interpretation: withMissing,
+          sessionRevision,
           experience,
           status: "NEEDS_INPUT",
           decision,
@@ -206,7 +213,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
       }, this.router);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Engineering completion unit failed.";
-      await this.persistInterpretation(input.sessionId, effectiveProjectId, interpretation);
+      const sessionRevision = await this.persistInterpretation(input.sessionId, effectiveProjectId, interpretation, prior);
       return {
         capability: request.capability,
         provider: this.id,
@@ -214,6 +221,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
         error: reason,
         output: {
           interpretation,
+          sessionRevision,
           experience,
           status: "FAILED",
           decision: {
@@ -243,7 +251,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
       nextAction: completion.nextAction,
     };
 
-    await this.persistInterpretation(input.sessionId, effectiveProjectId, interpretation);
+    const sessionRevision = await this.persistInterpretation(input.sessionId, effectiveProjectId, interpretation, prior);
 
     const resultSuccess = completion.status !== "FAILED";
     return {
@@ -252,6 +260,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
       success: resultSuccess,
       output: {
         interpretation,
+        sessionRevision,
         experience,
         completion,
         status,
