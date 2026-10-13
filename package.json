@@ -10,7 +10,9 @@
     "benchmark": "tsx benchmarks/v2-0-suite.ts",
     "dev": "next dev --webpack",
     "core": "tsx src/index.ts",
-    "smoke:cad-live": "tsx scripts/cad-workspace-live-smoke.ts"
+    "smoke:cad-live": "tsx scripts/cad-workspace-live-smoke.ts",
+    "architecture:graph": "tsx scripts/architecture-graph.ts",
+    "architecture:graph:json": "tsx scripts/architecture-graph.ts --json"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -28,4 +30,4 @@
     "react-dom": "^19.2.0",
     "@supabase/supabase-js": "2.117.3"
   }
-}
+}\n
