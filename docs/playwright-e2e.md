@@ -15,7 +15,9 @@ This is an acceptance slice, not proof that every workflow or email-confirmation
 
 ## Safety requirements
 
-Run only against a dedicated **non-production deployment and non-production Supabase project**. The test creates a persisted project with an `E2E ownership verification` name; no project-delete API is assumed. The two accounts must be dedicated test accounts, confirmed in Supabase Auth, and able to sign in with standard engineering access. Do not use personal accounts.
+**Preferred:** run against a dedicated non-production deployment and a separate non-production Supabase project. The test creates a persisted project with an `E2E ownership verification` name; it does not delete that project. Use two dedicated test accounts with standard engineering access. Do not use personal accounts.
+
+**Temporary pre-launch option:** when the product has no real users and the shared Supabase project contains no important real-user data, the workflow also supports `prelaunch-shared-supabase`. This mode is intentionally less isolated: the E2E journey writes persistent test data to the Supabase project configured for the selected Preview deployment. Only use it before real users/data exist, with two dedicated test accounts, and expect E2E project records to remain until manually removed. Do not use the production deployment URL; select an allowlisted Vercel Preview URL.
 
 In GitHub repository Settings → Environments, create an environment named `e2e-staging` and configure these environment secrets there. Add a required reviewer to that environment if you want a human approval gate before the test can access its credentials:
 
@@ -24,9 +26,9 @@ In GitHub repository Settings → Environments, create an environment named `e2e
 - `E2E_USER_B_EMAIL`
 - `E2E_USER_B_PASSWORD`
 
-Also configure the repository Actions variable `E2E_ALLOWED_HOSTS` with the exact non-production hostnames permitted for this workflow, comma-separated and without a scheme or path (for example, a dedicated Render test hostname). Do not put the production hostname in this allowlist. The workflow rejects targets that are not an exact allowlist match; wildcard entries are not supported.
+Configure the repository Actions variable `E2E_ALLOWED_HOSTS` with the exact hostname(s) permitted for this workflow, comma-separated and without a scheme or path. For shared pre-launch mode, allowlist the Vercel Preview hostname only—not the production hostname. Exact matches are required; wildcard entries are not supported.
 
-This is a manual **post-merge** acceptance workflow, not a pre-merge gate: GitHub exposes the standard `workflow_dispatch` Run workflow control for workflows on the default branch. Merge this workflow to `main` first, then open Actions → **Playwright User Journey E2E** → Run workflow. Supply the HTTPS URL of the non-production deployment and explicitly confirm the non-production target. The workflow fails closed if the confirmation, allowlist, or any credential is missing. The allowlist limits accidental targeting but does not inspect the target's Supabase configuration, so maintainers must ensure each allowlisted deployment uses a dedicated non-production Supabase project. The workflow does not run on every pull request and does not deploy the app.
+This is a manual **post-merge** acceptance workflow, not a pre-merge gate. After merging the workflow to `main`, open Actions → **Playwright User Journey E2E** → Run workflow. Choose `isolated-staging` and confirm the separate test database, or choose `prelaunch-shared-supabase` and explicitly acknowledge persistent writes to the shared database. The workflow validates the URL host, allowlist, confirmations, and credentials, but cannot independently inspect which Supabase project the deployment uses. It does not run on every pull request and does not deploy the app.
 
 ## Run locally
 

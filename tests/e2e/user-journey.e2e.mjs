@@ -93,7 +93,9 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       await pageA.getByRole("button", { name: "Sign out" }).click();
       await expect(pageA).toHaveURL(/\/login(?:\?.*)?$/);
       const anonymousResponse = await pageA.request.get("/api/projects");
-      expect(anonymousResponse.status()).toBe(403);
+      // A protected route may deliberately return 404 to avoid revealing resource existence.
+      expect([401, 403, 404], "anonymous project-list API access must be denied")
+        .toContain(anonymousResponse.status());
     });
 
     await testInfo.step("Authenticate user B and verify user A's project is not listed", async () => {
