@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   routeInput: vi.fn(),
+  createClient: vi.fn(),
 }));
 
+vi.mock("../lib/supabase/server.js", () => ({
+  createClient: mocks.createClient,
+}));
 vi.mock("../src/auth/supabase-service.js", () => ({
   authorizeSupabaseRequest: mocks.authorize,
 }));
@@ -37,6 +41,7 @@ describe("POST /api/engineering/intent session continuity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.authorize.mockResolvedValue({ allowed: true, reason: "Authorized." });
+    mocks.createClient.mockResolvedValue({ from: vi.fn() });
   });
 
   it("forwards the validated session ID into the capability request", async () => {
@@ -66,6 +71,32 @@ describe("POST /api/engineering/intent session continuity", () => {
     }));
 
     expect(response.status).toBe(400);
+    expect(mocks.routeInput).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without exposing environment details when the session database client is unavailable", async () => {
+    mocks.createClient.mockRejectedValue(new Error("sensitive database URL"));
+    const response = await POST(request({
+      projectId: "project-1",
+      sessionId: "session-123",
+      rawIntent: "Continue the shaft design",
+    }));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "Engineering intent session storage is unavailable." });
+    expect(mocks.routeInput).not.toHaveBeenCalled();
+  });
+
+  it("does not create a session client when authorization is denied", async () => {
+    mocks.authorize.mockResolvedValue({ allowed: false, reason: "Project scope denied." });
+    const response = await POST(request({
+      projectId: "project-1",
+      sessionId: "session-123",
+      rawIntent: "Continue the shaft design",
+    }));
+
+    expect(response.status).toBe(403);
+    expect(mocks.createClient).not.toHaveBeenCalled();
     expect(mocks.routeInput).not.toHaveBeenCalled();
   });
 

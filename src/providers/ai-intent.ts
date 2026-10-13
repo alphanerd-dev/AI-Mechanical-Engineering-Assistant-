@@ -3,7 +3,8 @@ import {CapabilityRequest,CapabilityResult,EngineeringDecisionMetric} from "../c
 import {EngineeringContext} from "../experience/context.js";
 import {CapabilityRouter} from "../capabilities/router.js";
 import {EngineeringIntentInterpreter,EngineeringIntentDecision,EngineeringIntentInterpretation} from "../intent/types.js";
-import {EngineeringIntentSessionStore} from "../intent/session.js";
+import {ENGINEERING_INTENT_SESSION_PERSISTENCE_FAILED,ENGINEERING_INTENT_SESSION_STORAGE_UNAVAILABLE} from "../intent/session.js";
+import type {EngineeringIntentSession,EngineeringIntentSessionStore} from "../intent/session.js";
 import {EngineeringApprovalRequest,EngineeringCompletionReport} from "../completion/types.js";
 import {EngineeringCompletionUnitRegistry,createDefaultEngineeringCompletionUnitRegistry} from "../completion/registry";
 
@@ -39,9 +40,14 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
     }
 
     const effectiveProjectId=input.projectId.trim();
-    const prior=input.sessionId&&this.sessions
-      ?this.sessions.get(input.sessionId,effectiveProjectId)
-      :undefined;
+    let prior:EngineeringIntentSession|undefined;
+    if(input.sessionId&&this.sessions){
+      try{
+        prior=await this.sessions.get(input.sessionId,effectiveProjectId);
+      }catch{
+        return {capability:request.capability,provider:this.id,success:false,error:ENGINEERING_INTENT_SESSION_STORAGE_UNAVAILABLE};
+      }
+    }
 
     const sessionKnownInputs={
       ...(prior?.interpretation.extractedInputs??{}),
@@ -153,12 +159,16 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
     if(resolvedMissing.length>0){
       const nextQuestion=experience.nextQuestion??resolvedMissing[0];
       if(input.sessionId&&this.sessions){
-        this.sessions.save({
-          sessionId:input.sessionId,
-          projectId:effectiveProjectId,
-          interpretation:{...interpretation,missingInputs:resolvedMissing},
-          updatedAt:new Date().toISOString()
-        });
+        try{
+          await this.sessions.save({
+            sessionId:input.sessionId,
+            projectId:effectiveProjectId,
+            interpretation:{...interpretation,missingInputs:resolvedMissing},
+            updatedAt:new Date().toISOString()
+          });
+        }catch{
+          return {capability:request.capability,provider:this.id,success:false,error:ENGINEERING_INTENT_SESSION_PERSISTENCE_FAILED};
+        }
       }
       const decision:EngineeringIntentDecision={
         status:"NEEDS_INPUT",

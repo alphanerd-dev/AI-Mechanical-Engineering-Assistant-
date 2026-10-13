@@ -54,6 +54,41 @@ describe("V2.0.15 AI-native completion path acceptance gate",()=>{
     expect(output.decision.validationPassed).toBe(true);
   });
 
+  it("reuses prior missing-input context across separate intent turns in the same session",async()=>{
+    const {router}=createV2_0_15Router();
+    const first=await router.execute({
+      capability:"ENGINEERING.ENTER_FROM_INTENT",
+      risk:"HIGH",
+      input:{
+        projectId:"V2-0-15-SESSION",
+        sessionId:"shaft-session-1",
+        rawIntent:"Design a shaft that transmits 5 kW at 1500 rpm. Proposed diameter is 30 mm."
+      }
+    });
+    expect(first.success).toBe(true);
+    expect((first.output as any).status).toBe("NEEDS_INPUT");
+
+    const second=await router.execute({
+      capability:"ENGINEERING.ENTER_FROM_INTENT",
+      risk:"HIGH",
+      input:{
+        projectId:"V2-0-15-SESSION",
+        sessionId:"shaft-session-1",
+        rawIntent:"Bending moment is 80 N·m. Allowable shear stress is 55 MPa."
+      }
+    });
+    expect(second.success).toBe(true);
+    const output=second.output as any;
+    expect(output.status).toBe("WAITING_APPROVAL");
+    expect(output.interpretation.extractedInputs).toMatchObject({
+      powerKw:5,
+      speedRpm:1500,
+      bendingMomentNm:80,
+      allowableShearStressMpa:55,
+      proposedDiameterMm:30
+    });
+  });
+
   it("does not create a second engineering execution path",async()=>{
     const {router}=createV2_0_15Router();
     const result=await router.execute({

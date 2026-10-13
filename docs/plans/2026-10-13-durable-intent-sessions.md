@@ -1,6 +1,6 @@
 # Implementation Plan — Durable Engineering Intent Sessions
 
-**Status:** Next focused implementation slice after the architecture graph PR.  
+**Status:** Implementation in progress on `hardening/durable-intent-sessions`.  
 **Goal:** Make multi-turn engineering intent continuation survive serverless instance changes without weakening project authorization or treating stored interpretations as engineering truth.
 
 ## Design constraints

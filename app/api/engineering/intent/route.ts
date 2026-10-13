@@ -16,12 +16,13 @@ import {ElectricalAnalysisProvider} from "../../../../src/providers/electrical";
 import {ElectricalEngineeringCompletionProvider} from "../../../../src/providers/electrical-completion";
 import {AIEngineeringIntentProvider} from "../../../../src/providers/ai-intent";
 import {createDefaultDeterministicEngineeringIntentInterpreter} from "../../../../src/intent/deterministic";
-import {InMemoryEngineeringIntentSessionStore} from "../../../../src/intent/session";
+import {ENGINEERING_INTENT_SESSION_PERSISTENCE_FAILED,ENGINEERING_INTENT_SESSION_STORAGE_UNAVAILABLE} from "../../../../src/intent/session";
+import {createClient} from "../../../../lib/supabase/server";
+import {SupabaseEngineeringIntentSessionStore} from "../../../../src/providers/supabase-intent-session";
 import {authorizeSupabaseRequest} from "../../../../src/auth/supabase-service";
 
 export const runtime="nodejs";
 
-const sessionStore=new InMemoryEngineeringIntentSessionStore();
 
 export async function POST(request:Request){
   const parsedBody=await request.json().catch(()=>({}));
@@ -45,8 +46,20 @@ export async function POST(request:Request){
   if(typeof body.rawIntent!=="string"||!body.rawIntent.trim()){
     return NextResponse.json({error:"rawIntent is required."},{status:400});
   }
+  if(body.rawIntent.trim().length>5000){
+    return NextResponse.json({error:"rawIntent must be at most 5000 characters."},{status:400});
+  }
   if(!projectId){
     return NextResponse.json({error:"projectId is required."},{status:400});
+  }
+
+  let sessionStore:SupabaseEngineeringIntentSessionStore|undefined;
+  if(sessionId){
+    try{
+      sessionStore=new SupabaseEngineeringIntentSessionStore(await createClient());
+    }catch{
+      return NextResponse.json({error:ENGINEERING_INTENT_SESSION_STORAGE_UNAVAILABLE},{status:503});
+    }
   }
 
   const registry=new CapabilityRegistry();
@@ -78,6 +91,13 @@ export async function POST(request:Request){
       approval:body.approval
     }
   });
+
+  if(!result.success&&(
+    result.error===ENGINEERING_INTENT_SESSION_STORAGE_UNAVAILABLE||
+    result.error===ENGINEERING_INTENT_SESSION_PERSISTENCE_FAILED
+  )){
+    return NextResponse.json({error:result.error},{status:503});
+  }
 
   if(!result.success&&result.output){
     return NextResponse.json(result.output,{status:422});
