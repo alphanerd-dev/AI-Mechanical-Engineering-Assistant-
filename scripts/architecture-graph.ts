@@ -26,7 +26,8 @@ export interface DependencyGraph {
 }
 
 const SOURCE_ROOTS = ["app", "components", "lib", "src"];
-const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"];\nconst NON_CODE_IMPORT_EXTENSIONS = new Set([".css", ".scss", ".sass", ".less", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"]);
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"];
+const NON_CODE_IMPORT_EXTENSIONS = new Set([".css", ".scss", ".sass", ".less", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"]);
 const INDEX_EXTENSIONS = SOURCE_EXTENSIONS.map((extension) => `/index${extension}`);
 
 export function collectModuleSpecifiers(sourceText: string): string[] {
