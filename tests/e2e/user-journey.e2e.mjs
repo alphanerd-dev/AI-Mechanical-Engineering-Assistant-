@@ -58,7 +58,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
     const pageA = await contextA.newPage();
     watchPage(pageA, "user-a", diagnostics);
 
-    await testInfo.step("Authenticate user A in the browser", async () => {
+    await test.step("Authenticate user A in the browser", async () => {
       await signIn(pageA, userAEmail, userAPassword);
     });
 
@@ -66,7 +66,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
     const projectName = "E2E ownership verification " + suffix;
     const problemStatement = "Automated acceptance run. This project is disposable staging test data.";
 
-    await testInfo.step("Create a project through the workspace UI", async () => {
+    await test.step("Create a project through the workspace UI", async () => {
       await pageA.getByLabel("Project name").fill(projectName);
       await pageA.getByLabel(/Problem statement/).fill(problemStatement);
       await pageA.getByRole("button", { name: "Create project" }).click();
@@ -78,7 +78,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
     const projectId = new URL(pageA.url()).pathname.split("/").pop();
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
 
-    await testInfo.step("Reload the project and verify persisted state", async () => {
+    await test.step("Reload the project and verify persisted state", async () => {
       await pageA.reload();
       await expect(pageA.getByRole("heading", { name: projectName })).toBeVisible();
       await expect(pageA.getByText("PERSISTED ENGINEERING PROJECT")).toBeVisible();
@@ -89,7 +89,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       await expect(projectCard).toBeVisible();
     });
 
-    await testInfo.step("Sign out and confirm protected API access is denied", async () => {
+    await test.step("Sign out and confirm protected API access is denied", async () => {
       await pageA.getByRole("button", { name: "Sign out" }).click();
       await expect(pageA).toHaveURL(/\/login(?:\?.*)?$/);
       const anonymousResponse = await pageA.request.get("/api/projects");
@@ -98,7 +98,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
         .toContain(anonymousResponse.status());
     });
 
-    await testInfo.step("Authenticate user B and verify user A's project is not listed", async () => {
+    await test.step("Authenticate user B and verify user A's project is not listed", async () => {
       contextB = await browser.newContext({ baseURL });
       const pageB = await contextB.newPage();
       watchPage(pageB, "user-b", diagnostics);
