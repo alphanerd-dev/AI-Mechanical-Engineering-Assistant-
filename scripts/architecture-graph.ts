@@ -25,6 +25,10 @@ export interface DependencyGraph {
   externalImports: UnresolvedDependency[];
 }
 
+export interface ArchitectureBoundaryViolation extends DependencyEdge {
+  rule: string;
+}
+
 const SOURCE_ROOTS = ["app", "components", "lib", "src"];
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 const NON_CODE_IMPORT_EXTENSIONS = new Set([".css", ".scss", ".sass", ".less", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico"]);
@@ -159,6 +163,50 @@ export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
   };
 }
 
+const APPROVED_SRC_TO_LIB_EDGES = new Set([
+  "src/auth/supabase-service.ts\\u0000lib/supabase/server.ts",
+]);
+
+/**
+ * Enforce dependency direction for the source roots used in the architecture graph.
+ *
+ * The Next.js app is the composition layer. Reusable modules must not depend back on
+ * app routes/pages. Core modules and infrastructure must not import React components.
+ * The Engineering Core has one explicit existing integration edge into the server-side
+ * Supabase auth adapter; other src -> lib edges require architectural review.
+ */
+export function findArchitectureBoundaryViolations(
+  graph: DependencyGraph,
+): ArchitectureBoundaryViolation[] {
+  const violations: ArchitectureBoundaryViolation[] = [];
+
+  for (const edge of graph.edges) {
+    const sourceRoot = edge.from.split("/")[0];
+    const targetRoot = edge.to.split("/")[0];
+
+    if (sourceRoot !== "app" && targetRoot === "app") {
+      violations.push({ ...edge, rule: "non-app-to-app" });
+    }
+
+    if ((sourceRoot === "src" || sourceRoot === "lib") && targetRoot === "components") {
+      violations.push({ ...edge, rule: "non-ui-to-components" });
+    }
+
+    if (sourceRoot === "src" && targetRoot === "lib" &&
+        !APPROVED_SRC_TO_LIB_EDGES.has(`${edge.from}\\u0000${edge.to}`)) {
+      violations.push({ ...edge, rule: "unapproved-src-to-lib" });
+    }
+
+    if (sourceRoot === "lib" && targetRoot === "src") {
+      violations.push({ ...edge, rule: "infrastructure-to-core" });
+    }
+  }
+
+  return violations.sort((a, b) =>
+    a.from.localeCompare(b.from) || a.to.localeCompare(b.to) || a.rule.localeCompare(b.rule),
+  );
+}
+
 export function findDependencyCycles(graph: DependencyGraph): string[][] {
   const adjacency = new Map<string, string[]>();
   for (const node of graph.nodes) adjacency.set(node, []);
@@ -247,6 +295,7 @@ export function analyzeRepository(root = process.cwd()): DependencyGraph {
 function main(): void {
   const graph = analyzeRepository();
   const cycles = findDependencyCycles(graph);
+  const boundaryViolations = findArchitectureBoundaryViolations(graph);
   const result = {
     ...graph,
     summary: {
@@ -255,8 +304,10 @@ function main(): void {
       externalImports: graph.externalImports.length,
       unresolvedRelativeImports: graph.unresolved.length,
       cycles: cycles.length,
+      architectureBoundaryViolations: boundaryViolations.length,
     },
     cycles,
+    boundaryViolations,
   };
 
   if (process.argv.includes("--json")) {
@@ -269,12 +320,15 @@ function main(): void {
       `External import references: ${result.summary.externalImports}`,
       `Unresolved relative imports: ${result.summary.unresolvedRelativeImports}`,
       `Dependency cycles: ${result.summary.cycles}`,
+      `Architecture boundary violations: ${result.summary.architectureBoundaryViolations}`,
       ...cycles.map((cycle) => `CYCLE: ${cycle.join(" -> ")}`),
       ...graph.unresolved.map((item) => `UNRESOLVED: ${item.from} -> ${item.specifier}`),
+      ...boundaryViolations.map((item) => `BOUNDARY (${item.rule}): ${item.from} -> ${item.to}`),
     ].join("\n") + "\n");
   }
 
-  if (process.argv.includes("--strict") && (cycles.length > 0 || graph.unresolved.length > 0)) {
+  if (process.argv.includes("--strict") &&
+      (cycles.length > 0 || graph.unresolved.length > 0 || boundaryViolations.length > 0)) {
     process.exitCode = 1;
   }
 }
