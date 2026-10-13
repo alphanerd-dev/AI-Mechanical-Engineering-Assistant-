@@ -103,10 +103,10 @@ function resolveRelativeImport(
 
 export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
   const normalizedModules = modules.map((module) => ({
-    path: normalizeSourcePath(module.path),
-    source: module.source,
+    path: normalizeSourcePath(sourceModule.path),
+    source: sourceModule.source,
   }));
-  const knownPaths = new Set(normalizedModules.map((module) => module.path));
+  const knownPaths = new Set(normalizedModules.map((module) => sourceModule.path));
   const edgeKeys = new Set<string>();
   const unresolvedKeys = new Set<string>();
   const externalKeys = new Set<string>();
@@ -114,33 +114,33 @@ export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
   const unresolved: UnresolvedDependency[] = [];
   const externalImports: UnresolvedDependency[] = [];
 
-  for (const module of normalizedModules) {
-    for (const specifier of collectModuleSpecifiers(module.source)) {
+  for (const sourceModule of normalizedModules {
+    for (const specifier of collectModuleSpecifiers(sourceModule.source)) {
       if (!specifier.startsWith(".")) {
-        const key = `${module.path}\u0000${specifier}`;
+        const key = `${sourceModule.path}\u0000${specifier}`;
         if (!externalKeys.has(key)) {
           externalKeys.add(key);
-          externalImports.push({ from: module.path, specifier });
+          externalImports.push({ from: sourceModule.path, specifier });
         }
         continue;
       }
 
       if (NON_CODE_IMPORT_EXTENSIONS.has(path.posix.extname(specifier).toLowerCase())) continue;
 
-      const target = resolveRelativeImport(module.path, specifier, knownPaths);
+      const target = resolveRelativeImport(sourceModule.path, specifier, knownPaths);
       if (!target) {
-        const key = `${module.path}\u0000${specifier}`;
+        const key = `${sourceModule.path}\u0000${specifier}`;
         if (!unresolvedKeys.has(key)) {
           unresolvedKeys.add(key);
-          unresolved.push({ from: module.path, specifier });
+          unresolved.push({ from: sourceModule.path, specifier });
         }
         continue;
       }
 
-      const key = `${module.path}\u0000${target}`;
+      const key = `${sourceModule.path}\u0000${target}`;
       if (!edgeKeys.has(key)) {
         edgeKeys.add(key);
-        edges.push({ from: module.path, to: target });
+        edges.push({ from: sourceModule.path, to: target });
       }
     }
   }
