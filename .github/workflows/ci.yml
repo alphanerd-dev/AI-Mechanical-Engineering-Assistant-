@@ -16,7 +16,9 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Generate architecture dependency graph
-        run: npm run architecture:graph:json > architecture-dependency-graph.json
+        run: |
+          npx tsx scripts/architecture-graph.ts --json > architecture-dependency-graph.json
+          node -e "const graph = JSON.parse(require('node:fs').readFileSync('architecture-dependency-graph.json', 'utf8')); if (!graph.summary || !Array.isArray(graph.edges)) process.exit(1)"
       - uses: actions/upload-artifact@v4
         with:
           name: architecture-dependency-graph
