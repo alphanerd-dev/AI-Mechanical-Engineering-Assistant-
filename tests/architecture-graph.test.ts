@@ -72,7 +72,7 @@ describe("architecture dependency graph", () => {
   it("reports forbidden upward dependencies between application layers", () => {
     const graph = buildDependencyGraph([
       { path: "app/page.tsx", source: 'import "../components/card.js"; import "../src/core.js"; import "../lib/http.js";' },
-      { path: "components/card.tsx", source: 'import "../../app/api/route.js"; import "../src/core.js"; import "../lib/http.js";' },
+      { path: "components/card.tsx", source: 'import "../app/api/route.js"; import "../src/core.js"; import "../lib/http.js";' },
       { path: "src/core.ts", source: 'import "../app/api/route.js"; import "../components/card.js"; import "../lib/http.js";' },
       { path: "src/another.ts", source: 'import "../lib/http.js";' },
       { path: "src/auth/supabase-service.ts", source: 'import "../../lib/supabase/server.js";' },
