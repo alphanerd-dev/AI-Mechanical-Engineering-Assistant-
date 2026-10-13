@@ -16,12 +16,14 @@ import {ElectricalAnalysisProvider} from "../../../../src/providers/electrical";
 import {ElectricalEngineeringCompletionProvider} from "../../../../src/providers/electrical-completion";
 import {AIEngineeringIntentProvider} from "../../../../src/providers/ai-intent";
 import {createDefaultDeterministicEngineeringIntentInterpreter} from "../../../../src/intent/deterministic";
-import {InMemoryEngineeringIntentSessionStore} from "../../../../src/intent/session";
+import {
+  EngineeringIntentSessionPersistenceError,
+  SupabaseEngineeringIntentSessionStore
+} from "../../../../src/intent/session";
+import {createClient} from "../../../../lib/supabase/server";
 import {authorizeSupabaseRequest} from "../../../../src/auth/supabase-service";
 
 export const runtime="nodejs";
-
-const sessionStore=new InMemoryEngineeringIntentSessionStore();
 
 export async function POST(request:Request){
   const parsedBody=await request.json().catch(()=>({}));
@@ -37,7 +39,12 @@ export async function POST(request:Request){
     sessionId=body.sessionId.trim();
   }
 
-  const authorization=await authorizeSupabaseRequest("TASK.EXECUTE",projectId);
+  let authorization;
+  try{
+    authorization=await authorizeSupabaseRequest("TASK.EXECUTE",projectId);
+  }catch{
+    return NextResponse.json({error:"Authorization service is unavailable."},{status:503});
+  }
   if(!authorization.allowed){
     return NextResponse.json({error:authorization.reason},{status:403});
   }
@@ -47,6 +54,15 @@ export async function POST(request:Request){
   }
   if(!projectId){
     return NextResponse.json({error:"projectId is required."},{status:400});
+  }
+
+  let sessionStore:SupabaseEngineeringIntentSessionStore|undefined;
+  if(sessionId){
+    try{
+      sessionStore=new SupabaseEngineeringIntentSessionStore(await createClient());
+    }catch{
+      return NextResponse.json({error:"Engineering intent session storage is unavailable."},{status:503});
+    }
   }
 
   const registry=new CapabilityRegistry();
@@ -67,17 +83,25 @@ export async function POST(request:Request){
   registry.register(new EngineeringVerificationProvider());
   registry.register(new AIEngineeringIntentProvider(router,createDefaultDeterministicEngineeringIntentInterpreter(),sessionStore));
 
-  const result=await router.execute({
-    capability:"ENGINEERING.ENTER_FROM_INTENT",
-    risk:"HIGH",
-    input:{
-      rawIntent:body.rawIntent.trim(),
-      projectId,
-      sessionId,
-      context:body.context,
-      approval:body.approval
+  let result;
+  try{
+    result=await router.execute({
+      capability:"ENGINEERING.ENTER_FROM_INTENT",
+      risk:"HIGH",
+      input:{
+        rawIntent:body.rawIntent.trim(),
+        projectId,
+        sessionId,
+        context:body.context,
+        approval:body.approval
+      }
+    });
+  }catch(error){
+    if(error instanceof EngineeringIntentSessionPersistenceError){
+      return NextResponse.json({error:"Engineering intent session storage is unavailable."},{status:503});
     }
-  });
+    return NextResponse.json({error:"Engineering intent execution failed."},{status:500});
+  }
 
   if(!result.success&&result.output){
     return NextResponse.json(result.output,{status:422});
