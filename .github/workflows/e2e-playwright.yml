@@ -1,0 +1,86 @@
+name: Playwright User Journey E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: HTTPS URL of a dedicated non-production deployment (Vercel Preview or Render test service)
+        required: true
+        type: string
+      confirm_non_production:
+        description: Confirm this URL is connected to a non-production Supabase project and dedicated test accounts
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  user-journey:
+    name: Auth, persistence, and ownership
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
+      E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
+      E2E_USER_B_EMAIL: ${{ secrets.E2E_USER_B_EMAIL }}
+      E2E_USER_B_PASSWORD: ${{ secrets.E2E_USER_B_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require explicit non-production confirmation and validate inputs
+        env:
+          CONFIRM_NON_PRODUCTION: ${{ inputs.confirm_non_production }}
+        run: |
+          test "$CONFIRM_NON_PRODUCTION" = "true" || {
+            echo "::error::Refusing to run. Confirm the target is a dedicated non-production deployment."
+            exit 1
+          }
+          node <<'NODE'
+          const url = new URL(process.env.E2E_BASE_URL);
+          if (url.protocol !== "https:") throw new Error("E2E_BASE_URL must use HTTPS.");
+          if (url.username || url.password || url.search || url.hash) {
+            throw new Error("E2E_BASE_URL must not include credentials, a query, or a fragment.");
+          }
+          for (const key of [
+            "E2E_USER_A_EMAIL", "E2E_USER_A_PASSWORD",
+            "E2E_USER_B_EMAIL", "E2E_USER_B_PASSWORD"
+          ]) {
+            if (!process.env[key] || !process.env[key].trim()) {
+              throw new Error("Missing required GitHub Actions secret: " + key);
+            }
+          }
+          console.log("Validated HTTPS target host:", url.host);
+          NODE
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install pinned Playwright test runner
+        run: npm install --no-save --package-lock=false @playwright/test@1.64.0
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run end-to-end acceptance journey
+        run: npm run test:e2e
+
+      - name: Upload Playwright report, traces, screenshots, and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e-evidence
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
