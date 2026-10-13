@@ -24,7 +24,9 @@ In GitHub repository Settings → Environments, create an environment named `e2e
 - `E2E_USER_B_EMAIL`
 - `E2E_USER_B_PASSWORD`
 
-Then open Actions → **Playwright User Journey E2E** → Run workflow. Supply the HTTPS URL of the non-production deployment and explicitly confirm the non-production target. The workflow fails closed if that confirmation or any credential is missing. It does not run on every pull request and does not deploy the app.
+Also configure the repository Actions variable `E2E_ALLOWED_HOSTS` with the exact non-production hostnames permitted for this workflow, comma-separated and without a scheme or path (for example, a dedicated Render test hostname). Do not put the production hostname in this allowlist. The workflow rejects targets that are not an exact allowlist match; wildcard entries are not supported.
+
+Then open Actions → **Playwright User Journey E2E** → Run workflow. Supply the HTTPS URL of the non-production deployment and explicitly confirm the non-production target. The workflow fails closed if the confirmation, allowlist, or any credential is missing. The allowlist limits accidental targeting but does not inspect the target's Supabase configuration, so maintainers must ensure each allowlisted deployment uses a dedicated non-production Supabase project. The workflow does not run on every pull request and does not deploy the app.
 
 ## Run locally
 
