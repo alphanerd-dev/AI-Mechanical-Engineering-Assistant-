@@ -101,6 +101,10 @@ The bounded CAD workspace supports explicitly dimensioned cylindrical shafts/cyl
 
 The live smoke test requires a short-lived authenticated test session, a registered project and a registered CAD model. Keep `CAD_WORKSPACE_COOKIE` and `SUPABASE_SERVICE_ROLE_KEY` out of source control and logs. The workspace must not be called production-verified until a live run confirms that the downloaded BREP bytes match the persisted validation receipt and metadata.
 
+## Browser end-to-end acceptance
+
+The guarded Playwright journey checks sign-in, project creation and persistence, sign-out, and project ownership isolation on a dedicated non-production deployment. See [Playwright end-to-end acceptance](docs/playwright-e2e.md) for setup and safety requirements.
+
 ## Development
 
 ```bash
