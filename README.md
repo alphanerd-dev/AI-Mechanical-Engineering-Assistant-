@@ -30,8 +30,11 @@ V1.3 introduces:
 - provider-priority routing
 
 See:
+- `docs/architecture.md` — system layers, trust boundaries and result-state guarantees
 - `docs/provider-architecture.md`
 - `docs/artifacts-and-evidence.md`
+- `docs/implementation-plan.md` — prioritized execution and acceptance gates
+- `docs/engineering-ecosystem-inventory.md` — saved inventory location and adoption policy
 - `docs/roadmap.md`
 
 
