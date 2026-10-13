@@ -107,6 +107,19 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
       ?((contextDecision.output as {missingInputs:string[]}).missingInputs)
       :contextMissing;
 
+    if(input.sessionId&&this.sessions){
+      try{
+        await this.sessions.save({
+          sessionId:input.sessionId,
+          projectId:effectiveProjectId,
+          interpretation:{...interpretation,missingInputs:resolvedMissing},
+          updatedAt:new Date().toISOString()
+        });
+      }catch{
+        return {capability:request.capability,provider:this.id,success:false,error:ENGINEERING_INTENT_SESSION_PERSISTENCE_FAILED};
+      }
+    }
+
     const experienceResult=await this.router.execute({
       capability:"ENGINEERING.ASSESS_EXPERIENCE",
       risk:"HIGH",
@@ -158,18 +171,6 @@ export class AIEngineeringIntentProvider implements CapabilityProvider{
 
     if(resolvedMissing.length>0){
       const nextQuestion=experience.nextQuestion??resolvedMissing[0];
-      if(input.sessionId&&this.sessions){
-        try{
-          await this.sessions.save({
-            sessionId:input.sessionId,
-            projectId:effectiveProjectId,
-            interpretation:{...interpretation,missingInputs:resolvedMissing},
-            updatedAt:new Date().toISOString()
-          });
-        }catch{
-          return {capability:request.capability,provider:this.id,success:false,error:ENGINEERING_INTENT_SESSION_PERSISTENCE_FAILED};
-        }
-      }
       const decision:EngineeringIntentDecision={
         status:"NEEDS_INPUT",
         validationPassed:false,
