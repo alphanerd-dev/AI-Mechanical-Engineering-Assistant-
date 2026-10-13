@@ -4,11 +4,24 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: HTTPS URL of a dedicated non-production deployment (Vercel Preview or Render test service)
+        description: HTTPS URL of the allowlisted Vercel Preview deployment (do not use the production URL in shared-database mode)
         required: true
         type: string
+      target_mode:
+        description: Choose isolated staging (recommended) or pre-launch Preview using the current shared Supabase project
+        required: true
+        type: choice
+        options:
+          - isolated-staging
+          - prelaunch-shared-supabase
+        default: isolated-staging
       confirm_non_production:
-        description: Confirm this URL is connected to a non-production Supabase project and dedicated test accounts
+        description: For isolated-staging only, confirm this uses a non-production Supabase project and dedicated test accounts
+        required: true
+        type: boolean
+        default: false
+      confirm_shared_prelaunch_database:
+        description: For prelaunch-shared-supabase only, accept persistent test records in the shared database (only before real users/data)
         required: true
         type: boolean
         default: false
@@ -24,6 +37,9 @@ jobs:
     environment: e2e-staging
     env:
       E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_TARGET_MODE: ${{ inputs.target_mode }}
+      CONFIRM_NON_PRODUCTION: ${{ inputs.confirm_non_production }}
+      CONFIRM_SHARED_PRELAUNCH_DATABASE: ${{ inputs.confirm_shared_prelaunch_database }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
       E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
@@ -33,14 +49,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Require explicit non-production confirmation and validate inputs
-        env:
-          CONFIRM_NON_PRODUCTION: ${{ inputs.confirm_non_production }}
+      - name: Require explicit environment confirmation and validate inputs
         run: |
-          test "$CONFIRM_NON_PRODUCTION" = "true" || {
-            echo "::error::Refusing to run. Confirm the target is a dedicated non-production deployment."
-            exit 1
-          }
+          set -euo pipefail
+          case "$E2E_TARGET_MODE" in
+            isolated-staging)
+              test "$CONFIRM_NON_PRODUCTION" = "true" || {
+                echo "::error::Refusing to run. Confirm the target uses a dedicated non-production Supabase project."
+                exit 1
+              }
+              test "$CONFIRM_SHARED_PRELAUNCH_DATABASE" != "true" || {
+                echo "::error::Select only one target mode."
+                exit 1
+              }
+              ;;
+            prelaunch-shared-supabase)
+              test "$CONFIRM_SHARED_PRELAUNCH_DATABASE" = "true" || {
+                echo "::error::Refusing to run. Explicitly acknowledge shared-database writes in pre-launch mode."
+                exit 1
+              }
+              echo "::warning::PRE-LAUNCH SHARED DATABASE MODE: the E2E journey will create persistent records in the Supabase project configured for this Preview deployment. Use only when no real users or important real data exist."
+              ;;
+            *)
+              echo "::error::Unknown E2E_TARGET_MODE."
+              exit 1
+              ;;
+          esac
           node <<'NODE'
           const url = new URL(process.env.E2E_BASE_URL);
           if (url.protocol !== "https:") throw new Error("E2E_BASE_URL must use HTTPS.");
