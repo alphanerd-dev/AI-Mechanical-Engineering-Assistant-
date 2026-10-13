@@ -6,6 +6,14 @@ The system is designed around the engineering lifecycle:
 
 **Problem → Requirements → Research → Analysis → Design → CAD → Simulation → Manufacturing → Test → Validation → Iteration → Release**
 
+## Product doctrine
+
+**Engineering outcomes, not engineering overhead.** The product aims to turn engineering intent into usable, evidence-backed results with less manual work, less rework, and lower total cost. Supported workflows should coordinate execution, checks, evidence, and the next decision without making engineers orchestrate internal steps.
+
+The product promise is governed by the engineering invariant: **AI proposes. Deterministic systems execute. Validation decides. Evidence proves.** The product remains explicit about missing inputs, unsupported tasks, validation limits, and required human approval. An adapter or successful process exit is not proof of engineering correctness.
+
+See [the product doctrine](docs/product-doctrine.md) for the adoption strategy, feature acceptance gate, and outcome-economics measures.
+
 ## Architecture
 
 The Engineering Core is provider-independent. It requests capabilities such as geometry validation, static structural analysis, or PLM revision management and routes those capabilities to adapters.

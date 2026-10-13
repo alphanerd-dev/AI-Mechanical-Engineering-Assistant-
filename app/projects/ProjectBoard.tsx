@@ -108,7 +108,7 @@ export default function ProjectBoard() {
       <div>
         <p className="eyebrow">AI-NATIVE ENGINEERING WORKSPACE</p>
         <h1>Engineering Workspace</h1>
-        <p className="muted">Capture the problem, define requirements, calculate with deterministic providers, then validate results with explicit evidence.</p>
+        <p className="muted">Engineering outcomes, not engineering overhead. State the task; the workspace coordinates supported workflows and surfaces results, checks, evidence, and the next decision. Material gaps and unsupported tasks stay explicit.</p>
       </div>
       <Link className="button secondaryButton" href="/projects/demo">Open demo sandbox</Link>
     </header>
@@ -122,7 +122,7 @@ export default function ProjectBoard() {
       <section className="panel projectCreatePanel">
         <p className="eyebrow">NEW WORKSPACE</p>
         <h2>Create an engineering project</h2>
-        <p className="muted">Project state and workspace snapshots are persisted in Supabase. Creating a project does not mean its design is approved.</p>
+        <p className="muted">Start with a project name and an optional problem statement. Add detailed requirements as they become relevant. Creating a project does not mean its design is approved.</p>
         <form className="projectForm" onSubmit={createProject}>
           <label className="projectField">Project name
             <input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={120} required placeholder="e.g. Pump impeller redesign" disabled={creating || roleRequired} />
@@ -145,7 +145,7 @@ export default function ProjectBoard() {
         {!loading && loadingError && <p className="projectError" role="alert">{loadingError}</p>}
         {!loading && !loadingError && projects.length === 0 && <div className="projectEmptyState">
           <h3>No engineering projects yet</h3>
-          <p className="muted">Create a project to start recording requirements, calculations and validation events. The demo sandbox is separate and may reset.</p>
+          <p className="muted">Create a project, then start with the problem you need to solve. Add specific requirements when they matter; the demo sandbox is separate and may reset.</p>
         </div>}
         <div className="projectCards">
           {projects.map((project) => <Link className="projectCard" href={`/projects/${project.id}`} key={project.id}>
