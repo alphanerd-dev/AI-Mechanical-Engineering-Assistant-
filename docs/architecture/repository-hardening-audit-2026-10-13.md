@@ -58,9 +58,9 @@ No dependency was added for the graph analyzer. It uses the existing TypeScript 
 
 ### P2 — Architecture boundaries are documented more strongly than they are enforced
 
-**Evidence:** `docs/nextjs-workspace.md` defines a thin app layer, deterministic TypeScript core, providers, and isolated workers. The graph analyzer makes source dependencies inspectable, but its first CI integration is report-only.
+**Evidence:** `docs/nextjs-workspace.md` defines a thin app layer, deterministic TypeScript core, providers, and isolated workers. The baseline source graph identified two dependency cycles: the reasoning-framework barrel/type-import cycle and the verification engine/plans/project cycle. This PR removes both and adds a strict CI gate for cycles and unresolved relative imports.
 
-**Action:** Review graph cycles and unresolved imports, then add explicit import-boundary rules based on observed edges. Avoid turning an unreviewed baseline into a brittle gate.
+**Action:** Add explicit layer-boundary rules only after reviewing actual dependencies. The graph gate does not yet enforce all intended rules (for example, that core modules must not import web/UI adapters), so that remains follow-up work.
 
 ### P2 — Runtime observability is not yet a durable end-to-end evidence chain
 

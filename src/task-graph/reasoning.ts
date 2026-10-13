@@ -1,9 +1,6 @@
-import type {
-  FrameworkReasoningRecord,
-  FrameworkRoutingDecision,
-  ReasoningFrameworkRegistry,
-  SkillManifestRegistry
-} from "../reasoning-frameworks/index.js";
+import type { FrameworkReasoningRecord, FrameworkRoutingDecision } from "../reasoning-frameworks/types.js";
+import type { ReasoningFrameworkRegistry } from "../reasoning-frameworks/registry.js";
+import type { SkillManifestRegistry } from "../reasoning-frameworks/skill-registry.js";
 import { routeReasoningFramework } from "../reasoning-frameworks/router";
 import { parseFrameworkReasoningRecord, validateFrameworkReasoningRecord } from "../reasoning-frameworks/validation";
 import type { EngineeringTask, EngineeringTaskGraph } from "./types.js";

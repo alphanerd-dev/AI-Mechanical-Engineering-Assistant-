@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  analyzeRepository,
   buildDependencyGraph,
   collectModuleSpecifiers,
   findDependencyCycles,
@@ -59,6 +60,12 @@ describe("architecture dependency graph", () => {
     ]);
 
     expect(findDependencyCycles(graph)).toEqual([["src/a.ts", "src/b.ts"]]);
+  });
+
+  it("keeps the production source graph free of cycles and unresolved relative imports", () => {
+    const graph = analyzeRepository();
+    expect(graph.unresolved).toEqual([]);
+    expect(findDependencyCycles(graph)).toEqual([]);
   });
 
   it("does not report an acyclic dependency chain as a cycle", () => {
