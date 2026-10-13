@@ -11,6 +11,21 @@
 - A passing unit test or CI workflow proves only the assertions it runs. A live provider test proves connectivity and its stated contract, not broad engineering correctness.
 - Never promote a provider from EXPERIMENTAL/PILOT to VERIFIED based only on README claims, a successful process exit, or an LLM-generated assessment.
 
+## Priority 0 — Make the first accepted outcome low-friction and measurable
+
+**Goal:** turn the already implemented bounded intent-to-decision path into a coherent product experience before expanding the number of providers or engineering domains.
+
+1. Keep the primary entry point outcome-oriented: state the engineering task, reuse trusted project context, ask only the smallest material unanswered question, and keep supported scope visible.
+2. Make the request/result contract work end to end. Display structured `NEEDS_INPUT`, `WAITING_APPROVAL`, and `FAILED` decisions when the API returns a decision payload, including the next question/action and the validation/evidence state. Reserve generic error messaging for requests that return no usable decision payload.
+3. Preserve the engineer's draft after a transport, authorization, provider, or persistence failure. A retry must be explicit, safe, and must not silently duplicate a non-idempotent operation.
+4. Present a decision-ready result using only fields the current capability provides: status, key values and units, validation outcome, evidence references, known assumptions/limitations, approval requirement, and next action. Do not infer that `validationPassed: false` means a validation failure when the contract only establishes that the result is not verified.
+5. Keep onboarding lightweight: explain that the current product supports bounded workflows; provide a clearly separated demo; do not require a user to configure every provider before trying a supported task.
+6. Establish a comparable baseline with representative engineering tasks. Measure time to first accepted result, net engineer time (including review/correction), total cost per accepted outcome, applicable validation completeness, failure recovery, and repeat usage. Use observed user/task effort plus trusted provider/compute data; mark unknown cost components as unmeasured rather than guessing.
+7. Validate the experience with intended users by giving them a task goal without naming the route/control. Observe whether they can find where to begin, explain what the result means, identify unresolved work, and continue after a seeded failure.
+8. Use existing run IDs, provider metadata, audit events, and evidence links where sufficient. Do not introduce a second workflow state machine, evidence store, agent runtime, or analytics stack before a demonstrated gap requires it.
+
+**Exit gate:** a supported first task can be started without avoidable setup; known context is not re-requested; the user receives a truthful decision or actionable blocker; request failures preserve the draft; required engineering checks and evidence cannot be bypassed; test evidence covers success, needs-input, server/transport failure, validation failure, and required approval; and baseline measurement identifies which cost/time components are observed versus unknown. Product claims about reduced effort or cost remain hypotheses until a comparable user/task baseline supports them.
+
 ## Priority 1 — Strengthen the existing bounded CAD workflow
 
 **Goal:** increase confidence in the current supported cylinder/shaft path before expanding geometric breadth.
