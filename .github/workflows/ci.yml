@@ -15,6 +15,14 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm test
+      - name: Generate architecture dependency graph
+        run: npm run architecture:graph:json > architecture-dependency-graph.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: architecture-dependency-graph
+          path: architecture-dependency-graph.json
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
