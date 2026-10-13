@@ -7,6 +7,7 @@
   "scripts": {
     "build": "next build --webpack && tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "benchmark": "tsx benchmarks/v2-0-suite.ts",
     "dev": "next dev --webpack",
     "core": "tsx src/index.ts",
