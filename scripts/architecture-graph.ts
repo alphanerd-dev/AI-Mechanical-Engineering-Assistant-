@@ -40,7 +40,7 @@ export function collectModuleSpecifiers(sourceText: string): string[] {
   );
   const specifiers = new Set<string>();
 
-  const addStringLiteral = (node: ts.Expression | ts.TypeNode | undefined) => {
+  const addStringLiteral = (node: ts.Node | undefined) => {
     if (node && ts.isStringLiteralLike(node)) {
       specifiers.add(node.text);
     }
@@ -51,7 +51,7 @@ export function collectModuleSpecifiers(sourceText: string): string[] {
       addStringLiteral(node.moduleSpecifier);
     } else if (ts.isImportTypeNode(node)) {
       if (ts.isLiteralTypeNode(node.argument)) {
-        addStringLiteral(node.argument.literal as ts.TypeNode);
+        addStringLiteral(node.argument.literal);
       }
     } else if (
       ts.isCallExpression(node) &&
