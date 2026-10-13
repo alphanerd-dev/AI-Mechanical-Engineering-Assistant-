@@ -24,6 +24,7 @@ jobs:
     environment: e2e-staging
     env:
       E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
       E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
       E2E_USER_B_EMAIL: ${{ secrets.E2E_USER_B_EMAIL }}
@@ -46,6 +47,16 @@ jobs:
           if (url.username || url.password || url.search || url.hash) {
             throw new Error("E2E_BASE_URL must not include credentials, a query, or a fragment.");
           }
+          const allowedHosts = (process.env.E2E_ALLOWED_HOSTS || "")
+            .split(",")
+            .map((host) => host.trim().toLowerCase())
+            .filter(Boolean);
+          if (allowedHosts.length === 0) {
+            throw new Error("Missing repository Actions variable E2E_ALLOWED_HOSTS; set exact non-production hostnames.");
+          }
+          if (!allowedHosts.includes(url.host.toLowerCase())) {
+            throw new Error("E2E target host is not in the exact E2E_ALLOWED_HOSTS allowlist.");
+          }
           for (const key of [
             "E2E_USER_A_EMAIL", "E2E_USER_A_PASSWORD",
             "E2E_USER_B_EMAIL", "E2E_USER_B_PASSWORD"
@@ -54,7 +65,7 @@ jobs:
               throw new Error("Missing required GitHub Actions secret: " + key);
             }
           }
-          console.log("Validated HTTPS target host:", url.host);
+          console.log("Validated allowlisted staging target host:", url.host);
           NODE
 
       - name: Set up Node.js
