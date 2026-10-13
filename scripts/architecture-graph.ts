@@ -125,7 +125,9 @@ export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
         continue;
       }
 
-      if (NON_CODE_IMPORT_EXTENSIONS.has(path.posix.extname(specifier).toLowerCase())) continue;\n\n      const target = resolveRelativeImport(module.path, specifier, knownPaths);
+      if (NON_CODE_IMPORT_EXTENSIONS.has(path.posix.extname(specifier).toLowerCase())) continue;
+
+      const target = resolveRelativeImport(module.path, specifier, knownPaths);
       if (!target) {
         const key = `${module.path}\u0000${specifier}`;
         if (!unresolvedKeys.has(key)) {
