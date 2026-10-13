@@ -17,7 +17,7 @@ This is an acceptance slice, not proof that every workflow or email-confirmation
 
 Run only against a dedicated **non-production deployment and non-production Supabase project**. The test creates a persisted project with an `E2E ownership verification` name; no project-delete API is assumed. The two accounts must be dedicated test accounts, confirmed in Supabase Auth, and able to sign in with standard engineering access. Do not use personal accounts.
 
-In GitHub repository Settings → Secrets and variables → Actions, configure these repository or environment secrets:
+In GitHub repository Settings → Environments, create an environment named `e2e-staging` and configure these environment secrets there. Add a required reviewer to that environment if you want a human approval gate before the test can access its credentials:
 
 - `E2E_USER_A_EMAIL`
 - `E2E_USER_A_PASSWORD`
