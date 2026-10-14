@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
-import { inventoryProjectArtifacts, removeProjectArtifacts } from "../../../../src/projects/artifact-cleanup";
+import { inventoryProjectArtifacts, inventoryProjectStorageArtifacts, removeProjectArtifacts } from "../../../../src/projects/artifact-cleanup";
 
 export const runtime = "nodejs";
 
@@ -197,13 +197,40 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return jsonError("Project artifacts could not be safely inventoried; deletion was stopped.", 503);
     }
 
+    let objectsRemoved: number;
     try {
-      await removeProjectArtifacts([...objectPaths], async (paths) => {
-        const { error } = await db.storage.from(ARTIFACT_BUCKET).remove(paths);
-        return { error };
+      objectsRemoved = await removeProjectArtifacts([...objectPaths], async (paths) => {
+        const { data, error } = await db.storage.from(ARTIFACT_BUCKET).remove(paths);
+        return { data: data ?? null, error };
       });
     } catch {
       return jsonError("Project artifact cleanup failed; project records were retained and no deletion success was reported.", 503);
+    }
+
+    // Verify the bucket prefix is empty while the project owner row still exists.
+    // Do not rely only on the requested deletion count or on the remove API result.
+    let remainingPaths: Set<string>;
+    try {
+      remainingPaths = await inventoryProjectStorageArtifacts(
+        projectId,
+        async (folder, options) => {
+          const { data, error } = await db.storage.from(ARTIFACT_BUCKET).list(folder, options);
+          return { data: data ?? [], error };
+        },
+      );
+    } catch {
+      return jsonError(
+        "Project artifacts were removed but cleanup could not be verified; project records were retained.",
+        503,
+        { code: "PROJECT_ARTIFACT_CLEANUP_UNVERIFIED" },
+      );
+    }
+    if (remainingPaths.size > 0) {
+      return jsonError(
+        "Project artifact cleanup left objects behind; project records were retained.",
+        503,
+        { code: "PROJECT_ARTIFACTS_REMAIN", objectsRemaining: remainingPaths.size },
+      );
     }
 
     const { data: deleted, error: deleteError } = await db
@@ -226,7 +253,12 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({
       projectId,
       deleted: true,
-      artifactCleanup: { status: "COMPLETED", objectsRemoved: objectPaths.size },
+      artifactCleanup: {
+        status: "COMPLETED",
+        objectsRemoved,
+        objectsRemaining: remainingPaths.size,
+        verification: "POST_REMOVE_STORAGE_INVENTORY",
+      },
     }, { headers: { "cache-control": "no-store" } });
   } catch {
     return jsonError("Project service is unavailable; no deletion success was reported.", 503);
