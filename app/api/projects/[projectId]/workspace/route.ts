@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../../lib/supabase/server";
-import { authorizeSupabaseRequest } from "../../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../../src/auth/supabase-service";
 import { assessRequirementCompleteness, calculateShaftTorque, normalizeRequirements, normalizeTextList } from "../../../../../src/workspace/engineering-inputs";
 import { createEmptyEngineeringWorkspaceSnapshot } from "../../../../../src/workspace/snapshot";
 import type { EngineeringWorkspaceSnapshot } from "../../../../../src/workspace/types";
@@ -83,7 +83,7 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!UUID.test(projectId)) return jsonError("A registered project UUID is required. Demo workspaces are not durable.", 400);
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
-    if (!authorization.allowed) return jsonError(authorization.reason, 403);
+    if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
     const db = await createClient();
     const loaded = await loadOrInitializeWorkspace(db, projectId);
     if (!loaded) return jsonError("Project not found or inaccessible.", 404);
@@ -111,7 +111,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.WRITE", projectId);
-    if (!authorization.allowed) return jsonError(authorization.reason, 403);
+    if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
     const db = await createClient();
     const loaded = await loadOrInitializeWorkspace(db, projectId);
     if (!loaded) return jsonError("Project not found or inaccessible.", 404);
