@@ -68,13 +68,24 @@ function isInterpretation(value: unknown): value is EngineeringIntentInterpretat
   return true;
 }
 
+function isDecisionMetric(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.key !== "string" || !value.key.trim()) return false;
+  if (!(typeof value.value === "string" ||
+    (typeof value.value === "number" && Number.isFinite(value.value)))) return false;
+  if (value.unit !== undefined && typeof value.unit !== "string") return false;
+  return true;
+}
+
 function isDecision(value: unknown): value is EngineeringIntentDecision {
   if (!isRecord(value)) return false;
-  if (typeof value.status !== "string" || typeof value.validationPassed !== "boolean") return false;
-  if (!Array.isArray(value.metrics) || !Array.isArray(value.evidenceIds)) return false;
+  if (!["READY", "NEEDS_INPUT", "WAITING_APPROVAL", "COMPLETE", "FAILED"].includes(String(value.status))) return false;
+  if (typeof value.validationPassed !== "boolean") return false;
+  if (!Array.isArray(value.metrics) || !value.metrics.every(isDecisionMetric)) return false;
+  if (!Array.isArray(value.evidenceIds)) return false;
   if (value.nextAction !== undefined && typeof value.nextAction !== "string") return false;
   if (value.nextQuestion !== undefined && typeof value.nextQuestion !== "string") return false;
-  if (!value.evidenceIds.every((id) => typeof id === "string")) return false;
+  if (!value.evidenceIds.every((id) => typeof id === "string" && id.trim())) return false;
   return true;
 }
 
