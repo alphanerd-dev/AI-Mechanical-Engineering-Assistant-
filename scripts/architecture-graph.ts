@@ -165,6 +165,8 @@ export function buildDependencyGraph(modules: SourceModule[]): DependencyGraph {
 
 const APPROVED_SRC_TO_LIB_EDGES = new Set([
   "src/auth/supabase-service.ts|lib/supabase/server.ts",
+  // Durable audit writes use a server-only service-role adapter; no browser module can import it.
+  "src/audit/server.ts|lib/supabase/service.ts",
 ]);
 
 /**
