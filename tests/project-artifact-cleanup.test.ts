@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   inventoryProjectArtifacts,
+  inventoryProjectStorageArtifacts,
   isSafeProjectArtifactPath,
   removeProjectArtifacts,
   type ArtifactEntry,
@@ -35,6 +36,17 @@ describe("project artifact cleanup", () => {
     ]);
   });
 
+  it("can independently verify storage inventory is empty after removal", async () => {
+    let present = true;
+    const listPage = async (folder: string, { limit, offset }: { limit: number; offset: number }) => ({
+      data: (folder === projectId && present ? [{ name: "disposable.txt", id: "object-1", metadata: { size: 5 } }] : []).slice(offset, offset + limit),
+      error: null,
+    });
+    expect([...(await inventoryProjectStorageArtifacts(projectId, listPage))]).toEqual([projectId + "/disposable.txt"]);
+    present = false;
+    expect([...(await inventoryProjectStorageArtifacts(projectId, listPage))]).toEqual([]);
+  });
+
   it("rejects unsafe cross-project paths and traversal segments", async () => {
     expect(isSafeProjectArtifactPath(projectId, projectId + "/good/file.step")).toBe(true);
     expect(isSafeProjectArtifactPath(projectId, projectId + "/../other-project/secret.txt")).toBe(false);
@@ -63,8 +75,12 @@ describe("project artifact cleanup", () => {
     const paths = Array.from({ length: 201 }, (_, index) => projectId + "/item-" + index + ".bin");
     paths.push(paths[0]);
     const batches: number[] = [];
-    await removeProjectArtifacts(paths, async (batch) => { batches.push(batch.length); return { error: null }; });
+    const removed = await removeProjectArtifacts(paths, async (batch) => {
+      batches.push(batch.length);
+      return { data: batch.map((path) => ({ path })), error: null };
+    });
     expect(batches).toEqual([100, 100, 1]);
+    expect(removed).toBe(201);
   });
 
   it("stops immediately when artifact removal fails", async () => {
@@ -72,7 +88,7 @@ describe("project artifact cleanup", () => {
     let calls = 0;
     await expect(removeProjectArtifacts(paths, async () => {
       calls += 1;
-      return { error: new Error("storage delete failed") };
+      return { data: null, error: new Error("storage delete failed") };
     })).rejects.toThrow("could not be removed");
     expect(calls).toBe(1);
   });
