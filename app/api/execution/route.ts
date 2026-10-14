@@ -3,7 +3,7 @@ import { ExecutionEngine, ExecutionBackendAdapter } from "../../../src/execution
 import { SafeNumericalAdapter } from "../../../src/execution/safe-numerical";
 import { PythonWorkerAdapter } from "../../../src/execution/python-worker";
 import { HttpPythonWorkerClient } from "../../../src/execution/http-python-worker";
-import { authorizeSupabaseRequest } from "../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
@@ -28,9 +28,7 @@ export async function POST(request: Request) {
     // Authorization infrastructure errors must never fall through to execution.
     return NextResponse.json({ error: "Engineering authorization is unavailable." }, { status: 503 });
   }
-  if (!authorization.allowed) {
-    return NextResponse.json({ error: authorization.reason }, { status: 403 });
-  }
+  if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status }); }
 
   const capability = typeof body.capability === "string" ? body.capability : "";
   const backend = body.backend === "python-worker" ? "python-worker" : "typescript-safe";
