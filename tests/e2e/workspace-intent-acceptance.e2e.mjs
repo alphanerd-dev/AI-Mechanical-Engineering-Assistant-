@@ -497,6 +497,83 @@ test("provider outage is shown and the failed turn remains recoverable after rel
   }
 });
 
+
+test("existing session restore outage preserves identity and does not start a replacement session", async ({ browser }, testInfo) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  const diagnostics = { injectedFailures: 0, pageErrors: [], unexpectedServerErrors: [] };
+
+  page.on("pageerror", (error) => diagnostics.pageErrors.push(String(error.message).slice(0, 500)));
+  page.on("response", (response) => {
+    if (response.status() >= 500) {
+      let pathname = "/";
+      try { pathname = new URL(response.url()).pathname; } catch {}
+      const expectedInjectedFailure = pathname === "/api/engineering/intent" && response.request().method() === "GET";
+      if (!expectedInjectedFailure) diagnostics.unexpectedServerErrors.push({ status: response.status(), pathname });
+    }
+  });
+
+  try {
+    await signIn(page, userAEmail, userAPassword);
+    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+    const projectName = "E2E existing session restore outage " + suffix;
+    const createResponse = await page.request.post("/api/projects", {
+      data: {
+        name: projectName,
+        problemStatement: "Disposable project for existing-session restoration outage acceptance.",
+      },
+    });
+    expect(createResponse.status()).toBe(201);
+    const projectId = (await createResponse.json()).project?.id;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    await page.goto("/projects/" + projectId + "/engineering");
+    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Engineering request" })).toBeEnabled();
+    const sessionKey = "engineering-intent-session:" + projectId;
+    const originalSessionId = await page.evaluate((key) => sessionStorage.getItem(key), sessionKey);
+    expect(originalSessionId, "initial session identity must be persisted").toBeTruthy();
+
+    await page.route("**/api/engineering/intent**", async (route) => {
+      if (route.request().method() === "GET") {
+        diagnostics.injectedFailures += 1;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "Simulated existing-session storage outage",
+            code: "SESSION_STORAGE_UNAVAILABLE",
+            recoverable: true,
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Session could not be restored" })).toBeVisible();
+    await expect(page.locator('.interaction .notice[role="alert"]')).toContainText("Simulated existing-session storage outage");
+    await expect(page.getByRole("button", { name: "Start new session" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Engineering request" })).toHaveCount(0);
+
+    const sessionIdAfterFailure = await page.evaluate((key) => sessionStorage.getItem(key), sessionKey);
+    expect(sessionIdAfterFailure, "restore failure must not silently replace saved identity").toBe(originalSessionId);
+    expect(diagnostics.injectedFailures).toBe(1);
+    expect(diagnostics.pageErrors).toEqual([]);
+    expect(diagnostics.unexpectedServerErrors).toEqual([]);
+  } finally {
+    await testInfo.attach("existing-session-restore-outage-diagnostics.json", {
+      body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+      contentType: "application/json",
+    });
+    await context.close().catch(() => undefined);
+  }
+});
+
 test("initial session persistence outage fails closed without dispatching engineering work", async ({ browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
