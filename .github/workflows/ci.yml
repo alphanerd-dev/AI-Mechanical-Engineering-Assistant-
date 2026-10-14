@@ -138,6 +138,9 @@ jobs:
           assert r["mesh"]["elementType"]=="C3D4"
           assert r["maxVonMisesStressMpa"]>=0
           assert r["maxDisplacementMm"]>=0
+          assert r["benchmarkReference"]["referenceId"]=="cantilever-box-euler-bernoulli-plus-timoshenko-v1"
+          assert r["benchmarkReference"]["passed"] is True, r["benchmarkReference"]
+          assert r["benchmarkReference"]["reactionRelativeError"] <= r["benchmarkReference"]["reactionRelativeTolerance"]
           assert len(r["artifacts"])>=4
           print("open FEA smoke response validated")
           PY
