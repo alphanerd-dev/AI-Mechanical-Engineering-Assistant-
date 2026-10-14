@@ -519,7 +519,7 @@ test("initial session persistence outage fails closed without dispatching engine
     expect(await page.evaluate(() => sessionStorage.length)).toBeGreaterThan(0);
   } finally {
     await testInfo.attach("initial-session-outage-diagnostics.json", {
-      body: Buffer.from(JSON.stringify({ intentPostCount }), null, 2),
+      body: Buffer.from(JSON.stringify({ intentPostCount }, null, 2)),
       contentType: "application/json",
     });
     await context.close().catch(() => undefined);
