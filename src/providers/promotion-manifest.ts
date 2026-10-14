@@ -17,6 +17,7 @@ export interface ProviderPromotionManifest {
     licenseReview: LicenseReviewState;
     dependencyLicenseClosureReviewed: boolean;
     copyDisposition: "REFERENCE_ONLY" | "ADAPTER_ONLY" | "CLEARED_FOR_REUSE";
+    adapterReviewUrl?: string;
   };
   runtime: {
     image: string;
@@ -58,7 +59,8 @@ function isHttpsUrl(value: unknown): value is string {
 }
 
 function isPinnedRevision(value: string): boolean {
-  return Boolean(value.trim()) && !["main", "master", "latest", "dev", "head"].includes(value.trim().toLowerCase());
+  // Release tags can be moved; verification requires the exact upstream commit.
+  return /^[a-f0-9]{40}$/i.test(value.trim());
 }
 
 /**
@@ -76,7 +78,16 @@ export function providerPromotionBlockingReasons(manifest: ProviderPromotionMani
   if (!manifest.upstream.licenseSpdx.trim() || !isHttpsUrl(manifest.upstream.licenseTextUrl)) reasons.push("A source license and license-text URL are required.");
   if (manifest.upstream.licenseReview !== "CLEARED") reasons.push("Legal review has not cleared the source license for the proposed use.");
   if (!manifest.upstream.dependencyLicenseClosureReviewed) reasons.push("Transitive dependency license review is incomplete.");
-  if (manifest.upstream.copyDisposition !== "CLEARED_FOR_REUSE") reasons.push("Upstream code reuse is not cleared; keep it reference-only or use a clean-room adapter.");
+  if (manifest.upstream.copyDisposition === "REFERENCE_ONLY") {
+    reasons.push("Upstream is reference-only; implement and review a native adapter before promotion.");
+  }
+  if (manifest.upstream.copyDisposition === "ADAPTER_ONLY" && !isHttpsUrl(manifest.upstream.adapterReviewUrl)) {
+    reasons.push("Clean-room adapter disposition needs durable review evidence for the local adapter and source boundary.");
+  }
+  if (manifest.upstream.copyDisposition === "CLEARED_FOR_REUSE" &&
+      manifest.upstream.licenseReview !== "CLEARED") {
+    reasons.push("Code reuse cannot be promoted before license review is cleared.");
+  }
 
   if (!manifest.runtime.image.trim() || !manifest.runtime.imageDigest?.match(/^sha256:[a-f0-9]{64}$/)) {
     reasons.push("The runtime image must be pinned by immutable SHA-256 digest.");
