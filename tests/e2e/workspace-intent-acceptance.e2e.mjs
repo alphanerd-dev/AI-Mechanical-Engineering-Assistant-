@@ -8,6 +8,27 @@ function requiredEnv(name) {
   return value;
 }
 
+function accessTokenFromContextCookies(cookies, projectRef) {
+  const baseName = "sb-" + projectRef + "-auth-token";
+  const baseCookie = cookies.find((cookie) => cookie.name === baseName);
+  const chunks = cookies
+    .filter((cookie) => cookie.name.startsWith(baseName + "."))
+    .sort((left, right) => Number(left.name.slice(baseName.length + 1)) - Number(right.name.slice(baseName.length + 1)));
+  const raw = chunks.length ? chunks.map((cookie) => cookie.value).join("") : baseCookie?.value;
+  if (!raw) throw new Error("Authenticated Supabase session cookie was not found for the E2E project.");
+  let decoded = raw;
+  try { decoded = decodeURIComponent(decoded); } catch {}
+  if (decoded.startsWith("base64-")) decoded = Buffer.from(decoded.slice(7), "base64url").toString("utf8");
+  let session;
+  try { session = JSON.parse(decoded); }
+  catch { throw new Error("Authenticated Supabase session cookie could not be decoded."); }
+  const accessToken = session?.access_token ?? session?.currentSession?.access_token;
+  if (typeof accessToken !== "string" || !accessToken) {
+    throw new Error("Authenticated Supabase session cookie did not contain an access token.");
+  }
+  return accessToken;
+}
+
 async function signIn(page, email, password) {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
@@ -612,12 +633,31 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
     expect(ownerReadAfterForeignAttempts.status()).toBe(200);
     expect((await ownerReadAfterForeignAttempts.json()).project.name).toBe(updatedName);
 
+    const projectRef = requiredEnv("E2E_SUPABASE_PROJECT_REF");
+    const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
+    const accessToken = accessTokenFromContextCookies(await contextA.cookies([baseURL]), projectRef);
+    const artifactPath = projectId + "/delete-acceptance-" + suffix + ".txt";
+    const uploadResponse = await fetch(
+      "https://" + projectRef + ".supabase.co/storage/v1/object/engineering-cad-artifacts/" + artifactPath,
+      {
+        method: "POST",
+        headers: {
+          apikey: publishableKey,
+          authorization: "Bearer " + accessToken,
+          "content-type": "text/plain",
+          "x-upsert": "false",
+        },
+        body: "Disposable project-delete acceptance artifact.",
+      },
+    );
+    expect([200, 201], "a real object should upload to the authenticated project-scoped bucket").toContain(uploadResponse.status());
+
     const deleteResponse = await pageA.request.delete(pathPrefix + projectId);
     expect(deleteResponse.status()).toBe(200);
     expect(await deleteResponse.json()).toMatchObject({
       projectId,
       deleted: true,
-      artifactCleanup: { status: "COMPLETED", objectsRemoved: 0 },
+      artifactCleanup: { status: "COMPLETED", objectsRemoved: 1 },
     });
 
     const readAfterDelete = await pageA.request.get(pathPrefix + projectId);

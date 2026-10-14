@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { inventoryProjectArtifacts, removeProjectArtifacts } from "../../../../src/projects/artifact-cleanup";
 
 export const runtime = "nodejs";
 
@@ -53,98 +54,6 @@ async function loadProjectOwner(db: Awaited<ReturnType<typeof createClient>>, pr
     .select("id,owner_id,name,stage,status,revision,created_at,updated_at")
     .eq("id", projectId)
     .maybeSingle();
-}
-
-function validStoredObjectPath(projectId: string, value: unknown): value is string {
-  if (typeof value !== "string" || !value.startsWith(projectId + "/")) return false;
-  const segments = value.split("/");
-  return segments[0] === projectId
-    && segments.length >= 2
-    && segments.slice(1).every((segment) => segment.length > 0 && segment !== "." && segment !== ".." && !segment.includes("\\"));
-}
-
-async function collectProjectObjectPaths(
-  db: Awaited<ReturnType<typeof createClient>>,
-  projectId: string,
-): Promise<Set<string>> {
-  const paths = new Set<string>();
-
-  async function walk(folder: string, depth: number): Promise<void> {
-    if (depth > 12) throw new Error("Artifact folder nesting exceeds the safe cleanup limit.");
-    let offset = 0;
-
-    while (true) {
-      const { data, error } = await db.storage
-        .from(ARTIFACT_BUCKET)
-        .list(folder, { limit: STORAGE_PAGE_SIZE, offset });
-      if (error) throw new Error("Project artifact inventory could not be listed.");
-
-      const entries = data ?? [];
-      for (const entry of entries) {
-        const name = entry.name;
-        if (
-          typeof name !== "string"
-          || name.length === 0
-          || name === "."
-          || name === ".."
-          || name.includes("/")
-          || name.includes("\\")
-        ) {
-          throw new Error("Project artifact inventory contains an unsafe path segment.");
-        }
-
-        const objectPath = folder + "/" + name;
-        if (entry.id == null && entry.metadata == null) {
-          await walk(objectPath, depth + 1);
-        } else {
-          if (!validStoredObjectPath(projectId, objectPath)) {
-            throw new Error("Project artifact inventory contains a path outside the project scope.");
-          }
-          paths.add(objectPath);
-        }
-      }
-
-      if (entries.length < STORAGE_PAGE_SIZE) break;
-      offset += entries.length;
-    }
-  }
-
-  await walk(projectId, 0);
-
-  const { data: completions, error: completionError } = await db
-    .from("engineering_cad_completions")
-    .select("storage_objects")
-    .eq("project_id", projectId);
-  if (completionError) throw new Error("Project artifact references could not be loaded.");
-
-  for (const completion of completions ?? []) {
-    const storedPaths: unknown = completion.storage_objects;
-    if (storedPaths == null) continue;
-    if (!Array.isArray(storedPaths)) {
-      throw new Error("Project artifact references are malformed.");
-    }
-    for (const path of storedPaths) {
-      if (!validStoredObjectPath(projectId, path)) {
-        throw new Error("A recorded artifact path falls outside the project scope; deletion was stopped.");
-      }
-      paths.add(path);
-    }
-  }
-
-  return paths;
-}
-
-async function removeProjectObjects(
-  db: Awaited<ReturnType<typeof createClient>>,
-  paths: string[],
-): Promise<void> {
-  // Keep each storage operation bounded; on any failure, leave the project rows
-  // intact and report no deletion success so the owner can safely retry.
-  for (let offset = 0; offset < paths.length; offset += 100) {
-    const batch = paths.slice(offset, offset + 100);
-    const { error } = await db.storage.from(ARTIFACT_BUCKET).remove(batch);
-    if (error) throw new Error("One or more project artifacts could not be removed.");
-  }
 }
 
 /** Read a project the current user is permitted to access. */
@@ -266,13 +175,34 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     let objectPaths: Set<string>;
     try {
-      objectPaths = await collectProjectObjectPaths(db, projectId);
+      objectPaths = await inventoryProjectArtifacts(
+        projectId,
+        async (folder, options) => {
+          const { data, error } = await db.storage.from(ARTIFACT_BUCKET).list(folder, options);
+          return { data: data ?? [], error };
+        },
+        async () => {
+          const { data, error } = await db
+            .from("engineering_cad_completions")
+            .select("storage_objects")
+            .eq("project_id", projectId);
+          return {
+            data: (data ?? []).map((completion) => ({
+              storage_objects: (completion as { storage_objects: unknown }).storage_objects,
+            })),
+            error,
+          };
+        },
+      );
     } catch {
       return jsonError("Project artifacts could not be safely inventoried; deletion was stopped.", 503);
     }
 
     try {
-      await removeProjectObjects(db, [...objectPaths]);
+      await removeProjectArtifacts([...objectPaths], async (paths) => {
+        const { error } = await db.storage.from(ARTIFACT_BUCKET).remove(paths);
+        return { error };
+      });
     } catch {
       return jsonError("Project artifact cleanup failed; project records were retained and no deletion success was reported.", 503);
     }
