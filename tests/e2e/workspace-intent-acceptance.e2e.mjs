@@ -550,6 +550,114 @@ test("initial session persistence outage fails closed without dispatching engine
 });
 
 
+test("CAD needs-input completion persists a correlated durable audit event without executing CAD", async ({ browser }, testInfo) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const projectName = "E2E CAD audit acceptance " + suffix;
+  const context = await browser.newContext({ baseURL });
+  let page;
+  let projectId;
+  let modelIdentityId;
+  let completionId;
+  let cleanupStatus = "NOT_ATTEMPTED";
+
+  try {
+    page = await context.newPage();
+    await signIn(page, userAEmail, userAPassword);
+
+    const projectResponse = await page.request.post("/api/projects", {
+      data: {
+        name: projectName,
+        problemStatement: "Disposable CAD audit acceptance; the incomplete request must not execute CAD.",
+      },
+    });
+    expect(projectResponse.status(), "project creation must succeed on isolated staging").toBe(201);
+    const projectBody = await projectResponse.json();
+    projectId = projectBody.project?.id;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const modelResponse = await page.request.post("/api/cad/models", {
+      data: { projectId, name: "E2E incomplete CAD intent" },
+    });
+    expect(modelResponse.status(), "a project-scoped CAD identity should be created").toBe(201);
+    const modelBody = await modelResponse.json();
+    modelIdentityId = modelBody.model?.id;
+    expect(modelIdentityId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    // Missing explicit diameter and length intentionally take the NEEDS_INPUT path.
+    // This must persist a proposal and audit event without calling any CAD worker.
+    const completionResponse = await page.request.post("/api/cad/completions", {
+      data: { projectId, modelIdentityId, rawIntent: "cylinder" },
+    });
+    expect(completionResponse.status(), "incomplete CAD intent should be durably recorded without execution")
+      .toBe(200);
+    const completionBody = await completionResponse.json();
+    const completion = completionBody.completion;
+    completionId = completion?.id;
+    expect(completionId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(completion).toMatchObject({
+      project_id: projectId,
+      model_identity_id: modelIdentityId,
+      status: "NEEDS_INPUT",
+      stage: "INTENT",
+      execution_id: null,
+      storage_objects: [],
+      evidence_records: [],
+    });
+    expect(completionBody.persisted).toBe(true);
+    expect(completion.intent_resolution).toMatchObject({ status: "NEEDS_INPUT" });
+
+    await testInfo.attach("e2e-cad-audit-acceptance.json", {
+      body: Buffer.from(JSON.stringify({
+        projectId,
+        modelIdentityId,
+        completionId,
+        expectedAudit: {
+          action: "TASK_PROPOSE",
+          outcome: "PENDING",
+          resourceType: "CAD_COMPLETION",
+          resourceId: completionId,
+          taskId: modelIdentityId,
+          metadataStatus: "NEEDS_INPUT",
+          metadataStage: "INTENT",
+          requestIdRequired: true,
+        },
+        executionPerformed: false,
+      }, null, 2)),
+      contentType: "application/json",
+    });
+  } finally {
+    if (projectId && page) {
+      const cleanupResponse = await page.request.delete("/api/projects/" + projectId).catch(() => null);
+      cleanupStatus = cleanupResponse ? String(cleanupResponse.status()) : "REQUEST_FAILED";
+      if (cleanupResponse) {
+        expect(cleanupResponse.status(), "disposable CAD audit project must be cleaned up")
+          .toBe(200);
+        const cleanupBody = await cleanupResponse.json();
+        expect(cleanupBody).toMatchObject({
+          projectId,
+          deleted: true,
+          artifactCleanup: {
+            status: "COMPLETED",
+            objectsRemoved: 0,
+            objectsRemaining: 0,
+            verification: "POST_REMOVE_STORAGE_INVENTORY",
+          },
+        });
+      } else {
+        throw new Error("Disposable CAD audit project cleanup request could not be completed.");
+      }
+    }
+    await testInfo.attach("e2e-cad-audit-cleanup.json", {
+      body: Buffer.from(JSON.stringify({ projectId, modelIdentityId, completionId, cleanupStatus }, null, 2)),
+      contentType: "application/json",
+    });
+    await context.close().catch(() => undefined);
+  }
+});
+
 test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
