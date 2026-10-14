@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyResearchFinding } from "../../../../src/research/verification";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   try {
     const authorization = await authorizeSupabaseRequest("EVIDENCE.WRITE");
     if (!authorization.allowed) {
-      return NextResponse.json({ error: authorization.reason }, { status: 403 });
+      const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status });
     }
 
     const body = await request.json();
