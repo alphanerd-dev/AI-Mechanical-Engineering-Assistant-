@@ -311,3 +311,78 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
     if (contextA) await contextA.close().catch(() => undefined);
   }
 });
+
+
+test("engineering conversation and decision restore after full browser reload", async ({ browser }, testInfo) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  const diagnostics = { pageErrors: [], serverErrors: [] };
+
+  page.on("pageerror", (error) => diagnostics.pageErrors.push(String(error.message).slice(0, 500)));
+  page.on("response", (response) => {
+    if (response.status() >= 500) {
+      let pathname = "/";
+      try { pathname = new URL(response.url()).pathname; } catch {}
+      diagnostics.serverErrors.push({ status: response.status(), pathname });
+    }
+  });
+
+  try {
+    await signIn(page, userAEmail, userAPassword);
+
+    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+    const projectName = "E2E conversation refresh " + suffix;
+    const createResponse = await page.request.post("/api/projects", {
+      data: {
+        name: projectName,
+        problemStatement: "Disposable project for browser conversation refresh/resume acceptance.",
+      },
+    });
+    expect(createResponse.status(), "test project should be created for the authenticated owner").toBe(201);
+    const created = await createResponse.json();
+    const projectId = created.project?.id;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    await page.goto("/projects/" + projectId + "/engineering");
+    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+
+    const requestBox = page.getByRole("textbox", { name: "Engineering request" });
+    await expect(requestBox).toBeEnabled();
+    const prompt = "Design a shaft that transmits 5 kW at 1500 rpm.";
+    await requestBox.fill(prompt);
+    await page.getByRole("button", { name: "Run engineering task" }).click();
+
+    await expect(page.locator(".message.engineer p").filter({ hasText: prompt })).toBeVisible();
+    await expect(page.locator(".interactionHeader .pill")).toHaveText("NEEDS_INPUT");
+    const replyLocator = page.locator(".message.assistant p").nth(1);
+    await expect(replyLocator).not.toHaveText("");
+    const assistantReply = (await replyLocator.textContent())?.trim() ?? "";
+    expect(assistantReply.length, "assistant decision should be visible before refresh").toBeGreaterThan(0);
+
+    const sessionKey = "engineering-intent-session:" + projectId;
+    const sessionIdBefore = await page.evaluate((key) => sessionStorage.getItem(key), sessionKey);
+    expect(sessionIdBefore, "browser should retain the server session identity").toBeTruthy();
+    await page.reload();
+
+    // Heading appears only after the restore effect has completed and the UI returns to ready state.
+    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await expect(page.getByText(prompt, { exact: true })).toBeVisible();
+    await expect(page.getByText(assistantReply, { exact: true })).toBeVisible();
+    await expect(page.locator(".interactionHeader .pill")).toHaveText("NEEDS_INPUT");
+    const sessionIdAfter = await page.evaluate((key) => sessionStorage.getItem(key), sessionKey);
+    expect(sessionIdAfter, "reload must not silently replace the saved session").toBe(sessionIdBefore);
+    await expect(page.getByRole("textbox", { name: "Engineering request" })).toBeEnabled();
+
+    expect(diagnostics.pageErrors, "unhandled browser JavaScript errors during restore").toEqual([]);
+    expect(diagnostics.serverErrors, "unexpected HTTP 5xx responses during restore").toEqual([]);
+  } finally {
+    await testInfo.attach("browser-refresh-diagnostics.json", {
+      body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+      contentType: "application/json",
+    });
+    await context.close().catch(() => undefined);
+  }
+});
