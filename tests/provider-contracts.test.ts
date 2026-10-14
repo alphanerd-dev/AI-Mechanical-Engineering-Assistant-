@@ -174,7 +174,7 @@ describe("provider promotion gates", () => {
     );
     const reviewed = {
       ...adapter,
-      upstream: { ...adapter.upstream, adapterReviewUrl: "https://example.com/adapter-review" },
+      upstream: { ...adapter.upstream, licenseReview: "CLEARED" as const, adapterReviewUrl: "https://example.com/adapter-review" },
     };
     expect(providerPromotionBlockingReasons(reviewed)).toEqual([]);
   });
