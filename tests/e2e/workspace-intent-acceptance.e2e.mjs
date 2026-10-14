@@ -234,6 +234,26 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
       expect(finalSession.conversation).toEqual(updatedConversation);
     });
 
+    await test.step("Reject malformed session identifiers and conversation payloads", async () => {
+      const malformedConversation = await pageA.request.put("/api/engineering/intent", {
+        data: { projectId, sessionId, conversation: [{ role: "administrator", text: "invalid role" }] },
+      });
+      expect(malformedConversation.status()).toBe(400);
+      expect(await malformedConversation.json()).toHaveProperty("error");
+
+      const invalidRevision = await pageA.request.put("/api/engineering/intent", {
+        data: { projectId, sessionId, expectedRevision: 0, conversation: [{ role: "engineer", text: "invalid revision" }] },
+      });
+      expect(invalidRevision.status()).toBe(400);
+      expect(await invalidRevision.json()).toHaveProperty("error");
+
+      const oversizedSessionId = "x".repeat(129);
+      const invalidSessionRead = await pageA.request.get(
+        "/api/engineering/intent?projectId=" + encodeURIComponent(projectId) + "&sessionId=" + encodeURIComponent(oversizedSessionId),
+      );
+      expect(invalidSessionRead.status()).toBe(400);
+    });
+
     await test.step("Confirm user B cannot list, read, update, or restore user A's records", async () => {
       contextB = await browser.newContext({ baseURL });
       const pageB = await contextB.newPage();
