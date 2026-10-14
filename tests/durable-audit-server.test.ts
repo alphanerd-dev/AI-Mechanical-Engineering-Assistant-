@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuditEventInput } from "../src/audit/types.js";
 
 const mocks = vi.hoisted(() => ({
-  rpc: vi.fn(),
+  rpc: vi.fn<(
+    name: string,
+    args: { p_completion?: unknown; p_audit_record?: unknown },
+  ) => Promise<{ data: unknown; error: unknown | null }>>(),
 }));
 
 vi.mock("server-only", () => ({}));
