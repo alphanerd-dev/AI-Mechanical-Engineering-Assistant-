@@ -51,6 +51,48 @@ async function signIn(page, email, password) {
   ).toBeVisible();
 }
 
+test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser }) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const emailAddress = requiredEnv("E2E_USER_A_EMAIL");
+  const passwordValue = requiredEnv("E2E_USER_A_PASSWORD");
+  const context = await browser.newContext({ baseURL });
+  try {
+    const page = await context.newPage();
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+
+    const email = page.getByLabel("Email");
+    const password = page.getByLabel("Password");
+    const submit = page.getByRole("button", { name: "Sign in" });
+    await expect(email).toBeVisible();
+    await expect(password).toBeVisible();
+    await expect(submit).toBeEnabled();
+
+    await email.focus();
+    await expect(email).toBeFocused();
+    await email.fill(emailAddress);
+    await password.fill(passwordValue);
+    await password.focus();
+    await expect(password).toBeFocused();
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
+    await expect(page.getByText("Loading projects…")).toHaveCount(0);
+    await expect(page.locator('.projectError[role="alert"]')).toHaveCount(0);
+
+    const account = page.getByRole("navigation", { name: "Account" });
+    const signOut = account.getByRole("button", { name: "Sign out" });
+    await expect(signOut).toBeVisible();
+    await signOut.focus();
+    await expect(signOut).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\\/login(?:\\?.*)?$/);
+  } finally {
+    await context.close();
+  }
+});
+
 test("sign-in, project persistence, sign-out, and cross-user isolation", async ({ browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
