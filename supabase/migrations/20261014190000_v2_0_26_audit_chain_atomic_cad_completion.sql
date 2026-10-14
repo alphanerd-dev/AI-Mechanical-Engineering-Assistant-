@@ -1,4 +1,7 @@
 -- V2.0.26: durable audit chain, verification, and atomic CAD-completion provenance.
+-- Keep destructive project lifecycle operations behind the server cleanup route.
+revoke delete on table public.engineering_projects from public, anon, authenticated;
+drop policy if exists engineering_projects_delete_owner on public.engineering_projects;
 -- Append-only application writes must go through these SECURITY DEFINER functions.
 -- Existing V2.0.25 events are backfilled in a deterministic order before enforcement.
 
