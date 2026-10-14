@@ -33,8 +33,10 @@ export async function inventoryProjectStorageArtifacts(
     let offset = 0;
     while (true) {
       const { data, error } = await listPage(folder, { limit: STORAGE_PAGE_SIZE, offset });
-      if (error) throw new Error("Project artifact inventory could not be listed.");
-      const entries = data ?? [];
+      if (error || !Array.isArray(data)) {
+        throw new Error("Project artifact inventory could not be listed.");
+      }
+      const entries = data;
       for (const entry of entries) {
         const name = entry.name;
         if (typeof name !== "string" || !name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
@@ -64,8 +66,10 @@ export async function inventoryProjectArtifacts(
 ): Promise<Set<string>> {
   const paths = await inventoryProjectStorageArtifacts(projectId, listPage);
   const { data: completions, error: completionError } = await loadReferences();
-  if (completionError) throw new Error("Project artifact references could not be loaded.");
-  for (const completion of completions ?? []) {
+  if (completionError || !Array.isArray(completions)) {
+    throw new Error("Project artifact references could not be loaded.");
+  }
+  for (const completion of completions) {
     const storedPaths = completion.storage_objects;
     if (storedPaths == null) continue;
     if (!Array.isArray(storedPaths)) throw new Error("Project artifact references are malformed.");

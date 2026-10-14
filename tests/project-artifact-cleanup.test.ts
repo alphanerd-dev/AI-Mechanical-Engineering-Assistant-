@@ -64,10 +64,19 @@ describe("project artifact cleanup", () => {
       async () => ({ data: null, error: new Error("storage unavailable") }),
       async () => ({ data: [], error: null }),
     )).rejects.toThrow("inventory could not be listed");
+    await expect(inventoryProjectStorageArtifacts(
+      projectId,
+      async () => ({ data: null, error: null }),
+    )).rejects.toThrow("inventory could not be listed");
     await expect(inventoryProjectArtifacts(
       projectId,
       async () => ({ data: [], error: null }),
       async () => ({ data: null, error: new Error("database unavailable") }),
+    )).rejects.toThrow("references could not be loaded");
+    await expect(inventoryProjectArtifacts(
+      projectId,
+      async () => ({ data: [], error: null }),
+      async () => ({ data: null, error: null }),
     )).rejects.toThrow("references could not be loaded");
   });
 

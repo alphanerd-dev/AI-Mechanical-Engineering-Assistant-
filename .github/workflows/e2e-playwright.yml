@@ -26,6 +26,7 @@ jobs:
       E2E_BASE_URL: ${{ inputs.base_url }}
       CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
+      E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
       E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
       E2E_SUPABASE_PUBLISHABLE_KEY: ${{ vars.E2E_SUPABASE_PUBLISHABLE_KEY }}
       PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.PRODUCTION_SUPABASE_PROJECT_REF }}
@@ -51,6 +52,17 @@ jobs:
           if (url.protocol !== "https:") throw new Error("E2E_BASE_URL must use HTTPS.");
           if (url.username || url.password || url.search || url.hash) {
             throw new Error("E2E_BASE_URL must not include credentials, a query, or a fragment.");
+          }
+          const canonicalValue = (process.env.E2E_CANONICAL_BASE_URL || "").trim();
+          if (!canonicalValue) {
+            throw new Error("E2E_CANONICAL_BASE_URL must match the preview's configured authentication redirect origin.");
+          }
+          const canonical = new URL(canonicalValue);
+          if (canonical.protocol !== "https:" || canonical.username || canonical.password || canonical.search || canonical.hash) {
+            throw new Error("E2E_CANONICAL_BASE_URL must be a clean HTTPS URL.");
+          }
+          if (url.origin !== canonical.origin) {
+            throw new Error("E2E_BASE_URL origin must match E2E_CANONICAL_BASE_URL to preserve host-scoped session cookies through authentication redirects.");
           }
           const allowedHosts = (process.env.E2E_ALLOWED_HOSTS || "")
             .split(",")
@@ -85,8 +97,7 @@ jobs:
               throw new Error("Missing required GitHub Actions secret: " + key);
             }
           }
-          console.log("Validated allowlisted E2E host and distinct configured E2E/production Supabase project references.");
-          console.log("Operator must verify that the target deployment is configured to use E2E_SUPABASE_PROJECT_REF before dispatch.");
+          console.log("Validated canonical auth origin, exact allowlisted E2E host, and distinct configured E2E/production Supabase project references.");
           NODE
 
       - name: Set up Node.js

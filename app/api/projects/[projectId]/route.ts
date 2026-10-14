@@ -178,7 +178,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
         projectId,
         async (folder, options) => {
           const { data, error } = await db.storage.from(ARTIFACT_BUCKET).list(folder, options);
-          return { data: data ?? [], error };
+          return { data: data ?? null, error };
         },
         async () => {
           const { data, error } = await db
@@ -186,7 +186,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
             .select("storage_objects")
             .eq("project_id", projectId);
           return {
-            data: (data ?? []).map((completion) => ({
+            data: data === null ? null : data.map((completion) => ({
               storage_objects: (completion as { storage_objects: unknown }).storage_objects,
             })),
             error,
@@ -215,7 +215,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
         projectId,
         async (folder, options) => {
           const { data, error } = await db.storage.from(ARTIFACT_BUCKET).list(folder, options);
-          return { data: data ?? [], error };
+          return { data: data ?? null, error };
         },
       );
     } catch {
