@@ -527,3 +527,106 @@ test("initial session persistence outage fails closed without dispatching engine
     await context.close().catch(() => undefined);
   }
 });
+
+
+test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ browser }, testInfo) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const userBEmail = requiredEnv("E2E_USER_B_EMAIL");
+  const userBPassword = requiredEnv("E2E_USER_B_PASSWORD");
+  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const originalName = "E2E project CRUD " + suffix;
+  const updatedName = originalName + " renamed";
+  const pathPrefix = "/api/projects/";
+  let contextA;
+  let contextB;
+
+  try {
+    contextA = await browser.newContext({ baseURL });
+    const pageA = await contextA.newPage();
+    await signIn(pageA, userAEmail, userAPassword);
+
+    const createResponse = await pageA.request.post("/api/projects", {
+      data: {
+        name: originalName,
+        problemStatement: "Disposable project for project-specific GET/PATCH/DELETE acceptance.",
+      },
+    });
+    expect(createResponse.status()).toBe(201);
+    const created = await createResponse.json();
+    const projectId = created.project?.id;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(created.workspaceInitialized).toBe(true);
+    testInfo.annotations.push({ type: "e2e-project-id", description: projectId });
+
+    const invalidIdRead = await pageA.request.get(pathPrefix + "not-a-project-id");
+    expect(invalidIdRead.status()).toBe(400);
+    const invalidBodyPatch = await pageA.request.patch(pathPrefix + projectId, {
+      data: { expectedRevision: 1, name: updatedName, status: "COMPLETE" },
+    });
+    expect(invalidBodyPatch.status()).toBe(400);
+
+    const readResponse = await pageA.request.get(pathPrefix + projectId);
+    expect(readResponse.status()).toBe(200);
+    const readBody = await readResponse.json();
+    expect(readBody.project).toMatchObject({ id: projectId, name: originalName, revision: 1 });
+
+    const patchResponse = await pageA.request.patch(pathPrefix + projectId, {
+      data: { expectedRevision: readBody.project.revision, name: updatedName },
+    });
+    expect(patchResponse.status()).toBe(200);
+    const patched = await patchResponse.json();
+    expect(patched.project).toMatchObject({ id: projectId, name: updatedName, revision: 2 });
+
+    const stalePatch = await pageA.request.patch(pathPrefix + projectId, {
+      data: { expectedRevision: readBody.project.revision, name: originalName },
+    });
+    expect(stalePatch.status()).toBe(409);
+    expect(await stalePatch.json()).toMatchObject({
+      code: "PROJECT_REVISION_CONFLICT",
+      currentRevision: 2,
+    });
+
+    contextB = await browser.newContext({ baseURL });
+    const pageB = await contextB.newPage();
+    await signIn(pageB, userBEmail, userBPassword);
+
+    const foreignRead = await pageB.request.get(pathPrefix + projectId);
+    expect([403, 404]).toContain(foreignRead.status());
+    expect((await foreignRead.json()).project).toBeUndefined();
+
+    const foreignPatch = await pageB.request.patch(pathPrefix + projectId, {
+      data: { expectedRevision: 2, name: "Unauthorized rename" },
+    });
+    expect(foreignPatch.status()).toBe(403);
+
+    const foreignDelete = await pageB.request.delete(pathPrefix + projectId);
+    expect(foreignDelete.status()).toBe(403);
+
+    const userBProjects = await pageB.request.get("/api/projects");
+    expect(userBProjects.status()).toBe(200);
+    expect(((await userBProjects.json()).projects ?? []).some((project) => project.id === projectId)).toBe(false);
+
+    const ownerReadAfterForeignAttempts = await pageA.request.get(pathPrefix + projectId);
+    expect(ownerReadAfterForeignAttempts.status()).toBe(200);
+    expect((await ownerReadAfterForeignAttempts.json()).project.name).toBe(updatedName);
+
+    const deleteResponse = await pageA.request.delete(pathPrefix + projectId);
+    expect(deleteResponse.status()).toBe(200);
+    expect(await deleteResponse.json()).toMatchObject({
+      projectId,
+      deleted: true,
+      artifactCleanup: { status: "COMPLETED", objectsRemoved: 0 },
+    });
+
+    const readAfterDelete = await pageA.request.get(pathPrefix + projectId);
+    expect([403, 404]).toContain(readAfterDelete.status());
+    const userAProjects = await pageA.request.get("/api/projects");
+    expect(userAProjects.status()).toBe(200);
+    expect(((await userAProjects.json()).projects ?? []).some((project) => project.id === projectId)).toBe(false);
+  } finally {
+    if (contextB) await contextB.close().catch(() => undefined);
+    if (contextA) await contextA.close().catch(() => undefined);
+  }
+});
