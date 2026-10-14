@@ -37,7 +37,7 @@ export async function inventoryProjectStorageArtifacts(
       const entries = data ?? [];
       for (const entry of entries) {
         const name = entry.name;
-        if (typeof name !== "string" || !name || name === "." || name === ".." || name.includes("/") || name.includes("\\\\")) {
+        if (typeof name !== "string" || !name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
           throw new Error("Project artifact inventory contains an unsafe path segment.");
         }
         const objectPath = folder + "/" + name;
