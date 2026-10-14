@@ -155,6 +155,12 @@ def write_inp(path: pathlib.Path, nodes: dict[int, tuple[float, float, float]], 
         handle.write("*END STEP\n")
 
 def parse_dat(path: pathlib.Path):
+    """Parse numeric rows only while inside explicit CalculiX result sections.
+
+    CalculiX emits additional page headers and other section types in .dat output.
+    Leaving a previous mode active across an unrelated section can silently treat
+    mesh IDs or reaction/stress rows as displacement values.
+    """
     mode = None
     max_displacement = None
     max_von_mises = None
@@ -166,6 +172,8 @@ def parse_dat(path: pathlib.Path):
     for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = raw_line.strip()
         lower = line.lower()
+        if not line:
+            continue
         if lower.startswith("displacements"):
             mode = "u"
             saw_displacement = True
@@ -174,31 +182,43 @@ def parse_dat(path: pathlib.Path):
             mode = "s"
             saw_stress = True
             continue
-        if lower.startswith("reaction forces"):
+        if lower.startswith("reaction forces") or lower.startswith("forces ("):
             mode = "rf"
             saw_reaction = True
             continue
-        if not line:
+
+        parts = line.split()
+        if not parts or not re.fullmatch(r"[+-]?\\d+", parts[0]):
+            # Ignore page headers, summaries, and unrelated output; never continue
+            # interpreting numeric content after a non-result header.
+            mode = None
             continue
         if mode is None:
             continue
-        parts = line.split()
         try:
             if mode == "u" and len(parts) >= 4:
-                values = [float(value) for value in parts[1:4]]
+                values = [float(value.replace("D", "E").replace("d", "e")) for value in parts[1:4]]
+                if not all(math.isfinite(value) for value in values):
+                    continue
                 magnitude = math.sqrt(sum(value * value for value in values))
                 max_displacement = magnitude if max_displacement is None else max(max_displacement, magnitude)
             elif mode == "rf" and len(parts) >= 4:
+                values = [float(value.replace("D", "E").replace("d", "e")) for value in parts[1:4]]
+                if not all(math.isfinite(value) for value in values):
+                    continue
                 for index in range(3):
-                    reaction[index] += float(parts[index + 1])
+                    reaction[index] += values[index]
             elif mode == "s" and len(parts) >= 8:
-                sxx, syy, szz, sxy, sxz, syz = [float(value) for value in parts[2:8]]
+                values = [float(value.replace("D", "E").replace("d", "e")) for value in parts[2:8]]
+                if not all(math.isfinite(value) for value in values):
+                    continue
+                sxx, syy, szz, sxy, sxz, syz = values
                 mises = math.sqrt(
                     0.5 * ((sxx - syy) ** 2 + (syy - szz) ** 2 + (szz - sxx) ** 2)
                     + 3.0 * (sxy ** 2 + sxz ** 2 + syz ** 2)
                 )
                 max_von_mises = mises if max_von_mises is None else max(max_von_mises, mises)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
 
     if not saw_displacement or max_displacement is None:
