@@ -104,7 +104,7 @@ describe("provider promotion gates", () => {
     status: "VERIFIED",
     upstream: {
       repositoryUrl: "https://example.com/provider",
-      revision: "v1.2.3",
+      revision: "a".repeat(40),
       licenseSpdx: "Apache-2.0",
       licenseTextUrl: "https://example.com/provider/LICENSE",
       licenseReview: "CLEARED",
@@ -145,6 +145,38 @@ describe("provider promotion gates", () => {
   it("allows a VERIFIED claim only when the full evidence manifest passes", () => {
     expect(providerPromotionBlockingReasons(verifiedManifest)).toEqual([]);
     expect(providerExecutionBlocked(verifiedManifest)).toBeUndefined();
+  });
+
+
+  it("rejects movable release tags as source pins", () => {
+    const releaseTag = {
+      ...verifiedManifest,
+      upstream: { ...verifiedManifest.upstream, revision: "v1.2.3" },
+    };
+    expect(providerPromotionBlockingReasons(releaseTag)).toContain(
+      "Upstream revision must be pinned to an immutable 40-character commit SHA.",
+    );
+    expect(providerExecutionBlocked(releaseTag)).toContain("without satisfying its promotion evidence gate");
+  });
+
+  it("requires review evidence for clean-room adapter dispositions without requiring a code-copy license grant", () => {
+    const adapter = {
+      ...verifiedManifest,
+      upstream: {
+        ...verifiedManifest.upstream,
+        copyDisposition: "ADAPTER_ONLY" as const,
+        licenseReview: "SOURCE_REVIEWED" as const,
+        adapterReviewUrl: undefined,
+      },
+    };
+    expect(providerPromotionBlockingReasons(adapter)).toContain(
+      "Clean-room adapter disposition needs durable review evidence for the local adapter and source boundary.",
+    );
+    const reviewed = {
+      ...adapter,
+      upstream: { ...adapter.upstream, adapterReviewUrl: "https://example.com/adapter-review" },
+    };
+    expect(providerPromotionBlockingReasons(reviewed)).toEqual([]);
   });
 
   it("blocks a provider claiming VERIFIED while license, benchmark or approval evidence is missing", () => {
