@@ -253,7 +253,7 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
     let result: QueryResult;
     try {
       result = await this.table()
-        .select("project_id,session_id,interpretation,conversation,schema_version,updated_at")
+        .select("project_id,session_id,interpretation,conversation,schema_version,snapshot_revision,updated_at")
         .eq("project_id", projectId)
         .eq("session_id", sessionId)
         .maybeSingle();
