@@ -2,22 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 import { SupabaseDurableAuditStore, verifyDurableAuditRecord } from "../src/audit/durable-store.js";
 import type { AuditEventInput } from "../src/audit/types.js";
 
-function createFakeClient(input?: { fail?: boolean }) {
+function createFakeClient(input?: { fail?: boolean; malformedReceipt?: boolean }) {
   let inserted: Record<string, unknown> | undefined;
-  const single = vi.fn(async () => ({
-    data: input?.fail ? null : { event_id: inserted?.event_id, event_hash: inserted?.event_hash },
-    error: input?.fail ? { code: "XX000" } : null,
-  }));
-  const select = vi.fn(() => ({ single }));
-  const insert = vi.fn((values: Record<string, unknown>) => {
-    inserted = structuredClone(values);
-    return { select };
+  const rpc = vi.fn(async (functionName: string, args: { p_record: Record<string, unknown> }) => {
+    if (functionName !== "append_engineering_audit_event") throw new Error("Unexpected RPC");
+    inserted = structuredClone(args.p_record);
+    if (input?.fail) return { data: null, error: { code: "XX000" } };
+    return {
+      data: {
+        event_id: inserted?.event_id,
+        event_hash: inserted?.event_hash,
+        chain_sequence: input?.malformedReceipt ? 0 : 1,
+        previous_chain_hash: null,
+        chain_hash: "b".repeat(64),
+      },
+      error: null,
+    };
   });
-  const from = vi.fn((table: string) => {
-    if (table !== "engineering_audit_events") throw new Error("Unexpected audit table");
-    return { insert };
-  });
-  return { client: { from }, inserted: () => inserted, from, insert, select, single };
+  return { client: { rpc }, inserted: () => inserted, rpc };
 }
 
 const event: AuditEventInput = {
@@ -38,17 +40,21 @@ const event: AuditEventInput = {
 };
 
 describe("SupabaseDurableAuditStore", () => {
-  it("persists a content-hashed event with correlation identifiers", async () => {
+  it("persists content-hashed events through the serialized append RPC", async () => {
     const fake = createFakeClient();
     const persisted = await new SupabaseDurableAuditStore(fake.client).append(event);
-    expect(fake.from).toHaveBeenCalledWith("engineering_audit_events");
-    expect(fake.inserted()).toMatchObject({
-      actor_subject: "user-123", action: "EVIDENCE_WRITE", outcome: "SUCCESS",
-      project_id: "project-123", request_id: "request-123", task_id: "model-123",
-      run_id: "run-123", provider_id: "cad.build123d", artifact_sha256: "a".repeat(64),
-      validator_receipt_id: "receipt-123", decision_id: "decision-123",
+    expect(fake.rpc).toHaveBeenCalledWith("append_engineering_audit_event", {
+      p_record: expect.objectContaining({
+        actor_subject: "user-123", action: "EVIDENCE_WRITE", outcome: "SUCCESS",
+        project_id: "project-123", request_id: "request-123", task_id: "model-123",
+        run_id: "run-123", provider_id: "cad.build123d", artifact_sha256: "a".repeat(64),
+        validator_receipt_id: "receipt-123", decision_id: "decision-123",
+      }),
     });
     expect(persisted.event_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(persisted.chain_sequence).toBe(1);
+    expect(persisted.previous_chain_hash).toBeNull();
+    expect(persisted.chain_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(() => verifyDurableAuditRecord(persisted)).not.toThrow();
   });
 
@@ -61,16 +67,21 @@ describe("SupabaseDurableAuditStore", () => {
     })).toThrow("Durable audit event hash is invalid.");
   });
 
-  it("fails closed when the database does not confirm the insert", async () => {
+  it("fails closed when the database does not confirm a chain append", async () => {
     await expect(new SupabaseDurableAuditStore(createFakeClient({ fail: true }).client).append(event))
       .rejects.toThrow("Durable engineering audit persistence is unavailable.");
   });
 
-  it("rejects malformed artifact digests before issuing a write", async () => {
+  it("rejects an invalid chain receipt even if the content hash matches", async () => {
+    await expect(new SupabaseDurableAuditStore(createFakeClient({ malformedReceipt: true }).client).append(event))
+      .rejects.toThrow("Durable engineering audit persistence is unavailable.");
+  });
+
+  it("rejects malformed artifact digests before issuing an RPC write", async () => {
     const fake = createFakeClient();
     await expect(new SupabaseDurableAuditStore(fake.client).append({
       ...event, correlation: { ...event.correlation, artifactSha256: "not-a-hash" },
     })).rejects.toThrow("artifactSha256");
-    expect(fake.insert).not.toHaveBeenCalled();
+    expect(fake.rpc).not.toHaveBeenCalled();
   });
 });
