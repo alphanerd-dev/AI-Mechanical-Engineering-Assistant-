@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
-import { persistEngineeringAuditEvent } from "../../../../src/audit/server";
+import { persistCADCompletionWithAudit } from "../../../../src/audit/server";
 import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog";
 import { CapabilityRegistry } from "../../../../src/capabilities/registry";
 import { CADPartCompletionResult, CADPartCompletionWorkflow } from "../../../../src/cad/completion";
@@ -281,23 +281,23 @@ export async function POST(request: Request) {
       warnings: intent.warnings,
       created_by: authorization.subject
     };
-    const { data, error } = await serviceDb.from("engineering_cad_completions").insert(record).select("*").single();
-    if (error || !data) return httpError("The incomplete CAD request could not be recorded.", 503);
+    let data: Record<string, unknown>;
     try {
-      await persistEngineeringAuditEvent({
+      const committed = await persistCADCompletionWithAudit(record, {
         timestamp: new Date().toISOString(),
         actor: { subject: authorization.subject, actorType: "USER" },
         action: "TASK_PROPOSE",
         outcome: "PENDING",
         projectId,
         resourceType: "CAD_COMPLETION",
-        resourceId: String(data.id),
+        resourceId: completionId,
         reason: "CAD intent needs additional input or is unsupported; no CAD execution was reported.",
         metadata: { status, stage: "INTENT", persisted: true },
         correlation: { requestId, taskId: modelIdentityId },
       });
+      data = committed.completion;
     } catch {
-      return httpError("The CAD request was saved but its durable audit record could not be confirmed. Check completion history before retrying.", 503);
+      return httpError("The CAD request and durable audit record could not be committed; no completion was recorded.", 503);
     }
     return NextResponse.json({ completion: data, signedUrls: {}, persisted: true }, { status: 200 });
   }
@@ -423,10 +423,6 @@ export async function POST(request: Request) {
       warnings: errorStrings(result.warnings),
       created_by: authorization.subject
     };
-    const { data, error } = await serviceDb.from("engineering_cad_completions").insert(dbRecord).select("*").single();
-    if (error || !data) throw new Error("CAD completion metadata could not be persisted.");
-    completionPersisted = true;
-
     const receiptRecord = isRecord(receipt) ? receipt : {};
     const providerId = nonEmpty(result.manifest?.provenance?.providerId) ? result.manifest!.provenance!.providerId : undefined;
     const artifactSha256 = nonEmpty(receiptRecord.artifactSha256) ? receiptRecord.artifactSha256 : undefined;
@@ -437,15 +433,17 @@ export async function POST(request: Request) {
       : ["FAILED", "BLOCKED", "REJECTED"].includes(result.status)
         ? "FAILURE"
         : "PENDING";
+
+    let data: Record<string, unknown>;
     try {
-      await persistEngineeringAuditEvent({
+      const committed = await persistCADCompletionWithAudit(dbRecord, {
         timestamp: new Date().toISOString(),
         actor: { subject: authorization.subject, actorType: "USER" },
         action: result.status === "ACCEPTED" ? "EVIDENCE_WRITE" : "TASK_EXECUTE",
         outcome: eventOutcome,
         projectId,
         resourceType: "CAD_COMPLETION",
-        resourceId: String(data.id),
+        resourceId: completionId,
         reason: result.status === "ACCEPTED"
           ? "CAD completion persisted after independent host validation."
           : errorStrings(result.errors).join("; ") || undefined,
@@ -467,8 +465,24 @@ export async function POST(request: Request) {
           ...(decisionId ? { decisionId } : {}),
         },
       });
+      data = committed.completion;
+      completionPersisted = true;
     } catch {
-      return httpError("CAD completion is persisted but its durable audit record could not be confirmed. Check completion history before retrying.", 503);
+      // RPC responses can be lost after PostgreSQL commits. Reconcile by the preselected
+      // completion UUID before removing any uploaded artifacts. If the lookup itself
+      // fails, preserve files rather than risk breaking a committed completion.
+      const { data: persistedRow, error: reconciliationError } = await serviceDb
+        .from("engineering_cad_completions")
+        .select("id")
+        .eq("id", completionId)
+        .maybeSingle();
+      if (persistedRow || reconciliationError) completionPersisted = true;
+      return httpError(
+        persistedRow
+          ? "The completion and audit transaction committed, but its response could not be confirmed. Reload completion history before retrying."
+          : "CAD completion and its durable audit record could not be committed; no success was reported.",
+        503,
+      );
     }
     return NextResponse.json({
       completion: data,
