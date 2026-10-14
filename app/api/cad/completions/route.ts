@@ -404,7 +404,9 @@ export async function POST(request: Request) {
       : [];
     const evidenceRecords = result.status === "ACCEPTED" && result.bundle ? [result.bundle.evidence] : [];
     const receipt = result.status === "ACCEPTED" && result.bundle ? result.bundle.evidence.value : null;
+    const completionId = randomUUID();
     const dbRecord = {
+      id: completionId,
       project_id: projectId,
       model_identity_id: modelIdentityId,
       execution_id: executionId || null,
