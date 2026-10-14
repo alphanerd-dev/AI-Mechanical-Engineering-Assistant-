@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { inventoryProjectArtifacts, inventoryProjectStorageArtifacts, removeProjectArtifacts } from "../../../../src/projects/artifact-cleanup";
 
 export const runtime = "nodejs";
@@ -63,7 +63,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const authorization = await authorizeProject("PROJECT.READ", projectId);
   if (!authorization) return jsonError("Authorization service is unavailable.", 503);
-  if (!authorization.allowed) return jsonError(authorization.reason, 403);
+  if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
 
   try {
     const db = await createClient();
@@ -104,7 +104,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const authorization = await authorizeProject("PROJECT.WRITE", projectId);
   if (!authorization) return jsonError("Authorization service is unavailable.", 503);
-  if (!authorization.allowed) return jsonError(authorization.reason, 403);
+  if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
 
   try {
     const db = await createClient();
@@ -162,7 +162,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   const authorization = await authorizeProject("PROJECT.WRITE", projectId);
   if (!authorization) return jsonError("Authorization service is unavailable.", 503);
-  if (!authorization.allowed) return jsonError(authorization.reason, 403);
+  if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
 
   try {
     const db = await createClient();
