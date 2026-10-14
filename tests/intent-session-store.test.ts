@@ -55,7 +55,8 @@ function createSharedDatabase() {
     from(table: string) {
       if (table !== "engineering_intent_sessions") throw new Error("Unexpected table");
       return {
-        select() {
+        select(columns: string) {
+          const selectedColumns = columns.split(",").map((column) => column.trim());
           return {
             eq(columnA: string, valueA: string) {
               return {
@@ -65,7 +66,13 @@ function createSharedDatabase() {
                       const projectId = columnA === "project_id" ? valueA : valueB;
                       const sessionId = columnA === "session_id" ? valueA : valueB;
                       const row = rows.get(key(projectId, sessionId));
-                      return { data: row ?? null, error: null };
+                      if (!row) return { data: null, error: null };
+                      const data = Object.fromEntries(
+                        selectedColumns
+                          .filter((column) => column in row)
+                          .map((column) => [column, row[column as keyof Row]]),
+                      );
+                      return { data, error: null };
                     },
                   };
                 },
@@ -234,6 +241,10 @@ describe("engineering intent session stores", () => {
       conversation: [{ role: "engineer", text: "Design a shaft" }],
       updatedAt: "2026-10-13T12:01:00.000Z",
     }, { expectedRevision: first.snapshotRevision });
+
+    const updated = await store.get("cas-session", "project-1");
+    expect(updated?.snapshotRevision).toBe(2);
+    expect(updated?.conversation).toEqual([{ role: "engineer", text: "Design a shaft" }]);
 
     await expect(store.save({
       ...first,
