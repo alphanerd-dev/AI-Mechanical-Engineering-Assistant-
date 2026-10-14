@@ -650,7 +650,7 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
         body: "Disposable project-delete acceptance artifact.",
       },
     );
-    expect([200, 201], "a real object should upload to the authenticated project-scoped bucket").toContain(uploadResponse.status());
+    expect([200, 201], "a real object should upload to the authenticated project-scoped bucket").toContain(uploadResponse.status);
 
     const deleteResponse = await pageA.request.delete(pathPrefix + projectId);
     expect(deleteResponse.status()).toBe(200);

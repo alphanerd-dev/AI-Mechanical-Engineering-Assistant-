@@ -8,7 +8,6 @@ export const runtime = "nodejs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_PROJECT_NAME = 120;
 const ARTIFACT_BUCKET = "engineering-cad-artifacts";
-const STORAGE_PAGE_SIZE = 100;
 
 type RouteContext = { params: Promise<{ projectId: string }> };
 type ProjectRecord = {
