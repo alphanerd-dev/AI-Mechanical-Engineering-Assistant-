@@ -47,11 +47,9 @@ begin
   end if;
 end $$;
 
-drop policy if exists engineering_projects_delete_owner on public.engineering_projects;
-create policy engineering_projects_delete_owner
-  on public.engineering_projects
-  for delete to authenticated
-  using ((select auth.uid()) = owner_id);
+-- Deliberately do not grant direct client DELETE on projects here. Project deletion
+-- must go through the server cleanup path so stored artifacts are inventoried and
+-- removed before the project row is deleted; a table policy would bypass that guard.
 
 create or replace function public.update_engineering_project_name(
   p_project_id uuid,
