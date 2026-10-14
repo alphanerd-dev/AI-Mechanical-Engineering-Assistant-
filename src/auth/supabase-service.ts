@@ -8,6 +8,11 @@ import type { AuthenticatedIdentity, EngineeringPermission, EngineeringRole } fr
 import { identityFromSupabaseUser, type SupabaseClaims } from "./supabase-identity";
 
 const globalKey = "__ENGINEERING_SUPABASE_AUTH_AUDIT__";
+
+/** Distinguish a policy denial from unavailable durable audit storage at HTTP boundaries. */
+export function authorizationFailureStatus(decision: { reason?: string }): 403 | 503 {
+  return decision.reason === "Durable authorization audit is unavailable." ? 503 : 403;
+}
 const KNOWN_ENGINEERING_ROLES: readonly EngineeringRole[] = ["ENGINEER", "REVIEWER", "ADMIN", "AGENT"];
 
 function roleNamesFromMetadata(metadata: unknown): EngineeringRole[] {
