@@ -23,17 +23,19 @@ export interface DurableAuditRecord {
   validator_receipt_id: string | null;
   decision_id: string | null;
   event_hash: string;
+  chain_sequence: number;
+  previous_chain_hash: string | null;
+  chain_hash: string;
 }
 
+type DurableAuditWriteRecord = Omit<DurableAuditRecord, "chain_sequence" | "previous_chain_hash" | "chain_hash">;
+
 interface InsertResult { data: unknown; error: unknown | null }
-interface InsertBuilder {
-  select(columns: string): InsertBuilder;
-  single(): Promise<InsertResult>;
-}
 interface DurableAuditClient {
-  from(table: "engineering_audit_events"): {
-    insert(values: Record<string, unknown>): InsertBuilder;
-  };
+  rpc(
+    functionName: "append_engineering_audit_event",
+    args: { p_record: Record<string, unknown> },
+  ): Promise<InsertResult>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -62,7 +64,7 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(stableValue(value));
 }
 
-function canonicalRow(row: Omit<DurableAuditRecord, "event_hash">): Record<string, unknown> {
+function canonicalRow(row: Omit<DurableAuditWriteRecord, "event_hash">): Record<string, unknown> {
   return {
     event_id: row.event_id,
     occurred_at: new Date(row.occurred_at).toISOString(),
@@ -86,7 +88,7 @@ function canonicalRow(row: Omit<DurableAuditRecord, "event_hash">): Record<strin
   };
 }
 
-function recordHash(row: Omit<DurableAuditRecord, "event_hash">): string {
+function recordHash(row: Omit<DurableAuditWriteRecord, "event_hash">): string {
   return createHash("sha256").update(stableStringify(canonicalRow(row)), "utf8").digest("hex");
 }
 
@@ -102,7 +104,7 @@ function correlationValues(correlation: AuditCorrelation | undefined) {
   };
 }
 
-function buildRecord(input: AuditEventInput): DurableAuditRecord {
+export function buildDurableAuditRecord(input: AuditEventInput): DurableAuditWriteRecord {
   assertAuditEventInput(input);
   const metadata = stableValue(input.metadata ?? {});
   if (!isRecord(metadata)) throw new Error("Audit metadata must be an object.");
@@ -136,19 +138,31 @@ export class SupabaseDurableAuditStore {
   constructor(private readonly client: unknown) {}
 
   async append(input: AuditEventInput): Promise<DurableAuditRecord> {
-    const record = buildRecord(input);
+    const record = buildDurableAuditRecord(input);
     try {
-      const result = await (this.client as DurableAuditClient)
-        .from("engineering_audit_events")
-        .insert(record as unknown as Record<string, unknown>)
-        .select("event_id,event_hash")
-        .single();
-      if (result.error || !isRecord(result.data) ||
-          result.data.event_id !== record.event_id ||
-          result.data.event_hash !== record.event_hash) {
+      const result = await (this.client as DurableAuditClient).rpc(
+        "append_engineering_audit_event",
+        { p_record: record as unknown as Record<string, unknown> },
+      );
+      const receipt = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (result.error || !isRecord(receipt) ||
+          receipt.event_id !== record.event_id ||
+          receipt.event_hash !== record.event_hash ||
+          !Number.isSafeInteger(Number(receipt.chain_sequence)) ||
+          Number(receipt.chain_sequence) < 1 ||
+          typeof receipt.chain_hash !== "string" ||
+          !/^[a-f0-9]{64}$/.test(receipt.chain_hash) ||
+          (receipt.previous_chain_hash !== null &&
+           (typeof receipt.previous_chain_hash !== "string" ||
+            !/^[a-f0-9]{64}$/.test(receipt.previous_chain_hash)))) {
         throw new DurableAuditPersistenceError();
       }
-      return record;
+      return {
+        ...record,
+        chain_sequence: Number(receipt.chain_sequence),
+        previous_chain_hash: receipt.previous_chain_hash as string | null,
+        chain_hash: receipt.chain_hash,
+      };
     } catch {
       throw new DurableAuditPersistenceError();
     }
