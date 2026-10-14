@@ -1,12 +1,10 @@
 -- V2.0.24: owner-controlled project lifecycle and atomic project rename.
 -- The API enforces ownership and the database independently fails closed.
-grant delete on table public.engineering_projects to authenticated;
-
+-- Project deletion is a server-controlled lifecycle operation: it must inventory,
+-- remove, and verify storage artifacts before the owner row is deleted. Do not grant
+-- direct client DELETE, which would bypass that cleanup protocol.
+revoke delete on table public.engineering_projects from public, anon, authenticated;
 drop policy if exists engineering_projects_delete_owner on public.engineering_projects;
-create policy engineering_projects_delete_owner
-  on public.engineering_projects
-  for delete to authenticated
-  using ((select auth.uid()) = owner_id);
 
 create or replace function public.update_engineering_project_name(
   p_project_id uuid,
