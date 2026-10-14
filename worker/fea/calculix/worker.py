@@ -216,6 +216,55 @@ def artifact(root: pathlib.Path, path: pathlib.Path, kind: str, media_type: str)
         "sha256": sha256_file(path),
     }
 
+def cantilever_box_reference(length_mm: float, width_mm: float, height_mm: float,
+                            youngs_modulus_mpa: float, poisson_ratio: float,
+                            total_force_n: float, measured_max_displacement_mm: float,
+                            reaction_forces_n: list[float], displacement_relative_tolerance: float = 0.30,
+                            reaction_relative_tolerance: float = 0.01) -> dict:
+    """Independent closed-form check for the documented slender cantilever-box smoke case.
+
+    It compares displacement to Euler-Bernoulli bending plus first-order Timoshenko
+    shear, and checks global support-reaction equilibrium. The deliberately coarse
+    tetrahedral mesh makes this a pilot regression tolerance, not certification.
+    """
+    length = float(length_mm)
+    width = float(width_mm)
+    height = float(height_mm)
+    modulus = float(youngs_modulus_mpa)
+    nu = float(poisson_ratio)
+    force = float(total_force_n)
+    inertia_z = height * width ** 3 / 12.0
+    area = width * height
+    shear_modulus = modulus / (2.0 * (1.0 + nu))
+    bending_mm = force * length ** 3 / (3.0 * modulus * inertia_z)
+    shear_mm = 6.0 * force * length / (5.0 * shear_modulus * area)
+    reference_mm = bending_mm + shear_mm
+    displacement_error = abs(float(measured_max_displacement_mm) - reference_mm) / reference_mm
+    expected_reaction = [0.0, force, 0.0]
+    reaction_residual = math.sqrt(sum((float(reaction_forces_n[i]) - expected_reaction[i]) ** 2 for i in range(3)))
+    reaction_error = reaction_residual / force
+    displacement_passed = math.isfinite(displacement_error) and displacement_error <= displacement_relative_tolerance
+    reaction_passed = math.isfinite(reaction_error) and reaction_error <= reaction_relative_tolerance
+    return {
+        "referenceId": "cantilever-box-euler-bernoulli-plus-timoshenko-v1",
+        "referenceSource": "closed-form beam equations implemented independently of the CalculiX result parser",
+        "units": {"length": "mm", "force": "N", "modulus": "MPa", "deflection": "mm"},
+        "sectionSecondMomentMm4": inertia_z,
+        "bendingDeflectionMm": bending_mm,
+        "firstOrderShearDeflectionMm": shear_mm,
+        "expectedTipDeflectionMm": reference_mm,
+        "measuredMaximumDisplacementMm": float(measured_max_displacement_mm),
+        "displacementRelativeError": displacement_error,
+        "displacementRelativeTolerance": displacement_relative_tolerance,
+        "displacementPassed": displacement_passed,
+        "expectedSupportReactionN": {"x": 0.0, "y": force, "z": 0.0},
+        "measuredSupportReactionN": {"x": float(reaction_forces_n[0]), "y": float(reaction_forces_n[1]), "z": float(reaction_forces_n[2])},
+        "reactionRelativeError": reaction_error,
+        "reactionRelativeTolerance": reaction_relative_tolerance,
+        "reactionPassed": reaction_passed,
+        "passed": displacement_passed and reaction_passed,
+    }
+
 def main():
     raw = sys.stdin.read()
     if len(raw.encode("utf-8")) > MAX_REQUEST_BYTES:
@@ -287,9 +336,16 @@ def main():
         for path in required_files:
             if not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"Expected solver artifact is missing or empty: {path.name}.")
+        dimensions = request["dimensionsMm"]
+        reference = cantilever_box_reference(
+            float(dimensions["length"]), float(dimensions["width"]), float(dimensions["height"]),
+            float(youngs_modulus_mpa), float(poisson_ratio), float(total_force_n),
+            float(max_displacement), reaction or [0.0, 0.0, 0.0],
+        )
         result = {
-            "success": True,
+            "success": reference["passed"],
             "analysis": ALLOWED_ANALYSIS,
+            "benchmarkReference": reference,
             "solver": "calculix",
             "solverVersion": calculix_version(),
             "converged": True,
@@ -308,12 +364,14 @@ def main():
                 artifact(artifact_dir, frd_path, "FEA_RESULT", "application/octet-stream"),
                 artifact(artifact_dir, sta_path, "FEA_RESULT", "text/plain"),
             ],
-            "warnings": [],
+            "warnings": [] if reference["passed"] else ["Independent cantilever analytical/equilibrium acceptance failed."],
             "stdout": completed.stdout[-20000:],
             "stderr": completed.stderr[-20000:],
             "gmshVersion": GMSH_VERSION,
         }
         print(json.dumps(result))
+        if not reference["passed"]:
+            raise SystemExit(1)
     except Exception as exc:
         fail(f"FEA result normalization failed: {exc}")
 
