@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { validateCADModelIdentity } from "../../../../src/cad/identity";
 
 export const runtime = "nodejs";
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     if (!isUuid(projectId)) return NextResponse.json({ error: "A registered project UUID is required." }, { status: 400 });
 
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
-    if (!authorization.allowed) return NextResponse.json({ error: authorization.reason }, { status: 403 });
+    if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status }); }
     const db = await createClient();
     const { data, error } = await db
       .from("engineering_cad_models")
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.WRITE", projectId);
-    if (!authorization.allowed) return NextResponse.json({ error: authorization.reason }, { status: 403 });
+    if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status }); }
     const db = await createClient();
     const { data: project, error: projectError } = await db
       .from("engineering_projects")
