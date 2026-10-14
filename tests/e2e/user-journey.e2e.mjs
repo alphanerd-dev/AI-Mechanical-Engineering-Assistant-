@@ -87,7 +87,7 @@ test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser
     await signOut.focus();
     await expect(signOut).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\\/login(?:\\?.*)?$/);
+    await expect(page).toHaveURL(/login(?:\?.*)?$/);
   } finally {
     await context.close();
   }
