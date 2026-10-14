@@ -1,0 +1,53 @@
+name: Provider Benchmark Gates
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/providers/**"
+      - "worker/cad/build123d/**"
+      - ".github/workflows/provider-benchmarks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cad-geometry:
+    name: CAD neutral geometry / STEP round-trip (${{ matrix.backend }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [build123d, cadquery]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pinned provider runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.backend }}" = "build123d" ]; then
+            docker build --tag engineering-benchmark-build123d:0.13.0 --file worker/cad/build123d/Dockerfile worker/cad
+          else
+            docker build --tag engineering-benchmark-cadquery:2.8.0 --file benchmarks/providers/cadquery.Dockerfile benchmarks/providers
+          fi
+      - name: Execute identical analytical fixtures and STEP round-trip
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .provider-bench
+          chmod 777 .provider-bench
+          if [ "${{ matrix.backend }}" = "build123d" ]; then
+            IMAGE=engineering-benchmark-build123d:0.13.0
+          else
+            IMAGE=engineering-benchmark-cadquery:2.8.0
+          fi
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=64m --mount type=bind,src="$PWD/benchmarks/providers",dst=/benchmark,readonly --mount type=bind,src="$PWD/.provider-bench",dst=/artifacts,rw --entrypoint python "$IMAGE" /benchmark/cad_geometry_benchmark.py --backend "${{ matrix.backend }}" --fixture-file /benchmark/cad-fixtures-v1.json --output "/artifacts/${{ matrix.backend }}.json"
+      - name: Upload fixture-level benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cad-geometry-benchmark-${{ matrix.backend }}
+          path: .provider-bench/
+          if-no-files-found: warn
+          retention-days: 30
