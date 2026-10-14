@@ -8,7 +8,8 @@ export interface ArtifactReferenceRow { storage_objects: unknown }
 export interface ArtifactReferenceResult { data: ArtifactReferenceRow[] | null; error: unknown | null }
 export type ListArtifactPage = (folder: string, options: { limit: number; offset: number }) => Promise<ArtifactPageResult>;
 export type LoadArtifactReferences = () => Promise<ArtifactReferenceResult>;
-export type RemoveArtifactBatch = (paths: string[]) => Promise<{ error: unknown | null }>;
+export type RemovedArtifactObject = { name?: string; path?: string };
+export type RemoveArtifactBatch = (paths: string[]) => Promise<{ data: RemovedArtifactObject[] | null; error: unknown | null }>;
 
 const STORAGE_PAGE_SIZE = 100;
 const STORAGE_DELETE_BATCH_SIZE = 100;
@@ -22,10 +23,9 @@ export function isSafeProjectArtifactPath(projectId: string, value: unknown): va
   );
 }
 
-export async function inventoryProjectArtifacts(
+export async function inventoryProjectStorageArtifacts(
   projectId: string,
   listPage: ListArtifactPage,
-  loadReferences: LoadArtifactReferences,
 ): Promise<Set<string>> {
   const paths = new Set<string>();
   async function walk(folder: string, depth: number): Promise<void> {
@@ -37,7 +37,7 @@ export async function inventoryProjectArtifacts(
       const entries = data ?? [];
       for (const entry of entries) {
         const name = entry.name;
-        if (typeof name !== "string" || !name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+        if (typeof name !== "string" || !name || name === "." || name === ".." || name.includes("/") || name.includes("\\\\")) {
           throw new Error("Project artifact inventory contains an unsafe path segment.");
         }
         const objectPath = folder + "/" + name;
@@ -54,6 +54,15 @@ export async function inventoryProjectArtifacts(
     }
   }
   await walk(projectId, 0);
+  return paths;
+}
+
+export async function inventoryProjectArtifacts(
+  projectId: string,
+  listPage: ListArtifactPage,
+  loadReferences: LoadArtifactReferences,
+): Promise<Set<string>> {
+  const paths = await inventoryProjectStorageArtifacts(projectId, listPage);
   const { data: completions, error: completionError } = await loadReferences();
   if (completionError) throw new Error("Project artifact references could not be loaded.");
   for (const completion of completions ?? []) {
@@ -70,10 +79,14 @@ export async function inventoryProjectArtifacts(
   return paths;
 }
 
-export async function removeProjectArtifacts(paths: string[], removeBatch: RemoveArtifactBatch): Promise<void> {
+export async function removeProjectArtifacts(paths: string[], removeBatch: RemoveArtifactBatch): Promise<number> {
   const uniquePaths = [...new Set(paths)];
+  let removedCount = 0;
   for (let offset = 0; offset < uniquePaths.length; offset += STORAGE_DELETE_BATCH_SIZE) {
-    const { error } = await removeBatch(uniquePaths.slice(offset, offset + STORAGE_DELETE_BATCH_SIZE));
+    const { data, error } = await removeBatch(uniquePaths.slice(offset, offset + STORAGE_DELETE_BATCH_SIZE));
     if (error) throw new Error("One or more project artifacts could not be removed.");
+    if (!Array.isArray(data)) throw new Error("Storage removal returned no verifiable result.");
+    removedCount += data.length;
   }
+  return removedCount;
 }
