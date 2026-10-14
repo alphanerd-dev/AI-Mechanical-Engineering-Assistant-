@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../src/auth/supabase-service.js", () => ({
   authorizeSupabaseRequest: mocks.authorize,
+  authorizationFailureStatus: (decision: { reason?: string }) => decision.reason === "Durable authorization audit is unavailable." ? 503 : 403,
 }));
 vi.mock("../src/execution/executor.js", () => ({
   ExecutionEngine: class {
