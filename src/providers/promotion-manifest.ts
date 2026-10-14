@@ -74,7 +74,7 @@ export function providerPromotionBlockingReasons(manifest: ProviderPromotionMani
   if (!manifest.providerId.trim()) reasons.push("Provider ID is required.");
   if (!manifest.providerVersion.trim()) reasons.push("Provider version is required.");
   if (!isHttpsUrl(manifest.upstream.repositoryUrl)) reasons.push("An HTTPS upstream repository URL is required.");
-  if (!isPinnedRevision(manifest.upstream.revision)) reasons.push("Upstream revision must be pinned, not a moving branch or latest tag.");
+  if (!isPinnedRevision(manifest.upstream.revision)) reasons.push("Upstream revision must be pinned to an immutable 40-character commit SHA.");
   if (!manifest.upstream.licenseSpdx.trim() || !isHttpsUrl(manifest.upstream.licenseTextUrl)) reasons.push("A source license and license-text URL are required.");
   if (manifest.upstream.licenseReview !== "CLEARED") reasons.push("Legal review has not cleared the source license for the proposed use.");
   if (!manifest.upstream.dependencyLicenseClosureReviewed) reasons.push("Transitive dependency license review is incomplete.");
