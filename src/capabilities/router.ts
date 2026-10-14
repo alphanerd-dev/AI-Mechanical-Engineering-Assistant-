@@ -46,6 +46,7 @@ function normalizedResult(
     capability: request.capability,
     provider: provider.id,
     success: false,
+    ...(result.output !== undefined ? { output: result.output } : {}),
     error: typeof result.error === "string" && result.error.trim()
       ? result.error
       : "Provider failed without a usable error reason.",
@@ -79,9 +80,9 @@ export class CapabilityRouter {
       try {
         value = await provider.execute(request);
       } catch {
-        // Do not reflect raw provider exceptions which may contain credentials or internals.
-        last = failure(request.capability, provider.id, "Provider execution failed unexpectedly.");
-        continue;
+        // Let the capability-specific completion handler construct its typed failure result,
+        // but never reflect a provider exception that may contain credentials or internals.
+        throw new Error("Provider execution failed unexpectedly.");
       }
 
       const result = normalizedResult(value, request, provider);

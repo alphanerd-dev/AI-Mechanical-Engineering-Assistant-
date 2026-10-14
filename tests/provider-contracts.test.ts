@@ -73,12 +73,10 @@ describe("capability result contract",()=>{
     expect(result.error).toContain("malformed evidenceIds");
   });
 
-  it("does not let a thrown provider expose internals or bypass normalization", async()=>{
+  it("rethrows a sanitized provider exception for capability-specific failure handling", async()=>{
     const router = routerWith(async () => { throw new Error("sensitive provider detail"); });
-    const result = await router.execute(request);
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("Provider execution failed unexpectedly.");
-    expect(result.error).not.toContain("sensitive provider detail");
+    await expect(router.execute(request)).rejects.toThrow("Provider execution failed unexpectedly.");
+    await expect(router.execute(request)).rejects.not.toThrow("sensitive provider detail");
   });
 
   it("does not execute capabilities marked BLOCKED or DEPRECATED", async()=>{
