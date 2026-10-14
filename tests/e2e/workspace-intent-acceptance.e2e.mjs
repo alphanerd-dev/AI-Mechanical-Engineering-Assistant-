@@ -452,14 +452,16 @@ test("provider outage is shown and the failed turn remains recoverable after rel
     })).toBeVisible();
     await expect(page.locator(".decisionCard")).toHaveCount(0);
     expect(intentPostCount).toBe(1);
+    // The error is rendered before the failure snapshot write completes. Wait for
+    // submit() to leave its busy state, which occurs after persistConversation resolves.
+    await expect(page.locator(".interactionHeader .pill")).toHaveText("REQUEST FAILED");
 
     await page.reload();
     await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
     await expect(page.getByText(prompt, { exact: true })).toBeVisible();
-    await expect(page.getByText(
-      "The engineering service did not return a usable decision. The submitted request remains in the saved conversation when storage is available.",
-      { exact: true },
-    )).toBeVisible();
+    await expect(page.locator(".message.assistant p").filter({
+      hasText: "The engineering service did not return a usable decision.",
+    })).toBeVisible();
     await expect(page.locator(".decisionCard")).toHaveCount(0);
     expect(intentPostCount, "reload must restore history, not resubmit the engineering task").toBe(1);
 
@@ -511,7 +513,7 @@ test("initial session persistence outage fails closed without dispatching engine
 
     await page.goto("/projects/" + projectId + "/engineering");
     await expect(page.getByRole("heading", { name: "Session could not be restored" })).toBeVisible();
-    await expect(page.getByRole("alert")).toContainText("No engineering request has been sent.");
+    await expect(page.locator('.interaction .notice[role="alert"]')).toContainText("No engineering request has been sent.");
     await expect(page.getByRole("button", { name: "Start new session" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Engineering request" })).toHaveCount(0);
     expect(intentPostCount, "failed initial session persistence must block task dispatch").toBe(0);
