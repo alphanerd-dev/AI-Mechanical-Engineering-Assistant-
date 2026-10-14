@@ -16,8 +16,8 @@ class WorkspaceApiError extends Error {
 }
 type WorkspaceRow = { revision: number; snapshot: EngineeringWorkspaceSnapshot };
 
-function jsonError(error: string, status: number) {
-  return NextResponse.json({ error }, { status, headers: { "cache-control": "no-store" } });
+function jsonError(error: string, status: number, extra?: Record<string, unknown>) {
+  return NextResponse.json({ error, ...extra }, { status, headers: { "cache-control": "no-store" } });
 }
 
 async function loadOrInitializeWorkspace(db: Awaited<ReturnType<typeof createClient>>, projectId: string): Promise<WorkspaceRow | null> {
