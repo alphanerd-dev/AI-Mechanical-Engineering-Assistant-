@@ -8,6 +8,7 @@ import { normalizeCADExecutionResult } from "../cad/artifact-manifest.js";
 import { CAD_CODE_WORKER_POLICY, validateCADWorkerRequest } from "../execution/cad-worker-policy.js";
 import { DockerBuild123dWorkerOptions, DockerBuild123dWorkerTransport } from "../execution/docker-build123d-transport.js";
 import { Build123dWorkerExecutor } from "../execution/build123d-worker.js";
+import { PROVIDER_PROMOTION_INVENTORY } from "./promotion-manifest.js";
 
 export interface Build123dCADProviderOptions {
   createExecutionId?: () => string;
@@ -42,6 +43,7 @@ function normalizeFilename(value: unknown): string | undefined {
 export class Build123dCADProvider implements CapabilityProvider {
   readonly id = "cad.build123d";
   readonly capabilities = ["CAD.CREATE_PART", "CAD.EXECUTE_GENERATED_SOURCE"];
+  readonly promotionManifest = PROVIDER_PROMOTION_INVENTORY.find((entry) => entry.providerId === this.id);
 
   private readonly createExecutionId: () => string;
   private readonly now: () => string;
