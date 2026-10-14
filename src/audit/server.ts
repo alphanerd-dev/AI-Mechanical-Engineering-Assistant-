@@ -124,3 +124,4 @@ export async function readEngineeringAuditEvents(
     throw new DurableAuditPersistenceError();
   }
 }
+\nexport { DurableAuditPersistenceError };\n
