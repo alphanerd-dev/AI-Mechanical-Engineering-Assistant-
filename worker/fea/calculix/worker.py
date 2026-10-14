@@ -188,7 +188,7 @@ def parse_dat(path: pathlib.Path):
             continue
 
         parts = line.split()
-        if not parts or not re.fullmatch(r"[+-]?\\d+", parts[0]):
+        if not parts or not re.fullmatch(r"[+-]?\d+", parts[0]):
             # Ignore page headers, summaries, and unrelated output; never continue
             # interpreting numeric content after a non-result header.
             mode = None
