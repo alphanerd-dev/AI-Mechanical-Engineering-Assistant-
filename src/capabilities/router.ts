@@ -1,5 +1,6 @@
 import { CapabilityRequest, CapabilityResult } from "../core/types";
 import { CapabilityProvider, CapabilityRegistry } from "./registry";
+import { providerExecutionBlocked } from "../providers/promotion-manifest.js";
 
 function failure(capability: string, provider: string, error: string): CapabilityResult {
   return { capability, provider, success: false, error };
@@ -76,6 +77,10 @@ export class CapabilityRouter {
 
     let last: CapabilityResult | undefined;
     for (const provider of providers) {
+      if (provider.promotionManifest) {
+        const blockedReason = providerExecutionBlocked(provider.promotionManifest);
+        if (blockedReason) return failure(request.capability, provider.id, blockedReason);
+      }
       let value: unknown;
       try {
         value = await provider.execute(request);
