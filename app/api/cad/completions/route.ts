@@ -5,7 +5,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { persistCADCompletionWithAudit } from "../../../../src/audit/server";
 import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog";
 import { CapabilityRegistry } from "../../../../src/capabilities/registry";
@@ -177,7 +177,7 @@ export async function GET(request: Request) {
   if (!isUuid(projectId)) return httpError("A registered project UUID is required.", 400);
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
-    if (!authorization.allowed) return httpError(authorization.reason, 403);
+    if (!authorization.allowed) return httpError(authorization.reason, authorizationFailureStatus(authorization));
     const db = await createClient();
     const { data, error } = await db
       .from("engineering_cad_completions")
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
       requestId,
       taskId: modelIdentityId,
     });
-    if (!authorization.allowed) return httpError(authorization.reason, 403);
+    if (!authorization.allowed) return httpError(authorization.reason, authorizationFailureStatus(authorization));
     db = await createClient();
     serviceDb = createServiceRoleClient();
   } catch {
