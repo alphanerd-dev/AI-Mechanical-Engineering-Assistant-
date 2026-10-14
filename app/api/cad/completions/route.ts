@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { persistEngineeringAuditEvent } from "../../../../src/audit/server";
 import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog";
 import { CapabilityRegistry } from "../../../../src/capabilities/registry";
 import { CADPartCompletionResult, CADPartCompletionWorkflow } from "../../../../src/cad/completion";
@@ -219,11 +220,15 @@ export async function POST(request: Request) {
   }
   const requirementIds = [...new Set((requirementIdsRaw as string[]).map((item) => item.trim()))];
 
+  const requestId = randomUUID();
   let authorization;
   let db: Awaited<ReturnType<typeof createClient>>;
   let serviceDb: ReturnType<typeof createServiceRoleClient>;
   try {
-    authorization = await authorizeSupabaseRequest("TASK.EXECUTE", projectId);
+    authorization = await authorizeSupabaseRequest("TASK.EXECUTE", projectId, {
+      requestId,
+      taskId: modelIdentityId,
+    });
     if (!authorization.allowed) return httpError(authorization.reason, 403);
     db = await createClient();
     serviceDb = createServiceRoleClient();
@@ -278,6 +283,22 @@ export async function POST(request: Request) {
     };
     const { data, error } = await serviceDb.from("engineering_cad_completions").insert(record).select("*").single();
     if (error || !data) return httpError("The incomplete CAD request could not be recorded.", 503);
+    try {
+      await persistEngineeringAuditEvent({
+        timestamp: new Date().toISOString(),
+        actor: { subject: authorization.subject, actorType: "USER" },
+        action: "TASK_PROPOSE",
+        outcome: "PENDING",
+        projectId,
+        resourceType: "CAD_COMPLETION",
+        resourceId: String(data.id),
+        reason: "CAD intent needs additional input or is unsupported; no CAD execution was reported.",
+        metadata: { status, stage: "INTENT", persisted: true },
+        correlation: { requestId, taskId: modelIdentityId },
+      });
+    } catch {
+      return httpError("The CAD request was saved but its durable audit record could not be confirmed. Check completion history before retrying.", 503);
+    }
     return NextResponse.json({ completion: data, signedUrls: {}, persisted: true }, { status: 200 });
   }
 
@@ -321,6 +342,7 @@ export async function POST(request: Request) {
   const objectPaths = new Map<string, string>();
   const artifactDigests = new Map<string, string>();
   const artifactBytes = new Map<string, Buffer>();
+  let completionPersisted = false;
   try {
     if (result.status === "ACCEPTED") {
       if (!isVerifiedCADCompletion(result) || !result.manifest || !result.bundle) {
@@ -403,6 +425,51 @@ export async function POST(request: Request) {
     };
     const { data, error } = await serviceDb.from("engineering_cad_completions").insert(dbRecord).select("*").single();
     if (error || !data) throw new Error("CAD completion metadata could not be persisted.");
+    completionPersisted = true;
+
+    const receiptRecord = isRecord(receipt) ? receipt : {};
+    const providerId = nonEmpty(result.manifest?.provenance?.providerId) ? result.manifest!.provenance!.providerId : undefined;
+    const artifactSha256 = nonEmpty(receiptRecord.artifactSha256) ? receiptRecord.artifactSha256 : undefined;
+    const validatorReceiptId = nonEmpty(receiptRecord.id) ? receiptRecord.id : undefined;
+    const decisionId = nonEmpty(result.bundle?.evidence.id) ? result.bundle!.evidence.id : undefined;
+    const eventOutcome = result.status === "ACCEPTED"
+      ? "SUCCESS"
+      : ["FAILED", "BLOCKED", "REJECTED"].includes(result.status)
+        ? "FAILURE"
+        : "PENDING";
+    try {
+      await persistEngineeringAuditEvent({
+        timestamp: new Date().toISOString(),
+        actor: { subject: authorization.subject, actorType: "USER" },
+        action: result.status === "ACCEPTED" ? "EVIDENCE_WRITE" : "TASK_EXECUTE",
+        outcome: eventOutcome,
+        projectId,
+        resourceType: "CAD_COMPLETION",
+        resourceId: String(data.id),
+        reason: result.status === "ACCEPTED"
+          ? "CAD completion persisted after independent host validation."
+          : errorStrings(result.errors).join("; ") || undefined,
+        metadata: {
+          status: result.status,
+          stage: result.stage,
+          artifactCount: artifactRecords.length,
+          storageObjectCount: persistedPaths.length,
+          sourceSha256: result.manifest?.provenance?.sourceSha256 ?? null,
+          verified: result.status === "ACCEPTED" && isVerifiedCADCompletion(result),
+        },
+        correlation: {
+          requestId,
+          taskId: modelIdentityId,
+          ...(executionId ? { runId: executionId } : {}),
+          ...(providerId ? { providerId } : {}),
+          ...(artifactSha256 ? { artifactSha256 } : {}),
+          ...(validatorReceiptId ? { validatorReceiptId } : {}),
+          ...(decisionId ? { decisionId } : {}),
+        },
+      });
+    } catch {
+      return httpError("CAD completion is persisted but its durable audit record could not be confirmed. Check completion history before retrying.", 503);
+    }
     return NextResponse.json({
       completion: data,
       signedUrls: await signObjectPaths(db, projectId, persistedPaths),
@@ -410,7 +477,7 @@ export async function POST(request: Request) {
       verified: result.status === "ACCEPTED" && isVerifiedCADCompletion(result)
     }, { status: result.status === "ACCEPTED" ? 201 : result.status === "NEEDS_INPUT" || result.status === "UNSUPPORTED" ? 200 : 422 });
   } catch (error) {
-    if (persistedPaths.length) {
+    if (persistedPaths.length && !completionPersisted) {
       try { await db.storage.from(CAD_ARTIFACT_BUCKET).remove(persistedPaths); } catch { /* Cleanup is best-effort; never report success. */ }
     }
     return httpError(error instanceof Error ? error.message : "CAD completion persistence failed.", 503);

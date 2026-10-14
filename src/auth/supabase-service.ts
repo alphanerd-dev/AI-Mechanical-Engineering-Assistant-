@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { createClient } from "../../lib/supabase/server";
 import { InMemoryAuditTrail } from "../audit/trail";
-import { type AuditActor, type AuditAction, type AuditOutcome } from "../audit/types";
+import { persistEngineeringAuditEvent } from "../audit/server";
+import { type AuditActor, type AuditAction, type AuditCorrelation, type AuditEventInput, type AuditOutcome } from "../audit/types";
 import { authorize } from "./policy";
 import type { AuthenticatedIdentity, EngineeringPermission, EngineeringRole } from "./types";
 import { identityFromSupabaseUser, type SupabaseClaims } from "./supabase-identity";
@@ -58,15 +60,17 @@ function actorType(identity: AuthenticatedIdentity): AuditActor["actorType"] {
   return identity.roles.includes("AGENT") ? "AGENT" : "USER";
 }
 
-function audit(
+async function audit(
   action: AuditAction,
   outcome: AuditOutcome,
   subject: string,
   reason: string,
   metadata: Record<string, unknown>,
   identity?: AuthenticatedIdentity,
-) {
-  auditTrail()?.append({
+  projectId?: string,
+  correlation?: AuditCorrelation,
+): Promise<void> {
+  const input: AuditEventInput = {
     timestamp: new Date().toISOString(),
     actor: {
       subject,
@@ -75,9 +79,26 @@ function audit(
     },
     action,
     outcome,
+    projectId,
     reason,
     metadata,
-  });
+    correlation: {
+      ...(correlation ?? {}),
+      requestId: correlation?.requestId ?? randomUUID(),
+    },
+  };
+  try {
+    await persistEngineeringAuditEvent(input);
+  } catch {
+    logAuthDiagnostic("durable_audit_persistence_failed", {
+      action,
+      outcome,
+      projectIdProvided: Boolean(projectId),
+    });
+    throw new Error("Durable authorization audit is unavailable.");
+  }
+  // Process-local chain is a diagnostic cache only; durable DB write is authoritative.
+  auditTrail().append(input);
 }
 
 export async function getAuthenticatedIdentity(): Promise<AuthenticatedIdentity | null> {
@@ -114,6 +135,7 @@ export async function getAuthenticatedIdentity(): Promise<AuthenticatedIdentity 
 export async function authorizeSupabaseRequest(
   permission: EngineeringPermission,
   projectId?: string,
+  correlation?: AuditCorrelation,
 ) {
   const identity = await getAuthenticatedIdentity();
   if (!identity) {
@@ -124,8 +146,12 @@ export async function authorizeSupabaseRequest(
       subject: "anonymous",
       projectId,
     };
-    audit("AUTHORIZATION", "DENIED", "anonymous", decision.reason, { permission, projectId });
-    return decision;
+    try {
+      await audit("AUTHORIZATION", "DENIED", "anonymous", decision.reason, { permission, projectId }, undefined, projectId, correlation);
+      return decision;
+    } catch {
+      return { ...decision, allowed: false, reason: "Durable authorization audit is unavailable." };
+    }
   }
 
   let decision = authorize({ identity, permission, projectId });
@@ -186,15 +212,21 @@ export async function authorizeSupabaseRequest(
       projectIdProvided: Boolean(projectId),
     });
   }
-  audit(
-    "AUTHORIZATION",
-    decision.allowed ? "ALLOWED" : "DENIED",
-    identity.subject,
-    decision.reason,
-    { permission, projectId, sessionId: identity.sessionId ?? "unknown" },
-    identity,
-  );
-  return decision;
+  try {
+    await audit(
+      "AUTHORIZATION",
+      decision.allowed ? "ALLOWED" : "DENIED",
+      identity.subject,
+      decision.reason,
+      { permission, projectId, sessionId: identity.sessionId ?? "unknown" },
+      identity,
+      projectId,
+      correlation,
+    );
+    return decision;
+  } catch {
+    return { ...decision, allowed: false, reason: "Durable authorization audit is unavailable." };
+  }
 }
 
 export function getAuthenticationAuditTrail() {

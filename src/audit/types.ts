@@ -22,6 +22,16 @@ export interface AuditActor{
   actorType:"USER"|"AGENT"|"SYSTEM";
 }
 
+export interface AuditCorrelation {
+  requestId?:string;
+  taskId?:string;
+  runId?:string;
+  providerId?:string;
+  artifactSha256?:string;
+  validatorReceiptId?:string;
+  decisionId?:string;
+}
+
 export interface AuditEventInput{
   timestamp:string;
   actor:AuditActor;
@@ -32,6 +42,7 @@ export interface AuditEventInput{
   resourceId?:string;
   reason?:string;
   metadata?:Record<string,unknown>;
+  correlation?:AuditCorrelation;
 }
 
 export interface AuditEvent extends AuditEventInput{

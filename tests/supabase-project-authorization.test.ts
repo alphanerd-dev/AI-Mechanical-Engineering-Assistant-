@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "../lib/supabase/server.js";
+import { persistEngineeringAuditEvent } from "../src/audit/server.js";
 import { authorizeSupabaseRequest } from "../src/auth/supabase-service.js";
 
 vi.mock("../lib/supabase/server.js", () => ({
   createClient: vi.fn(),
 }));
+vi.mock("../src/audit/server.js", () => ({
+  persistEngineeringAuditEvent: vi.fn(),
+}));
 
 const mockCreateClient = vi.mocked(createClient);
+const mockPersistAudit = vi.mocked(persistEngineeringAuditEvent);
 
 function configureSupabase(input: {
   userId?: string;
@@ -50,6 +55,17 @@ function configureSupabase(input: {
 describe("project-scoped Supabase authorization", () => {
   beforeEach(() => {
     mockCreateClient.mockReset();
+    mockPersistAudit.mockReset();
+    mockPersistAudit.mockResolvedValue({} as never);
+  });
+
+  it("denies access when durable authorization audit persistence is unavailable", async () => {
+    configureSupabase({ projectRole: "ENGINEER" });
+    mockPersistAudit.mockRejectedValueOnce(new Error("audit DB unavailable"));
+
+    const decision = await authorizeSupabaseRequest("PROJECT.WRITE", "project-1");
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe("Durable authorization audit is unavailable.");
   });
 
   it("allows a request only when the verified user has a current project membership", async () => {
