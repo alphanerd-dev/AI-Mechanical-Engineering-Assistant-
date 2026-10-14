@@ -52,13 +52,19 @@ class WorkerTests(unittest.TestCase):
 
  1 0.0 0.3 0.4
 
-reaction forces (fx,fy,fz) for set FIXED and time 1.0
+number of equations 570
+ 2 999999.0 999999.0 999999.0
+
+forces (fx,fy,fz) for set FIXED and time 1.0
 
  1 0.0 100.0 0.0
 
 stresses (elem, integ.pnt.,sxx,syy,szz,sxy,sxz,syz) for set EALL and time 1.0
 
  1 1 100.0 0.0 0.0 0.0 0.0 0.0
+
+other report header
+ 10 123456.0 123456.0 123456.0 123456.0 123456.0 123456.0 123456.0
 
 """
         with tempfile.TemporaryDirectory() as tmp:
