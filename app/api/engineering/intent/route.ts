@@ -172,6 +172,7 @@ export async function PUT(request: Request) {
       snapshotRevision = existing.snapshotRevision + 1;
       await store.save({
         ...existing,
+        snapshotRevision,
         conversation,
         updatedAt: now,
       }, { expectedRevision: existing.snapshotRevision });
