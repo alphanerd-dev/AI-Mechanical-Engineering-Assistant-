@@ -280,7 +280,7 @@ begin
     p_completion->>'stage',
     p_completion->>'raw_intent',
     p_completion->'intent_resolution',
-    nullif(p_completion->'specification', 'null'::jsonb),
+    p_completion->'specification',
     p_completion->>'source_sha256',
     coalesce(p_completion->'artifact_records', '[]'::jsonb),
     coalesce(p_completion->'engineering_artifacts', '[]'::jsonb),
