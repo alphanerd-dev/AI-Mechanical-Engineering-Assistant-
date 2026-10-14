@@ -1,9 +1,12 @@
 import {CapabilityDefinition,CapabilityRequest,CapabilityResult} from "../core/types";
+import type { ProviderPromotionManifest } from "../providers/promotion-manifest.js";
 
 export interface CapabilityProvider {
   id:string;
   capabilities:string[];
   execute(request:CapabilityRequest):Promise<CapabilityResult>;
+  /** Optional evidence manifest for providers with an explicit promotion lifecycle. */
+  promotionManifest?: ProviderPromotionManifest;
 }
 
 export class CapabilityRegistry {
