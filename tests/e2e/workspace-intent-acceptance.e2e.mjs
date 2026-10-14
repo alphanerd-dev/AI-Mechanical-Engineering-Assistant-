@@ -348,6 +348,8 @@ test("engineering conversation and decision restore after full browser reload", 
 
     await page.goto("/projects/" + projectId + "/engineering");
     await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await expect(page.locator(".conversation")).toHaveAttribute("aria-live", "polite");
+    await expect(page.getByRole("button", { name: "Run engineering task" })).toBeVisible();
 
     const requestBox = page.getByRole("textbox", { name: "Engineering request" });
     await expect(requestBox).toBeEnabled();
@@ -381,6 +383,143 @@ test("engineering conversation and decision restore after full browser reload", 
   } finally {
     await testInfo.attach("browser-refresh-diagnostics.json", {
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+      contentType: "application/json",
+    });
+    await context.close().catch(() => undefined);
+  }
+});
+
+
+test("provider outage is shown and the failed turn remains recoverable after reload", async ({ browser }, testInfo) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  const diagnostics = { pageErrors: [], unexpectedServerErrors: [] };
+  let intentPostCount = 0;
+
+  page.on("pageerror", (error) => diagnostics.pageErrors.push(String(error.message).slice(0, 500)));
+  page.on("response", (response) => {
+    if (response.status() >= 500) {
+      let pathname = "/";
+      try { pathname = new URL(response.url()).pathname; } catch {}
+      const expectedInjectedFailure =
+        pathname === "/api/engineering/intent" && response.request().method() === "POST";
+      if (!expectedInjectedFailure) {
+        diagnostics.unexpectedServerErrors.push({ status: response.status(), pathname });
+      }
+    }
+  });
+
+  try {
+    await signIn(page, userAEmail, userAPassword);
+    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+    const projectName = "E2E provider outage " + suffix;
+    const createResponse = await page.request.post("/api/projects", {
+      data: {
+        name: projectName,
+        problemStatement: "Disposable project for simulated provider outage recovery acceptance.",
+      },
+    });
+    expect(createResponse.status()).toBe(201);
+    const projectId = (await createResponse.json()).project?.id;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    await page.route("**/api/engineering/intent", async (route) => {
+      if (route.request().method() === "POST") {
+        intentPostCount += 1;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Simulated provider outage" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto("/projects/" + projectId + "/engineering");
+    await expect(page.getByRole("textbox", { name: "Engineering request" })).toBeEnabled();
+    const prompt = "Calculate shaft torque for 5 kW at 1500 rpm.";
+    await page.getByRole("textbox", { name: "Engineering request" }).fill(prompt);
+    await page.getByRole("button", { name: "Run engineering task" }).click();
+
+    await expect(page.getByRole("alert").filter({ hasText: "Simulated provider outage" })).toBeVisible();
+    await expect(page.locator(".message.engineer p", { hasText: prompt })).toBeVisible();
+    await expect(page.locator(".message.assistant p", {
+      hasText: "The engineering service did not return a usable decision.",
+    })).toBeVisible();
+    await expect(page.locator(".decisionCard")).toHaveCount(0);
+    expect(intentPostCount).toBe(1);
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await expect(page.getByText(prompt, { exact: true })).toBeVisible();
+    await expect(page.getByText(
+      "The engineering service did not return a usable decision. The submitted request remains in the saved conversation when storage is available.",
+      { exact: true },
+    )).toBeVisible();
+    await expect(page.locator(".decisionCard")).toHaveCount(0);
+    expect(intentPostCount, "reload must restore history, not resubmit the engineering task").toBe(1);
+
+    expect(diagnostics.pageErrors, "unhandled browser JavaScript errors").toEqual([]);
+    expect(diagnostics.unexpectedServerErrors, "unexpected non-injected HTTP 5xx responses").toEqual([]);
+  } finally {
+    await testInfo.attach("provider-outage-diagnostics.json", {
+      body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+      contentType: "application/json",
+    });
+    await context.close().catch(() => undefined);
+  }
+});
+
+test("initial session persistence outage fails closed without dispatching engineering work", async ({ browser }, testInfo) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  let intentPostCount = 0;
+
+  try {
+    await signIn(page, userAEmail, userAPassword);
+    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+    const projectName = "E2E session outage " + suffix;
+    const createResponse = await page.request.post("/api/projects", {
+      data: {
+        name: projectName,
+        problemStatement: "Disposable project for fail-closed initial session persistence acceptance.",
+      },
+    });
+    expect(createResponse.status()).toBe(201);
+    const projectId = (await createResponse.json()).project?.id;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    await page.route("**/api/engineering/intent", async (route) => {
+      if (route.request().method() === "PUT") {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Simulated session storage outage" }),
+        });
+        return;
+      }
+      if (route.request().method() === "POST") intentPostCount += 1;
+      await route.continue();
+    });
+
+    await page.goto("/projects/" + projectId + "/engineering");
+    await expect(page.getByRole("heading", { name: "Session could not be restored" })).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("No engineering request has been sent.");
+    await expect(page.getByRole("button", { name: "Start new session" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Engineering request" })).toHaveCount(0);
+    expect(intentPostCount, "failed initial session persistence must block task dispatch").toBe(0);
+
+    expect(await page.evaluate(() => sessionStorage.length)).toBeGreaterThan(0);
+  } finally {
+    await testInfo.attach("initial-session-outage-diagnostics.json", {
+      body: Buffer.from(JSON.stringify({ intentPostCount }), null, 2),
       contentType: "application/json",
     });
     await context.close().catch(() => undefined);
