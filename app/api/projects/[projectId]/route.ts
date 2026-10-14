@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
+import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { inventoryProjectArtifacts, inventoryProjectStorageArtifacts, removeProjectArtifacts } from "../../../../src/projects/artifact-cleanup";
 
@@ -233,7 +234,11 @@ export async function DELETE(_request: Request, context: RouteContext) {
       );
     }
 
-    const { data: deleted, error: deleteError } = await db
+    // Use the server-only service client only after authentication, owner verification,
+    // complete storage inventory, removal, and post-removal verification. Authenticated
+    // clients must not be able to bypass this cleanup by calling PostgREST DELETE directly.
+    const cleanupDb = createServiceRoleClient();
+    const { data: deleted, error: deleteError } = await cleanupDb
       .from("engineering_projects")
       .delete()
       .eq("id", projectId)
