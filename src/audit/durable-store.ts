@@ -108,7 +108,7 @@ export function buildDurableAuditRecord(input: AuditEventInput): DurableAuditWri
   assertAuditEventInput(input);
   const metadata = stableValue(input.metadata ?? {});
   if (!isRecord(metadata)) throw new Error("Audit metadata must be an object.");
-  const withoutHash: Omit<DurableAuditRecord, "event_hash"> = {
+  const withoutHash: Omit<DurableAuditWriteRecord, "event_hash"> = {
     event_id: randomUUID(),
     occurred_at: new Date(input.timestamp).toISOString(),
     actor_subject: input.actor.subject,
