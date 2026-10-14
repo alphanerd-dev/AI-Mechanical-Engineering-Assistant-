@@ -2,6 +2,8 @@
 -- Keep destructive project lifecycle operations behind the server cleanup route.
 revoke delete on table public.engineering_projects from public, anon, authenticated;
 drop policy if exists engineering_projects_delete_owner on public.engineering_projects;
+-- The owner-checked API uses service_role only after storage cleanup and verification.
+grant delete on table public.engineering_projects to service_role;
 -- Append-only application writes must go through these SECURITY DEFINER functions.
 -- Existing V2.0.25 events are backfilled in a deterministic order before enforcement.
 
