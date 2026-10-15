@@ -918,7 +918,7 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     diagnostics.projectId = projectId;
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
 
-    const readinessResponse = await page.request.get("/api/cad/readiness?projectId=" + encodeURIComponent(projectId));
+    // The production readiness helper caps remote Render cold-start probing at 45 s.\n    // Give the API request bounded headroom beyond that probe, rather than the 15 s default.\n    const readinessResponse = await page.request.get("/api/cad/readiness?projectId=" + encodeURIComponent(projectId), { timeout: 60_000 });
     const readinessBody = await readinessResponse.json();
     diagnostics.readiness = { status: readinessResponse.status(), body: readinessBody };
     expect(
