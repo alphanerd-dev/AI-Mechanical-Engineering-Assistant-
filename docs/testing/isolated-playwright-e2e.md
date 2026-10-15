@@ -1,53 +1,68 @@
 # Isolated Playwright E2E acceptance runbook
 
+**Last reviewed:** 15 October 2026
+
 ## Safety contract
 
-The Playwright workflow is manual-only. It must target a dedicated, non-production E2E deployment backed by a dedicated Supabase project and disposable test accounts. It must not target production or the shared development Supabase project. There is no shared-database override.
+Playwright is manual-only and must target a dedicated, non-production E2E deployment backed by the dedicated Supabase E2E project and disposable test accounts. It must not target production or shared-development Supabase. There is no shared-database override.
 
-The workflow's project-reference comparison is a guardrail, not proof of the target deployment's runtime configuration. An operator must verify the E2E deployment uses the project identified by `E2E_SUPABASE_PROJECT_REF` before dispatching the workflow. Never run the browser suite until that verification is complete.
+The exact run-time hostname allowlist, canonical authentication origin, E2E/production project-reference inequality and explicit confirmation are fail-closed guardrails. They do not substitute for verifying the deployment's runtime Supabase configuration. Do not run browser tests unless the deployment is confirmed to use the dedicated E2E project.
+
+**Environment policy:** the E2E Supabase project is for acceptance testing only, not feature development. Author application and schema changes on the feature branch as reviewed source and migration files. Apply reviewed migrations to production separately. Never copy E2E test records into production.
 
 ## GitHub Actions environment
 
-Create a protected GitHub Actions environment named `e2e-staging`. Configure these environment variables:
+The protected Actions environment is named `e2e-staging`.
 
-- `E2E_ALLOWED_HOSTS`: comma-separated exact hostnames for dedicated E2E deployments only (no URL scheme, path, wildcard, or production host).
-- `E2E_SUPABASE_PROJECT_REF`: the dedicated E2E Supabase project reference.
-- `PRODUCTION_SUPABASE_PROJECT_REF`: the production Supabase project reference, used only for a fail-closed inequality check.
+Required environment variables:
+- `E2E_ALLOWED_HOSTS`: exact dedicated E2E hostnames only; no wildcard and no production hostname.
+- `E2E_CANONICAL_BASE_URL`: canonical HTTPS origin used by authentication redirects.
+- `E2E_SUPABASE_PROJECT_REF`: dedicated E2E Supabase project reference.
+- `E2E_SUPABASE_PUBLISHABLE_KEY`: E2E public/publishable key.
+- `PRODUCTION_SUPABASE_PROJECT_REF`: production project reference for an explicit inequality check.
 
-Configure these environment secrets using two disposable E2E accounts in the isolated project:
-
+Required disposable-account secrets:
 - `E2E_USER_A_EMAIL`
 - `E2E_USER_A_PASSWORD`
 - `E2E_USER_B_EMAIL`
 - `E2E_USER_B_PASSWORD`
 
-Do not reuse personal, production, or real-user accounts. Restrict who can use the `e2e-staging` environment.
+Restrict who can use `e2e-staging`. Never reuse personal, production or real-user accounts.
 
-## Verify the target deployment before running
+## Current isolated environment
 
-1. Provision the dedicated Supabase E2E project and apply the repository migrations.
-2. Create two disposable test users and provision the expected ENGINEER role using the same supported setup path used by the application.
-3. Configure the dedicated E2E deployment's Supabase URL and keys to that E2E project. Do not copy production secrets.
-4. Verify the project reference in the deployment configuration matches `E2E_SUPABASE_PROJECT_REF`; separately verify it differs from `PRODUCTION_SUPABASE_PROJECT_REF`.
-5. Confirm `E2E_BASE_URL` is an exact hostname listed in `E2E_ALLOWED_HOSTS`, and that it resolves to the E2E deployment.
-6. Dispatch **Playwright User Journey E2E** in GitHub Actions and set `confirm_isolated_environment` to true only after completing these checks.
-7. Retain the workflow run, HTML report, traces, screenshots, and diagnostics as acceptance evidence.
+- E2E Supabase project: [AI-Mechanical-Engineering-Assistant-E2E](https://supabase.com/dashboard/project/mpbrlegwrrrfpeumtqhi), ref `mpbrlegwrrrfpeumtqhi`.
+- Production Supabase project: [AI Mechanical Engineering Assistant](https://supabase.com/dashboard/project/mepmogsqhxxasahwhete), ref `mepmogsqhxxasahwhete`.
+- Dedicated E2E Preview: [isolated branch preview](https://ai-mechanical-engineering-assistan-git-730bea-ahmtechs-projects.vercel.app).
+- Feature branch: `implementation/p3-isolated-browser-acceptance-2026-10-14`.
 
-If any check is uncertain, do not dispatch the workflow. The workflow installs the pinned runner version `@playwright/test@1.64.0` after `npm ci`; the application lockfile remains unchanged. Node.js 22 and Chromium are used by CI.
+Before dispatching a workflow, check the supplied base URL uses HTTPS, contains no credentials/query/fragment, matches the canonical auth origin, and its exact host is on the allowlist. Verify the deployment uses the E2E ref shown above and that the configured production reference is different. Confirm only after all checks pass.
 
-## Current coverage and follow-up
+## Latest acceptance evidence
 
-### Verified acceptance evidence (14 October 2026)
+- **Isolated user-journey run:** [workflow run #21](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38703092953) passed 9/9 tests at source head `bace5106e5440694406ff9faecb7e27aa617f122`. The retained [Playwright report, traces, screenshots and diagnostics](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38703092953/artifacts/11957421947) has SHA-256 `d2b77e0445b41e301be6290263b7e5dbd401c43980b7958e7e63913269517ccd` and was scheduled to expire 29 October 2026.
+- **Opt-in accepted CAD path:** [workflow run #38729950415](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38729950415) was dispatched 15 October 2026 at source head `11ffdf6b02e9dd6a2e47f725f70419da95bcf03e`, with `test_accepted_cad_completion=true`. The preflight, npm dependency install, pinned Playwright/axe helper install, and Chromium install passed. At the time of this runbook update, the end-to-end test step was still in progress. Do not mark the live accepted CAD-to-audit path VERIFIED until the run finishes successfully and its retained artifact is inspected.
+- [Engineering Core CI](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38697962156), [ESLint](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38697962186), [CodeQL Advanced](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38697962076), [Codacy](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38697962185), and [Provider Benchmark Gates](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38697962184) passed at the earlier source head recorded in the PR. The CAD benchmark ran three analytic fixtures on build123d 0.13.0 and CadQuery 2.8.0. This small regression suite does not itself certify either provider for safety-critical use.
 
-- **Latest successful isolated run:** [Playwright User Journey E2E #9](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38551269683) — **2 passed in 38.9 seconds**.
-- **Retained report/traces/diagnostics:** [playwright-e2e-evidence artifact](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38551269683/artifacts/11886891828).
-- The run was dispatched on branch `implementation/p3-isolated-browser-acceptance-2026-10-14`, commit `1f0cdaa010032c48a74230e02cb352fb9b926754`, to the explicitly allowlisted stable branch-preview hostname and the dedicated E2E Supabase project. The preflight confirmed the E2E project ref differs from the configured production project ref.
-- `user-journey.e2e.mjs` verifies sign-in, project creation and persistence after reload, sign-out/anonymous API denial, and cross-user project isolation.
-- `workspace-intent-acceptance.e2e.mjs` verifies durable workspace reads/writes, stale workspace-revision rejection, deterministic shaft-torque output with linked evidence, engineering-intent NEEDS_INPUT / validated WAITING_APPROVAL / invalid-proposal failure, conversation save/restore and session revision conflicts, plus user-B and anonymous direct API denial.
-- [Engineering Core CI #676](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38551113321) passed, including `npm test`, the Python worker tests, CAD/FEA runtime smoke tests, and the production-provider CAD acceptance path. ESLint, CodeQL Advanced, and Codacy Security Scan also passed for this commit.
+The current browser suite includes:
+- Accessible keyboard sign-in/sign-out, sign-in and owner-scoped project persistence, and cross-user isolation.
+- Durable workspace/session round-trip over full browser reload; revision conflict and stale-write coverage.
+- Provider-request and session-restoration outage behavior, including not silently substituting a new session.
+- CAD NEEDS_INPUT durability/audit correlation without executing the CAD worker.
+- Owner-scoped and revision-guarded project GET/PATCH/DELETE, artifact cleanup and post-delete checks.
+- An opt-in live accepted CAD path validating readiness, a project-scoped CAD model, a fully specified cylindrical shaft, accepted completion, private artifact readback and SHA-256, independent geometry validation receipt, correlated durable audit event, audit-chain verification and project/artifact cleanup.
+- An axe WCAG 2.1/2.2 AA automated scan for login, authenticated project list and engineering workspace.
 
-The acceptance work found and fixed two session-revision defects: the conversation-save route now passes the incremented snapshot revision to the store, and the Supabase session read projection now includes `snapshot_revision`. The store test double now respects selected columns and asserts that an updated session restores at revision 2.
+A green run proves only the checks that actually ran. Keep unrun or failed tests visible and retain the exact commit SHA, workflow URL and evidence artifact.
 
-### Remaining coverage gaps
+## Supabase migration history warning
 
-A green run proves only the assertions above. Follow-up acceptance work remains for the complete direct-API list/read/update/delete matrix, provider/network failure browser journeys, real browser refresh/resume (as distinct from API save/restore), accessibility checks, and additional malformed-input/storage-outage cases. Do not interpret this run as a full security audit or proof that all features are production-ready.
+Both production and E2E report migration names V2.0.23–V2.0.28 as applied, and the core public schema was checked for parity. Their *remote migration-version timestamps* differ from the canonical timestamps in repository migration filenames, and also differ between each remote project.
+
+Do not run `supabase db push` until the local/remote histories are reconciled. Use the official [Supabase migration list and repair workflow](https://supabase.com/docs/reference/cli/supabase-migration-list) to inspect and correct the remote ledger with `supabase migration repair`, which changes migration tracking rather than re-executing migration SQL. Repair each project independently, then run `supabase migration list` and retain both outputs. Do not edit Supabase's internal migration-history table with ad-hoc SQL. Schema parity is not proof that future deploys are reproducible until the ledger check passes.
+
+## Production release boundary
+
+Production Supabase V2.0.23–V2.0.28 have been applied and verified. Production Vercel has **not** been redeployed with the feature-branch route changes and remains on main commit `cbc804253162f7209b75c7ec70a14b6b33f82313`. The deployed route therefore must not be described as using the newer atomic CAD-completion/audit integration yet.
+
+Merge/release only after the issue's acceptance gates and review are complete. A production application deployment is a separate, explicit release step, not a side effect of testing. After release, verify production health, access control, project ownership and audit-chain behavior with safe, non-destructive checks; never run the Playwright mutation suite against production.
