@@ -881,3 +881,211 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
     if (contextA) await contextA.close().catch(() => undefined);
   }
 });
+
+
+test("OPT-IN live accepted CAD completion persists artifacts and independently verifiable atomic audit correlation", async ({ browser }, testInfo) => {
+  test.skip(
+    process.env.E2E_RUN_ACCEPTED_CAD_SMOKE !== "true",
+    "Opt-in only: exercises a real CAD worker and writes then removes disposable artifacts in the dedicated E2E project.",
+  );
+  test.setTimeout(240_000);
+
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const suffix = randomUUID();
+  const projectName = "E2E accepted CAD atomic audit " + suffix;
+  const diagnostics = { projectId: null, modelIdentityId: null, completionId: null, readiness: null, auditEvent: null, cleanup: null };
+  const context = await browser.newContext({ baseURL });
+  let page;
+  let projectId;
+  let modelIdentityId;
+
+  try {
+    page = await context.newPage();
+    await signIn(page, userAEmail, userAPassword);
+
+    const projectResponse = await page.request.post("/api/projects", {
+      data: {
+        name: projectName,
+        problemStatement: "Opt-in E2E: verify one accepted CAD result and its atomic durable audit, using disposable artifacts.",
+      },
+    });
+    expect(projectResponse.status(), "disposable project creation must succeed in the isolated E2E project").toBe(201);
+    const projectBody = await projectResponse.json();
+    projectId = projectBody.project?.id;
+    diagnostics.projectId = projectId;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const readinessResponse = await page.request.get("/api/cad/readiness?projectId=" + encodeURIComponent(projectId));
+    const readinessBody = await readinessResponse.json();
+    diagnostics.readiness = { status: readinessResponse.status(), body: readinessBody };
+    expect(
+      readinessResponse.status(),
+      "live CAD readiness must pass before submitting execution; checks=" + JSON.stringify(readinessBody?.checks ?? readinessBody),
+    ).toBe(200);
+    expect(readinessBody).toMatchObject({ projectId, ready: true, status: "READY" });
+
+    const modelResponse = await page.request.post("/api/cad/models", {
+      data: { projectId, name: "E2E accepted cylindrical shaft " + suffix },
+    });
+    expect(modelResponse.status(), "a project-scoped CAD model identity should be created").toBe(201);
+    const modelBody = await modelResponse.json();
+    modelIdentityId = modelBody.model?.id;
+    diagnostics.modelIdentityId = modelIdentityId;
+    expect(modelIdentityId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const completionResponse = await page.request.post("/api/cad/completions", {
+      data: {
+        projectId,
+        modelIdentityId,
+        rawIntent: "Create a cylindrical shaft with a diameter of 30 mm and a length of 200 mm.",
+      },
+      timeout: 180_000,
+    });
+    const completionBody = await completionResponse.json();
+    const completion = completionBody?.completion;
+    diagnostics.completionId = completion?.id ?? null;
+    expect(
+      completionResponse.status(),
+      "fully specified request must reach an accepted, persisted completion; body=" + JSON.stringify({
+        status: completionResponse.status(),
+        error: completionBody?.error,
+        code: completionBody?.code,
+        completionStatus: completion?.status,
+        completionStage: completion?.stage,
+      }),
+    ).toBe(201);
+    expect(completion).toMatchObject({
+      id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      project_id: projectId,
+      model_identity_id: modelIdentityId,
+      status: "ACCEPTED",
+      execution_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+    });
+    expect(completionBody).toMatchObject({ persisted: true, verified: true });
+    expect(Array.isArray(completion.storage_objects)).toBe(true);
+    expect(completion.storage_objects.length).toBeGreaterThanOrEqual(5);
+    expect(Array.isArray(completion.artifact_records)).toBe(true);
+    for (const kind of ["SOURCE", "SOLID", "STEP", "STL", "THREE_MF"]) {
+      const artifact = completion.artifact_records.find((item) => item?.kind === kind);
+      expect(artifact, "accepted completion must persist " + kind + " artifact metadata").toBeTruthy();
+      expect(artifact.validationStatus === "PASS" || kind !== "SOLID").toBe(true);
+      expect(artifact.provenance?.artifactSha256, kind + " artifact must include a host-computed SHA-256").toMatch(/^[a-f0-9]{64}$/);
+      expect(
+        Object.entries(completionBody.signedUrls ?? {}).some(([objectPath, signedUrl]) =>
+          completion.storage_objects.includes(objectPath) && typeof signedUrl === "string" && signedUrl.startsWith("https://")
+        ),
+        "accepted artifacts must include a short-lived signed URL for persisted object(s)",
+      ).toBe(true);
+    }
+    expect(completion.validation_receipt).toMatchObject({
+      validatorProviderId: "cad.occt",
+      validation: { valid: true, solidCount: 1 },
+    });
+    const receipt = completion.validation_receipt;
+    expect(receipt.id).toEqual(expect.any(String));
+    expect(receipt.artifactSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const auditResponse = await page.request.get("/api/engineering/audit?projectId=" + encodeURIComponent(projectId) + "&limit=200");
+    const auditBody = await auditResponse.json();
+    expect(
+      auditResponse.status(),
+      "authorized audit read must independently verify the durable hash chain; body=" + JSON.stringify(auditBody),
+    ).toBe(200);
+    expect(auditBody).toMatchObject({ projectId, verified: true, chainIntegrity: { verified: true } });
+    const auditEvent = (auditBody.events ?? []).find((event) =>
+      event?.resource_type === "CAD_COMPLETION" && event?.resource_id === completion.id
+    );
+    expect(auditEvent, "an append-only audit event for this exact completion must exist").toBeTruthy();
+    expect(auditEvent).toMatchObject({
+      action: "EVIDENCE_WRITE",
+      outcome: "SUCCESS",
+      project_id: projectId,
+      resource_type: "CAD_COMPLETION",
+      resource_id: completion.id,
+      task_id: modelIdentityId,
+      run_id: completion.execution_id,
+      provider_id: receipt.providerId ?? receipt.provider_id ?? expect.any(String),
+      artifact_sha256: receipt.artifactSha256,
+      validator_receipt_id: receipt.id,
+      decision_id: expect.any(String),
+    });
+    expect(typeof auditEvent.request_id).toBe("string");
+    expect(auditEvent.request_id.length).toBeGreaterThan(0);
+    expect(auditEvent.chain_sequence).toEqual(expect.any(Number));
+    expect(auditEvent.chain_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(auditEvent.event_hash).toMatch(/^[a-f0-9]{64}$/);
+    diagnostics.auditEvent = {
+      event_id: auditEvent.event_id,
+      action: auditEvent.action,
+      outcome: auditEvent.outcome,
+      project_id: auditEvent.project_id,
+      resource_id: auditEvent.resource_id,
+      request_id: auditEvent.request_id,
+      task_id: auditEvent.task_id,
+      run_id: auditEvent.run_id,
+      provider_id: auditEvent.provider_id,
+      artifact_sha256: auditEvent.artifact_sha256,
+      validator_receipt_id: auditEvent.validator_receipt_id,
+      decision_id: auditEvent.decision_id,
+      chain_sequence: auditEvent.chain_sequence,
+      event_hash: auditEvent.event_hash,
+      chain_hash: auditEvent.chain_hash,
+    };
+    await testInfo.attach("accepted-cad-atomic-audit-evidence.json", {
+      body: Buffer.from(JSON.stringify({
+        sourceHead: process.env.GITHUB_SHA ?? "not-provided",
+        projectId,
+        modelIdentityId,
+        completionId: completion.id,
+        executionId: completion.execution_id,
+        completionStatus: completion.status,
+        persisted: completionBody.persisted,
+        verified: completionBody.verified,
+        storageObjects: completion.storage_objects,
+        artifacts: completion.artifact_records.map((item) => ({
+          kind: item.kind,
+          validationStatus: item.validationStatus,
+          informationStatus: item.informationStatus,
+          artifactSha256: item.provenance?.artifactSha256,
+        })),
+        validationReceipt: receipt,
+        independentlyVerifiedChain: auditBody.chainIntegrity,
+        correlatedAuditEvent: diagnostics.auditEvent,
+      }, null, 2)),
+      contentType: "application/json",
+    });
+  } finally {
+    if (projectId && page) {
+      const cleanupResponse = await page.request.delete("/api/projects/" + projectId).catch(() => null);
+      if (!cleanupResponse) {
+        diagnostics.cleanup = { status: "REQUEST_FAILED" };
+        await testInfo.attach("accepted-cad-cleanup-diagnostics.json", {
+          body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+          contentType: "application/json",
+        });
+        throw new Error("Disposable accepted-CAD project cleanup request failed.");
+      }
+      const cleanupBody = await cleanupResponse.json().catch(() => ({}));
+      diagnostics.cleanup = { status: cleanupResponse.status(), body: cleanupBody };
+      expect(
+        cleanupResponse.status(),
+        "disposable project and generated CAD objects must clean up even when the acceptance path fails; body=" + JSON.stringify(cleanupBody),
+      ).toBe(200);
+      expect(cleanupBody).toMatchObject({
+        projectId,
+        deleted: true,
+        artifactCleanup: { status: "COMPLETED", objectsRemaining: 0 },
+      });
+      if (diagnostics.completionId) {
+        expect(Number(cleanupBody.artifactCleanup?.objectsRemoved ?? 0)).toBeGreaterThanOrEqual(1);
+      }
+    }
+    await testInfo.attach("accepted-cad-test-diagnostics.json", {
+      body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+      contentType: "application/json",
+    });
+    await context.close().catch(() => undefined);
+  }
+});
