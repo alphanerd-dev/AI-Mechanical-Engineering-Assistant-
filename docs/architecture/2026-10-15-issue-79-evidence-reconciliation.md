@@ -61,3 +61,15 @@ Production V2.0.23–V2.0.28 database migrations are applied, with schema, data-
 Do not call the live production feature complete until an explicitly approved production release is deployed and health/authorization/audit checks pass. Keep the E2E workflow manual, allowlisted, and guarded by unequal E2E/production project references.
 
 **Product doctrine:** AI proposes. Deterministic systems execute. Validation decides. Evidence proves.
+
+## P5 — predictive-maintenance synthetic screening gate
+
+PR [#85](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/85) adds a dependency-free evaluator, a versioned synthetic labelled-signal fixture, unit tests, and a dedicated CI workflow. Its declared screening contract is sensitivity ≥ 0.90, specificity ≥ 0.90, false-alarm rate ≤ 0.10, with all out-of-domain examples rejected.
+
+- The fixture is hand-authored synthetic data (10 HEALTHY and 10 FAULT records), not field measurements or customer telemetry.
+- Expected results for that fixture are 9 true positives, 1 false positive, 9 true negatives, and 1 false negative; three out-of-domain records must be rejected.
+- The evaluator validates nested schema sections, numeric rule/gate bounds, record object/label types, strict schema-version type, and unique IDs across known and out-of-domain cases. Invalid configuration fails closed.
+- A passing report verifies only this synthetic evaluator contract. It does not validate field accuracy, establish diagnostic safety, or promote/register a predictive-maintenance provider. A measured, labelled, representative dataset and independent domain review remain required.
+
+The exact-head CI and retained report must pass before classifying this slice as **VERIFIED AT REVISION**.
+
