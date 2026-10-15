@@ -818,6 +818,31 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
     expect(ownerReadAfterForeignAttempts.status()).toBe(200);
     expect((await ownerReadAfterForeignAttempts.json()).project.name).toBe(updatedName);
 
+    await test.step("Reject anonymous project list, read, update, and delete requests", async () => {
+      await pageA.getByRole("navigation", { name: "Account" }).getByRole("button", { name: "Sign out" }).click();
+      await expect(pageA).toHaveURL(/\\/login(?:\\?.*)?$/);
+
+      const anonymousList = await pageA.request.get("/api/projects");
+      expect([401, 403, 404]).toContain(anonymousList.status());
+
+      const anonymousRead = await pageA.request.get(pathPrefix + projectId);
+      expect([401, 403, 404]).toContain(anonymousRead.status());
+      expect((await anonymousRead.json()).project).toBeUndefined();
+
+      const anonymousPatch = await pageA.request.patch(pathPrefix + projectId, {
+        data: { expectedRevision: 2, name: "Anonymous rename attempt" },
+      });
+      expect([401, 403, 404]).toContain(anonymousPatch.status());
+
+      const anonymousDelete = await pageA.request.delete(pathPrefix + projectId);
+      expect([401, 403, 404]).toContain(anonymousDelete.status());
+
+      await signIn(pageA, userAEmail, userAPassword);
+      const projectAfterAnonymousAttempts = await pageA.request.get(pathPrefix + projectId);
+      expect(projectAfterAnonymousAttempts.status()).toBe(200);
+      expect((await projectAfterAnonymousAttempts.json()).project.name).toBe(updatedName);
+    });
+
     const projectRef = requiredEnv("E2E_SUPABASE_PROJECT_REF");
     const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
     const accessToken = accessTokenFromContextCookies(await contextA.cookies([baseURL]), projectRef);
