@@ -21,6 +21,11 @@ on:
 permissions:
   contents: read
 
+# The dedicated Render worker is deliberately single-slot; never overlap real CAD E2E runs.
+concurrency:
+  group: engineering-assistant-isolated-playwright-e2e
+  cancel-in-progress: false
+
 jobs:
   user-journey:
     name: Auth, persistence, and ownership
