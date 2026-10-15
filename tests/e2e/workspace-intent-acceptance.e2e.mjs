@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { test, expect } from "@playwright/test";
 
 function requiredEnv(name) {
@@ -52,7 +53,7 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
   const userBEmail = requiredEnv("E2E_USER_B_EMAIL");
   const userBPassword = requiredEnv("E2E_USER_B_PASSWORD");
-  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const suffix = randomUUID();
   const projectName = "E2E API acceptance " + suffix;
   const sessionId = "e2e-session-" + suffix;
   const diagnostics = { pageErrors: [], serverErrors: [] };
@@ -354,7 +355,7 @@ test("engineering conversation and decision restore after full browser reload", 
   try {
     await signIn(page, userAEmail, userAPassword);
 
-    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const suffix = randomUUID();
     const projectName = "E2E conversation refresh " + suffix;
     const createResponse = await page.request.post("/api/projects", {
       data: {
@@ -435,7 +436,7 @@ test("provider outage is shown and the failed turn remains recoverable after rel
 
   try {
     await signIn(page, userAEmail, userAPassword);
-    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const suffix = randomUUID();
     const projectName = "E2E provider outage " + suffix;
     const createResponse = await page.request.post("/api/projects", {
       data: {
@@ -518,7 +519,7 @@ test("existing session restore outage preserves identity and does not start a re
 
   try {
     await signIn(page, userAEmail, userAPassword);
-    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const suffix = randomUUID();
     const projectName = "E2E existing session restore outage " + suffix;
     const createResponse = await page.request.post("/api/projects", {
       data: {
@@ -584,7 +585,7 @@ test("initial session persistence outage fails closed without dispatching engine
 
   try {
     await signIn(page, userAEmail, userAPassword);
-    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const suffix = randomUUID();
     const projectName = "E2E session outage " + suffix;
     const createResponse = await page.request.post("/api/projects", {
       data: {
@@ -631,7 +632,7 @@ test("CAD needs-input completion persists a correlated durable audit event witho
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
-  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const suffix = randomUUID();
   const projectName = "E2E CAD audit acceptance " + suffix;
   const context = await browser.newContext({ baseURL });
   let page;
@@ -741,7 +742,7 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
   const userBEmail = requiredEnv("E2E_USER_B_EMAIL");
   const userBPassword = requiredEnv("E2E_USER_B_PASSWORD");
-  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  const suffix = randomUUID();
   const originalName = "E2E project CRUD " + suffix;
   const updatedName = originalName + " renamed";
   const pathPrefix = "/api/projects/";
