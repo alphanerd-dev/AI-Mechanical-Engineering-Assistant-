@@ -259,7 +259,9 @@ export async function probeRemoteCADWorker(config: RemoteCADWorkerConfig): Promi
   checks: Array<{ name: string; status: string; detail: string }>;
 }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
+  // Free Render workers may cold-import build123d/OpenCascade before readiness is reported.
+  // Keep the readiness probe bounded, but give the real runtime its documented cold-start allowance.
+  const timer = setTimeout(() => controller.abort(), 45_000);
   try {
     const response = await fetch(new URL("/v1/readiness", config.baseUrl), {
       headers: { authorization: "Bearer " + config.token, accept: "application/json" },
