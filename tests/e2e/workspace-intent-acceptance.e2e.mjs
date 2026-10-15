@@ -896,7 +896,7 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
   const suffix = randomUUID();
   const projectName = "E2E accepted CAD atomic audit " + suffix;
-  const diagnostics = { projectId: null, modelIdentityId: null, completionId: null, readiness: null, auditEvent: null, cleanup: null };
+  const diagnostics = { projectId: null, modelIdentityId: null, completionId: null, completionStatus: null, storageObjectCount: 0, readiness: null, auditEvent: null, cleanup: null };
   const context = await browser.newContext({ baseURL });
   let page;
   let projectId;
@@ -947,6 +947,8 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     const completionBody = await completionResponse.json();
     const completion = completionBody?.completion;
     diagnostics.completionId = completion?.id ?? null;
+    diagnostics.completionStatus = completion?.status ?? null;
+    diagnostics.storageObjectCount = Array.isArray(completion?.storage_objects) ? completion.storage_objects.length : 0;
     expect(
       completionResponse.status(),
       "fully specified request must reach an accepted, persisted completion; body=" + JSON.stringify({
@@ -1095,8 +1097,16 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
         deleted: true,
         artifactCleanup: { status: "COMPLETED", objectsRemaining: 0 },
       });
-      if (diagnostics.completionId) {
-        expect(Number(cleanupBody.artifactCleanup?.objectsRemoved ?? 0)).toBeGreaterThanOrEqual(1);
+      const expectedCleanupObjects = Number(diagnostics.storageObjectCount ?? 0);
+      if (expectedCleanupObjects > 0) {
+        expect(
+          Number(cleanupBody.artifactCleanup?.objectsRemoved ?? 0),
+          "all persisted CAD objects must be removed during cleanup; diagnostics=" + JSON.stringify({
+            completionStatus: diagnostics.completionStatus,
+            storageObjectCount: expectedCleanupObjects,
+            cleanup: cleanupBody.artifactCleanup,
+          }),
+        ).toBeGreaterThanOrEqual(expectedCleanupObjects);
       }
     }
     await testInfo.attach("accepted-cad-test-diagnostics.json", {
