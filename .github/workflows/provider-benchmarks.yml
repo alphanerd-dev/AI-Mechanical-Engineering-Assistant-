@@ -42,7 +42,7 @@ jobs:
           else
             IMAGE=engineering-benchmark-cadquery:2.8.0
           fi
-          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=64m --mount type=bind,src="$PWD/benchmarks/providers",dst=/benchmark,readonly --mount type=bind,src="$PWD/provider-bench-evidence",dst=/artifacts --env "GITHUB_SHA=$GITHUB_SHA" --entrypoint python "$IMAGE" /benchmark/cad_geometry_benchmark.py --backend "${{ matrix.backend }}" --fixture-file /benchmark/cad-fixtures-v1.json --output "/artifacts/${{ matrix.backend }}.json"
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=64m --mount type=bind,src="$PWD/benchmarks/providers",dst=/benchmark,readonly --mount type=bind,src="$PWD/provider-bench-evidence",dst=/artifacts --env "GITHUB_SHA=${{ github.event.pull_request.head.sha || github.sha }}" --entrypoint python "$IMAGE" /benchmark/cad_geometry_benchmark.py --backend "${{ matrix.backend }}" --fixture-file /benchmark/cad-fixtures-v1.json --output "/artifacts/${{ matrix.backend }}.json"
       - name: Upload fixture-level benchmark evidence
         if: always()
         uses: actions/upload-artifact@v4
