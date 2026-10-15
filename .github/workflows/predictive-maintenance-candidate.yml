@@ -1,0 +1,40 @@
+name: Predictive Maintenance Candidate Evaluation
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/providers/predictive-maintenance-signals-v1.json"
+      - "benchmarks/providers/predictive_maintenance_candidate_eval.py"
+      - "benchmarks/providers/test_predictive_maintenance_candidate_eval.py"
+      - ".github/workflows/predictive-maintenance-candidate.yml"
+      - "docs/architecture/2026-10-14-provider-promotion-and-benchmark-gates.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-known-signal-gate:
+    name: Synthetic known-signal metrics and OOD rejection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests for the evaluation contract
+        run: python -m unittest discover -s benchmarks/providers -p "test_predictive_maintenance_candidate_eval.py" -v
+      - name: Evaluate labelled synthetic signals and write provenance report
+        run: |
+          python benchmarks/providers/predictive_maintenance_candidate_eval.py \
+            --fixture benchmarks/providers/predictive-maintenance-signals-v1.json \
+            --output provider-candidate-evidence/predictive-maintenance-report.json
+      - name: Retain evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictive-maintenance-synthetic-candidate-report
+          path: provider-candidate-evidence/predictive-maintenance-report.json
+          if-no-files-found: warn
+          retention-days: 30

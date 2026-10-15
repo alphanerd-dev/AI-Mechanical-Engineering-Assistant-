@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "synthetic-bearing-signals-known-labels-v1",
+  "provenance": {
+    "kind": "synthetic",
+    "generator": "hand-authored deterministic feature vectors",
+    "externalDataUsed": false,
+    "redistributionRestricted": false,
+    "purpose": "candidate screening gate only",
+    "limitations": [
+      "These are synthetic feature vectors, not measured sensor waveforms.",
+      "Passing does not establish field accuracy, diagnostic safety, or production readiness.",
+      "No predictive-maintenance provider is registered or promoted by this benchmark."
+    ]
+  },
+  "units": {
+    "rmsVelocity": "mm/s",
+    "kurtosis": "dimensionless",
+    "temperature": "degC",
+    "sampleRate": "Hz",
+    "window": "s"
+  },
+  "rule": {
+    "rmsVelocityAlarmAtOrAboveMmPerSecond": 4.5,
+    "kurtosisAlarmAtOrAbove": 6.0,
+    "temperatureAlarmAtOrAboveCelsius": 90
+  },
+  "acceptanceGate": {
+    "minimumSensitivity": 0.9,
+    "minimumSpecificity": 0.9,
+    "maximumFalseAlarmRate": 0.1
+  },
+  "knownSignals": [
+    {"id":"H01","label":"HEALTHY","rmsVelocity":1.2,"kurtosis":2.1,"temperatureCelsius":32,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H02","label":"HEALTHY","rmsVelocity":2.1,"kurtosis":2.5,"temperatureCelsius":41,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H03","label":"HEALTHY","rmsVelocity":2.4,"kurtosis":3.2,"temperatureCelsius":48,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H04","label":"HEALTHY","rmsVelocity":2.8,"kurtosis":2.8,"temperatureCelsius":54,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H05","label":"HEALTHY","rmsVelocity":3.1,"kurtosis":4.2,"temperatureCelsius":59,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H06","label":"HEALTHY","rmsVelocity":3.2,"kurtosis":3.6,"temperatureCelsius":62,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H07","label":"HEALTHY","rmsVelocity":1.7,"kurtosis":2.2,"temperatureCelsius":38,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H08","label":"HEALTHY","rmsVelocity":3.5,"kurtosis":4.8,"temperatureCelsius":68,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H09","label":"HEALTHY","rmsVelocity":2.6,"kurtosis":3.1,"temperatureCelsius":57,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"H10","label":"HEALTHY","rmsVelocity":4.8,"kurtosis":4.2,"temperatureCelsius":73,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F01","label":"FAULT","rmsVelocity":6.2,"kurtosis":5.1,"temperatureCelsius":82,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F02","label":"FAULT","rmsVelocity":4.7,"kurtosis":4.1,"temperatureCelsius":72,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F03","label":"FAULT","rmsVelocity":5.1,"kurtosis":6.2,"temperatureCelsius":88,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F04","label":"FAULT","rmsVelocity":8.1,"kurtosis":8.1,"temperatureCelsius":91,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F05","label":"FAULT","rmsVelocity":4.8,"kurtosis":5.1,"temperatureCelsius":79,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F06","label":"FAULT","rmsVelocity":7.2,"kurtosis":6.8,"temperatureCelsius":87,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F07","label":"FAULT","rmsVelocity":3.8,"kurtosis":7.1,"temperatureCelsius":75,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F08","label":"FAULT","rmsVelocity":9.4,"kurtosis":9.4,"temperatureCelsius":104,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F09","label":"FAULT","rmsVelocity":5.5,"kurtosis":3.7,"temperatureCelsius":78,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"F10","label":"FAULT","rmsVelocity":4.2,"kurtosis":5.4,"temperatureCelsius":77,"sampleRateHz":12800,"windowSeconds":4}
+  ],
+  "outOfDomainCases": [
+    {"id":"OOD_LOW_SAMPLE_RATE","label":"HEALTHY","rmsVelocity":2.0,"kurtosis":2.2,"temperatureCelsius":35,"sampleRateHz":100,"windowSeconds":4},
+    {"id":"OOD_RMS_RANGE","label":"FAULT","rmsVelocity":250,"kurtosis":9,"temperatureCelsius":99,"sampleRateHz":12800,"windowSeconds":4},
+    {"id":"OOD_NONFINITE","label":"FAULT","rmsVelocity":null,"kurtosis":9,"temperatureCelsius":99,"sampleRateHz":12800,"windowSeconds":4}
+  ]
+}
