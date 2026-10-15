@@ -71,5 +71,11 @@ PR [#85](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/p
 - The evaluator validates nested schema sections, numeric rule/gate bounds, record object/label types, strict schema-version type, and unique IDs across known and out-of-domain cases. Invalid configuration fails closed.
 - A passing report verifies only this synthetic evaluator contract. It does not validate field accuracy, establish diagnostic safety, or promote/register a predictive-maintenance provider. A measured, labelled, representative dataset and independent domain review remain required.
 
-The exact-head CI and retained report must pass before classifying this slice as **VERIFIED AT REVISION**.
+### Exact-head verification — 15 October 2026
+
+- Tested source revision: `4e41ee93fc1b7925585d90449af5c2a66de96563`.
+- [Predictive Maintenance Candidate Evaluation run #38738897807](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38738897807) passed unit tests and evaluated the declared synthetic fixture. Retained report: [artifact #11974024911](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38738897807/artifacts/11974024911), SHA-256 `a3dda3e8e5fee4116d56970c914a7df4c41a1fe9875559fb3f53b0d2c6c51d87` (expires 14 November 2026).
+- [Engineering Core CI run #38738897806](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38738897806) passed, including unit tests, CAD worker build/smokes, natural-language CAD generation, independent OpenCascade validation, end-to-end intent-to-verified-artifact acceptance, FEA worker tests, and `npm run build`.
+- [Provider Benchmark Gates run #38738897817](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38738897817) passed build123d and CadQuery geometry/STEP round-trip fixtures. [CodeQL Advanced #38738897808](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38738897808), [ESLint #38738897803](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38738897803), and [Codacy #38738897819](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/38738897819) passed.
+- Status: **VERIFIED AT REVISION** for the evaluator's declared synthetic screening contract only. This does not establish field accuracy, diagnostic safety, or promotion readiness; measured, labelled machinery data and independent domain review remain required.
 
