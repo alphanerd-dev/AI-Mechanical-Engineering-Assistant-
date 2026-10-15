@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
 
 function requiredEnv(name) {
