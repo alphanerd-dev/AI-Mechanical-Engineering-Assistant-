@@ -32,6 +32,9 @@ import { createDockerBuild123dCADProvider } from "../../../../src/providers/buil
 import { createDockerOCCTValidationProvider } from "../../../../src/providers/occt-docker";
 
 export const runtime = "nodejs";
+// CAD generation and independent OCCT validation can exceed short HTTP defaults.
+// Keep the server-side route bounded, but long enough to complete the approved remote worker contract.
+export const maxDuration = 120;
 const MAX_ARTIFACT_BYTES = 100 * 1024 * 1024;
 const MAX_INTENT_CHARS = 5000;
 const MAX_REQUIREMENTS = 50;
