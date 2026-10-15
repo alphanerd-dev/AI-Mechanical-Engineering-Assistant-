@@ -55,7 +55,8 @@ function createSharedDatabase() {
     from(table: string) {
       if (table !== "engineering_intent_sessions") throw new Error("Unexpected table");
       return {
-        select() {
+        select(columns: string) {
+          const selectedColumns = columns.split(",").map((column) => column.trim());
           return {
             eq(columnA: string, valueA: string) {
               return {
@@ -65,7 +66,13 @@ function createSharedDatabase() {
                       const projectId = columnA === "project_id" ? valueA : valueB;
                       const sessionId = columnA === "session_id" ? valueA : valueB;
                       const row = rows.get(key(projectId, sessionId));
-                      return { data: row ?? null, error: null };
+                      if (!row) return { data: null, error: null };
+                      const data = Object.fromEntries(
+                        selectedColumns
+                          .filter((column) => column in row)
+                          .map((column) => [column, row[column as keyof Row]]),
+                      );
+                      return { data, error: null };
                     },
                   };
                 },
@@ -214,6 +221,56 @@ describe("engineering intent session stores", () => {
     );
   });
 
+  it("fails closed on malformed persisted snapshots and nested decisions", async () => {
+    const { client, rows } = createSharedDatabase();
+    const store = new SupabaseEngineeringIntentSessionStore(client as never);
+    const baseRow: Row = {
+      project_id: "project-1",
+      session_id: "placeholder",
+      schema_version: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+      snapshot_revision: 1,
+      conversation: [],
+      interpretation,
+      updated_at: "2026-10-13T12:00:00.000Z",
+    };
+    const corruptions: Array<{ name: string; changes: Partial<Row> }> = [
+      { name: "unsupported schema version", changes: { schema_version: 99 } },
+      { name: "zero revision", changes: { snapshot_revision: 0 } },
+      { name: "negative revision", changes: { snapshot_revision: -1 } },
+      { name: "non-integer revision", changes: { snapshot_revision: 1.5 } },
+      { name: "malformed timestamp", changes: { updated_at: "not-a-date" } },
+      { name: "non-array conversation", changes: { conversation: { role: "engineer", text: "bad" } } },
+      { name: "invalid persisted role", changes: { conversation: [{ role: "system", text: "not permitted" }] } },
+      { name: "invalid decision status", changes: {
+        conversation: [{ role: "assistant", text: "Decision", decision: {
+          status: "VERIFIED", validationPassed: true, metrics: [], evidenceIds: [],
+        } }],
+      } },
+      { name: "invalid decision metric", changes: {
+        conversation: [{ role: "assistant", text: "Decision", decision: {
+          status: "READY", validationPassed: true, metrics: [{ key: "stress", value: Number.NaN }], evidenceIds: [],
+        } }],
+      } },
+      { name: "empty evidence reference", changes: {
+        conversation: [{ role: "assistant", text: "Decision", decision: {
+          status: "READY", validationPassed: true, metrics: [], evidenceIds: ["  "],
+        } }],
+      } },
+    ];
+
+    for (const [index, corruption] of corruptions.entries()) {
+      const sessionId = "corrupt-snapshot-" + index;
+      rows.set("project-1::" + sessionId, {
+        ...baseRow,
+        ...corruption.changes,
+        session_id: sessionId,
+      });
+      await expect(store.get(sessionId, "project-1"), corruption.name).rejects.toThrow(
+        "Stored engineering intent session is invalid.",
+      );
+    }
+  });
+
   it("rejects stale revision writes in the Supabase adapter", async () => {
     const { client } = createSharedDatabase();
     const store = new SupabaseEngineeringIntentSessionStore(client as never);
@@ -234,6 +291,10 @@ describe("engineering intent session stores", () => {
       conversation: [{ role: "engineer", text: "Design a shaft" }],
       updatedAt: "2026-10-13T12:01:00.000Z",
     }, { expectedRevision: first.snapshotRevision });
+
+    const updated = await store.get("cas-session", "project-1");
+    expect(updated?.snapshotRevision).toBe(2);
+    expect(updated?.conversation).toEqual([{ role: "engineer", text: "Design a shaft" }]);
 
     await expect(store.save({
       ...first,

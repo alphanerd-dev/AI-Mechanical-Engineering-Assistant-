@@ -174,3 +174,6 @@
 .cadReadinessPanel h3{margin:4px 0}
 @media(max-width:980px){.projectBoardGrid{grid-template-columns:1fr}.projectCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.projectCards{grid-template-columns:1fr}.projectFormRow{grid-template-columns:1fr}.projectListHeader{align-items:flex-start}.projectListHeader>.button{flex-shrink:0}.requirementsActions{align-items:flex-start;flex-direction:column}.requirementsTable{min-width:720px}}
+
+/* Accessible link contrast on dark panels, including authentication forms. */
+.panel a{color:#8bc6ff;text-underline-offset:3px}.panel a:focus-visible{outline:2px solid #8bc6ff;outline-offset:3px;border-radius:2px}

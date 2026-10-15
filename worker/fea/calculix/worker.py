@@ -155,6 +155,12 @@ def write_inp(path: pathlib.Path, nodes: dict[int, tuple[float, float, float]], 
         handle.write("*END STEP\n")
 
 def parse_dat(path: pathlib.Path):
+    """Parse numeric rows only while inside explicit CalculiX result sections.
+
+    CalculiX emits additional page headers and other section types in .dat output.
+    Leaving a previous mode active across an unrelated section can silently treat
+    mesh IDs or reaction/stress rows as displacement values.
+    """
     mode = None
     max_displacement = None
     max_von_mises = None
@@ -166,6 +172,8 @@ def parse_dat(path: pathlib.Path):
     for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = raw_line.strip()
         lower = line.lower()
+        if not line:
+            continue
         if lower.startswith("displacements"):
             mode = "u"
             saw_displacement = True
@@ -174,31 +182,43 @@ def parse_dat(path: pathlib.Path):
             mode = "s"
             saw_stress = True
             continue
-        if lower.startswith("reaction forces"):
+        if lower.startswith("reaction forces") or lower.startswith("forces ("):
             mode = "rf"
             saw_reaction = True
             continue
-        if not line:
+
+        parts = line.split()
+        if not parts or not re.fullmatch(r"[+-]?\d+", parts[0]):
+            # Ignore page headers, summaries, and unrelated output; never continue
+            # interpreting numeric content after a non-result header.
+            mode = None
             continue
         if mode is None:
             continue
-        parts = line.split()
         try:
             if mode == "u" and len(parts) >= 4:
-                values = [float(value) for value in parts[1:4]]
+                values = [float(value.replace("D", "E").replace("d", "e")) for value in parts[1:4]]
+                if not all(math.isfinite(value) for value in values):
+                    continue
                 magnitude = math.sqrt(sum(value * value for value in values))
                 max_displacement = magnitude if max_displacement is None else max(max_displacement, magnitude)
             elif mode == "rf" and len(parts) >= 4:
+                values = [float(value.replace("D", "E").replace("d", "e")) for value in parts[1:4]]
+                if not all(math.isfinite(value) for value in values):
+                    continue
                 for index in range(3):
-                    reaction[index] += float(parts[index + 1])
+                    reaction[index] += values[index]
             elif mode == "s" and len(parts) >= 8:
-                sxx, syy, szz, sxy, sxz, syz = [float(value) for value in parts[2:8]]
+                values = [float(value.replace("D", "E").replace("d", "e")) for value in parts[2:8]]
+                if not all(math.isfinite(value) for value in values):
+                    continue
+                sxx, syy, szz, sxy, sxz, syz = values
                 mises = math.sqrt(
                     0.5 * ((sxx - syy) ** 2 + (syy - szz) ** 2 + (szz - sxx) ** 2)
                     + 3.0 * (sxy ** 2 + sxz ** 2 + syz ** 2)
                 )
                 max_von_mises = mises if max_von_mises is None else max(max_von_mises, mises)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
 
     if not saw_displacement or max_displacement is None:
@@ -214,6 +234,55 @@ def artifact(root: pathlib.Path, path: pathlib.Path, kind: str, media_type: str)
         "path": relative,
         "mediaType": media_type,
         "sha256": sha256_file(path),
+    }
+
+def cantilever_box_reference(length_mm: float, width_mm: float, height_mm: float,
+                            youngs_modulus_mpa: float, poisson_ratio: float,
+                            total_force_n: float, measured_max_displacement_mm: float,
+                            reaction_forces_n: list[float], displacement_relative_tolerance: float = 0.30,
+                            reaction_relative_tolerance: float = 0.01) -> dict:
+    """Independent closed-form check for the documented slender cantilever-box smoke case.
+
+    It compares displacement to Euler-Bernoulli bending plus first-order Timoshenko
+    shear, and checks global support-reaction equilibrium. The deliberately coarse
+    tetrahedral mesh makes this a pilot regression tolerance, not certification.
+    """
+    length = float(length_mm)
+    width = float(width_mm)
+    height = float(height_mm)
+    modulus = float(youngs_modulus_mpa)
+    nu = float(poisson_ratio)
+    force = float(total_force_n)
+    inertia_z = height * width ** 3 / 12.0
+    area = width * height
+    shear_modulus = modulus / (2.0 * (1.0 + nu))
+    bending_mm = force * length ** 3 / (3.0 * modulus * inertia_z)
+    shear_mm = 6.0 * force * length / (5.0 * shear_modulus * area)
+    reference_mm = bending_mm + shear_mm
+    displacement_error = abs(float(measured_max_displacement_mm) - reference_mm) / reference_mm
+    expected_reaction = [0.0, force, 0.0]
+    reaction_residual = math.sqrt(sum((float(reaction_forces_n[i]) - expected_reaction[i]) ** 2 for i in range(3)))
+    reaction_error = reaction_residual / force
+    displacement_passed = math.isfinite(displacement_error) and displacement_error <= displacement_relative_tolerance
+    reaction_passed = math.isfinite(reaction_error) and reaction_error <= reaction_relative_tolerance
+    return {
+        "referenceId": "cantilever-box-euler-bernoulli-plus-timoshenko-v1",
+        "referenceSource": "closed-form beam equations implemented independently of the CalculiX result parser",
+        "units": {"length": "mm", "force": "N", "modulus": "MPa", "deflection": "mm"},
+        "sectionSecondMomentMm4": inertia_z,
+        "bendingDeflectionMm": bending_mm,
+        "firstOrderShearDeflectionMm": shear_mm,
+        "expectedTipDeflectionMm": reference_mm,
+        "measuredMaximumDisplacementMm": float(measured_max_displacement_mm),
+        "displacementRelativeError": displacement_error,
+        "displacementRelativeTolerance": displacement_relative_tolerance,
+        "displacementPassed": displacement_passed,
+        "expectedSupportReactionN": {"x": 0.0, "y": force, "z": 0.0},
+        "measuredSupportReactionN": {"x": float(reaction_forces_n[0]), "y": float(reaction_forces_n[1]), "z": float(reaction_forces_n[2])},
+        "reactionRelativeError": reaction_error,
+        "reactionRelativeTolerance": reaction_relative_tolerance,
+        "reactionPassed": reaction_passed,
+        "passed": displacement_passed and reaction_passed,
     }
 
 def main():
@@ -287,9 +356,16 @@ def main():
         for path in required_files:
             if not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"Expected solver artifact is missing or empty: {path.name}.")
+        dimensions = request["dimensionsMm"]
+        reference = cantilever_box_reference(
+            float(dimensions["length"]), float(dimensions["width"]), float(dimensions["height"]),
+            float(youngs_modulus_mpa), float(poisson_ratio), float(total_force_n),
+            float(max_displacement), reaction or [0.0, 0.0, 0.0],
+        )
         result = {
-            "success": True,
+            "success": reference["passed"],
             "analysis": ALLOWED_ANALYSIS,
+            "benchmarkReference": reference,
             "solver": "calculix",
             "solverVersion": calculix_version(),
             "converged": True,
@@ -308,12 +384,14 @@ def main():
                 artifact(artifact_dir, frd_path, "FEA_RESULT", "application/octet-stream"),
                 artifact(artifact_dir, sta_path, "FEA_RESULT", "text/plain"),
             ],
-            "warnings": [],
+            "warnings": [] if reference["passed"] else ["Independent cantilever analytical/equilibrium acceptance failed."],
             "stdout": completed.stdout[-20000:],
             "stderr": completed.stderr[-20000:],
             "gmshVersion": GMSH_VERSION,
         }
         print(json.dumps(result))
+        if not reference["passed"]:
+            raise SystemExit(1)
     except Exception as exc:
         fail(f"FEA result normalization failed: {exc}")
 

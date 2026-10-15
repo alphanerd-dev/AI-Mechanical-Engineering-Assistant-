@@ -5,6 +5,8 @@ import type { CADExecutionRequest, CADExecutionResult } from "../cad/execution.j
 import type { CADWorkerTransport } from "./build123d-worker.js";
 import type { OcctExecutor } from "../providers/occt.js";
 
+export const REMOTE_CAD_READINESS_TIMEOUT_MS = 45_000;
+
 const MAX_ARTIFACT_BYTES = 4 * 1024 * 1024;
 const MAX_TOTAL_ARTIFACT_BYTES = 8 * 1024 * 1024;
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
@@ -259,7 +261,9 @@ export async function probeRemoteCADWorker(config: RemoteCADWorkerConfig): Promi
   checks: Array<{ name: string; status: string; detail: string }>;
 }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
+  // Free Render workers may cold-import build123d/OpenCascade before readiness is reported.
+  // Keep readiness bounded, but allow the runtime's documented cold-start path.
+  const timer = setTimeout(() => controller.abort(), REMOTE_CAD_READINESS_TIMEOUT_MS);
   try {
     const response = await fetch(new URL("/v1/readiness", config.baseUrl), {
       headers: { authorization: "Bearer " + config.token, accept: "application/json" },

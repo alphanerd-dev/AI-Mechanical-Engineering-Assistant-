@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { createDefaultReasoningFrameworkRegistry } from "../../../../src/reasoning-frameworks/registry";
 import { ModelBackedTaskReasoningProposer } from "../../../../src/reasoning-frameworks/model-adapter";
 import {
@@ -295,7 +295,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const projectId = getProjectId(url.searchParams.get("projectId"));
     const authorization = await authorizeProject("PROJECT.READ", projectId);
-    if (!authorization.allowed) return NextResponse.json({ error: authorization.reason }, { status: 403 });
+    if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status }); }
 
     const registry = createDefaultReasoningFrameworkRegistry();
     const loaded = await loadWorkspace(projectId, authorization.subject);

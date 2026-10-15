@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../lib/supabase/service";
-import { authorizeSupabaseRequest } from "../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../src/auth/supabase-service";
 import { createEmptyEngineeringWorkspaceSnapshot } from "../../../src/workspace/snapshot";
 
 export const runtime = "nodejs";
@@ -42,7 +42,7 @@ export async function GET() {
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.READ");
     if (!authorization.allowed) {
-      return NextResponse.json({ error: authorization.reason, code: "ENGINEERING_ROLE_REQUIRED" }, { status: 403 });
+      const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status });
     }
     const db = await createClient();
     const { data, error } = await db
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.WRITE");
     if (!authorization.allowed) {
-      return NextResponse.json({ error: authorization.reason, code: "ENGINEERING_ROLE_REQUIRED" }, { status: 403 });
+      const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status });
     }
 
     // The request is authenticated and role-authorized above. Use the server-only

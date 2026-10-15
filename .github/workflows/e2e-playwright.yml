@@ -4,30 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: HTTPS URL of the allowlisted Vercel Preview deployment (do not use the production URL in shared-database mode)
+        description: HTTPS URL of the dedicated non-production E2E deployment only
         required: true
         type: string
-      target_mode:
-        description: Choose isolated staging (recommended) or pre-launch Preview using the current shared Supabase project
-        required: true
-        type: choice
-        options:
-          - isolated-staging
-          - prelaunch-shared-supabase
-        default: isolated-staging
-      confirm_non_production:
-        description: For isolated-staging only, confirm this uses a non-production Supabase project and dedicated test accounts
+      confirm_isolated_environment:
+        description: Confirm the deployment uses a dedicated E2E Supabase project and disposable test accounts, not production or shared development data
         required: true
         type: boolean
         default: false
-      confirm_shared_prelaunch_database:
-        description: For prelaunch-shared-supabase only, accept persistent test records in the shared database (only before real users/data)
+      test_accepted_cad_completion:
+        description: Opt in to a real CAD worker execution, artifact readback, atomic audit-chain verification, and cleanup in the dedicated E2E project
         required: true
         type: boolean
         default: false
 
 permissions:
   contents: read
+
+# The dedicated Render worker is deliberately single-slot; never overlap real CAD E2E runs.
+concurrency:
+  group: engineering-assistant-isolated-playwright-e2e
+  cancel-in-progress: false
 
 jobs:
   user-journey:
@@ -37,10 +34,13 @@ jobs:
     environment: e2e-staging
     env:
       E2E_BASE_URL: ${{ inputs.base_url }}
-      E2E_TARGET_MODE: ${{ inputs.target_mode }}
-      CONFIRM_NON_PRODUCTION: ${{ inputs.confirm_non_production }}
-      CONFIRM_SHARED_PRELAUNCH_DATABASE: ${{ inputs.confirm_shared_prelaunch_database }}
+      CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
+      E2E_RUN_ACCEPTED_CAD_SMOKE: ${{ inputs.test_accepted_cad_completion }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
+      E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
+      E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
+      E2E_SUPABASE_PUBLISHABLE_KEY: ${{ vars.E2E_SUPABASE_PUBLISHABLE_KEY }}
+      PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.PRODUCTION_SUPABASE_PROJECT_REF }}
       E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
       E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
       E2E_USER_B_EMAIL: ${{ secrets.E2E_USER_B_EMAIL }}
@@ -49,49 +49,58 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Require explicit environment confirmation and validate inputs
+      - name: Require isolated environment and validate inputs
+        shell: bash
         run: |
           set -euo pipefail
-          case "$E2E_TARGET_MODE" in
-            isolated-staging)
-              test "$CONFIRM_NON_PRODUCTION" = "true" || {
-                echo "::error::Refusing to run. Confirm the target uses a dedicated non-production Supabase project."
-                exit 1
-              }
-              test "$CONFIRM_SHARED_PRELAUNCH_DATABASE" != "true" || {
-                echo "::error::Select only one target mode."
-                exit 1
-              }
-              ;;
-            prelaunch-shared-supabase)
-              test "$CONFIRM_SHARED_PRELAUNCH_DATABASE" = "true" || {
-                echo "::error::Refusing to run. Explicitly acknowledge shared-database writes in pre-launch mode."
-                exit 1
-              }
-              echo "::warning::PRE-LAUNCH SHARED DATABASE MODE: the E2E journey will create persistent records in the Supabase project configured for this Preview deployment. Use only when no real users or important real data exist."
-              ;;
-            *)
-              echo "::error::Unknown E2E_TARGET_MODE."
-              exit 1
-              ;;
-          esac
+          test "$CONFIRM_ISOLATED_ENVIRONMENT" = "true" || {
+            echo "::error::Refusing to run. Explicitly confirm a dedicated non-production E2E Supabase project."
+            exit 1
+          }
+
           node <<'NODE'
           const url = new URL(process.env.E2E_BASE_URL);
           if (url.protocol !== "https:") throw new Error("E2E_BASE_URL must use HTTPS.");
           if (url.username || url.password || url.search || url.hash) {
             throw new Error("E2E_BASE_URL must not include credentials, a query, or a fragment.");
           }
+          const canonicalValue = (process.env.E2E_CANONICAL_BASE_URL || "").trim();
+          if (!canonicalValue) {
+            throw new Error("E2E_CANONICAL_BASE_URL must match the preview's configured authentication redirect origin.");
+          }
+          const canonical = new URL(canonicalValue);
+          if (canonical.protocol !== "https:" || canonical.username || canonical.password || canonical.search || canonical.hash) {
+            throw new Error("E2E_CANONICAL_BASE_URL must be a clean HTTPS URL.");
+          }
+          if (url.origin !== canonical.origin) {
+            throw new Error("E2E_BASE_URL origin must match E2E_CANONICAL_BASE_URL to preserve host-scoped session cookies through authentication redirects.");
+          }
           const allowedHosts = (process.env.E2E_ALLOWED_HOSTS || "")
             .split(",")
             .map((host) => host.trim().toLowerCase())
             .filter(Boolean);
           if (allowedHosts.length === 0) {
-            throw new Error("Missing repository Actions variable E2E_ALLOWED_HOSTS; set exact non-production hostnames.");
+            throw new Error("Missing Actions environment variable E2E_ALLOWED_HOSTS; configure exact isolated E2E hostnames.");
           }
           if (!allowedHosts.includes(url.host.toLowerCase())) {
             throw new Error("E2E target host is not in the exact E2E_ALLOWED_HOSTS allowlist.");
           }
+
+          const e2eProject = (process.env.E2E_SUPABASE_PROJECT_REF || "").trim();
+          const productionProject = (process.env.PRODUCTION_SUPABASE_PROJECT_REF || "").trim();
+          const projectRefPattern = /^[a-z0-9]{20}$/;
+          if (!projectRefPattern.test(e2eProject)) {
+            throw new Error("E2E_SUPABASE_PROJECT_REF must be configured with the dedicated E2E Supabase project reference.");
+          }
+          if (!projectRefPattern.test(productionProject)) {
+            throw new Error("PRODUCTION_SUPABASE_PROJECT_REF must be configured so the E2E project can be compared against it.");
+          }
+          if (e2eProject === productionProject) {
+            throw new Error("Refusing to run: the E2E Supabase project reference equals the production project reference.");
+          }
+
           for (const key of [
+            "E2E_SUPABASE_PUBLISHABLE_KEY",
             "E2E_USER_A_EMAIL", "E2E_USER_A_PASSWORD",
             "E2E_USER_B_EMAIL", "E2E_USER_B_PASSWORD"
           ]) {
@@ -99,7 +108,7 @@ jobs:
               throw new Error("Missing required GitHub Actions secret: " + key);
             }
           }
-          console.log("Validated allowlisted staging target host:", url.host);
+          console.log("Validated canonical auth origin, exact allowlisted E2E host, and distinct configured E2E/production Supabase project references.");
           NODE
 
       - name: Set up Node.js
@@ -111,8 +120,8 @@ jobs:
       - name: Install application dependencies
         run: npm ci
 
-      - name: Install pinned Playwright test runner
-        run: npm install --no-save --package-lock=false @playwright/test@1.64.0
+      - name: Install pinned Playwright and axe accessibility test helpers
+        run: npm install --no-save --package-lock=false @playwright/test@1.64.0 @axe-core/playwright@4.13.0
 
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium

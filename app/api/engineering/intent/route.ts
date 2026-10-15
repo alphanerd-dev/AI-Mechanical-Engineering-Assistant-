@@ -25,7 +25,7 @@ import {
   type ConversationMessage,
 } from "../../../../src/intent/session";
 import { createClient } from "../../../../lib/supabase/server";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
   } catch {
     return jsonError("Authorization service is unavailable.", 503);
   }
-  if (!authorization.allowed) return jsonError(authorization.reason, 403);
+  if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
 
   try {
     const store = await createSessionStore();
@@ -152,7 +152,7 @@ export async function PUT(request: Request) {
   } catch {
     return jsonError("Authorization service is unavailable.", 503);
   }
-  if (!authorization.allowed) return jsonError(authorization.reason, 403);
+  if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
 
   try {
     const store = await createSessionStore();
@@ -172,6 +172,7 @@ export async function PUT(request: Request) {
       snapshotRevision = existing.snapshotRevision + 1;
       await store.save({
         ...existing,
+        snapshotRevision,
         conversation,
         updatedAt: now,
       }, { expectedRevision: existing.snapshotRevision });
@@ -256,7 +257,7 @@ export async function POST(request: Request) {
     return jsonError("Authorization service is unavailable.", 503);
   }
   if (!authorization.allowed) {
-    return jsonError(authorization.reason, 403);
+    const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined);
   }
 
   if (typeof body.rawIntent !== "string" || !body.rawIntent.trim()) {

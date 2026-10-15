@@ -6,7 +6,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { CAD_ARTIFACT_BUCKET } from "../../../../src/cad/persistence";
 import { getRemoteCADWorkerConfig, probeRemoteCADWorker } from "../../../../src/execution/remote-cad-worker";
 
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
-    if (!authorization.allowed) return NextResponse.json({ error: authorization.reason }, { status: 403 });
+    if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status }); }
     const db = await createClient();
     const { data: project, error } = await db
       .from("engineering_projects")

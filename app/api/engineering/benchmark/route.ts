@@ -4,14 +4,14 @@ import { CapabilityRouter } from "../../../../src/capabilities/router";
 import { ENGINEERING_CAPABILITIES } from "../../../../src/capabilities/catalog";
 import { NumericalAnalysisProvider } from "../../../../src/providers/numerical";
 import { EngineeringAgent } from "../../../../src/core/agent";
-import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const authorization = await authorizeSupabaseRequest("TASK.EXECUTE");
   if (!authorization.allowed) {
-    return NextResponse.json({ error: authorization.reason }, { status: 403 });
+    const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status });
   }
 
   const body = await request.json().catch(() => ({}));

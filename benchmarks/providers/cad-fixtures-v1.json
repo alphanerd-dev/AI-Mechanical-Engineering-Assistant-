@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "benchmarkId": "cad-geometry-neutral-v1",
+  "units": "mm",
+  "volumeUnits": "mm^3",
+  "geometry": [
+    {
+      "id": "rectangular_block",
+      "kind": "BOX",
+      "parameters": {
+        "lengthMm": 20,
+        "widthMm": 10,
+        "heightMm": 5
+      },
+      "expected": {
+        "volumeMm3": 1000,
+        "boundingBoxMm": {
+          "x": 20,
+          "y": 10,
+          "z": 5
+        },
+        "solidCount": 1,
+        "valid": true
+      },
+      "tolerance": {
+        "volumeRelative": 0.0001,
+        "volumeAbsoluteMm3": 0.001,
+        "dimensionAbsoluteMm": 0.01
+      }
+    },
+    {
+      "id": "right_circular_cylinder",
+      "kind": "CYLINDER",
+      "parameters": {
+        "radiusMm": 5,
+        "heightMm": 20
+      },
+      "expected": {
+        "volumeMm3": 1570.7963267948965,
+        "boundingBoxMm": {
+          "x": 10,
+          "y": 10,
+          "z": 20
+        },
+        "solidCount": 1,
+        "valid": true
+      },
+      "tolerance": {
+        "volumeRelative": 0.0001,
+        "volumeAbsoluteMm3": 0.001,
+        "dimensionAbsoluteMm": 0.01
+      }
+    },
+    {
+      "id": "through_hole_plate",
+      "kind": "PLATE_WITH_THROUGH_HOLE",
+      "parameters": {
+        "lengthMm": 80,
+        "widthMm": 60,
+        "thicknessMm": 5,
+        "holeRadiusMm": 8
+      },
+      "expected": {
+        "volumeMm3": 22994.690350851266,
+        "boundingBoxMm": {
+          "x": 80,
+          "y": 60,
+          "z": 5
+        },
+        "solidCount": 1,
+        "valid": true
+      },
+      "tolerance": {
+        "volumeRelative": 0.0001,
+        "volumeAbsoluteMm3": 0.001,
+        "dimensionAbsoluteMm": 0.01
+      }
+    }
+  ]
+}
