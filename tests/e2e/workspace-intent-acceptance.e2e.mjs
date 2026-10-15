@@ -820,7 +820,7 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
 
     await test.step("Reject anonymous project list, read, update, and delete requests", async () => {
       await pageA.getByRole("navigation", { name: "Account" }).getByRole("button", { name: "Sign out" }).click();
-      await expect(pageA).toHaveURL(/\\/login(?:\\?.*)?$/);
+      await expect(pageA).toHaveURL(/\/login(?:\?.*)?$/);
 
       const anonymousList = await pageA.request.get("/api/projects");
       expect([401, 403, 404]).toContain(anonymousList.status());
