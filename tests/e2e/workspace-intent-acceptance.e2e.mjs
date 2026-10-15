@@ -1105,3 +1105,92 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     await context.close().catch(() => undefined);
   }
 });
+
+
+test("axe WCAG 2.1/2.2 AA scan covers login, project list, and project engineering workspace", async ({ browser }, testInfo) => {
+  const baseURL = requiredEnv("E2E_BASE_URL");
+  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
+  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
+  const suffix = randomUUID();
+  const projectName = "E2E accessibility audit " + suffix;
+  const report = [];
+  let projectId;
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+
+  async function auditPage(routeName) {
+    const result = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"])
+      .analyze();
+    report.push({
+      routeName,
+      url: page.url(),
+      violations: result.violations.map((violation) => ({
+        id: violation.id,
+        impact: violation.impact,
+        help: violation.help,
+        description: violation.description,
+        nodes: violation.nodes.map((node) => ({
+          target: node.target,
+          html: node.html,
+          failureSummary: node.failureSummary,
+        })),
+      })),
+      incomplete: result.incomplete.map((item) => ({ id: item.id, impact: item.impact, help: item.help })),
+    });
+  }
+
+  try {
+    await page.goto("/login");
+    await auditPage("login");
+    await signIn(page, userAEmail, userAPassword);
+    await auditPage("authenticated-project-list");
+
+    const projectResponse = await page.request.post("/api/projects", {
+      data: {
+        name: projectName,
+        problemStatement: "Disposable project for automated axe WCAG conformance scans.",
+      },
+    });
+    expect(projectResponse.status()).toBe(201);
+    projectId = (await projectResponse.json()).project?.id;
+    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const workspaceResponse = await page.goto("/projects/" + projectId + "/engineering");
+    expect(workspaceResponse?.status(), "the project engineering workspace must load before it is audited").toBe(200);
+    await expect(page.getByRole("main")).toBeVisible();
+    await auditPage("project-engineering-workspace");
+
+    await testInfo.attach("axe-accessibility-audit.json", {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: "application/json",
+    });
+    const violations = report.flatMap((item) => item.violations.map((violation) => ({
+      routeName: item.routeName,
+      id: violation.id,
+      impact: violation.impact,
+      help: violation.help,
+      targets: violation.nodes.map((node) => node.target),
+    })));
+    expect(violations, "axe reported WCAG or accessibility best-practice violations: " + JSON.stringify(violations)).toEqual([]);
+  } finally {
+    if (projectId) {
+      const cleanup = await page.request.delete("/api/projects/" + projectId).catch(() => null);
+      expect(cleanup, "disposable accessibility-test project cleanup must respond").toBeTruthy();
+      if (cleanup) {
+        const cleanupBody = await cleanup.json().catch(() => ({}));
+        expect(cleanup.status(), JSON.stringify(cleanupBody)).toBe(200);
+        expect(cleanupBody).toMatchObject({
+          projectId,
+          deleted: true,
+          artifactCleanup: { status: "COMPLETED", objectsRemaining: 0 },
+        });
+      }
+    }
+    await context.close().catch(() => undefined);
+    await testInfo.attach("axe-accessibility-audit-diagnostics.json", {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: "application/json",
+    });
+  }
+});
