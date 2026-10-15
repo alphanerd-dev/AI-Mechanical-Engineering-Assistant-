@@ -12,6 +12,11 @@ on:
         required: true
         type: boolean
         default: false
+      test_accepted_cad_completion:
+        description: Opt in to a real CAD worker execution, artifact readback, atomic audit-chain verification, and cleanup in the dedicated E2E project
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,6 +30,7 @@ jobs:
     env:
       E2E_BASE_URL: ${{ inputs.base_url }}
       CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
+      E2E_RUN_ACCEPTED_CAD_SMOKE: ${{ inputs.test_accepted_cad_completion }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
       E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
