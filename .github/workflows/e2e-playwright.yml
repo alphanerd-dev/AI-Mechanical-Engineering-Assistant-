@@ -115,8 +115,8 @@ jobs:
       - name: Install application dependencies
         run: npm ci
 
-      - name: Install pinned Playwright test runner
-        run: npm install --no-save --package-lock=false @playwright/test@1.64.0
+      - name: Install pinned Playwright and axe accessibility test helpers
+        run: npm install --no-save --package-lock=false @playwright/test@1.64.0 @axe-core/playwright@4.13.0
 
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
