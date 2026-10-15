@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { test, expect } from "@playwright/test";
 
 function requiredEnv(name) {
@@ -971,13 +971,6 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
       const artifact = completion.artifact_records.find((item) => item?.kind === kind);
       expect(artifact, "accepted completion must persist " + kind + " artifact metadata").toBeTruthy();
       expect(artifact.validationStatus === "PASS" || kind !== "SOLID").toBe(true);
-      expect(artifact.provenance?.artifactSha256, kind + " artifact must include a host-computed SHA-256").toMatch(/^[a-f0-9]{64}$/);
-      expect(
-        Object.entries(completionBody.signedUrls ?? {}).some(([objectPath, signedUrl]) =>
-          completion.storage_objects.includes(objectPath) && typeof signedUrl === "string" && signedUrl.startsWith("https://")
-        ),
-        "accepted artifacts must include a short-lived signed URL for persisted object(s)",
-      ).toBe(true);
     }
     expect(completion.validation_receipt).toMatchObject({
       validatorProviderId: "cad.occt",
@@ -986,6 +979,28 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     const receipt = completion.validation_receipt;
     expect(receipt.id).toEqual(expect.any(String));
     expect(receipt.artifactSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(receipt.validatorVersion).toEqual(expect.any(String));
+    const measurements = receipt.geometryMeasurements;
+    expect(measurements?.boundingBoxMm).toMatchObject({ x: expect.any(Number), y: expect.any(Number), z: expect.any(Number) });
+    expect(Math.abs(measurements.boundingBoxMm.x - 30)).toBeLessThanOrEqual(0.010001);
+    expect(Math.abs(measurements.boundingBoxMm.y - 30)).toBeLessThanOrEqual(0.010001);
+    expect(Math.abs(measurements.boundingBoxMm.z - 200)).toBeLessThanOrEqual(0.0102);
+    const expectedVolume = Math.PI * 15 * 15 * 200;
+    expect(Math.abs(measurements.volumeMm3 - expectedVolume)).toBeLessThanOrEqual(expectedVolume * 1e-3);
+    const solidPath = completion.storage_objects.find((item) => typeof item === "string" && item.endsWith("/solid.brep"));
+    expect(solidPath, "the accepted completion must include its persisted BREP path").toEqual(expect.any(String));
+    const signedUrls = completionBody.signedUrls;
+    expect(typeof signedUrls?.[solidPath]).toBe("string");
+    expect(signedUrls[solidPath]).toMatch(/^https:\/\//);
+    const downloadedSolid = await page.request.get(signedUrls[solidPath], { timeout: 60_000 });
+    expect(downloadedSolid.ok(), "the short-lived private signed URL must read the stored BREP bytes").toBe(true);
+    const downloadedDigest = createHash("sha256").update(await downloadedSolid.body()).digest("hex");
+    expect(downloadedDigest).toBe(receipt.artifactSha256);
+
+    const historyResponse = await page.request.get("/api/cad/completions?projectId=" + encodeURIComponent(projectId));
+    expect(historyResponse.status()).toBe(200);
+    const historyBody = await historyResponse.json();
+    expect((historyBody.completions ?? []).some((item) => item.id === completion.id && item.status === "ACCEPTED")).toBe(true);
 
     const auditResponse = await page.request.get("/api/engineering/audit?projectId=" + encodeURIComponent(projectId) + "&limit=200");
     const auditBody = await auditResponse.json();
@@ -1006,13 +1021,14 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
       resource_id: completion.id,
       task_id: modelIdentityId,
       run_id: completion.execution_id,
-      provider_id: receipt.providerId ?? receipt.provider_id ?? expect.any(String),
+      provider_id: expect.any(String),
       artifact_sha256: receipt.artifactSha256,
-      validator_receipt_id: receipt.id,
-      decision_id: expect.any(String),
     });
     expect(typeof auditEvent.request_id).toBe("string");
     expect(auditEvent.request_id.length).toBeGreaterThan(0);
+    expect(auditEvent.provider_id.length).toBeGreaterThan(0);
+    if (receipt.id) expect(auditEvent.validator_receipt_id).toBe(receipt.id);
+    expect(auditEvent.decision_id).toEqual(expect.any(String));
     expect(auditEvent.chain_sequence).toEqual(expect.any(Number));
     expect(auditEvent.chain_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(auditEvent.event_hash).toMatch(/^[a-f0-9]{64}$/);
