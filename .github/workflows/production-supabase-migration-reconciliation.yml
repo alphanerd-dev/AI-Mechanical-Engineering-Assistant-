@@ -224,8 +224,8 @@ jobs:
           claim_function=false
           renew_function=false
           grep -Eiq '^CREATE TABLE public\.engineering_execution_jobs([[:space:]]|$)' "$schema_dump" && jobs_table=true
-          grep -Eiq '^CREATE FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" && claim_function=true
-          grep -Eiq '^CREATE FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" && renew_function=true
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" && claim_function=true
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" && renew_function=true
 
           v29_recorded=false
           v30_recorded=false
@@ -400,11 +400,11 @@ jobs:
             echo "::error::V2.0.29 table was not found in the production schema dump."
             exit 1
           }
-          grep -Eiq '^CREATE FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" || {
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" || {
             echo "::error::V2.0.29 claim function was not found in the production schema dump."
             exit 1
           }
-          grep -Eiq '^CREATE FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" || {
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" || {
             echo "::error::V2.0.30 renewal function was not found in the production schema dump."
             exit 1
           }
