@@ -48,8 +48,8 @@ export class OpenAICompatibleEngineeringIntentGenerator implements ModelIntentGe
     }
     if(!response.ok)throw new EngineeringIntentTransportError("The configured engineering intent model returned HTTP "+response.status+".","INTENT_MODEL_HTTP_ERROR");
     let responseText:string;
-    try{responseText=await response.text();}catch{throw new EngineeringIntentTransportError("The engineering intent model response could not be read.","INTENT_MODEL_INVALID_RESPONSE");}
-    if(responseText.length>MAX_RESPONSE_LENGTH)throw new EngineeringIntentTransportError("The engineering intent model response exceeded the size limit.","INTENT_MODEL_INVALID_RESPONSE");
+    try{responseText=await readBoundedResponseText(response,MAX_RESPONSE_LENGTH);}
+    catch{throw new EngineeringIntentTransportError("The engineering intent model response could not be read or exceeded the size limit.","INTENT_MODEL_INVALID_RESPONSE");}
     let payload:unknown;
     try{payload=JSON.parse(responseText);}catch{throw new EngineeringIntentTransportError("The engineering intent endpoint did not return valid JSON.","INTENT_MODEL_INVALID_RESPONSE");}
     const content=extractMessageContent(payload);
@@ -86,6 +86,31 @@ function extractMessageContent(value:unknown):string|undefined{
   if(typeof message!=="object"||message===null||Array.isArray(message))return undefined;
   const content=(message as Record<string,unknown>).content;
   return typeof content==="string"&&content.trim()?content.trim():undefined;
+}
+async function readBoundedResponseText(response:Response,maxBytes:number):Promise<string>{
+  const stream=response.body;
+  if(!stream)return "";
+  const reader=stream.getReader();
+  const chunks:Uint8Array[]=[];
+  let total=0;
+  try{
+    while(true){
+      const part=await reader.read();
+      if(part.done)break;
+      total+=part.value.byteLength;
+      if(total>maxBytes){
+        await reader.cancel();
+        throw new Error("Response exceeded configured size limit.");
+      }
+      chunks.push(part.value);
+    }
+  }finally{
+    reader.releaseLock();
+  }
+  const combined=new Uint8Array(total);
+  let offset=0;
+  for(const chunk of chunks){combined.set(chunk,offset);offset+=chunk.byteLength;}
+  return new TextDecoder().decode(combined);
 }
 function stripJsonFence(content:string):string{
   const fence=String.fromCharCode(96).repeat(3);
