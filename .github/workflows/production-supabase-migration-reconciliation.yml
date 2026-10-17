@@ -42,6 +42,17 @@ jobs:
         uses: supabase/setup-cli@v3
         with:
           version: 2.98.2
+      - name: Verify CLI initialization preserves the existing migration directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f supabase/config.toml ]]; then
+            supabase init
+          fi
+          test -f supabase/config.toml
+          test -s supabase/migrations/20261017104855_v2_0_29_durable_execution_jobs.sql
+          test -s supabase/migrations/20261017105801_v2_0_30_database_clock_execution_leases.sql
+
       - name: Validate the commands and flags used by reconciliation
         shell: bash
         run: |
