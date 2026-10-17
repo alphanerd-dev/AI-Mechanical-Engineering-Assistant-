@@ -30,7 +30,7 @@ export class ExecutionEngine{
   if(!adapter){
    const finishedAt=new Date().toISOString(),message="No eligible execution backend is available for this request.";
    const history:ExecutionAttemptHistoryRecord={attempt:job.attempts??1,startedAt,finishedAt,status:"FAILED",error:message};
-   return {retryable:false,job:{...job,status:"FAILED",startedAt,finishedAt,error:message,errorCode:"NO_EXECUTION_BACKEND",attemptHistory:[...(job.attemptHistory??[]),history],provenance:{executionId:request.id,requestId:request.id,capability:request.capability,backend:request.backend,startedAt,completedAt:finishedAt,inputDigest:digest(request.inputs),evidenceIds:[]}}};
+   return {retryable:false,job:{...job,status:"FAILED",startedAt,finishedAt,error:message,errorCode:"NO_EXECUTION_BACKEND",attemptHistory:[...(job.attemptHistory??[]),history],provenance:{executionId:request.id,requestId:request.id,capability:request.capability,backend:request.backend,startedAt,completedAt:finishedAt,requestDigest:digest(request),inputDigest:digest(request.inputs),evidenceIds:[]}}};
   }
   const controller=new AbortController();
   let timedOut=false;
@@ -47,12 +47,12 @@ export class ExecutionEngine{
    const result=await Promise.race([adapter.execute(request,controller.signal),abortPromise]),finishedAt=result.completedAt??new Date().toISOString();
    const status:JobStatus=result.success?"SUCCEEDED":"FAILED",error=result.success?undefined:(result.warnings.join("; ").slice(0,2000)||"Execution provider reported failure.");
    const history:ExecutionAttemptHistoryRecord={attempt:job.attempts??1,startedAt,finishedAt,status,provider:result.provider??adapter.id,error};
-   const provenance:ExecutionProvenance={executionId:result.executionId??request.id,requestId:request.id,capability:request.capability,backend:request.backend,provider:result.provider??adapter.id,providerVersion:result.providerVersion,startedAt,completedAt:finishedAt,inputDigest:digest(request.inputs),outputDigest:digest(result.outputs),evidenceIds:result.evidenceIds??[]};
+   const provenance:ExecutionProvenance={executionId:result.executionId??request.id,requestId:request.id,capability:request.capability,backend:request.backend,provider:result.provider??adapter.id,providerVersion:result.providerVersion,startedAt,completedAt:finishedAt,requestDigest:digest(request),inputDigest:digest(request.inputs),outputDigest:digest(result.outputs),evidenceIds:result.evidenceIds??[]};
    return {retryable:false,job:{...job,status,startedAt,finishedAt,result:result.outputs,artifactIds:result.artifactIds,evidenceIds:result.evidenceIds??[],error,errorCode:result.success?undefined:"PROVIDER_REJECTED",provenance,attemptHistory:[...(job.attemptHistory??[]),history]}};
   }catch(error){
    const cancelled=Boolean(outerSignal?.aborted),finishedAt=new Date().toISOString(),message=errorMessage(error),status:JobStatus=cancelled?"CANCELLED":"FAILED";
    const history:ExecutionAttemptHistoryRecord={attempt:job.attempts??1,startedAt,finishedAt,status,provider:adapter.id,error:message};
-   const provenance:ExecutionProvenance={executionId:request.id,requestId:request.id,capability:request.capability,backend:request.backend,provider:adapter.id,startedAt,completedAt:finishedAt,inputDigest:digest(request.inputs),evidenceIds:[]};
+   const provenance:ExecutionProvenance={executionId:request.id,requestId:request.id,capability:request.capability,backend:request.backend,provider:adapter.id,startedAt,completedAt:finishedAt,requestDigest:digest(request),inputDigest:digest(request.inputs),evidenceIds:[]};
    const retryable=!cancelled&&adapter.retrySafe===true&&(timedOut||errorName(error)==="TimeoutError"||errorName(error)==="TypeError"||errorName(error)==="RetryableWorkerError");
    return {retryable,job:{...job,status,startedAt,finishedAt,error:message,errorCode:cancelled?"CANCELLED":timedOut||errorName(error)==="TimeoutError"?"EXECUTION_TIMEOUT":"EXECUTION_ERROR",provenance,attemptHistory:[...(job.attemptHistory??[]),history]}};
   }finally{clearTimeout(timeout);outerSignal?.removeEventListener("abort",forwardAbort);}

@@ -22,6 +22,7 @@ describe("execution layer", () => {
     expect(job.result?.torqueNm).toBeCloseTo(31.833, 3);
     expect(job.provenance?.capability).toBe("ANALYSIS.SHAFT_TORQUE");
     expect(job.provenance?.backend).toBe("typescript-safe");
+    expect(job.provenance?.requestDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(job.provenance?.inputDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(job.provenance?.outputDigest).toMatch(/^[a-f0-9]{64}$/);
   });

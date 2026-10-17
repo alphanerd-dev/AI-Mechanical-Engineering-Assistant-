@@ -10,4 +10,4 @@ export interface ExecutionJob{
  provenance?:ExecutionProvenance;attemptHistory?:ExecutionAttemptHistoryRecord[];
 }
 export interface ExecutionResult{success:boolean;outputs:Record<string,unknown>;warnings:string[];artifactIds:string[];evidenceIds?:string[];provider?:string;providerVersion?:string;executionId?:string;completedAt?:string;}
-export interface ExecutionProvenance{executionId:string;requestId:string;capability:string;backend:ExecutionBackend;provider?:string;providerVersion?:string;startedAt?:string;completedAt?:string;inputDigest?:string;outputDigest?:string;evidenceIds:string[];}
+export interface ExecutionProvenance{executionId:string;requestId:string;capability:string;backend:ExecutionBackend;provider?:string;providerVersion?:string;startedAt?:string;completedAt?:string;requestDigest?:string;inputDigest?:string;outputDigest?:string;evidenceIds:string[];}
