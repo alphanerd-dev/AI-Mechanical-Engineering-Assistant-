@@ -1,8 +1,8 @@
-# V2.0.29 — Durable execution jobs and recovery
+# V2.0.29/V2.0.30 — Durable execution jobs, recovery and database-clock leases
 
 ## Decision
 
-Use the existing Supabase/Postgres boundary as the durable source of truth for execution-job state. The job row is both the queue record and the result/provenance envelope. A separate worker process claims jobs through a narrow service-role-only RPC and renews a fenced lease while executing. No new agent framework or second workflow state machine is introduced.
+Use the existing Supabase/Postgres boundary as the durable source of truth for execution-job state. The job row is both the queue record and the result/provenance envelope. A separate worker process claims jobs through a narrow service-role-only RPC and renews a fenced lease through a second service-role-only RPC using Postgres clock time. A renewal succeeds only for the current token and a still-live lease; worker clock skew cannot extend or prematurely expire the database lease. No new agent framework or second workflow state machine is introduced.
 
 ## Rollout gate\n\nThe durable route is disabled unless `DURABLE_EXECUTION_ENABLED=true`. While the flag is unset/false, POST preserves the pre-existing synchronous execution path and the new job-status/cancel routes return 404. Do not enable the flag until the V2.0.29 schema is applied through the reviewed migration process and a persistent worker is deployed and health-checked. This prevents a code-only deploy from pointing the live API at a table or worker that does not yet exist.\n\n## Lifecycle
 
@@ -26,6 +26,10 @@ Supported adapters for this API are allowlisted deterministic computations: ANAL
 - Job IDs and idempotency keys are not authorization. Reads/cancellation filter by both job ID and project ID.
 - Inputs are capped at 64 KB and backend/capability choices are allowlisted.
 - Job SUCCEEDED is execution completion, not engineering verification.
+
+## E2E validation
+
+V2.0.29 and V2.0.30 have been applied only to the dedicated E2E project. The live database contract checks cover claim/fencing, single active claim, idempotency-key uniqueness, retryable lease recovery with a new token, exhausted retry budget, expired cancellation, database-clock heartbeat extension, refusal to resurrect an expired lease, and atomic cancellation-flag reporting. Temporary test rows were removed. The authenticated Next.js API and a persistent deployed worker still require deployment-specific validation.
 
 ## Rollout
 

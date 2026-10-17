@@ -19,4 +19,4 @@ Supported API capabilities are intentionally narrow: ANALYSIS.SHAFT_TORQUE on th
 
 Execution SUCCEEDED means the backend completed; it does not mean engineering correctness or physical safety is verified. Capability-specific validators and evidence contracts remain authoritative.
 
-Migration V2.0.29 is committed for review and has not been applied. Reconcile existing remote Supabase migration-ledger drift before applying it to any shared/production project. Production is not durably operational until the schema is applied and a persistent worker service is deployed and verified.
+V2.0.29 (durable jobs) and V2.0.30 (database-clock lease renewal) are applied and contract-tested in the dedicated E2E Supabase project only. They have not been applied to production. Reconcile existing production Supabase migration-ledger drift before applying either migration to a shared/production project. Production is not durably operational until the schema is applied and a persistent worker service is deployed and verified.

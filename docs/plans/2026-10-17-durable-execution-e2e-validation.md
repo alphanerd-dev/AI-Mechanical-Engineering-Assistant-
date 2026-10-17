@@ -1,12 +1,12 @@
-# V2.0.29 durable execution E2E validation record
+# V2.0.29/V2.0.30 durable execution E2E validation record
 
 **Date:** 2026-10-17  
 **Environment:** Dedicated Supabase project `AI-Mechanical-Engineering-Assistant-E2E`  
-**Migration:** `20261017104855_v2_0_29_durable_execution_jobs`
+**Migrations:** `20261017104855_v2_0_29_durable_execution_jobs`, `20261017105801_v2_0_30_database_clock_execution_leases`
 
 ## Scope
 
-The migration was applied to the dedicated E2E database, not the production Supabase project. The created job table was confirmed to have row-level security enabled and the expected owner/project foreign keys, request/idempotency fields, terminal states, retry metadata, result/provenance fields, and fencing-lease columns.
+Both migrations were applied to the dedicated E2E database, not the production Supabase project. The V2.0.29 job table was confirmed to have row-level security enabled and the expected owner/project foreign keys, request/idempotency fields, terminal states, retry metadata, result/provenance fields, and fencing-lease columns.
 
 ## Database contract checks
 
@@ -20,10 +20,13 @@ A short-lived test inside a PostgreSQL `DO` block completed successfully:
 - Reclaimed an expired retryable lease with an incremented attempt counter and a different fencing token.
 - Marked an expired job `FAILED` when its retry budget was exhausted.
 - Marked an expired job `CANCELLED` when cancellation had already been requested.
+- Renewed a live lease through V2.0.30 and confirmed expiry advanced using Postgres clock time.
+- Rejected lease renewal for a mismatched worker ID and for a lease already expired; the expired lease was not resurrected.
+- Confirmed a running job with a cancellation request returns `cancel_requested=true` from the same heartbeat RPC.
 - Inserted a queued job and confirmed the queued-to-`CANCELLED` transition satisfies the table constraints.
 - Deleted every temporary row within the test block. A follow-up count query confirmed the E2E job table was empty.
 
-A separate privilege query also passed: `anon` and `authenticated` have no SELECT, INSERT or UPDATE grants on `engineering_execution_jobs` and cannot execute `claim_engineering_execution_job(text,integer)`; `service_role` has the expected table grants and can execute the claim RPC. The table's informational Supabase `RLS Enabled No Policy` finding is intentional because direct client access is revoked and only the server-side service role uses this store. The E2E Auth advisor also reports leaked-password protection disabled; that is an existing project-level hardening issue and was not modified by this work.
+A separate privilege query also passed: `anon` and `authenticated` have no SELECT, INSERT or UPDATE grants on `engineering_execution_jobs` and cannot execute `claim_engineering_execution_job(text,integer)` or `renew_engineering_execution_job(uuid,text,uuid,integer)`; `service_role` has the expected table grants and can execute both RPCs. The table's informational Supabase `RLS Enabled No Policy` finding is intentional because direct client access is revoked and only the server-side service role uses this store. The E2E Auth advisor also reports leaked-password protection disabled; that is an existing project-level hardening issue and was not modified by this work.
 
 This validates the database schema and claim/fencing/cancellation contract against a live E2E database. It does **not** validate the deployed Next.js API against an authenticated user or prove a persistent worker is running.
 
