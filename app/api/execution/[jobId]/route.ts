@@ -9,7 +9,7 @@ function errorResponse(message:string,status:number,code?:string){return NextRes
 function readProjectId(request:Request):string|undefined{const value=new URL(request.url).searchParams.get("projectId")?.trim();return value&&UUID.test(value)?value:undefined;}
 async function authorizeJob(request:Request,permission:"PROJECT.READ"|"TASK.EXECUTE",projectId:string){
  try{
-  const decision=await authorizeSupabaseRequest(permission,projectId,{requestId:request.headers.get("x-request-id")});
+  const decision=await authorizeSupabaseRequest(permission,projectId,{requestId:request.headers.get("x-request-id")??undefined});
   if(!decision.allowed){const status=authorizationFailureStatus(decision);return {response:errorResponse(decision.reason,status,status===503?"AUDIT_STORE_UNAVAILABLE":"ENGINEERING_ROLE_REQUIRED")};}
   return {};
  }catch{return {response:errorResponse("Engineering authorization is unavailable.",503,"AUTHORIZATION_UNAVAILABLE")};}

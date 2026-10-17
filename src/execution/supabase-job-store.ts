@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from "node:crypto";
 import type {SupabaseClient} from "@supabase/supabase-js";
-import {ExecutionAttempt,ExecutionJob,ExecutionRequest} from "./types.js";
+import type {ExecutionAttempt} from "./executor.js";
+import type {ExecutionJob,ExecutionRequest} from "./types.js";
 const TABLE="engineering_execution_jobs";
 const JOB_STATUSES=["QUEUED","RUNNING","SUCCEEDED","FAILED","CANCELLED"] as const;
 export const DEFAULT_EXECUTION_MAX_ATTEMPTS=3;
