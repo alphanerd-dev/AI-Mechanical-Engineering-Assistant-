@@ -215,7 +215,8 @@ export class ModelBackedEngineeringIntentAdapter implements EngineeringIntentInt
       confidence:intent.confidence??"LOW",
       ambiguity:intent.ambiguity??"HIGH",
       contextUsed:intent.inputs?.filter(input=>input.source==="CONTEXT").map(input=>input.name)??[],
-      assumptions:intent.assumptions??[]
+      assumptions:intent.assumptions??[],
+      interpretationSource:"MODEL"
     };
   }
 }

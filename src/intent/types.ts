@@ -13,6 +13,8 @@ export interface EngineeringIntentInterpretation{
   ambiguity:"LOW"|"MEDIUM"|"HIGH";
   contextUsed:string[];
   assumptions:string[];
+  /** Interpretation provenance only; this is not engineering validation status. */
+  interpretationSource?:"MODEL"|"DETERMINISTIC"|"DETERMINISTIC_FALLBACK";
 }
 
 export interface EngineeringIntentInterpreter{

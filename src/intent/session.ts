@@ -65,6 +65,7 @@ function isInterpretation(value: unknown): value is EngineeringIntentInterpretat
   if (!isStringArray(value.missingInputs) || !isStringArray(value.contextUsed) || !isStringArray(value.assumptions)) return false;
   if (!["LOW", "MEDIUM", "HIGH"].includes(String(value.confidence))) return false;
   if (!["LOW", "MEDIUM", "HIGH"].includes(String(value.ambiguity))) return false;
+  if (value.interpretationSource !== undefined && !["MODEL", "DETERMINISTIC", "DETERMINISTIC_FALLBACK"].includes(String(value.interpretationSource))) return false;
   return true;
 }
 

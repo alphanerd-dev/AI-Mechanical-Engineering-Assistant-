@@ -1,60 +1,22 @@
-# V1.4 Execution Layer
+# Execution layer
 
-The execution layer separates engineering intent from runtime execution.
+The execution API now separates durable job submission from provider execution.
 
-## Contract
+## Request lifecycle
 
-`ExecutionRequest → ExecutionBackendAdapter → ExecutionResult → ExecutionJob`
+- With `DURABLE_EXECUTION_ENABLED=true`, POST /api/execution authorizes TASK.EXECUTE and project membership, validates an allowlisted backend/capability and bounded request body, then durably stores a QUEUED job. With the flag disabled or unset, the existing synchronous flow is preserved.
+- A stable Idempotency-Key is required. Same key plus same canonical request returns the existing job; reuse with different input returns 409.
+- GET /api/execution/{jobId}?projectId=... requires PROJECT.READ for the project.
+- DELETE /api/execution/{jobId}?projectId=... requires TASK.EXECUTE. Queued jobs cancel immediately; running jobs record a cancellation request checked by the worker heartbeat.
+- npm run worker:execution runs the independent Node worker process. It claims work via the service-role-only Postgres RPC, renews a lease using the database clock (never the worker host clock), and writes results only while the worker ID and fencing token still match.
+- Expired worker leases are recoverable. Retries are bounded (default 3 attempts) and limited to adapters declared retry-safe. Provider-declared failure is terminal.
 
-A job contains:
+## Operations and limits
 
-- capability
-- backend
-- explicit inputs
-- requested outputs
-- timeout
-- status
-- result
-- artifact IDs
-- errors
+Run the worker as a dedicated persistent process, not in a Next.js request handler. Set SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY, and optionally EXECUTION_WORKER_ID, EXECUTION_WORKER_POLL_INTERVAL_MS, EXECUTION_WORKER_LEASE_SECONDS, and EXECUTION_WORKER_HEARTBEAT_MS. Set PYTHON_WORKER_URL and PYTHON_WORKER_API_TOKEN to enable the allowlisted Python numerical adapter.
 
-## Units
+Supported API capabilities are intentionally narrow: ANALYSIS.SHAFT_TORQUE on the TypeScript adapter and the explicitly allowlisted numerical capabilities on the Python worker. The worker currently retries only transport/time-limit failures on these deterministic computations. New non-idempotent adapters must not declare retrySafe without a provider-specific idempotency contract.
 
-Engineering values should carry explicit units. The initial TypeScript unit system supports a small deterministic set for the core benchmark.
+Execution SUCCEEDED means the backend completed; it does not mean engineering correctness or physical safety is verified. Capability-specific validators and evidence contracts remain authoritative.
 
-A future production unit layer should use a mature dimensional-analysis library such as Pint in the Python worker and enforce dimensional compatibility before calculations.
-
-## Security boundary
-
-The Next.js server must not evaluate arbitrary model-generated Python, CAD code or shell commands.
-
-The intended architecture is:
-
-`Next.js → job queue → isolated worker → artifact store → validation → project state`
-
-Workers need:
-
-- CPU/time limits
-- memory limits
-- restricted filesystem
-- controlled network access
-- explicit input/output directories
-- process termination
-- audit records
-
-## Current implementation
-
-The repository currently includes a deterministic TypeScript numerical adapter. It proves the job contract without pretending that Python execution is already available.
-
-## V1.4.1 Controlled Python worker
-
-The repository now includes `worker/python/worker.py` and a TypeScript `PythonWorkerAdapter`. The worker uses a strict allowlist for `ANALYSIS.SHAFT_TORQUE` and `ANALYSIS.SHAFT_SIZE` and never evaluates arbitrary Python source.
-
-`PythonProcessClient` communicates over stdin/stdout with `shell: false` and enforces a process timeout. This is a real external process boundary, but it is **not yet a production sandbox**. Production deployment still requires container isolation, resource limits, filesystem/network policy, queueing and stronger schema validation.
-
-The next execution milestone is containerized worker execution plus artifact handling and validation.
-
-
-## V1.4.2 Worker hardening baseline
-
-Added a reference container and worker policy. The Python worker is intended to run non-root with a read-only filesystem, no network, dropped Linux capabilities, no-new-privileges, CPU/memory/process limits and an application-level capability/timeout allowlist. The TypeScript adapter now rejects requests that violate the Python numerical worker policy before starting the process.
+V2.0.29 (durable jobs) and V2.0.30 (database-clock lease renewal) are applied and contract-tested in the dedicated E2E Supabase project only. They have not been applied to production. Reconcile existing production Supabase migration-ledger drift before applying either migration to a shared/production project. Production is not durably operational until the schema is applied and a persistent worker service is deployed and verified.

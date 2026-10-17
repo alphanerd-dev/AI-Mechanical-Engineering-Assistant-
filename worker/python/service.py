@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""Reference HTTP service for the isolated engineering computation worker.
-
-This service is intentionally small and transport-focused. Production deployments
-should run it in a dedicated container/VM with network, CPU, memory and filesystem
-limits plus durable job storage.
-"""
+"""Reference HTTP service for the isolated allowlisted engineering computation worker."""
 from __future__ import annotations
-
+import hashlib
 import json
 import os
 import threading
@@ -14,18 +9,15 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-
 from worker import OPS
 
 MAX_BODY_BYTES = 1_000_000
 HOST = os.getenv("WORKER_HOST", "127.0.0.1")
 PORT = int(os.getenv("WORKER_PORT", "8090"))
 API_TOKEN = os.getenv("WORKER_API_TOKEN")
-
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()
 POOL = ThreadPoolExecutor(max_workers=int(os.getenv("WORKER_MAX_CONCURRENCY", "2")))
-
 
 def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
     raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -35,46 +27,47 @@ def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict[s
     handler.end_headers()
     handler.wfile.write(raw)
 
+def _request_hash(request: dict[str, Any]) -> str:
+    canonical = json.dumps(request, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+def _public_job(job: dict[str, Any]) -> dict[str, Any]:
+    return {key: job[key] for key in ("jobId", "status", "result", "error", "cancelRequested") if key in job}
 
 def _run_job(job_id: str, request: dict[str, Any]) -> None:
     with LOCK:
-        JOBS[job_id]["status"] = "RUNNING"
+        current = JOBS.get(job_id)
+        if not current or current["status"] == "CANCELLED":
+            return
+        current["status"] = "RUNNING"
     try:
         capability = request.get("capability")
         if capability not in OPS:
             raise ValueError(f"Unsupported capability: {capability}")
         outputs = OPS[capability](request.get("inputs", {}))
-        result = {
-            "success": True,
-            "outputs": outputs,
-            "warnings": [],
-            "artifactIds": [],
-            "provider": "python-engineering-worker",
-        }
+        result = {"success": True, "outputs": outputs, "warnings": [], "artifactIds": [], "provider": "python-engineering-worker"}
         with LOCK:
-            JOBS[job_id].update(status="SUCCEEDED", result=result)
+            current = JOBS.get(job_id)
+            if not current:
+                return
+            if current.get("cancelRequested"):
+                current.update(status="CANCELLED", error="Cancellation requested.")
+            else:
+                current.update(status="SUCCEEDED", result=result)
     except Exception as exc:
         with LOCK:
-            JOBS[job_id].update(
-                status="FAILED",
-                error=str(exc),
-                result={
-                    "success": False,
-                    "outputs": {},
-                    "warnings": [str(exc)],
-                    "artifactIds": [],
-                    "provider": "python-engineering-worker",
-                },
-            )
-
+            current = JOBS.get(job_id)
+            if not current:
+                return
+            if current.get("cancelRequested"):
+                current.update(status="CANCELLED", error="Cancellation requested.")
+            else:
+                current.update(status="FAILED", error=str(exc), result={"success": False, "outputs": {}, "warnings": [str(exc)], "artifactIds": [], "provider": "python-engineering-worker"})
 
 class WorkerHandler(BaseHTTPRequestHandler):
-    server_version = "EngineeringWorker/0.1"
-
+    server_version = "EngineeringWorker/0.2"
     def _authorized(self) -> bool:
-        if not API_TOKEN:
-            return True
-        return self.headers.get("authorization") == f"Bearer {API_TOKEN}"
+        return not API_TOKEN or self.headers.get("authorization") == f"Bearer {API_TOKEN}"
 
     def do_POST(self) -> None:
         if not self._authorized():
@@ -95,8 +88,16 @@ class WorkerHandler(BaseHTTPRequestHandler):
             if capability not in OPS:
                 raise ValueError(f"Unsupported capability: {capability}")
             job_id = str(request.get("id") or uuid.uuid4())
+            request_hash = _request_hash(request)
             with LOCK:
-                JOBS[job_id] = {"jobId": job_id, "status": "QUEUED"}
+                existing = JOBS.get(job_id)
+                if existing:
+                    if existing.get("requestHash") != request_hash:
+                        _json_response(self, 409, {"accepted": False, "jobId": job_id, "status": "REJECTED", "error": "Job ID reused with different request"})
+                        return
+                    _json_response(self, 202, {"accepted": True, "jobId": job_id, "status": existing["status"]})
+                    return
+                JOBS[job_id] = {"jobId": job_id, "status": "QUEUED", "requestHash": request_hash, "cancelRequested": False}
             POOL.submit(_run_job, job_id, request)
             _json_response(self, 202, {"accepted": True, "jobId": job_id, "status": "QUEUED"})
         except Exception as exc:
@@ -113,16 +114,44 @@ class WorkerHandler(BaseHTTPRequestHandler):
         job_id = self.path[len(prefix):]
         with LOCK:
             job = JOBS.get(job_id)
-        if not job:
+            view = _public_job(job) if job else None
+        if not view:
             _json_response(self, 404, {"jobId": job_id, "status": "FAILED", "error": "Job not found"})
             return
-        _json_response(self, 200, job)
+        _json_response(self, 200, view)
+
+    def do_DELETE(self) -> None:
+        if not self._authorized():
+            _json_response(self, 401, {"jobId": "", "status": "FAILED", "error": "Unauthorized"})
+            return
+        prefix = "/v1/jobs/"
+        if not self.path.startswith(prefix):
+            _json_response(self, 404, {"jobId": "", "status": "FAILED", "error": "Not found"})
+            return
+        job_id = self.path[len(prefix):]
+        with LOCK:
+            job = JOBS.get(job_id)
+            if job:
+                if job["status"] == "QUEUED":
+                    job.update(status="CANCELLED", cancelRequested=True, error="Cancelled before computation began.")
+                elif job["status"] == "RUNNING":
+                    job["cancelRequested"] = True
+                view = _public_job(job) if job else None
+        if not view:
+            _json_response(self, 404, {"jobId": job_id, "status": "FAILED", "error": "Job not found"})
+            return
+        _json_response(self, 200, view)
 
     def log_message(self, format: str, *args: Any) -> None:
         return
 
+def validate_server_configuration(host: str, api_token: str | None) -> None:
+    """Do not accidentally expose an unauthenticated worker on a non-loopback interface."""
+    if host.strip().lower() not in {"127.0.0.1", "::1", "localhost"} and not api_token:
+        raise RuntimeError("WORKER_API_TOKEN is required when WORKER_HOST binds beyond loopback.")
 
 def main() -> None:
+    validate_server_configuration(HOST, API_TOKEN)
     server = ThreadingHTTPServer((HOST, PORT), WorkerHandler)
     print(f"engineering worker listening on http://{HOST}:{PORT}", flush=True)
     try:
@@ -130,7 +159,6 @@ def main() -> None:
     finally:
         POOL.shutdown(wait=False, cancel_futures=True)
         server.server_close()
-
 
 if __name__ == "__main__":
     main()

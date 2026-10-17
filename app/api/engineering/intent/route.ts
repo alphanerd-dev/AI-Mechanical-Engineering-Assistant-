@@ -15,7 +15,7 @@ import { EngineeringVerificationProvider } from "../../../../src/providers/engin
 import { ElectricalAnalysisProvider } from "../../../../src/providers/electrical";
 import { ElectricalEngineeringCompletionProvider } from "../../../../src/providers/electrical-completion";
 import { AIEngineeringIntentProvider } from "../../../../src/providers/ai-intent";
-import { createDefaultDeterministicEngineeringIntentInterpreter } from "../../../../src/intent/deterministic";
+import { createEngineeringIntentInterpreterFromEnvironment } from "../../../../src/intent/runtime-interpreter";
 import {
   ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
   EngineeringIntentSessionConflictError,
@@ -263,6 +263,9 @@ export async function POST(request: Request) {
   if (typeof body.rawIntent !== "string" || !body.rawIntent.trim()) {
     return jsonError("rawIntent is required.", 400);
   }
+  if (body.rawIntent.length > 8000) {
+    return jsonError("rawIntent must not exceed 8000 characters.", 413);
+  }
   if (!projectId) {
     return jsonError("projectId is required.", 400);
   }
@@ -297,7 +300,7 @@ export async function POST(request: Request) {
   registry.register(new EngineeringVerificationProvider());
   registry.register(new AIEngineeringIntentProvider(
     router,
-    createDefaultDeterministicEngineeringIntentInterpreter(),
+    createEngineeringIntentInterpreterFromEnvironment(),
     sessionStore,
   ));
 

@@ -12,13 +12,12 @@ export class DeterministicEngineeringIntentInterpreter implements EngineeringInt
   ){}
 
   async interpret(raw:string,context?:EngineeringContext):Promise<EngineeringIntentInterpretation>{
-    if(isThermalIntentCandidate(raw,context)){
-      return this.thermal.interpret(raw,context);
-    }
-    if(isElectricalIntentCandidate(raw,context)){
-      return this.electrical.interpret(raw,context);
-    }
-    return this.shaft.interpret(raw,context);
+    const result=isThermalIntentCandidate(raw,context)
+      ? await this.thermal.interpret(raw,context)
+      : isElectricalIntentCandidate(raw,context)
+        ? await this.electrical.interpret(raw,context)
+        : await this.shaft.interpret(raw,context);
+    return {...result,interpretationSource:"DETERMINISTIC"};
   }
 }
 

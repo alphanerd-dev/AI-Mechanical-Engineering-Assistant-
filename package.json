@@ -11,6 +11,7 @@
     "benchmark": "tsx benchmarks/v2-0-suite.ts",
     "dev": "next dev --webpack",
     "core": "tsx src/index.ts",
+    "worker:execution": "tsx scripts/execution-worker.ts",
     "smoke:cad-live": "tsx scripts/cad-workspace-live-smoke.ts",
     "architecture:graph": "tsx scripts/architecture-graph.ts",
     "architecture:graph:json": "tsx scripts/architecture-graph.ts --json"
