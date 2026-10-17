@@ -43,9 +43,13 @@ begin
  if p_worker_id is null or length(trim(p_worker_id)) < 1 or length(p_worker_id) > 128 then raise exception 'Invalid execution worker identifier.'; end if;
  if p_lease_seconds is null or p_lease_seconds < 5 or p_lease_seconds > 300 then raise exception 'Invalid execution lease duration.'; end if;
  update public.engineering_execution_jobs
+ set status='CANCELLED',error='Cancellation was requested but the worker lease expired.',error_code='CANCELLED',
+     finished_at=clock_timestamp(),updated_at=clock_timestamp(),lease_owner=null,lease_token=null,lease_expires_at=null
+ where status='RUNNING' and lease_expires_at<clock_timestamp() and cancel_requested_at is not null;
+ update public.engineering_execution_jobs
  set status='FAILED',error='Worker lease expired after the retry budget was exhausted.',error_code='WORKER_LEASE_EXPIRED',
      finished_at=clock_timestamp(),updated_at=clock_timestamp(),lease_owner=null,lease_token=null,lease_expires_at=null
- where status='RUNNING' and lease_expires_at<clock_timestamp() and attempts>=max_attempts;
+ where status='RUNNING' and lease_expires_at<clock_timestamp() and cancel_requested_at is null and attempts>=max_attempts;
  return query
  with candidate as (
   select j.id from public.engineering_execution_jobs as j
@@ -60,7 +64,7 @@ begin
  update public.engineering_execution_jobs as j
  set status='RUNNING',attempts=j.attempts+1,lease_owner=p_worker_id,lease_token=gen_random_uuid(),
      lease_expires_at=clock_timestamp()+make_interval(secs=>p_lease_seconds),
-     started_at=coalesce(j.started_at,clock_timestamp()),updated_at=clock_timestamp()
+     started_at=clock_timestamp(),updated_at=clock_timestamp()
  from candidate where j.id=candidate.id returning j.*;
 end;
 $$;

@@ -63,18 +63,23 @@ export class SupabaseExecutionJobStore{
   return data?toJob(data):undefined;
  }
  async requestCancellation(id:string,projectId:string):Promise<ExecutionJob|undefined>{
-  const current=await this.client.from(TABLE).select("*").eq("id",id).eq("project_id",projectId).maybeSingle();
-  if(current.error)throw new ExecutionJobStoreError("reading a job for cancellation");
-  if(!current.data)return undefined;
-  const job=toJob(current.data);
-  if(job.status==="QUEUED"){
+  // Retry the read/conditional-write cycle when a worker claims or completes the
+  // job concurrently with the user's cancellation request.
+  for(let attempt=0;attempt<3;attempt++){
+   const current=await this.client.from(TABLE).select("*").eq("id",id).eq("project_id",projectId).maybeSingle();
+   if(current.error)throw new ExecutionJobStoreError("reading a job for cancellation");
+   if(!current.data)return undefined;
+   const job=toJob(current.data);
+   if(job.status!=="QUEUED"&&job.status!=="RUNNING")return job;
    const now=new Date().toISOString();
-   const updated=await this.client.from(TABLE).update({status:"CANCELLED",cancel_requested_at:current.data.cancel_requested_at??now,finished_at:now,updated_at:now,error:"Cancelled before execution started.",error_code:"CANCELLED"}).eq("id",id).eq("project_id",projectId).eq("status","QUEUED").select("*").maybeSingle();
-   if(updated.error)throw new ExecutionJobStoreError("cancelling a queued job");
-   if(updated.data)return toJob(updated.data);
-  }else if(job.status==="RUNNING"){
-   const now=new Date().toISOString();
-   const updated=await this.client.from(TABLE).update({cancel_requested_at:current.data.cancel_requested_at??now,updated_at:now}).eq("id",id).eq("project_id",projectId).eq("status","RUNNING").is("cancel_requested_at",null).select("*").maybeSingle();
+   if(job.status==="QUEUED"){
+    const updated=await this.client.from(TABLE).update({status:"CANCELLED",cancel_requested_at:current.data.cancel_requested_at??now,finished_at:now,updated_at:now,error:"Cancelled before execution started.",error_code:"CANCELLED"}).eq("id",id).eq("project_id",projectId).eq("status","QUEUED").select("*").maybeSingle();
+    if(updated.error)throw new ExecutionJobStoreError("cancelling a queued job");
+    if(updated.data)return toJob(updated.data);
+    continue;
+   }
+   if(current.data.cancel_requested_at)return job;
+   const updated=await this.client.from(TABLE).update({cancel_requested_at:now,updated_at:now}).eq("id",id).eq("project_id",projectId).eq("status","RUNNING").is("cancel_requested_at",null).select("*").maybeSingle();
    if(updated.error)throw new ExecutionJobStoreError("requesting running-job cancellation");
    if(updated.data)return toJob(updated.data);
   }
@@ -128,8 +133,18 @@ export class SupabaseExecutionJobStore{
    return false;
   }
   const status=attempt.job.status;
-  const update=await this.client.from(TABLE).update({status,result:status==="SUCCEEDED"?attempt.job.result??{}:null,error:status==="SUCCEEDED"?null:attempt.job.error??"Execution failed.",error_code:status==="SUCCEEDED"?null:attempt.job.errorCode??"EXECUTION_FAILED",artifact_ids:status==="SUCCEEDED"?attempt.job.artifactIds:[],evidence_ids:status==="SUCCEEDED"?attempt.job.evidenceIds:[],provenance:attempt.job.provenance??null,attempt_history:attempt.job.attemptHistory??[],started_at:attempt.job.startedAt??claim.job.startedAt??now,finished_at:now,updated_at:now,lease_owner:null,lease_token:null,lease_expires_at:null}).eq("id",claim.job.id).eq("status","RUNNING").eq("lease_owner",claim.workerId).eq("lease_token",claim.leaseToken).select("id").maybeSingle();
+  const update=await this.client.from(TABLE).update({status,result:status==="SUCCEEDED"?attempt.job.result??{}:null,error:status==="SUCCEEDED"?null:attempt.job.error??"Execution failed.",error_code:status==="SUCCEEDED"?null:attempt.job.errorCode??"EXECUTION_FAILED",artifact_ids:status==="SUCCEEDED"?attempt.job.artifactIds:[],evidence_ids:status==="SUCCEEDED"?attempt.job.evidenceIds:[],provenance:attempt.job.provenance??null,attempt_history:attempt.job.attemptHistory??[],started_at:attempt.job.startedAt??claim.job.startedAt??now,finished_at:now,updated_at:now,lease_owner:null,lease_token:null,lease_expires_at:null}).eq("id",claim.job.id).eq("status","RUNNING").eq("lease_owner",claim.workerId).eq("lease_token",claim.leaseToken).is("cancel_requested_at",null).select("id").maybeSingle();
   if(update.error)throw new ExecutionJobStoreError("persisting execution completion");
-  return Boolean(update.data);
+  if(update.data)return true;
+  // A cancellation can arrive between the initial read and the terminal write.
+  // Re-check the lease and let the cancellation win if it was recorded first.
+  const latest=await this.client.from(TABLE).select("cancel_requested_at").eq("id",claim.job.id).eq("status","RUNNING").eq("lease_owner",claim.workerId).eq("lease_token",claim.leaseToken).maybeSingle();
+  if(latest.error)throw new ExecutionJobStoreError("checking a concurrent cancellation");
+  if(!latest.data||!latest.data.cancel_requested_at)return false;
+  const history=[...(attempt.job.attemptHistory??[])];
+  if(history.length)history[history.length-1]={...history[history.length-1],status:"CANCELLED",error:"Cancellation was requested before completion was committed."};
+  const cancelled=await this.client.from(TABLE).update({status:"CANCELLED",result:null,error:"Execution cancelled.",error_code:"CANCELLED",artifact_ids:[],evidence_ids:[],attempt_history:history,finished_at:now,updated_at:now,lease_owner:null,lease_token:null,lease_expires_at:null}).eq("id",claim.job.id).eq("status","RUNNING").eq("lease_owner",claim.workerId).eq("lease_token",claim.leaseToken).select("id").maybeSingle();
+  if(cancelled.error)throw new ExecutionJobStoreError("finalizing a concurrent cancellation");
+  return Boolean(cancelled.data);
  }
 }
