@@ -16,7 +16,7 @@ describe("execution lifecycle",()=>{
     });
     expect(j.status).toBe("SUCCEEDED");
     expect(j.result?.status).toBe("CALCULATED");
-    expect((store.get("job-1") as any).status).toBe("SUCCEEDED");
+    expect((await store.get("job-1"))?.status).toBe("SUCCEEDED");
   });
 });
 
