@@ -53,6 +53,39 @@ jobs:
           test -s supabase/migrations/20261017104855_v2_0_29_durable_execution_jobs.sql
           test -s supabase/migrations/20261017105801_v2_0_30_database_clock_execution_leases.sql
 
+      - name: Test migration ledger parsing and canonical migration discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          has_version() {
+            local file="$1" column="$2" version="$3"
+            awk -F '[│|]' -v col="$column" -v ver="$version" \
+              'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
+          }
+
+          cat > "$RUNNER_TEMP/migration-list-ascii.txt" <<'EOF'
+            Local          | Remote         | Time (UTC)
+            20261007222703 | 20261007222703 | 2026-10-07 22:27:03
+            20261013220000 |                | 2026-10-13 22:00:00
+                           | 20261015081705 | 2026-10-15 08:17:05
+          EOF
+          cat > "$RUNNER_TEMP/migration-list-unicode.txt" <<'EOF'
+            Local          │ Remote         │ Time (UTC)
+            20261007222703 │ 20261007222703 │ 2026-10-07 22:27:03
+            20261013220000 │                │ 2026-10-13 22:00:00
+                           │ 20261015081705 │ 2026-10-15 08:17:05
+          EOF
+
+          for file in "$RUNNER_TEMP/migration-list-ascii.txt" "$RUNNER_TEMP/migration-list-unicode.txt"; do
+            has_version "$file" 1 20261007222703
+            has_version "$file" 2 20261007222703
+            has_version "$file" 1 20261013220000
+            has_version "$file" 2 20261015081705
+          done
+
+          compgen -G 'supabase/migrations/20261013220000_*.sql' > /dev/null
+          compgen -G 'supabase/migrations/20261017104855_*.sql' > /dev/null
+
       - name: Validate the commands and flags used by reconciliation
         shell: bash
         run: |
@@ -220,7 +253,7 @@ jobs:
           for pair in "${pairs[@]}"; do
             old_version="${pair%%:*}"
             canonical_version="${pair##*:}"
-            [[ -f "supabase/migrations/${canonical_version}_"*.sql ]] ||
+            compgen -G "supabase/migrations/${canonical_version}_*.sql" > /dev/null ||
               fail "Canonical migration file for ${canonical_version} was not found."
             old_present=false
             canonical_present=false
