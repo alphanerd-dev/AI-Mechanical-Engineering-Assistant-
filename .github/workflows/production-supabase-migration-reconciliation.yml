@@ -58,10 +58,13 @@ jobs:
         run: |
           set -euo pipefail
           supabase --version
+          supabase link --help > "$RUNNER_TEMP/link-help.txt"
           supabase migration list --help > "$RUNNER_TEMP/migration-list-help.txt"
           supabase migration repair --help > "$RUNNER_TEMP/migration-repair-help.txt"
           supabase db dump --help > "$RUNNER_TEMP/db-dump-help.txt"
           supabase db push --help > "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--project-ref' "$RUNNER_TEMP/link-help.txt"
+          grep -q -- '--password' "$RUNNER_TEMP/link-help.txt"
           grep -q -- '--linked' "$RUNNER_TEMP/migration-list-help.txt"
           grep -q -- '--password' "$RUNNER_TEMP/migration-list-help.txt"
           grep -q -- '--status' "$RUNNER_TEMP/migration-repair-help.txt"
@@ -69,6 +72,7 @@ jobs:
           grep -q -- '--file' "$RUNNER_TEMP/db-dump-help.txt"
           grep -q -- '--schema' "$RUNNER_TEMP/db-dump-help.txt"
           grep -q -- '--dry-run' "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--yes' "$RUNNER_TEMP/db-push-help.txt"
           grep -q -- '--linked' "$RUNNER_TEMP/db-push-help.txt"
 
   reconcile:
