@@ -17,7 +17,7 @@ function canonical(value:unknown):unknown{
  return value;
 }
 function requestDigest(request:ExecutionRequest):string{
- const body={...request};
+ const body:Record<string,unknown>={...request};
  delete body.id;
  delete body.correlationId;
  return createHash("sha256").update(JSON.stringify(canonical(body))).digest("hex");
