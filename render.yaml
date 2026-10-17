@@ -1,0 +1,18 @@
+# Render Blueprint for the durable execution worker.
+# Creating a Blueprint does not automatically make durable execution available:
+# configure the secret, deploy the worker, and pass authenticated E2E checks first.
+services:
+  - type: worker
+    name: ai-mechanical-execution-worker
+    runtime: node
+    region: frankfurt
+    plan: starter
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci
+    startCommand: npm run worker:execution
+    envVars:
+      - key: SUPABASE_URL
+        value: https://mepmogsqhxxasahwhete.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
