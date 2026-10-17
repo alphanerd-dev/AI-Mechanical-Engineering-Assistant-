@@ -16,8 +16,12 @@ A short-lived test inside a PostgreSQL `DO` block completed successfully:
 - Called `claim_engineering_execution_job`; the job transitioned to `RUNNING` with a non-null lease token and future expiry.
 - Attempted another claim while the first lease remained active; the job was not returned a second time.
 - Finalized the job using the current worker ID and fencing token; the update succeeded.
-- Inserted a second queued job and confirmed the queued-to-`CANCELLED` transition satisfies the table constraints.
-- Deleted both temporary rows within the test block. The table was empty after validation.
+- Reusing an owner/project/idempotency key was rejected by the database unique constraint.
+- Reclaimed an expired retryable lease with an incremented attempt counter and a different fencing token.
+- Marked an expired job `FAILED` when its retry budget was exhausted.
+- Marked an expired job `CANCELLED` when cancellation had already been requested.
+- Inserted a queued job and confirmed the queued-to-`CANCELLED` transition satisfies the table constraints.
+- Deleted every temporary row within the test block. A follow-up count query confirmed the E2E job table was empty.
 
 A separate privilege query also passed: `anon` and `authenticated` have no SELECT, INSERT or UPDATE grants on `engineering_execution_jobs` and cannot execute `claim_engineering_execution_job(text,integer)`; `service_role` has the expected table grants and can execute the claim RPC. The table's informational Supabase `RLS Enabled No Policy` finding is intentional because direct client access is revoked and only the server-side service role uses this store. The E2E Auth advisor also reports leaked-password protection disabled; that is an existing project-level hardening issue and was not modified by this work.
 
