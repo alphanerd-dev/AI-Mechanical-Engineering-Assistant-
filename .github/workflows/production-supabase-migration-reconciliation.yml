@@ -180,7 +180,7 @@ jobs:
 
           has_version() {
             local file="$1" column="$2" version="$3"
-            awk -F '│' -v col="$column" -v ver="$version" \
+            awk -F '[│|]' -v col="$column" -v ver="$version" \
               'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
           }
           fail() {
@@ -279,7 +279,7 @@ jobs:
           state_file="migration-reconciliation-evidence/migration-list-before.txt"
           has_version() {
             local file="$1" column="$2" version="$3"
-            awk -F '│' -v col="$column" -v ver="$version" \
+            awk -F '[│|]' -v col="$column" -v ver="$version" \
               'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
           }
           pairs=(
@@ -340,7 +340,7 @@ jobs:
           actual_file="$RUNNER_TEMP/actual-pending-versions.txt"
           has_version() {
             local file="$1" column="$2" version="$3"
-            awk -F '│' -v col="$column" -v ver="$version" \
+            awk -F '[│|]' -v col="$column" -v ver="$version" \
               'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
           }
 
@@ -389,7 +389,7 @@ jobs:
 
           has_version() {
             local file="$1" column="$2" version="$3"
-            awk -F '│' -v col="$column" -v ver="$version" \
+            awk -F '[│|]' -v col="$column" -v ver="$version" \
               'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
           }
           for version in \
