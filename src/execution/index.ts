@@ -10,3 +10,5 @@ export * from "./worker-policy.js";
 export * from "./cad-worker-policy.js";
 export * from "./build123d-worker.js";
 export * from "./docker-occt-validator.js";
+export * from "./supabase-job-store.js";
+export * from "./durable-worker.js";
