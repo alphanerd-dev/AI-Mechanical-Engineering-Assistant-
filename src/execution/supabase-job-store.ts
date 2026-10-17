@@ -100,12 +100,19 @@ export class SupabaseExecutionJobStore{
   return {job,workerId,leaseToken};
  }
  async heartbeat(claim:ExecutionJobClaim,leaseSeconds:number):Promise<JobHeartbeat>{
-  const current=await this.client.from(TABLE).select("cancel_requested_at").eq("id",claim.job.id).eq("status","RUNNING").eq("lease_owner",claim.workerId).eq("lease_token",claim.leaseToken).maybeSingle();
-  if(current.error)throw new ExecutionJobStoreError("reading worker lease state");
-  if(!current.data)return {active:false,cancelRequested:false};
-  const updated=await this.client.from(TABLE).update({lease_expires_at:new Date(Date.now()+leaseSeconds*1000).toISOString(),updated_at:new Date().toISOString()}).eq("id",claim.job.id).eq("status","RUNNING").eq("lease_owner",claim.workerId).eq("lease_token",claim.leaseToken).select("id").maybeSingle();
-  if(updated.error)throw new ExecutionJobStoreError("renewing a worker lease");
-  return {active:Boolean(updated.data),cancelRequested:Boolean(current.data.cancel_requested_at)};
+  // Lease expiry must be computed by Postgres, not a worker host clock. The RPC
+  // renews only a still-live lease and reads the cancellation flag atomically.
+  const {data,error}=await this.client.rpc("renew_engineering_execution_job",{
+   p_job_id:claim.job.id,
+   p_worker_id:claim.workerId,
+   p_lease_token:claim.leaseToken,
+   p_lease_seconds:leaseSeconds
+  });
+  if(error)throw new ExecutionJobStoreError("renewing a worker lease");
+  const row=Array.isArray(data)?data[0]:data;
+  const heartbeat=record(row);
+  if(!heartbeat)return {active:false,cancelRequested:false};
+  return {active:heartbeat.active===true,cancelRequested:heartbeat.cancel_requested===true};
  }
  async finishClaim(claim:ExecutionJobClaim,attempt:ExecutionAttempt):Promise<boolean>{
   const current=await this.client.from(TABLE).select("cancel_requested_at,attempts,max_attempts").eq("id",claim.job.id).eq("status","RUNNING").eq("lease_owner",claim.workerId).eq("lease_token",claim.leaseToken).maybeSingle();

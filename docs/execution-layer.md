@@ -8,7 +8,7 @@ The execution API now separates durable job submission from provider execution.
 - A stable Idempotency-Key is required. Same key plus same canonical request returns the existing job; reuse with different input returns 409.
 - GET /api/execution/{jobId}?projectId=... requires PROJECT.READ for the project.
 - DELETE /api/execution/{jobId}?projectId=... requires TASK.EXECUTE. Queued jobs cancel immediately; running jobs record a cancellation request checked by the worker heartbeat.
-- npm run worker:execution runs the independent Node worker process. It claims work via the service-role-only Postgres RPC, renews a lease, and writes results only while the worker ID and fencing token still match.
+- npm run worker:execution runs the independent Node worker process. It claims work via the service-role-only Postgres RPC, renews a lease using the database clock (never the worker host clock), and writes results only while the worker ID and fencing token still match.
 - Expired worker leases are recoverable. Retries are bounded (default 3 attempts) and limited to adapters declared retry-safe. Provider-declared failure is terminal.
 
 ## Operations and limits

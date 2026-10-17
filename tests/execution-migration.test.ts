@@ -9,6 +9,13 @@ describe("durable execution migration contract",()=>{
  it("uses row locking and a worker fencing token for concurrent claims",()=>{
   expect(sql).toContain("for update skip locked");expect(sql).toContain("lease_token");expect(sql).toContain("lease_expires_at");
  });
+ it("renews only live leases using the database clock",()=>{
+  expect(sql).toContain("renew_engineering_execution_job");
+  expect(sql).toContain("lease_expires_at > clock_timestamp()");
+  expect(sql).toContain("lease_expires_at = clock_timestamp() + make_interval(secs => p_lease_seconds)");
+  expect(sql).toContain("cancel_requested_at is not null");
+ });
+
  it("restricts the claim RPC to service_role",()=>{
   expect(sql).toContain("revoke all on function public.claim_engineering_execution_job(text,integer) from public,anon,authenticated");
   expect(sql).toContain("grant execute on function public.claim_engineering_execution_job(text,integer) to service_role");
