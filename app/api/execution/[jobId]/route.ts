@@ -15,6 +15,7 @@ async function authorizeJob(request:Request,permission:"PROJECT.READ"|"TASK.EXEC
  }catch{return {response:errorResponse("Engineering authorization is unavailable.",503,"AUTHORIZATION_UNAVAILABLE")};}
 }
 export async function GET(request:Request,context:Context){
+ if(process.env.DURABLE_EXECUTION_ENABLED!=="true")return errorResponse("Durable execution is not enabled.",404,"DURABLE_EXECUTION_DISABLED");
  const {jobId}=await context.params;
  if(!UUID.test(jobId))return errorResponse("A valid jobId is required.",400,"INVALID_JOB_ID");
  const projectId=readProjectId(request);
@@ -31,6 +32,7 @@ export async function GET(request:Request,context:Context){
  }
 }
 export async function DELETE(request:Request,context:Context){
+ if(process.env.DURABLE_EXECUTION_ENABLED!=="true")return errorResponse("Durable execution is not enabled.",404,"DURABLE_EXECUTION_DISABLED");
  const {jobId}=await context.params;
  if(!UUID.test(jobId))return errorResponse("A valid jobId is required.",400,"INVALID_JOB_ID");
  const projectId=readProjectId(request);

@@ -4,7 +4,7 @@
 
 Use the existing Supabase/Postgres boundary as the durable source of truth for execution-job state. The job row is both the queue record and the result/provenance envelope. A separate worker process claims jobs through a narrow service-role-only RPC and renews a fenced lease while executing. No new agent framework or second workflow state machine is introduced.
 
-## Lifecycle
+## Rollout gate\n\nThe durable route is disabled unless `DURABLE_EXECUTION_ENABLED=true`. While the flag is unset/false, POST preserves the pre-existing synchronous execution path and the new job-status/cancel routes return 404. Do not enable the flag until the V2.0.29 schema is applied through the reviewed migration process and a persistent worker is deployed and health-checked. This prevents a code-only deploy from pointing the live API at a table or worker that does not yet exist.\n\n## Lifecycle
 
 1. API validates project UUID, backend/capability allowlist, bounded JSON inputs, and Idempotency-Key.
 2. API authorizes TASK.EXECUTE and project membership, then writes a QUEUED job through the server-only service-role store.
@@ -36,4 +36,4 @@ Supported adapters for this API are allowlisted deterministic computations: ANAL
 5. Confirm service-role credentials are never exposed to browser/client environments.
 6. Record exact deployed app/worker revisions and post-deploy test evidence.
 
-This source change does not apply the schema or deploy a persistent worker service.
+This source change does not apply the schema or deploy a persistent worker service. The feature stays disabled by default until the schema/worker rollout gate is satisfied.

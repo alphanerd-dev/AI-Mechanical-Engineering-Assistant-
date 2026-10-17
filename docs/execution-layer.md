@@ -4,7 +4,7 @@ The execution API now separates durable job submission from provider execution.
 
 ## Request lifecycle
 
-- POST /api/execution authorizes TASK.EXECUTE and project membership, validates an allowlisted backend/capability and bounded request body, then durably stores a QUEUED job.
+- With `DURABLE_EXECUTION_ENABLED=true`, POST /api/execution authorizes TASK.EXECUTE and project membership, validates an allowlisted backend/capability and bounded request body, then durably stores a QUEUED job. With the flag disabled or unset, the existing synchronous flow is preserved.
 - A stable Idempotency-Key is required. Same key plus same canonical request returns the existing job; reuse with different input returns 409.
 - GET /api/execution/{jobId}?projectId=... requires PROJECT.READ for the project.
 - DELETE /api/execution/{jobId}?projectId=... requires TASK.EXECUTE. Queued jobs cancel immediately; running jobs record a cancellation request checked by the worker heartbeat.
