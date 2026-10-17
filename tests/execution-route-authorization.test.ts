@@ -9,7 +9,7 @@ vi.mock("../src/auth/supabase-service.js",()=>({
 vi.mock("../lib/supabase/service.js",()=>({createServiceRoleClient:()=>({admin:true})}));
 vi.mock("../src/execution/supabase-job-store.js",()=>({
  SupabaseExecutionJobStore:class{
-  constructor(_client:unknown){mocks.constructStore();}
+  constructor(){mocks.constructStore();}
   submit(input:unknown){return mocks.submit(input);}
   getForProject(id:string,projectId:string){return mocks.getForProject(id,projectId);}
   requestCancellation(id:string,projectId:string){return mocks.requestCancellation(id,projectId);}

@@ -16,7 +16,9 @@ function canonical(value:unknown):unknown{
  return value;
 }
 function requestDigest(request:ExecutionRequest):string{
- const {id:_,correlationId:__,...body}=request;
+ const body={...request};
+ delete body.id;
+ delete body.correlationId;
  return createHash("sha256").update(JSON.stringify(canonical(body))).digest("hex");
 }
 function record(value:unknown):Record<string,unknown>|undefined{return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:undefined;}
