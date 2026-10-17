@@ -28,6 +28,7 @@ vi.mock("../src/execution/supabase-job-store.js",()=>({
 }));
 import {POST} from "../app/api/execution/route.js";
 import {GET,DELETE} from "../app/api/execution/[jobId]/route.js";
+import {IdempotencyConflictError} from "../src/execution/supabase-job-store.js";
 function postRequest(body:unknown,key="test-key-0001"){
  return new Request("http://localhost/api/execution",{method:"POST",headers:{"content-type":"application/json","idempotency-key":key},body:JSON.stringify(body)});
 }
@@ -52,6 +53,26 @@ describe("durable execution API authorization and idempotency",()=>{
   const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",backend:"typescript-safe",inputs:{powerKw:5,speedRpm:1500},requestedOutputs:["torqueNm"]}));
   expect(response.status).toBe(202);expect(mocks.authorize).toHaveBeenCalledWith("TASK.EXECUTE",PROJECT,expect.any(Object));expect(mocks.submit).toHaveBeenCalledTimes(1);expect(mocks.constructEngine).not.toHaveBeenCalled();
  });
+
+ it("returns the existing durable job on an idempotent replay",async()=>{
+  mocks.submit.mockResolvedValue({job:fakeJob,created:false});
+  const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",backend:"typescript-safe",inputs:{powerKw:5,speedRpm:1500}}));
+  const body=await response.json() as {idempotentReplay?:boolean;id?:string};
+  expect(response.status).toBe(200);expect(body.idempotentReplay).toBe(true);expect(body.id).toBe(JOB);
+ });
+
+ it("returns 409 when an idempotency key is reused for a different request",async()=>{
+  mocks.submit.mockRejectedValue(new IdempotencyConflictError());
+  const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",backend:"typescript-safe",inputs:{powerKw:6,speedRpm:1500}}));
+  const body=await response.json() as {code?:string};
+  expect(response.status).toBe(409);expect(body.code).toBe("IDEMPOTENCY_CONFLICT");
+ });
+
+ it("rejects malformed requestedOutputs instead of silently dropping them",async()=>{
+  const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",requestedOutputs:"torqueNm"}));
+  expect(response.status).toBe(400);expect(mocks.submit).not.toHaveBeenCalled();
+ });
+
  it("rejects missing idempotency keys without hitting the database",async()=>{
   const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE"},""));
   expect(response.status).toBe(400);expect(mocks.authorize).not.toHaveBeenCalled();expect(mocks.submit).not.toHaveBeenCalled();

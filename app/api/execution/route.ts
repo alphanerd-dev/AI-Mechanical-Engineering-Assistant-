@@ -72,8 +72,9 @@ export async function POST(request:Request){
  let inputSize:number;
  try{inputSize=JSON.stringify(inputs).length;}catch{return jsonError("inputs must be JSON serializable.",400,"INVALID_INPUTS");}
  if(inputSize>64_000)return jsonError("inputs exceed the 64 KB request limit.",413,"INPUT_TOO_LARGE");
+ if(body.requestedOutputs!==undefined&&!Array.isArray(body.requestedOutputs))return jsonError("requestedOutputs must be an array when provided.",400,"INVALID_OUTPUTS");
  const requestedOutputs=Array.isArray(body.requestedOutputs)?body.requestedOutputs:[];
- if(requestedOutputs.length>64||requestedOutputs.some(item=>typeof item!=="string"||item.length>128))return jsonError("requestedOutputs must be an array of at most 64 short strings.",400,"INVALID_OUTPUTS");
+ if(requestedOutputs.length>64||requestedOutputs.some(item=>typeof item!=="string"||!item.trim()||item.length>128))return jsonError("requestedOutputs must be an array of at most 64 non-empty short strings.",400,"INVALID_OUTPUTS");
  let authorization;
  try{authorization=await authorizeSupabaseRequest("TASK.EXECUTE",projectId,{requestId:request.headers.get("x-request-id")??randomUUID()});}
  catch{return jsonError("Engineering authorization is unavailable.",503,"AUTHORIZATION_UNAVAILABLE");}
