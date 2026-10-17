@@ -19,6 +19,8 @@ A short-lived test inside a PostgreSQL `DO` block completed successfully:
 - Inserted a second queued job and confirmed the queued-to-`CANCELLED` transition satisfies the table constraints.
 - Deleted both temporary rows within the test block. The table was empty after validation.
 
+A separate privilege query also passed: `anon` and `authenticated` have no SELECT, INSERT or UPDATE grants on `engineering_execution_jobs` and cannot execute `claim_engineering_execution_job(text,integer)`; `service_role` has the expected table grants and can execute the claim RPC. The table's informational Supabase `RLS Enabled No Policy` finding is intentional because direct client access is revoked and only the server-side service role uses this store. The E2E Auth advisor also reports leaked-password protection disabled; that is an existing project-level hardening issue and was not modified by this work.
+
 This validates the database schema and claim/fencing/cancellation contract against a live E2E database. It does **not** validate the deployed Next.js API against an authenticated user or prove a persistent worker is running.
 
 ## Remaining rollout gates
