@@ -3,6 +3,8 @@ import {ExecutionEngine,ExecutionBackendAdapter} from "../src/execution/executor
 import {DurableExecutionWorker} from "../src/execution/durable-worker.js";
 import {ExecutionJob} from "../src/execution/types.js";
 import {ExecutionJobClaim} from "../src/execution/supabase-job-store.js";
+import {createExecutionRequestDigest} from "../src/execution/supabase-job-store.js";
+import {ExecutionRequest} from "../src/execution/types.js";
 function job(overrides:Partial<ExecutionJob>={}):ExecutionJob{
  const request={id:"10000000-0000-4000-8000-000000000001",capability:"TEST.IDEMPOTENT",backend:"typescript-safe" as const,inputs:{value:4},requestedOutputs:["value"],timeoutMs:1000,projectId:"20000000-0000-4000-8000-000000000001"};
  return {id:request.id,request,status:"RUNNING",createdAt:new Date(0).toISOString(),queuedAt:new Date(0).toISOString(),startedAt:new Date(0).toISOString(),attempts:1,maxAttempts:3,artifactIds:[],evidenceIds:[],attemptHistory:[],...overrides};
@@ -42,5 +44,45 @@ describe("durable worker lease lifecycle",()=>{
   const adapter:ExecutionBackendAdapter={id:"test",retrySafe:true,canExecute:()=>true,execute:async(_request,signal)=>new Promise((_resolve,reject)=>signal?.addEventListener("abort",()=>reject(signal.reason),{once:true}))};
   const worker=new DurableExecutionWorker(store,new ExecutionEngine([adapter]),"worker-test",{leaseSeconds:5,heartbeatIntervalMs:250});
   await worker.runOnce();expect(store.finishClaim).toHaveBeenCalledTimes(1);expect(store.finishClaim.mock.calls[0][1].job.status).toBe("CANCELLED");
+ });
+});
+
+
+describe("canonical execution request digest",()=>{
+ it("ignores generated IDs and JSON object-key insertion order",()=>{
+  const first:ExecutionRequest={
+   id:"10000000-0000-4000-8000-000000000001",
+   correlationId:"request-correlation-a",
+   capability:"UNITS.CONVERT",
+   backend:"python-worker",
+   inputs:{value:5,fromUnit:"m",toUnit:"mm"},
+   requestedOutputs:["value"],
+   timeoutMs:30000,
+   projectId:"20000000-0000-4000-8000-000000000001"
+  };
+  const replay:ExecutionRequest={
+   projectId:first.projectId,
+   timeoutMs:first.timeoutMs,
+   requestedOutputs:["value"],
+   inputs:{toUnit:"mm",fromUnit:"m",value:5},
+   backend:"python-worker",
+   capability:"UNITS.CONVERT",
+   correlationId:"request-correlation-b",
+   id:"10000000-0000-4000-8000-000000000002"
+  };
+  expect(createExecutionRequestDigest(first)).toBe(createExecutionRequestDigest(replay));
+ });
+
+ it("changes when an engineering input changes",()=>{
+  const request:ExecutionRequest={
+   id:"10000000-0000-4000-8000-000000000001",
+   capability:"ANALYSIS.SHAFT_TORQUE",
+   backend:"typescript-safe",
+   inputs:{powerKw:5,speedRpm:1500},
+   requestedOutputs:["torqueNm"],
+   timeoutMs:2000,
+   projectId:"20000000-0000-4000-8000-000000000001"
+  };
+  expect(createExecutionRequestDigest({...request,inputs:{powerKw:6,speedRpm:1500}})).not.toBe(createExecutionRequestDigest(request));
  });
 });

@@ -13,10 +13,10 @@ export interface ExecutionJobClaim{job:ExecutionJob;workerId:string;leaseToken:s
 export interface JobHeartbeat{active:boolean;cancelRequested:boolean;}
 function canonical(value:unknown):unknown{
  if(Array.isArray(value))return value.map(canonical);
- if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value as Record<string,unknown>).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>[key,canonical(item)]));
+ if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value as Record<string,unknown>).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([key,item])=>[key,canonical(item)]));
  return value;
 }
-function requestDigest(request:ExecutionRequest):string{
+export function createExecutionRequestDigest(request:ExecutionRequest):string{
  const body:Record<string,unknown>={...request};
  delete body.id;
  delete body.correlationId;
@@ -48,7 +48,7 @@ function isUniqueViolation(error:unknown):boolean{return record(error)?.code==="
 export class SupabaseExecutionJobStore{
  constructor(private readonly client:SupabaseClient){}
  async submit(input:SubmitExecutionJobInput):Promise<SubmitExecutionJobResult>{
-  const requestHash=requestDigest(input.request),now=new Date().toISOString();
+  const requestHash=createExecutionRequestDigest(input.request),now=new Date().toISOString();
   const row={id:input.request.id||randomUUID(),owner_id:input.ownerId,project_id:input.request.projectId,idempotency_key:input.idempotencyKey,request_hash:requestHash,capability:input.request.capability,backend:input.request.backend,request:input.request,status:"QUEUED",attempts:0,max_attempts:input.maxAttempts??DEFAULT_EXECUTION_MAX_ATTEMPTS,next_attempt_at:now,queued_at:now,artifact_ids:[],evidence_ids:[],attempt_history:[]};
   const {data,error}=await this.client.from(TABLE).insert(row).select("*").single();
   if(!error&&data)return {job:toJob(data),created:true};
