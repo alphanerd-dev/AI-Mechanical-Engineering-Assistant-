@@ -47,6 +47,24 @@ jobs:
         with:
           version: 2.98.2
 
+      - name: Verify pinned CLI command options
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase --version
+          supabase migration list --help > "$RUNNER_TEMP/migration-list-help.txt"
+          supabase migration repair --help > "$RUNNER_TEMP/migration-repair-help.txt"
+          supabase db dump --help > "$RUNNER_TEMP/db-dump-help.txt"
+          supabase db push --help > "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/migration-list-help.txt"
+          grep -q -- '--password' "$RUNNER_TEMP/migration-list-help.txt"
+          grep -q -- '--status' "$RUNNER_TEMP/migration-repair-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/migration-repair-help.txt"
+          grep -q -- '--file' "$RUNNER_TEMP/db-dump-help.txt"
+          grep -q -- '--schema' "$RUNNER_TEMP/db-dump-help.txt"
+          grep -q -- '--dry-run' "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/db-push-help.txt"
+
       - name: Initialize local CLI config and link the fixed production project
         shell: bash
         run: |
