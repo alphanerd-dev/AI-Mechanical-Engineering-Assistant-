@@ -13,7 +13,16 @@ function boundedInteger(value:string|undefined,fallback:number,min:number,max:nu
  return parsed;
 }
 const client=createExecutionWorkerAdminClient(),store=new SupabaseExecutionJobStore(client),adapters:ExecutionBackendAdapter[]=[new SafeNumericalAdapter()];
-if(process.env.PYTHON_WORKER_URL)adapters.push(new PythonWorkerAdapter(new HttpPythonWorkerClient(process.env.PYTHON_WORKER_URL,fetch,process.env.PYTHON_WORKER_API_TOKEN,{pollIntervalMs:boundedInteger(process.env.PYTHON_WORKER_POLL_INTERVAL_MS,250,25,5000),maxPolls:boundedInteger(process.env.PYTHON_WORKER_MAX_POLLS,120,1,1200)})));
+if(process.env.PYTHON_WORKER_URL){
+ const token=process.env.PYTHON_WORKER_API_TOKEN?.trim();
+ if(!token)throw new Error("PYTHON_WORKER_URL requires PYTHON_WORKER_API_TOKEN.");
+ adapters.push(new PythonWorkerAdapter(new HttpPythonWorkerClient(
+  process.env.PYTHON_WORKER_URL,
+  fetch,
+  token,
+  {pollIntervalMs:boundedInteger(process.env.PYTHON_WORKER_POLL_INTERVAL_MS,250,25,5000),maxPolls:boundedInteger(process.env.PYTHON_WORKER_MAX_POLLS,120,1,1200)}
+ )));
+}
 const engine=new ExecutionEngine(adapters),workerId=(process.env.EXECUTION_WORKER_ID?.trim()||`${hostname()}-${process.pid}`).slice(0,128);
 const pollMs=boundedInteger(process.env.EXECUTION_WORKER_POLL_INTERVAL_MS,1000,100,30_000),leaseSeconds=boundedInteger(process.env.EXECUTION_WORKER_LEASE_SECONDS,45,5,300),heartbeatMs=boundedInteger(process.env.EXECUTION_WORKER_HEARTBEAT_MS,10_000,250,leaseSeconds*1000-1);
 const worker=new DurableExecutionWorker(store,engine,workerId,{leaseSeconds,heartbeatIntervalMs:heartbeatMs});

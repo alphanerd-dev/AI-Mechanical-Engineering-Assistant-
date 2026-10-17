@@ -66,7 +66,7 @@ export async function POST(request:Request){
  const backend=backendCandidate;
  if(backend==="typescript-safe"&&capability!=="ANALYSIS.SHAFT_TORQUE")return jsonError("The TypeScript backend does not support this capability.",422,"UNSUPPORTED_CAPABILITY");
  if(backend==="python-worker"&&!PYTHON_CAPABILITIES.has(capability))return jsonError("The Python worker capability is not allowlisted.",422,"UNSUPPORTED_CAPABILITY");
- if(backend==="python-worker"&&!process.env.PYTHON_WORKER_URL)return jsonError("The Python worker is not configured.",503,"WORKER_UNAVAILABLE");
+ if(backend==="python-worker"&&(!process.env.PYTHON_WORKER_URL||!process.env.PYTHON_WORKER_API_TOKEN?.trim()))return jsonError("The Python worker URL and API token must both be configured.",503,"WORKER_UNAVAILABLE");
  if(body.inputs!==undefined&&!objectBody(body.inputs))return jsonError("inputs must be a JSON object when provided.",400,"INVALID_INPUTS");
  const inputs=objectBody(body.inputs)??{};
  let inputSize:number;

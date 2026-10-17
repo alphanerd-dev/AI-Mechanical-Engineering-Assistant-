@@ -87,6 +87,13 @@ describe("durable execution API authorization and idempotency",()=>{
   const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE"}));
   expect(response.status).toBe(503);expect(mocks.submit).not.toHaveBeenCalled();
  });
+ it("fails closed when a Python worker URL has no bearer token",async()=>{
+  vi.stubEnv("PYTHON_WORKER_URL","https://worker.example");
+  vi.stubEnv("PYTHON_WORKER_API_TOKEN","");
+  const response=await POST(postRequest({projectId:PROJECT,capability:"UNITS.CONVERT",backend:"python-worker",inputs:{value:1,fromUnit:"m",toUnit:"mm"}}));
+  expect(response.status).toBe(503);expect(mocks.authorize).not.toHaveBeenCalled();expect(mocks.submit).not.toHaveBeenCalled();
+ });
+
  it("rejects capabilities outside the selected backend allowlist",async()=>{
   const response=await POST(postRequest({projectId:PROJECT,capability:"EXECUTE_ARBITRARY_PYTHON",backend:"python-worker"}));
   expect(response.status).toBe(422);expect(mocks.authorize).not.toHaveBeenCalled();expect(mocks.submit).not.toHaveBeenCalled();

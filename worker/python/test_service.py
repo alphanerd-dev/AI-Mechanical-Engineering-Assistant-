@@ -6,7 +6,7 @@ from http.server import ThreadingHTTPServer
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
-from service import WorkerHandler, JOBS, LOCK
+from service import WorkerHandler, JOBS, LOCK, validate_server_configuration
 
 class WorkerServiceTests(unittest.TestCase):
     @classmethod
@@ -32,6 +32,12 @@ class WorkerServiceTests(unittest.TestCase):
                 return response.status,json.loads(response.read())
         except HTTPError as exc:
             return exc.code,json.loads(exc.read())
+
+    def test_non_loopback_binding_requires_an_api_token(self):
+        validate_server_configuration("127.0.0.1", None)
+        validate_server_configuration("0.0.0.0", "test-worker-token")
+        with self.assertRaisesRegex(RuntimeError, "WORKER_API_TOKEN is required"):
+            validate_server_configuration("0.0.0.0", None)
 
     def test_rejects_missing_token(self):
         status,_=self.call("GET","/v1/jobs/missing",token="wrong")

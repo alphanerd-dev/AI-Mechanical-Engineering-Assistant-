@@ -145,7 +145,13 @@ class WorkerHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         return
 
+def validate_server_configuration(host: str, api_token: str | None) -> None:
+    """Do not accidentally expose an unauthenticated worker on a non-loopback interface."""
+    if host.strip().lower() not in {"127.0.0.1", "::1", "localhost"} and not api_token:
+        raise RuntimeError("WORKER_API_TOKEN is required when WORKER_HOST binds beyond loopback.")
+
 def main() -> None:
+    validate_server_configuration(HOST, API_TOKEN)
     server = ThreadingHTTPServer((HOST, PORT), WorkerHandler)
     print(f"engineering worker listening on http://{HOST}:{PORT}", flush=True)
     try:
