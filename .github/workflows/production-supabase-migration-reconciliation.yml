@@ -8,12 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: "Audit only, or reconcile history and apply V2.0.29/V2.0.30"
+        description: "Audit, verify the applied state read-only, or reconcile and apply V2.0.29/V2.0.30"
         required: true
         type: choice
         default: audit
         options:
           - audit
+          - verify_only
           - reconcile_and_apply
       confirmation:
         description: "For writes only, type APPLY_V2_0_29_AND_V2_0_30_TO_PRODUCTION"
@@ -85,6 +86,25 @@ jobs:
 
           compgen -G 'supabase/migrations/20261013220000_*.sql' > /dev/null
           compgen -G 'supabase/migrations/20261017104855_*.sql' > /dev/null
+
+          # Supabase db dump (pg_dump) adds IF NOT EXISTS and may quote identifiers.
+          table_pattern='^CREATE TABLE( IF NOT EXISTS)?[[:space:]]+"?public"?\."?engineering_execution_jobs"?([[:space:]]|$)'
+          cat > "$RUNNER_TEMP/schema-dump-table-unquoted.sql" <<'EOF'
+          CREATE TABLE IF NOT EXISTS public.engineering_execution_jobs (
+          EOF
+          grep -Eiq "$table_pattern" "$RUNNER_TEMP/schema-dump-table-unquoted.sql"
+          cat > "$RUNNER_TEMP/schema-dump-table-quoted.sql" <<'EOF'
+          CREATE TABLE IF NOT EXISTS "public"."engineering_execution_jobs" (
+          EOF
+          grep -Eiq "$table_pattern" "$RUNNER_TEMP/schema-dump-table-quoted.sql"
+
+          function_prefix='^CREATE( OR REPLACE)? FUNCTION[[:space:]]+"?public"?\."?'
+          cat > "$RUNNER_TEMP/schema-dump-functions.sql" <<'EOF'
+          CREATE OR REPLACE FUNCTION public.claim_engineering_execution_job(text, integer)
+          CREATE OR REPLACE FUNCTION "public"."renew_engineering_execution_job"(uuid, text, uuid, integer)
+          EOF
+          grep -Eiq "${function_prefix}claim_engineering_execution_job\"?[[:space:]]*[(]" "$RUNNER_TEMP/schema-dump-functions.sql"
+          grep -Eiq "${function_prefix}renew_engineering_execution_job\"?[[:space:]]*[(]" "$RUNNER_TEMP/schema-dump-functions.sql"
 
       - name: Validate the commands and flags used by reconciliation
         shell: bash
@@ -275,9 +295,9 @@ jobs:
           jobs_table=false
           claim_function=false
           renew_function=false
-          grep -Eiq '^CREATE TABLE public\.engineering_execution_jobs([[:space:]]|$)' "$schema_dump" && jobs_table=true
-          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" && claim_function=true
-          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" && renew_function=true
+          grep -Eiq '^CREATE TABLE( IF NOT EXISTS)?[[:space:]]+"?public"?\."?engineering_execution_jobs"?([[:space:]]|$)' "$schema_dump" && jobs_table=true
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION[[:space:]]+"?public"?\."?claim_engineering_execution_job"?[[:space:]]*[(]' "$schema_dump" && claim_function=true
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION[[:space:]]+"?public"?\."?renew_engineering_execution_job"?[[:space:]]*[(]' "$schema_dump" && renew_function=true
 
           v29_recorded=false
           v30_recorded=false
@@ -411,7 +431,7 @@ jobs:
           supabase db push --linked --password "${SUPABASE_DB_PASSWORD}" --yes
 
       - name: Verify final migration history and schema
-        if: ${{ inputs.operation == 'reconcile_and_apply' }}
+        if: ${{ inputs.operation == 'reconcile_and_apply' || inputs.operation == 'verify_only' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -448,15 +468,15 @@ jobs:
 
           supabase db dump --linked --schema public \
             --file "$schema_dump" --password "${SUPABASE_DB_PASSWORD}"
-          grep -Eiq '^CREATE TABLE public\.engineering_execution_jobs([[:space:]]|$)' "$schema_dump" || {
+          grep -Eiq '^CREATE TABLE( IF NOT EXISTS)?[[:space:]]+"?public"?\."?engineering_execution_jobs"?([[:space:]]|$)' "$schema_dump" || {
             echo "::error::V2.0.29 table was not found in the production schema dump."
             exit 1
           }
-          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" || {
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION[[:space:]]+"?public"?\."?claim_engineering_execution_job"?[[:space:]]*[(]' "$schema_dump" || {
             echo "::error::V2.0.29 claim function was not found in the production schema dump."
             exit 1
           }
-          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" || {
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION[[:space:]]+"?public"?\."?renew_engineering_execution_job"?[[:space:]]*[(]' "$schema_dump" || {
             echo "::error::V2.0.30 renewal function was not found in the production schema dump."
             exit 1
           }
