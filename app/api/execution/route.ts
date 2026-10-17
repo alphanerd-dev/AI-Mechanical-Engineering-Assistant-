@@ -14,6 +14,7 @@ const IDEMPOTENCY=/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 const PYTHON_CAPABILITIES=new Set(["UNITS.CONVERT","UNITS.CHECK_DIMENSIONS","MATH.SYMBOLIC_SOLVE","MATH.NUMERICAL_SOLVE","MATH.OPTIMIZE"]);
 function objectBody(value:unknown):Record<string,unknown>|undefined{return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:undefined;}
 function jsonError(error:string,status:number,code?:string){return NextResponse.json({error,...(code?{code}:{})},{status,headers:{"cache-control":"no-store"}});}
+function isBackend(value:unknown):value is Extract<ExecutionBackend,"typescript-safe"|"python-worker">{return value==="typescript-safe"||value==="python-worker";}
 
 async function legacySynchronousPost(request:Request,body:Record<string,unknown>){
   let projectId:string|undefined;
@@ -60,8 +61,9 @@ export async function POST(request:Request){
  if(!IDEMPOTENCY.test(key))return jsonError("Provide an Idempotency-Key header containing 8-128 safe characters.",400,"IDEMPOTENCY_KEY_REQUIRED");
  const capability=typeof body.capability==="string"?body.capability.trim():"";
  if(!capability||capability.length>128)return jsonError("A supported capability name is required.",400,"CAPABILITY_REQUIRED");
- const backend=body.backend===undefined?"typescript-safe":body.backend;
- if(backend!=="typescript-safe"&&backend!=="python-worker")return jsonError("Backend must be typescript-safe or python-worker.",400,"UNSUPPORTED_BACKEND");
+ const backendCandidate=body.backend===undefined?"typescript-safe":body.backend;
+ if(!isBackend(backendCandidate))return jsonError("Backend must be typescript-safe or python-worker.",400,"UNSUPPORTED_BACKEND");
+ const backend=backendCandidate;
  if(backend==="typescript-safe"&&capability!=="ANALYSIS.SHAFT_TORQUE")return jsonError("The TypeScript backend does not support this capability.",422,"UNSUPPORTED_CAPABILITY");
  if(backend==="python-worker"&&!PYTHON_CAPABILITIES.has(capability))return jsonError("The Python worker capability is not allowlisted.",422,"UNSUPPORTED_CAPABILITY");
  if(backend==="python-worker"&&!process.env.PYTHON_WORKER_URL)return jsonError("The Python worker is not configured.",503,"WORKER_UNAVAILABLE");
