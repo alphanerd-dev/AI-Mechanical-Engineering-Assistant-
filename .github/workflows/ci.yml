@@ -32,6 +32,8 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -r worker/python/requirements.txt
       - run: python -c "import sys; sys.path.insert(0, 'worker/python'); import test_worker as t; t.test_pint_conversion(); t.test_pint_dimensions(); t.test_sympy(); t.test_scipy_root(); t.test_scipy_optimize(); print('worker tests passed')"
+      - name: Test Python worker HTTP idempotency and cancellation
+        run: python worker/python/test_service.py
       - name: Test build123d worker manifest
         run: python worker/cad/build123d/test_worker.py
       - name: Build pinned build123d runtime

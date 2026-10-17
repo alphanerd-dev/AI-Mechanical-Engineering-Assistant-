@@ -53,7 +53,9 @@ begin
    (j.status='QUEUED' and j.next_attempt_at<=clock_timestamp())
    or (j.status='RUNNING' and j.lease_expires_at<clock_timestamp() and j.attempts<j.max_attempts)
   )
-  order by j.queued_at,j.created_at for update skip locked limit 1
+  order by j.queued_at,j.created_at
+  limit 1
+  for update skip locked
  )
  update public.engineering_execution_jobs as j
  set status='RUNNING',attempts=j.attempts+1,lease_owner=p_worker_id,lease_token=gen_random_uuid(),

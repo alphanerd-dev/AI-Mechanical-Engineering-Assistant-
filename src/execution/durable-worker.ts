@@ -7,8 +7,14 @@ export interface DurableExecutionRuntimeStore{
 }
 export interface DurableExecutionWorkerOptions{leaseSeconds?:number;heartbeatIntervalMs?:number;}
 function abortError(message:string):Error{const error=new Error(message);error.name="AbortError";return error;}
-function sleep(ms:number):Promise<void>{return new Promise(resolve=>setTimeout(resolve,ms));}
-
+function sleepUntilTickOrStop(ms:number,stop:Promise<void>):Promise<void>{
+ return new Promise(resolve=>{
+  let done=false;
+  const finish=()=>{if(done)return;done=true;clearTimeout(timer);resolve();};
+  const timer=setTimeout(finish,ms);
+  void stop.then(finish);
+ });
+}
 /** One durable worker iteration. Multiple processes coordinate through database leases. */
 export class DurableExecutionWorker{
  private readonly leaseSeconds:number;
@@ -25,17 +31,17 @@ export class DurableExecutionWorker{
   if(!claim)return false;
   const controller=new AbortController();
   let stopHeartbeat=false,leaseLost=false;
+  let signalStopHeartbeat!:()=>void;
+  const stopSignal=new Promise<void>(resolve=>{signalStopHeartbeat=resolve;});
   const heartbeatTask=(async()=>{
    while(!stopHeartbeat){
-    await sleep(this.heartbeatIntervalMs);
+    await sleepUntilTickOrStop(this.heartbeatIntervalMs,stopSignal);
     if(stopHeartbeat)break;
     try{
      const pulse=await this.store.heartbeat(claim,this.leaseSeconds);
      if(!pulse.active){leaseLost=true;controller.abort(abortError("Execution lease was lost; this worker cannot commit a result."));break;}
      if(pulse.cancelRequested){controller.abort(abortError("Cancellation was requested for this execution."));break;}
-    }catch{
-     leaseLost=true;controller.abort(abortError("Worker lease could not be renewed; result will not be committed."));break;
-    }
+    }catch{leaseLost=true;controller.abort(abortError("Worker lease could not be renewed; result will not be committed."));break;}
    }
   })();
   let attempt:Awaited<ReturnType<ExecutionEngine["executeClaimed"]>>;
@@ -43,7 +49,7 @@ export class DurableExecutionWorker{
   catch(error){
    const now=new Date().toISOString(),message=(error instanceof Error?error.message:String(error)).slice(0,2000),status=controller.signal.aborted?"CANCELLED":"FAILED";
    attempt={retryable:true,job:{...claim.job,status,finishedAt:now,error:message,errorCode:"WORKER_EXECUTION_ERROR",attemptHistory:[...(claim.job.attemptHistory??[]),{attempt:claim.job.attempts??1,startedAt:claim.job.startedAt??now,finishedAt:now,status,error:message}]}};
-  }finally{stopHeartbeat=true;await heartbeatTask;}
+  }finally{stopHeartbeat=true;signalStopHeartbeat();await heartbeatTask;}
   if(leaseLost)return true;
   await this.store.finishClaim(claim,attempt);
   return true;
