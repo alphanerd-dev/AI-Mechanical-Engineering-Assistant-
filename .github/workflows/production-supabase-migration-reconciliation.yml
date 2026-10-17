@@ -1,0 +1,441 @@
+name: Production Supabase Migration Reconciliation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/production-supabase-migration-reconciliation.yml"
+      - "supabase/migrations/**"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Audit only, or reconcile history and apply V2.0.29/V2.0.30"
+        required: true
+        type: choice
+        default: audit
+        options:
+          - audit
+          - reconcile_and_apply
+      confirmation:
+        description: "For writes only, type APPLY_V2_0_29_AND_V2_0_30_TO_PRODUCTION"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-migration-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate pinned Supabase CLI contract
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out pull request revision
+        uses: actions/checkout@v4
+      - name: Install the same pinned Supabase CLI used for production
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.98.2
+      - name: Verify CLI initialization preserves the existing migration directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f supabase/config.toml ]]; then
+            supabase init
+          fi
+          test -f supabase/config.toml
+          test -s supabase/migrations/20261017104855_v2_0_29_durable_execution_jobs.sql
+          test -s supabase/migrations/20261017105801_v2_0_30_database_clock_execution_leases.sql
+
+      - name: Validate the commands and flags used by reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase --version
+          supabase link --help > "$RUNNER_TEMP/link-help.txt"
+          supabase migration list --help > "$RUNNER_TEMP/migration-list-help.txt"
+          supabase migration repair --help > "$RUNNER_TEMP/migration-repair-help.txt"
+          supabase db dump --help > "$RUNNER_TEMP/db-dump-help.txt"
+          supabase db push --help > "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--project-ref' "$RUNNER_TEMP/link-help.txt"
+          grep -q -- '--password' "$RUNNER_TEMP/link-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/migration-list-help.txt"
+          grep -q -- '--password' "$RUNNER_TEMP/migration-list-help.txt"
+          grep -q -- '--status' "$RUNNER_TEMP/migration-repair-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/migration-repair-help.txt"
+          grep -q -- '--file' "$RUNNER_TEMP/db-dump-help.txt"
+          grep -q -- '--schema' "$RUNNER_TEMP/db-dump-help.txt"
+          grep -q -- '--dry-run' "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--yes' "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/db-push-help.txt"
+
+  reconcile:
+    name: Reconcile production migration history
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      # Intentionally fixed: this workflow must never accept an arbitrary target project.
+      PRODUCTION_PROJECT_REF: mepmogsqhxxasahwhete
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      OPERATION: ${{ inputs.operation }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Check out the reviewed main revision
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.98.2
+
+      - name: Verify pinned CLI command options
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase --version
+          supabase link --help > "$RUNNER_TEMP/link-help.txt"
+          supabase migration list --help > "$RUNNER_TEMP/migration-list-help.txt"
+          supabase migration repair --help > "$RUNNER_TEMP/migration-repair-help.txt"
+          supabase db dump --help > "$RUNNER_TEMP/db-dump-help.txt"
+          supabase db push --help > "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--project-ref' "$RUNNER_TEMP/link-help.txt"
+          grep -q -- '--password' "$RUNNER_TEMP/link-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/migration-list-help.txt"
+          grep -q -- '--password' "$RUNNER_TEMP/migration-list-help.txt"
+          grep -q -- '--status' "$RUNNER_TEMP/migration-repair-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/migration-repair-help.txt"
+          grep -q -- '--file' "$RUNNER_TEMP/db-dump-help.txt"
+          grep -q -- '--schema' "$RUNNER_TEMP/db-dump-help.txt"
+          grep -q -- '--dry-run' "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--yes' "$RUNNER_TEMP/db-push-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/db-push-help.txt"
+
+      - name: Initialize local CLI config and link the fixed production project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN}" || {
+            echo "::error::Missing production environment secret SUPABASE_ACCESS_TOKEN."
+            exit 1
+          }
+          test -n "${SUPABASE_DB_PASSWORD}" || {
+            echo "::error::Missing production environment secret SUPABASE_DB_PASSWORD."
+            exit 1
+          }
+          if [[ ! -f supabase/config.toml ]]; then
+            supabase init
+          fi
+          supabase link \
+            --project-ref "${PRODUCTION_PROJECT_REF}" \
+            --password "${SUPABASE_DB_PASSWORD}"
+
+      - name: Capture pre-operation migration state
+        id: capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p migration-reconciliation-evidence
+          supabase migration list --linked --password "${SUPABASE_DB_PASSWORD}" \
+            > migration-reconciliation-evidence/migration-list-before.txt 2>&1
+          cat migration-reconciliation-evidence/migration-list-before.txt
+
+          # Before repair, db push --dry-run may correctly reject the known ledger drift.
+          # Preserve its output and status as diagnostic evidence; never apply from this step.
+          set +e
+          supabase db push --dry-run --linked --password "${SUPABASE_DB_PASSWORD}" \
+            > migration-reconciliation-evidence/push-dry-run-before.txt 2>&1
+          dry_run_status=$?
+          set -e
+          printf 'Pre-repair db push --dry-run exit status: %s\n' "${dry_run_status}" \
+            | tee migration-reconciliation-evidence/pre-repair-dry-run-status.txt
+          cat migration-reconciliation-evidence/push-dry-run-before.txt
+
+      - name: Require explicit production confirmation for a write operation
+        if: ${{ inputs.operation == 'reconcile_and_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${CONFIRMATION}" != "APPLY_V2_0_29_AND_V2_0_30_TO_PRODUCTION" ]]; then
+            echo "::error::Confirmation did not match. No migration history or schema writes were attempted."
+            exit 1
+          fi
+
+      - name: Preflight schema and history before repairing
+        if: ${{ inputs.operation == 'reconcile_and_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state_file="migration-reconciliation-evidence/migration-list-before.txt"
+          schema_dump="$RUNNER_TEMP/production-public-schema-before.sql"
+
+          has_version() {
+            local file="$1" column="$2" version="$3"
+            awk -F '│' -v col="$column" -v ver="$version" \
+              'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
+          }
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          # Verify the canonical migration files in this exact checked-out revision.
+          expected_local_versions=(
+            20261007222703 20261010054845 20261012132557 20261013125414
+            20261013220000 20261014120000 20261014170000
+            20261014190000 20261015010000 20261015011000
+            20261017104855 20261017105801
+          )
+          for version in "${expected_local_versions[@]}"; do
+            has_version "$state_file" 1 "$version" ||
+              fail "Expected local migration version ${version} is missing from migration list."
+          done
+
+          # The first four migrations are already aligned and must remain applied.
+          for version in 20261007222703 20261010054845 20261012132557 20261013125414; do
+            has_version "$state_file" 2 "$version" ||
+              fail "Expected existing production migration ${version} is not recorded remotely."
+          done
+
+          # Existing production entries for V2.0.23–V2.0.28 were recorded with
+          # different timestamps. Accept only a known old timestamp or its canonical
+          # repository timestamp; neither being present is an unknown state and fails closed.
+          pairs=(
+            "20261015081705:20261013220000"
+            "20261015081715:20261014120000"
+            "20261015081723:20261014170000"
+            "20261015081746:20261014190000"
+            "20261015081755:20261015010000"
+            "20261015081804:20261015011000"
+          )
+          for pair in "${pairs[@]}"; do
+            old_version="${pair%%:*}"
+            canonical_version="${pair##*:}"
+            [[ -f "supabase/migrations/${canonical_version}_"*.sql ]] ||
+              fail "Canonical migration file for ${canonical_version} was not found."
+            old_present=false
+            canonical_present=false
+            has_version "$state_file" 2 "$old_version" && old_present=true
+            has_version "$state_file" 2 "$canonical_version" && canonical_present=true
+            if [[ "$old_present" == false && "$canonical_present" == false ]]; then
+              fail "Neither legacy nor canonical version exists remotely for ${canonical_version}; manual investigation is required."
+            fi
+          done
+
+          # A V2.0.29/V2.0.30 history entry must agree with real schema objects.
+          has_version "$state_file" 1 20261017104855 ||
+            fail "V2.0.29 migration file is missing locally."
+          has_version "$state_file" 1 20261017105801 ||
+            fail "V2.0.30 migration file is missing locally."
+
+          supabase db dump --linked --schema public \
+            --file "$schema_dump" --password "${SUPABASE_DB_PASSWORD}"
+          jobs_table=false
+          claim_function=false
+          renew_function=false
+          grep -Eiq '^CREATE TABLE public\.engineering_execution_jobs([[:space:]]|$)' "$schema_dump" && jobs_table=true
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" && claim_function=true
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" && renew_function=true
+
+          v29_recorded=false
+          v30_recorded=false
+          has_version "$state_file" 2 20261017104855 && v29_recorded=true
+          has_version "$state_file" 2 20261017105801 && v30_recorded=true
+
+          if [[ "$v29_recorded" != "$jobs_table" || "$v29_recorded" != "$claim_function" ]]; then
+            fail "V2.0.29 ledger/schema disagreement (history=${v29_recorded}, jobs_table=${jobs_table}, claim_function=${claim_function})."
+          fi
+          if [[ "$v30_recorded" != "$renew_function" ]]; then
+            fail "V2.0.30 ledger/schema disagreement (history=${v30_recorded}, renew_function=${renew_function})."
+          fi
+          if [[ "$v30_recorded" == true && "$v29_recorded" != true ]]; then
+            fail "V2.0.30 is recorded applied without V2.0.29."
+          fi
+
+          {
+            printf 'project_ref=%s\n' "${PRODUCTION_PROJECT_REF}"
+            printf 'v2_0_29_recorded=%s\n' "$v29_recorded"
+            printf 'engineering_execution_jobs_table=%s\n' "$jobs_table"
+            printf 'claim_engineering_execution_job_function=%s\n' "$claim_function"
+            printf 'v2_0_30_recorded=%s\n' "$v30_recorded"
+            printf 'renew_engineering_execution_job_function=%s\n' "$renew_function"
+          } | tee migration-reconciliation-evidence/preflight-summary.txt
+          rm -f "$schema_dump"
+
+      - name: Repair only the six known legacy migration timestamps
+        if: ${{ inputs.operation == 'reconcile_and_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state_file="migration-reconciliation-evidence/migration-list-before.txt"
+          has_version() {
+            local file="$1" column="$2" version="$3"
+            awk -F '│' -v col="$column" -v ver="$version" \
+              'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
+          }
+          pairs=(
+            "20261015081705:20261013220000"
+            "20261015081715:20261014120000"
+            "20261015081723:20261014170000"
+            "20261015081746:20261014190000"
+            "20261015081755:20261015010000"
+            "20261015081804:20261015011000"
+          )
+          for pair in "${pairs[@]}"; do
+            old_version="${pair%%:*}"
+            canonical_version="${pair##*:}"
+
+            # Add the canonical version first. This ordering makes a retry after
+            # interruption safe: it never intentionally leaves both versions absent.
+            if ! has_version "$state_file" 2 "$canonical_version"; then
+              supabase migration repair "$canonical_version" --status applied \
+                --linked --password "${SUPABASE_DB_PASSWORD}"
+            fi
+            if has_version "$state_file" 2 "$old_version"; then
+              supabase migration repair "$old_version" --status reverted \
+                --linked --password "${SUPABASE_DB_PASSWORD}"
+            fi
+          done
+
+          supabase migration list --linked --password "${SUPABASE_DB_PASSWORD}" \
+            > migration-reconciliation-evidence/migration-list-after-repair.txt 2>&1
+          cat migration-reconciliation-evidence/migration-list-after-repair.txt
+
+          for pair in "${pairs[@]}"; do
+            old_version="${pair%%:*}"
+            canonical_version="${pair##*:}"
+            has_version migration-reconciliation-evidence/migration-list-after-repair.txt 2 "$canonical_version" || {
+              echo "::error::Canonical version ${canonical_version} is not recorded as applied after repair."
+              exit 1
+            }
+            if has_version migration-reconciliation-evidence/migration-list-after-repair.txt 2 "$old_version"; then
+              echo "::error::Legacy timestamp ${old_version} remains in remote migration history."
+              exit 1
+            fi
+          done
+
+          for version in 20261007222703 20261010054845 20261012132557 20261013125414; do
+            has_version migration-reconciliation-evidence/migration-list-after-repair.txt 2 "$version" || {
+              echo "::error::Previously aligned migration ${version} went missing."
+              exit 1
+            }
+          done
+
+      - name: Verify the dry-run contains only missing execution migrations
+        if: ${{ inputs.operation == 'reconcile_and_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state_file="migration-reconciliation-evidence/migration-list-after-repair.txt"
+          expected_file="$RUNNER_TEMP/expected-pending-versions.txt"
+          actual_file="$RUNNER_TEMP/actual-pending-versions.txt"
+          has_version() {
+            local file="$1" column="$2" version="$3"
+            awk -F '│' -v col="$column" -v ver="$version" \
+              'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
+          }
+
+          : > "$expected_file"
+          for version in 20261017104855 20261017105801; do
+            if ! has_version "$state_file" 2 "$version"; then
+              printf '%s\n' "$version" >> "$expected_file"
+            fi
+          done
+          sort -u -o "$expected_file" "$expected_file"
+
+          set +e
+          supabase db push --dry-run --linked --password "${SUPABASE_DB_PASSWORD}" \
+            > migration-reconciliation-evidence/push-dry-run-after-repair.txt 2>&1
+          dry_run_status=$?
+          set -e
+          cat migration-reconciliation-evidence/push-dry-run-after-repair.txt
+          [[ "$dry_run_status" -eq 0 ]] || {
+            echo "::error::Supabase dry-run failed after ledger repair."
+            exit 1
+          }
+          grep -Eo '[0-9]{14}' migration-reconciliation-evidence/push-dry-run-after-repair.txt \
+            | sort -u > "$actual_file" || true
+          diff -u "$expected_file" "$actual_file" || {
+            echo "::error::Refusing to apply: dry-run plan does not exactly match the still-pending V2.0.29/V2.0.30 migrations."
+            exit 1
+          }
+          cat "$expected_file" > migration-reconciliation-evidence/expected-pending-versions.txt
+
+      - name: Apply reviewed pending migrations
+        if: ${{ inputs.operation == 'reconcile_and_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --linked --password "${SUPABASE_DB_PASSWORD}" --yes
+
+      - name: Verify final migration history and schema
+        if: ${{ inputs.operation == 'reconcile_and_apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_list="migration-reconciliation-evidence/migration-list-final.txt"
+          schema_dump="$RUNNER_TEMP/production-public-schema-after.sql"
+          supabase migration list --linked --password "${SUPABASE_DB_PASSWORD}" > "$final_list" 2>&1
+          cat "$final_list"
+
+          has_version() {
+            local file="$1" column="$2" version="$3"
+            awk -F '│' -v col="$column" -v ver="$version" \
+              'index($col, ver) > 0 { found = 1 } END { exit !found }' "$file"
+          }
+          for version in \
+            20261007222703 20261010054845 20261012132557 20261013125414 \
+            20261013220000 20261014120000 20261014170000 \
+            20261014190000 20261015010000 20261015011000 \
+            20261017104855 20261017105801; do
+            has_version "$final_list" 1 "$version" || {
+              echo "::error::Expected local migration ${version} missing in final list."
+              exit 1
+            }
+            has_version "$final_list" 2 "$version" || {
+              echo "::error::Expected applied production migration ${version} missing in final list."
+              exit 1
+            }
+          done
+          for legacy in 20261015081705 20261015081715 20261015081723 20261015081746 20261015081755 20261015081804; do
+            if has_version "$final_list" 2 "$legacy"; then
+              echo "::error::Legacy migration version ${legacy} remains after repair."
+              exit 1
+            fi
+          done
+
+          supabase db dump --linked --schema public \
+            --file "$schema_dump" --password "${SUPABASE_DB_PASSWORD}"
+          grep -Eiq '^CREATE TABLE public\.engineering_execution_jobs([[:space:]]|$)' "$schema_dump" || {
+            echo "::error::V2.0.29 table was not found in the production schema dump."
+            exit 1
+          }
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.claim_engineering_execution_job([ (]|$)' "$schema_dump" || {
+            echo "::error::V2.0.29 claim function was not found in the production schema dump."
+            exit 1
+          }
+          grep -Eiq '^CREATE( OR REPLACE)? FUNCTION public\.renew_engineering_execution_job([ (]|$)' "$schema_dump" || {
+            echo "::error::V2.0.30 renewal function was not found in the production schema dump."
+            exit 1
+          }
+          printf 'Post-migration schema verification passed for V2.0.29 and V2.0.30.\n' \
+            | tee migration-reconciliation-evidence/schema-verification.txt
+          rm -f "$schema_dump"
+
+      - name: Upload migration reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-migration-reconciliation-${{ github.run_id }}
+          path: migration-reconciliation-evidence/
+          if-no-files-found: ignore
+          retention-days: 30
