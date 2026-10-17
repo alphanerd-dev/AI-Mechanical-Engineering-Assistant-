@@ -48,7 +48,7 @@ export class DurableExecutionWorker{
   try{attempt=await this.engine.executeClaimed(claim.job,controller.signal);}
   catch(error){
    const now=new Date().toISOString(),message=(error instanceof Error?error.message:String(error)).slice(0,2000),status=controller.signal.aborted?"CANCELLED":"FAILED";
-   attempt={retryable:true,job:{...claim.job,status,finishedAt:now,error:message,errorCode:"WORKER_EXECUTION_ERROR",attemptHistory:[...(claim.job.attemptHistory??[]),{attempt:claim.job.attempts??1,startedAt:claim.job.startedAt??now,finishedAt:now,status,error:message}]}};
+   attempt={retryable:false,job:{...claim.job,status,finishedAt:now,error:message,errorCode:"WORKER_EXECUTION_ERROR",attemptHistory:[...(claim.job.attemptHistory??[]),{attempt:claim.job.attempts??1,startedAt:claim.job.startedAt??now,finishedAt:now,status,error:message}]}};
   }finally{stopHeartbeat=true;signalStopHeartbeat();await heartbeatTask;}
   if(leaseLost)return true;
   await this.store.finishClaim(claim,attempt);
