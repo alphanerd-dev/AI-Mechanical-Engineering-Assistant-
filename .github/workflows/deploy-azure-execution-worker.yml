@@ -47,6 +47,8 @@ jobs:
           AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
         run: |
           set -euo pipefail
           for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
@@ -57,6 +59,14 @@ jobs:
           done
           if [[ "$SUPABASE_URL" != https://*.supabase.co ]]; then
             echo "::error::SUPABASE_URL must be an HTTPS Supabase project URL."
+            exit 1
+          fi
+          if [[ -n "${PYTHON_WORKER_URL:-}" && -z "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+            echo "::error::PYTHON_WORKER_URL requires the matching PYTHON_WORKER_API_TOKEN secret."
+            exit 1
+          fi
+          if [[ -z "${PYTHON_WORKER_URL:-}" && -n "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+            echo "::error::PYTHON_WORKER_API_TOKEN cannot be set without PYTHON_WORKER_URL."
             exit 1
           fi
           if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
@@ -121,12 +131,34 @@ jobs:
         shell: bash
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
         run: |
           set -euo pipefail
 
           if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
             echo "::error::Choose either enable_schedule or disable_schedule, not both."
             exit 1
+          fi
+
+          # The GitHub Environment is the source of truth for runtime configuration.
+          # Python-worker settings are paired, optional, and copied to both create/update paths.
+          worker_secrets=("supabase-service-role-key=$SUPABASE_SERVICE_ROLE_KEY")
+          worker_env_vars=(
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
+            "EXECUTION_WORKER_MODE=drain"
+            "EXECUTION_WORKER_MAX_JOBS=5"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_LEASE_SECONDS=45"
+            "EXECUTION_WORKER_HEARTBEAT_MS=10000"
+          )
+          if [[ -n "${PYTHON_WORKER_URL:-}" ]]; then
+            worker_secrets+=("python-worker-api-token=$PYTHON_WORKER_API_TOKEN")
+            worker_env_vars+=(
+              "PYTHON_WORKER_URL=$PYTHON_WORKER_URL"
+              "PYTHON_WORKER_API_TOKEN=secretref:python-worker-api-token"
+            )
           fi
 
           SCHEDULED_JOB_NAME="${AZURE_JOB_NAME}-scheduled"
@@ -181,21 +213,14 @@ jobs:
               --image "$IMAGE" \
               --cpu 0.25 \
               --memory 0.5Gi \
-              --secrets "supabase-service-role-key=$SUPABASE_SERVICE_ROLE_KEY" \
-              --env-vars \
-                "SUPABASE_URL=$SUPABASE_URL" \
-                "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key" \
-                "EXECUTION_WORKER_MODE=drain" \
-                "EXECUTION_WORKER_MAX_JOBS=5" \
-                "EXECUTION_WORKER_MAX_RUNTIME_MS=210000" \
-                "EXECUTION_WORKER_LEASE_SECONDS=45" \
-                "EXECUTION_WORKER_HEARTBEAT_MS=10000" \
+              --secrets "${worker_secrets[@]}" \
+              --env-vars "${worker_env_vars[@]}" \
               --only-show-errors
           else
             az containerapp job secret set \
               --name "$JOB_NAME" \
               --resource-group "$AZURE_RESOURCE_GROUP" \
-              --secrets "supabase-service-role-key=$SUPABASE_SERVICE_ROLE_KEY" \
+              --secrets "${worker_secrets[@]}" \
               --only-show-errors
             az containerapp job update \
               --name "$JOB_NAME" \
@@ -203,16 +228,17 @@ jobs:
               --image "$IMAGE" \
               --cpu 0.25 \
               --memory 0.5Gi \
-              --replace-env-vars \
-                "SUPABASE_URL=$SUPABASE_URL" \
-                "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key" \
-                "EXECUTION_WORKER_MODE=drain" \
-                "EXECUTION_WORKER_MAX_JOBS=5" \
-                "EXECUTION_WORKER_MAX_RUNTIME_MS=210000" \
-                "EXECUTION_WORKER_LEASE_SECONDS=45" \
-                "EXECUTION_WORKER_HEARTBEAT_MS=10000" \
+              --replace-env-vars "${worker_env_vars[@]}" \
               --only-show-errors
           fi
+
+          # Azure Container Apps Jobs must explicitly configure non-ACR registries,
+          # including public GHCR images. Keep this in the create and update path.
+          az containerapp job registry set \
+            --name "$JOB_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server ghcr.io \
+            --only-show-errors
 
           az containerapp job show \
             --name "$JOB_NAME" \
