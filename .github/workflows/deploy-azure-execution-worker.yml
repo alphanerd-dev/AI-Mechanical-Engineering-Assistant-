@@ -1,0 +1,248 @@
+name: Deploy Azure execution worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      enable_schedule:
+        description: "Create or update the scheduled worker after authenticated API/worker E2E checks pass"
+        type: boolean
+        required: true
+        default: false
+      disable_schedule:
+        description: "Delete the scheduled worker to stop automatic runs"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: azure-execution-worker-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: azure-execution-worker
+    env:
+      IMAGE: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'westeurope' }}
+      AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_ENVIRONMENT || 'env-engineering-execution' }}
+      AZURE_JOB_NAME: ${{ vars.AZURE_JOB_NAME || 'engineering-execution' }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mepmogsqhxxasahwhete.supabase.co' }}
+      ENABLE_SCHEDULE: ${{ inputs.enable_schedule }}
+      DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
+
+    steps:
+      - name: Check required deployment configuration
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Missing required GitHub environment variable or secret: $key"
+              exit 1
+            fi
+          done
+          if [[ "$SUPABASE_URL" != https://*.supabase.co ]]; then
+            echo "::error::SUPABASE_URL must be an HTTPS Supabase project URL."
+            exit 1
+          fi
+          if [[ -n "${PYTHON_WORKER_URL:-}" && -z "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+            echo "::error::PYTHON_WORKER_URL requires the matching PYTHON_WORKER_API_TOKEN secret."
+            exit 1
+          fi
+          if [[ -z "${PYTHON_WORKER_URL:-}" && -n "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+            echo "::error::PYTHON_WORKER_API_TOKEN cannot be set without PYTHON_WORKER_URL."
+            exit 1
+          fi
+          if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
+            echo "::error::Choose either enable_schedule or disable_schedule, not both."
+            exit 1
+          fi
+          if [[ ${#AZURE_JOB_NAME} -gt 22 || ! "$AZURE_JOB_NAME" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ || "$AZURE_JOB_NAME" == *--* ]]; then
+            echo "::error::AZURE_JOB_NAME must be a valid lowercase Azure name prefix of at most 22 characters; the workflow appends -manual or -scheduled."
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build and publish bounded execution worker image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: worker/execution/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Require a publicly pullable image before Azure deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          docker pull "$IMAGE"
+
+      - name: Sign in to Azure using workload identity federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Prepare Azure Container Apps environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          az extension add --name containerapp --upgrade --only-show-errors
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          az group show --name "$AZURE_RESOURCE_GROUP" --output none
+          if ! az containerapp env show --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+            az containerapp env create \
+              --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --location "$AZURE_LOCATION" \
+              --only-show-errors
+          fi
+
+      - name: Create or update the execution job
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
+            echo "::error::Choose either enable_schedule or disable_schedule, not both."
+            exit 1
+          fi
+
+          # The GitHub Environment is the source of truth for runtime configuration.
+          # Python-worker settings are paired, optional, and copied to both create/update paths.
+          worker_secrets=("supabase-service-role-key=$SUPABASE_SERVICE_ROLE_KEY")
+          worker_env_vars=(
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
+            "EXECUTION_WORKER_MODE=drain"
+            "EXECUTION_WORKER_MAX_JOBS=5"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_LEASE_SECONDS=45"
+            "EXECUTION_WORKER_HEARTBEAT_MS=10000"
+          )
+          if [[ -n "${PYTHON_WORKER_URL:-}" ]]; then
+            worker_secrets+=("python-worker-api-token=$PYTHON_WORKER_API_TOKEN")
+            worker_env_vars+=(
+              "PYTHON_WORKER_URL=$PYTHON_WORKER_URL"
+              "PYTHON_WORKER_API_TOKEN=secretref:python-worker-api-token"
+            )
+          fi
+
+          SCHEDULED_JOB_NAME="${AZURE_JOB_NAME}-scheduled"
+          if [[ "$ENABLE_SCHEDULE" == "true" ]]; then
+            TRIGGER_TYPE="Schedule"
+            JOB_NAME="$SCHEDULED_JOB_NAME"
+          else
+            TRIGGER_TYPE="Manual"
+            JOB_NAME="${AZURE_JOB_NAME}-manual"
+          fi
+
+          if [[ "$DISABLE_SCHEDULE" == "true" ]]; then
+            if az containerapp job show --name "$SCHEDULED_JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+              echo "Disabling the schedule by deleting the scheduled job; the manual job and its history remain untouched."
+              az containerapp job delete \
+                --name "$SCHEDULED_JOB_NAME" \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --yes \
+                --only-show-errors
+            else
+              echo "No scheduled job exists; nothing to disable."
+            fi
+          fi
+
+          EXISTING_TRIGGER="$(az containerapp job show \
+            --name "$JOB_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query 'properties.configuration.triggerType' \
+            --output tsv 2>/dev/null || true)"
+
+          # Keep Manual and Schedule jobs distinct so routine deployments never
+          # delete a job or silently reset its execution history to switch modes.
+          if [[ -n "$EXISTING_TRIGGER" && "$EXISTING_TRIGGER" != "$TRIGGER_TYPE" ]]; then
+            echo "::error::Job $JOB_NAME exists with unexpected trigger type '$EXISTING_TRIGGER'; refusing to delete or recreate it automatically."
+            exit 1
+          fi
+
+          if [[ -z "$EXISTING_TRIGGER" ]]; then
+            trigger_args=(--trigger-type "$TRIGGER_TYPE")
+            if [[ "$TRIGGER_TYPE" == "Schedule" ]]; then
+              trigger_args+=(--cron-expression "*/5 * * * *")
+            fi
+            az containerapp job create \
+              --name "$JOB_NAME" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --environment "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
+              "${trigger_args[@]}" \
+              --replica-timeout 240 \
+              --replica-retry-limit 1 \
+              --parallelism 1 \
+              --replica-completion-count 1 \
+              --image "$IMAGE" \
+              --registry-server ghcr.io \
+              --cpu 0.25 \
+              --memory 0.5Gi \
+              --secrets "${worker_secrets[@]}" \
+              --env-vars "${worker_env_vars[@]}" \
+              --only-show-errors
+          else
+            az containerapp job secret set \
+              --name "$JOB_NAME" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --secrets "${worker_secrets[@]}" \
+              --only-show-errors
+            az containerapp job update \
+              --name "$JOB_NAME" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --image "$IMAGE" \
+              --cpu 0.25 \
+              --memory 0.5Gi \
+              --replace-env-vars "${worker_env_vars[@]}" \
+              --only-show-errors
+          fi
+
+          # Azure Container Apps Jobs must explicitly configure non-ACR registries,
+          # including public GHCR images. Keep this in the create and update path.
+          az containerapp job registry set \
+            --name "$JOB_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server ghcr.io \
+            --only-show-errors
+
+          az containerapp job show \
+            --name "$JOB_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
+            --output json
