@@ -150,4 +150,6 @@ jobs:
           test -s .fea-smoke/v1_18_cantilever.dat
           test -s .fea-smoke/v1_18_cantilever.frd
           test -s .fea-smoke/v1_18_cantilever.sta
+      - name: Build bounded execution worker container
+        run: docker build --tag ai-mechanical-engineering-assistant-execution-worker:ci --file worker/execution/Dockerfile .
       - run: npm run build
