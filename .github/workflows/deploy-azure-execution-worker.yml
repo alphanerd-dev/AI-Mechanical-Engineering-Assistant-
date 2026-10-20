@@ -4,7 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       enable_schedule:
-        description: "Enable the five-minute schedule only after authenticated API/worker E2E checks pass"
+        description: "Create or update the scheduled worker after authenticated API/worker E2E checks pass"
+        type: boolean
+        required: true
+        default: false
+      disable_schedule:
+        description: "Delete the scheduled worker to stop automatic runs"
         type: boolean
         required: true
         default: false
@@ -29,10 +34,11 @@ jobs:
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'westeurope' }}
       AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_ENVIRONMENT || 'env-engineering-execution' }}
-      AZURE_JOB_NAME: ${{ vars.AZURE_JOB_NAME || 'engineering-execution-worker' }}
+      AZURE_JOB_NAME: ${{ vars.AZURE_JOB_NAME || 'engineering-execution' }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mepmogsqhxxasahwhete.supabase.co' }}
       ENABLE_SCHEDULE: ${{ inputs.enable_schedule }}
+      DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
 
     steps:
       - name: Check required deployment configuration
@@ -110,28 +116,44 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
+            echo "::error::Choose either enable_schedule or disable_schedule, not both."
+            exit 1
+          fi
+
+          SCHEDULED_JOB_NAME="${AZURE_JOB_NAME}-scheduled"
           if [[ "$ENABLE_SCHEDULE" == "true" ]]; then
             TRIGGER_TYPE="Schedule"
+            JOB_NAME="$SCHEDULED_JOB_NAME"
           else
             TRIGGER_TYPE="Manual"
+            JOB_NAME="${AZURE_JOB_NAME}-manual"
+          fi
+
+          if [[ "$DISABLE_SCHEDULE" == "true" ]]; then
+            if az containerapp job show --name "$SCHEDULED_JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+              echo "Disabling the schedule by deleting the scheduled job; the manual job and its history remain untouched."
+              az containerapp job delete \
+                --name "$SCHEDULED_JOB_NAME" \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --yes \
+                --only-show-errors
+            else
+              echo "No scheduled job exists; nothing to disable."
+            fi
           fi
 
           EXISTING_TRIGGER="$(az containerapp job show \
-            --name "$AZURE_JOB_NAME" \
+            --name "$JOB_NAME" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --query 'properties.configuration.triggerType' \
             --output tsv 2>/dev/null || true)"
 
-          # Azure Container Apps does not update a job's trigger type in place.
-          # Recreate only when the operator explicitly switches Manual/Schedule.
+          # Keep Manual and Schedule jobs distinct so routine deployments never
+          # delete a job or silently reset its execution history to switch modes.
           if [[ -n "$EXISTING_TRIGGER" && "$EXISTING_TRIGGER" != "$TRIGGER_TYPE" ]]; then
-            echo "::warning::Changing the trigger type will recreate the job and clear its execution history."
-            az containerapp job delete \
-              --name "$AZURE_JOB_NAME" \
-              --resource-group "$AZURE_RESOURCE_GROUP" \
-              --yes \
-              --only-show-errors
-            EXISTING_TRIGGER=""
+            echo "::error::Job $JOB_NAME exists with unexpected trigger type '$EXISTING_TRIGGER'; refusing to delete or recreate it automatically."
+            exit 1
           fi
 
           if [[ -z "$EXISTING_TRIGGER" ]]; then
@@ -140,7 +162,7 @@ jobs:
               trigger_args+=(--cron-expression "*/5 * * * *")
             fi
             az containerapp job create \
-              --name "$AZURE_JOB_NAME" \
+              --name "$JOB_NAME" \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --environment "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
               "${trigger_args[@]}" \
@@ -163,12 +185,12 @@ jobs:
               --only-show-errors
           else
             az containerapp job secret set \
-              --name "$AZURE_JOB_NAME" \
+              --name "$JOB_NAME" \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --secrets "supabase-service-role-key=$SUPABASE_SERVICE_ROLE_KEY" \
               --only-show-errors
             az containerapp job update \
-              --name "$AZURE_JOB_NAME" \
+              --name "$JOB_NAME" \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --image "$IMAGE" \
               --cpu 0.25 \
@@ -185,7 +207,7 @@ jobs:
           fi
 
           az containerapp job show \
-            --name "$AZURE_JOB_NAME" \
+            --name "$JOB_NAME" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
             --output json
