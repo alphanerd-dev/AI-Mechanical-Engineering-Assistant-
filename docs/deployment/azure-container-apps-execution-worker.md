@@ -72,7 +72,7 @@ Add these Environment variables:
 | `AZURE_RESOURCE_GROUP` | `rg-engineering-execution` (optional; this is the default) |
 | `AZURE_LOCATION` | `westeurope` (optional; this is the default) |
 | `AZURE_CONTAINERAPPS_ENVIRONMENT` | `env-engineering-execution` (optional; this is the default) |
-| `AZURE_JOB_NAME` | `engineering-execution-worker` (optional; this is the default) |
+| `AZURE_JOB_NAME` | `engineering-execution` (optional prefix; the workflow appends `-manual` or `-scheduled`; keep the prefix at 22 characters or fewer) |
 
 Add this Environment secret:
 
@@ -82,17 +82,17 @@ The default Supabase URL points at the current production project. If preparing 
 
 ## 3. Publish the container image and deploy a Manual job first
 
-Open **Actions → Deploy Azure execution worker → Run workflow** on branch `main). Leave `enable_schedule` unchecked for the first deployment.
+Open **Actions → Deploy Azure execution worker → Run workflow** on branch `main`. Leave both `enable_schedule` and `disable_schedule` unchecked for the first deployment.
 
 The workflow builds the container, publishes it to GitHub Container Registry (GHCR), and verifies that the image can be pulled without credentials **before it creates Azure resources**. On the first run, if the new GHCR package is private, that public-pull check will fail before Azure deployment. Open the repository owner's **Packages**, select `ai-mechanical-engineering-assistant-execution-worker`, and change its visibility to **Public**. This is safe only because the image must contain code, not secrets. Then rerun the workflow.
 
-The first successful deployment creates or updates a Manual Container Apps Job and keeps scheduled execution off. The workflow prints the deployed job configuration; no execution log will exist until a job is explicitly started.
+The first successful deployment creates or updates the Manual Container Apps Job named `engineering-execution-manual`. A separate scheduled job, `engineering-execution-scheduled`, is created only when `enable_schedule` is explicitly checked after validation. Leaving both schedule inputs unchecked never deletes or changes an existing schedule. The workflow prints the deployed job configuration; no execution log will exist until a job is explicitly started.
 
 For an initial worker smoke test, first change the protected GitHub Environment variables/secret to the isolated E2E Supabase project URL and its matching service-role key, then start exactly one job manually:
 
 ```bash
 az containerapp job start \
-  --name engineering-execution-worker \
+  --name engineering-execution-manual \
   --resource-group rg-engineering-execution
 ```
 
@@ -111,7 +111,7 @@ Azure for Students provides a limited credit balance, typically US$100 for 12 mo
 
 ## 5. Enable the five-minute schedule only after validation
 
-After the authenticated E2E checks pass, dispatch the workflow from `main` again and check `enable_schedule`. The job will be recreated as a scheduled job with the cron expression `*/5 * * * *` (UTC). Switching between Manual and Schedule deletes and recreates the Azure job, so its Container Apps execution history is reset at that transition.
+After the authenticated E2E checks pass, dispatch the workflow from `main` again, check `enable_schedule`, and leave `disable_schedule` unchecked. This creates or updates the separate `engineering-execution-scheduled` job with the cron expression `*/5 * * * *` (UTC), while preserving the manual job and its execution history.
 
 The scheduled worker:
 - claims jobs using the existing database lease/fencing mechanism;
@@ -120,4 +120,4 @@ The scheduled worker:
 - exits if there is no queued work;
 - never enables the API feature flag itself.
 
-After enabling the schedule, inspect **Azure Portal → Container Apps Jobs → engineering-execution-worker → Executions and Logs**. Monitor failed executions, queued-job age/backlog, repeated lease expiries, and subscription credit. If those checks fail, turn the schedule off by dispatching the workflow with `enable_schedule` unchecked (this recreates the job as Manual) and keep `DURABLE_EXECUTION_ENABLED` off.
+After enabling the schedule, inspect **Azure Portal → Container Apps Jobs → engineering-execution-scheduled → Executions and Logs**. Monitor failed executions, queued-job age/backlog, repeated lease expiries, and subscription credit. To turn off automatic runs, dispatch the workflow with `disable_schedule` checked and `enable_schedule` unchecked; this deletes only the scheduled job and leaves the manual job intact. Keep `DURABLE_EXECUTION_ENABLED` off if checks fail.
