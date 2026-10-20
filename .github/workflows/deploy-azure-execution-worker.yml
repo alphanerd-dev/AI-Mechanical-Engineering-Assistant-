@@ -33,7 +33,8 @@ jobs:
       IMAGE: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'westeurope' }}
-      AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_ENVIRONMENT || 'env-engineering-execution' }}
+      # Express environments cannot host Container Apps Jobs; use a dedicated workload-profiles environment.
+      AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT || 'env-engineering-execution-jobs' }}
       AZURE_JOB_NAME: ${{ vars.AZURE_JOB_NAME || 'engineering-execution' }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mepmogsqhxxasahwhete.supabase.co' }}
@@ -124,7 +125,19 @@ jobs:
               --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --location "$AZURE_LOCATION" \
+              --environment-mode WorkloadProfiles \
               --only-show-errors
+          fi
+
+          # Fail early with a clear message if an existing environment is Express or otherwise
+          # does not expose workload profiles; Container Apps Jobs are not supported there.
+          if ! PROFILE_COUNT="$(az containerapp env workload-profile list \
+            --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query 'length(@)' \
+            --output tsv 2>/dev/null)" || [[ ! "$PROFILE_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::The Azure Container Apps environment '$AZURE_CONTAINERAPPS_ENVIRONMENT' does not expose workload profiles and cannot host Container Apps Jobs. Set AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT to a workload-profiles environment."
+            exit 1
           fi
 
       - name: Create or update the execution job
@@ -245,3 +258,57 @@ jobs:
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
             --output json
+
+          # Execute one bounded manual run when scheduling remains disabled. The worker is
+          # configured in drain mode, so it exits after processing up to the bounded job limit.
+          if [[ "$ENABLE_SCHEDULE" != "true" ]]; then
+            EXECUTION_NAME="$(az containerapp job start \
+              --name "$JOB_NAME" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --only-show-errors \
+              --query name \
+              --output tsv)"
+            if [[ -z "$EXECUTION_NAME" ]]; then
+              echo "::error::Azure did not return an execution name for the worker smoke test."
+              exit 1
+            fi
+
+            echo "Started bounded manual worker smoke execution: $EXECUTION_NAME"
+            EXECUTION_STATUS=""
+            for attempt in $(seq 1 60); do
+              EXECUTION_STATUS="$(az containerapp job execution show \
+                --name "$JOB_NAME" \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --job-execution-name "$EXECUTION_NAME" \
+                --query 'properties.status' \
+                --output tsv 2>/dev/null || true)"
+              case "${EXECUTION_STATUS^^}" in
+                SUCCEEDED)
+                  echo "Worker smoke execution completed successfully: $EXECUTION_NAME"
+                  break
+                  ;;
+                FAILED|STOPPED|CANCELLED|CANCELED)
+                  echo "::error::Worker smoke execution ended with status '$EXECUTION_STATUS'."
+                  az containerapp job execution show \
+                    --name "$JOB_NAME" \
+                    --resource-group "$AZURE_RESOURCE_GROUP" \
+                    --job-execution-name "$EXECUTION_NAME" \
+                    --output json || true
+                  exit 1
+                  ;;
+              esac
+              sleep 5
+            done
+
+            if [[ "${EXECUTION_STATUS^^}" != "SUCCEEDED" ]]; then
+              echo "::error::Timed out waiting for worker smoke execution $EXECUTION_NAME; last status '$EXECUTION_STATUS'."
+              az containerapp job execution show \
+                --name "$JOB_NAME" \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --job-execution-name "$EXECUTION_NAME" \
+                --output json || true
+              exit 1
+            fi
+          else
+            echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
+          fi
