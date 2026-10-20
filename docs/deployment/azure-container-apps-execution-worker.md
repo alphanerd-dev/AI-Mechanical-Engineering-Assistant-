@@ -86,7 +86,17 @@ Open **Actions → Deploy Azure execution worker → Run workflow** on branch `m
 
 The workflow builds the container, publishes it to GitHub Container Registry (GHCR), and verifies that the image can be pulled without credentials **before it creates Azure resources**. On the first run, if the new GHCR package is private, that public-pull check will fail before Azure deployment. Open the repository owner's **Packages**, select `ai-mechanical-engineering-assistant-execution-worker`, and change its visibility to **Public**. This is safe only because the image must contain code, not secrets. Then rerun the workflow.
 
-The first successful deployment creates or updates a Manual Container Apps Job and keeps scheduled execution off. The workflow writes structured worker logs and prints the deployed job configuration, but does not start the job automatically.
+The first successful deployment creates or updates a Manual Container Apps Job and keeps scheduled execution off. The workflow prints the deployed job configuration; no execution log will exist until a job is explicitly started.
+
+For an initial worker smoke test, first change the protected GitHub Environment variables/secret to the isolated E2E Supabase project URL and its matching service-role key, then start exactly one job manually:
+
+```bash
+az containerapp job start \
+  --name engineering-execution-worker \
+  --resource-group rg-engineering-execution
+```
+
+Inspect the execution result and logs in Azure Portal. Restore the production URL/key only after the staging test is finished, and do not enable the five-minute schedule until the authenticated end-to-end criteria below are met. Do not run this smoke command while the job is configured with the production service-role key unless you have explicitly chosen to process any queued production jobs.
 
 ## 4. Validate before enabling a schedule
 
@@ -97,7 +107,7 @@ Before starting any production worker:
 3. Verify no service-role credential appears in image layers, artifacts, command output, or logs.
 4. Review Azure Cost Management. Set budget alerts at sensible thresholds and check Container Apps and Log Analytics consumption. Budget alerts notify; they are not a hard spending cap.
 
-Azure for Students currently includes a limited credit balance. Azure Container Apps Consumption grants cover the first 180,000 vCPU-seconds and 360,000 GiB-seconds per subscription per calendar month, but these grants are shared with other eligible usage; long or frequent job executions, logs, networking, and other resources may exceed them. A worker that finds an empty queue should exit promptly, but a busy queue can consume more resources. Verify the price and your remaining credit in your own subscription before using the schedule.
+Azure for Students provides a limited credit balance, typically US$100 for 12 months while the offer is active. Azure Container Apps Consumption grants cover the first 180,000 vCPU-seconds and 360,000 GiB-seconds per subscription per calendar month, but these grants are shared with other eligible usage; long or frequent job executions, logs, networking, and other resources may exceed them. Eligible charges are deducted from the Azure for Students credit. Check the remaining balance in the Azure Sponsorships portal and set a budget alert before using the schedule; budget alerts notify but are not a hard spending cap. If the credit is exhausted, Azure for Students resources can be suspended/decommissioned unless you choose to upgrade. This student subscription is intended for education, noncommercial research, and software design/development/testing/demonstration—not commercial production; reassess the subscription and applicable terms before using it for commercial workloads.
 
 ## 5. Enable the five-minute schedule only after validation
 
