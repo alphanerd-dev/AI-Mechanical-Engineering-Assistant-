@@ -73,10 +73,12 @@ Add these Environment variables:
 | `AZURE_LOCATION` | `westeurope` (optional; this is the default) |
 | `AZURE_CONTAINERAPPS_ENVIRONMENT` | `env-engineering-execution` (optional; this is the default) |
 | `AZURE_JOB_NAME` | `engineering-execution` (optional prefix; the workflow appends `-manual` or `-scheduled`; keep the prefix at 22 characters or fewer) |
+| `PYTHON_WORKER_URL` | Optional HTTPS URL of the authenticated Python numerical worker; configure only when the API is configured to submit Python-worker jobs. |
 
 Add this Environment secret:
 
 - `SUPABASE_SERVICE_ROLE_KEY`: the server-side service-role JWT or current `sb_secret_...` key for the intended Supabase project. Enter it directly in GitHub's secret editor; do not paste it into chat or commit it.
+- `PYTHON_WORKER_API_TOKEN`: optional matching bearer token for `PYTHON_WORKER_URL`. Set both Python-worker values or neither. The workflow stores this token as an Azure Container Apps Job secret and exposes it through a `secretref`; never put it in the image or ordinary environment variables.
 
 The default Supabase URL points at the current production project. If preparing a staging run, override `SUPABASE_URL` with the isolated E2E project's URL and set the matching staging key as the environment secret. Never pair a staging URL with a production service-role key or vice versa.
 
@@ -84,7 +86,7 @@ The default Supabase URL points at the current production project. If preparing 
 
 Open **Actions → Deploy Azure execution worker → Run workflow** on branch `main`. Leave both `enable_schedule` and `disable_schedule` unchecked for the first deployment.
 
-The workflow builds the container, publishes it to GitHub Container Registry (GHCR), and verifies that the image can be pulled without credentials **before it creates Azure resources**. On the first run, if the new GHCR package is private, that public-pull check will fail before Azure deployment. Open the repository owner's **Packages**, select `ai-mechanical-engineering-assistant-execution-worker`, and change its visibility to **Public**. This is safe only because the image must contain code, not secrets. Then rerun the workflow.
+The workflow builds the container, publishes it to GitHub Container Registry (GHCR), and verifies that the image can be pulled without credentials **before it creates Azure resources**. It explicitly configures `ghcr.io` as the Container Apps Job registry on job creation and refreshes that registry configuration on updates. On the first run, if the new GHCR package is private, that public-pull check will fail before Azure deployment. Open the repository owner's **Packages**, select `ai-mechanical-engineering-assistant-execution-worker`, and change its visibility to **Public**. This is safe only because the image must contain code, not secrets. Then rerun the workflow.
 
 The first successful deployment creates or updates the Manual Container Apps Job named `engineering-execution-manual`. A separate scheduled job, `engineering-execution-scheduled`, is created only when `enable_schedule` is explicitly checked after validation. Leaving both schedule inputs unchecked never deletes or changes an existing schedule. The workflow prints the deployed job configuration; no execution log will exist until a job is explicitly started.
 
