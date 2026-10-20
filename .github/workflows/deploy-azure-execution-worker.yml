@@ -120,6 +120,35 @@ jobs:
           az extension add --name containerapp --upgrade --only-show-errors
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           az group show --name "$AZURE_RESOURCE_GROUP" --output none
+
+          # Azure for Students region restrictions vary by subscription. Read the
+          # applicable policy before creating resources, so a disallowed region fails fast.
+          if POLICY_JSON="$(az policy assignment list \
+            --scope "/subscriptions/$AZURE_SUBSCRIPTION_ID" \
+            --disable-scope-strict-match true \
+            --output json 2>/dev/null)"; then
+            REGION_POLICIES="$(jq -c '[.[] | select(((.displayName // "") | ascii_downcase) | test("allowed.*(region|location)|(region|location).*allowed")) | {displayName: .displayName, scope: .scope, parameters: (.parameters // {})}]' <<<"$POLICY_JSON")"
+            if [[ "$REGION_POLICIES" != "[]" ]]; then
+              echo "Azure location policy details: $REGION_POLICIES"
+              ALLOWED_LOCATIONS_JSON="$(jq -c '[
+                .[]
+                | select(((.displayName // "") | ascii_downcase) | test("allowed.*(region|location)|(region|location).*allowed"))
+                | (.parameters // {} | to_entries[])
+                | select(.key | ascii_downcase | test("location|region"))
+                | (.value.value? // empty)
+                | if type == "array" then .[] else . end
+              ] | unique' <<<"$POLICY_JSON")"
+              if [[ "$ALLOWED_LOCATIONS_JSON" != "[]" ]] && ! jq -e --arg region "$AZURE_LOCATION" 'index($region) != null' <<<"$ALLOWED_LOCATIONS_JSON" >/dev/null; then
+                echo "::error::Configured Azure region '$AZURE_LOCATION' is not allowed by this subscription's Azure location policy. Allowed regions: $ALLOWED_LOCATIONS_JSON. Update AZURE_LOCATION to one of the listed values before retrying."
+                exit 1
+              fi
+            else
+              echo "No applicable region policy matching the standard Azure for Students location policy was found."
+            fi
+          else
+            echo "::warning::Could not read Azure policy assignments with this deployment identity; continuing to Azure's native location-policy enforcement."
+          fi
+
           if ! az containerapp env show --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
             az containerapp env create \
               --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
