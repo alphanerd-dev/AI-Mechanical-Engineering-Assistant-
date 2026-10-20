@@ -59,6 +59,14 @@ jobs:
             echo "::error::SUPABASE_URL must be an HTTPS Supabase project URL."
             exit 1
           fi
+          if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
+            echo "::error::Choose either enable_schedule or disable_schedule, not both."
+            exit 1
+          fi
+          if [[ ${#AZURE_JOB_NAME} -gt 22 || ! "$AZURE_JOB_NAME" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ || "$AZURE_JOB_NAME" == *--* ]]; then
+            echo "::error::AZURE_JOB_NAME must be a valid lowercase Azure name prefix of at most 22 characters; the workflow appends -manual or -scheduled."
+            exit 1
+          fi
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
