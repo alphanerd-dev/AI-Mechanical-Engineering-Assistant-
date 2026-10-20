@@ -211,6 +211,7 @@ jobs:
               --parallelism 1 \
               --replica-completion-count 1 \
               --image "$IMAGE" \
+              --registry-server ghcr.io \
               --cpu 0.25 \
               --memory 0.5Gi \
               --secrets "${worker_secrets[@]}" \
