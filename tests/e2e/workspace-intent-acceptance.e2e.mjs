@@ -908,12 +908,17 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
 });
 
 
-test("OPT-IN live accepted CAD completion persists artifacts and independently verifiable atomic audit correlation", { retries: 0 }, async ({ browser }, testInfo) => {
+test.describe("Non-retriable live accepted CAD acceptance", () => {
+  // A transport failure after a mutating POST is ambiguous: do not replay this whole test.
+  // Only the idempotent readiness GET below may be retried.
+  test.describe.configure({ retries: 0 });
+
+  test("OPT-IN live accepted CAD completion persists artifacts and independently verifiable atomic audit correlation", async ({ browser }, testInfo) => {
   test.skip(
     process.env.E2E_RUN_ACCEPTED_CAD_SMOKE !== "true",
     "Opt-in only: exercises a real CAD worker and writes then removes disposable artifacts in the dedicated E2E project.",
   );
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
 
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
@@ -930,6 +935,7 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     completionWarnings: [],
     storageObjectCount: 0,
     readiness: null,
+    readinessAttempts: [],
     auditEvent: null,
     cleanup: null,
   };
@@ -956,11 +962,33 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     diagnostics.projectId = projectId;
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
 
-    // The production readiness helper caps remote Render cold-start probing at 45 s.
-    // Give the API request bounded headroom beyond that probe, rather than the 15 s default.
-    const readinessResponse = await safeAuthenticatedRequest("CAD readiness probe", () =>
-      page.request.get("/api/cad/readiness?projectId=" + encodeURIComponent(projectId), { timeout: 60_000 }),
-    );
+    // Readiness is a read-only GET, so bounded retries are safe if the edge/worker
+    // cold start resets the transport or returns a transient gateway response. Never apply
+    // this retry policy to POST /api/cad/completions: an ambiguous POST must not be replayed.
+    const readinessPath = "/api/cad/readiness?projectId=" + encodeURIComponent(projectId);
+    const readinessAttempts = [];
+    let readinessResponse;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await page.request.get(readinessPath, { timeout: 60_000 });
+        const retryableStatus = [502, 503, 504].includes(response.status());
+        readinessAttempts.push({
+          attempt,
+          httpStatus: response.status(),
+          retryableStatus: retryableStatus && attempt < 2,
+        });
+        readinessResponse = response;
+        if (!retryableStatus || attempt === 2) break;
+      } catch {
+        readinessAttempts.push({ attempt, outcome: "transport_timeout_or_reset" });
+        if (attempt === 2) {
+          diagnostics.readinessAttempts = readinessAttempts;
+          throw new Error("CAD readiness probe failed after two bounded read-only attempts; transport diagnostics were suppressed to protect session credentials.");
+        }
+      }
+      if (attempt < 2) await page.waitForTimeout(3_000);
+    }
+    diagnostics.readinessAttempts = readinessAttempts;
     const readinessBody = await readinessResponse.json();
     diagnostics.readiness = { status: readinessResponse.status(), body: readinessBody };
     expect(
@@ -1188,6 +1216,7 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     });
     await context.close().catch(() => undefined);
   }
+  });
 });
 
 
