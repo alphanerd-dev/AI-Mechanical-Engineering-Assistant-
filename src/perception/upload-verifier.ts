@@ -115,14 +115,20 @@ function parsePcdHeader(header: string): number {
     const widthLines = lines.filter((line) => /^WIDTH\s+/i.test(line));
     const heightLines = lines.filter((line) => /^HEIGHT\s+/i.test(line));
     if (widthLines.length !== 1 || heightLines.length !== 1) fail("POINT_CLOUD_HEADER_INVALID");
-    const width = pointCount(widthLines[0].split(/\s+/)[1]);
+    const widthRaw = widthLines[0].split(/\s+/)[1];
     const heightRaw = heightLines[0].split(/\s+/)[1];
-    if (!heightRaw || !/^\d+$/.test(heightRaw)) fail("POINT_COUNT_OUT_OF_RANGE");
-    const height = Number(heightRaw);
-    if (!Number.isSafeInteger(height) || height < 1 || width * height > POINT_CLOUD_UPLOAD_MAX_POINTS) {
+    if (!widthRaw || !/^\d+$/.test(widthRaw) || !heightRaw || !/^\d+$/.test(heightRaw)) {
       fail("POINT_COUNT_OUT_OF_RANGE");
     }
-    rawCount = String(width * height);
+    const width = Number(widthRaw);
+    const height = Number(heightRaw);
+    const total = width * height;
+    if (!Number.isSafeInteger(width) || width < 1 ||
+        !Number.isSafeInteger(height) || height < 1 ||
+        !Number.isSafeInteger(total) || total < 3 || total > POINT_CLOUD_UPLOAD_MAX_POINTS) {
+      fail("POINT_COUNT_OUT_OF_RANGE");
+    }
+    rawCount = String(total);
   }
   return pointCount(rawCount);
 }
