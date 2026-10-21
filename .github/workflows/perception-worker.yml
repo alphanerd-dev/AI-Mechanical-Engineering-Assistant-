@@ -62,6 +62,15 @@ jobs:
           PY
 
       - name: Smoke test worker container without network or root filesystem writes
+        shell: bash
         run: |
-          result="$(printf '%s\n' '{"operation":"inspect","path":"fixture.ply","units":"mm","coordinateFrame":"ci-fixture"}' | docker run --rm --network none --read-only --security-opt no-new-privileges --cap-drop ALL --memory=2g --cpus=2 --pids-limit=128 --tmpfs /tmp:rw,noexec,nosuid,size=64m -v "$RUNNER_TEMP/perception-input:/work/input:ro" engineering-open3d-perception:ci)"
-          printf '%s\n' "$result" | python -c 'import json,sys; r=json.load(sys.stdin); assert r["status"] == "MEASURED", r; assert r["pointCount"] == 64, r; assert r["boundsMm"]["extent"] == [30.0,30.0,30.0], r; assert r["engineeringDesignApproved"] is False, r; print("isolated container smoke passed")'
+          set +e
+          result="$(printf '%s\\n' '{"operation":"inspect","path":"fixture.ply","units":"mm","coordinateFrame":"ci-fixture"}' | docker run --rm --network none --read-only --security-opt no-new-privileges --cap-drop ALL --memory=2g --cpus=2 --pids-limit=128 --tmpfs /tmp:rw,noexec,nosuid,size=64m -v "$RUNNER_TEMP/perception-input:/work/input:ro" engineering-open3d-perception:ci)"
+          worker_exit=$?
+          set -e
+          printf '%s\\n' "$result"
+          if [[ "$worker_exit" -ne 0 ]]; then
+            echo "::error::Open3D container returned a bounded worker failure (exit $worker_exit). See structured errorCode above."
+            exit "$worker_exit"
+          fi
+          printf '%s\\n' "$result" | python -c 'import json,sys; r=json.load(sys.stdin); assert r["status"] == "MEASURED", r; assert r["pointCount"] == 64, r; assert r["boundsMm"]["extent"] == [30.0,30.0,30.0], r; assert r["engineeringDesignApproved"] is False, r; print("isolated container smoke passed")'
