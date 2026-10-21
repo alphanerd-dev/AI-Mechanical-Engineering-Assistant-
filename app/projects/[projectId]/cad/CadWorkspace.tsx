@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { getCADDecisionNotice, getCADRetryGuidance } from "../../../../src/cad/decision-presentation.js";
 
 type CADModel = { id: string; projectId: string; name: string; createdAt: string; updatedAt: string };
 type CADArtifact = {
@@ -161,29 +162,24 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
         throw new Error(typeof body.error === "string" ? body.error : "The CAD service returned no usable decision payload.");
       }
 
-      if (completion?.status === "ACCEPTED" && body.verified === true) {
-        setNotice("Accepted. The solid passed independent geometry validation and its evidence and artifacts were persisted. This is not engineering design approval.");
-      } else if (completion?.status === "NEEDS_INPUT") {
-        setNotice(completion.intent_resolution?.nextQuestion ?? "More dimensional input is required before geometry generation.");
-      } else if (completion?.status === "UNSUPPORTED") {
-        setNotice(completion.intent_resolution?.reason ?? "This reference workflow does not support that geometry yet.");
-      } else if (completion?.status === "WAITING_APPROVAL") {
-        setNotice("The result is waiting for an authorized human approval. It is not released or complete.");
-      } else if (completion?.status === "FAILED" || completion?.status === "REJECTED" || completion?.status === "BLOCKED" || completion?.status === "INCOMPLETE") {
-        setNotice("The request ended as " + completion.status + ". Review the recorded reason and next action before deciding whether to revise and resubmit.");
-      } else if (completion) {
-        setNotice("Decision recorded as " + completion.status + ". Review its validation and evidence status below.");
+      if (completion) {
+        setNotice(getCADDecisionNotice({
+          status: completion.status,
+          verified: body.verified === true,
+          nextQuestion: completion.intent_resolution?.nextQuestion,
+          reason: completion.intent_resolution?.reason,
+        }).message);
       } else {
         setNotice("The request returned no structured decision. Refresh history before retrying.");
-        setRetryGuidance("Your draft is preserved. Refresh history before retrying so you can check whether a completion was recorded.");
+        setRetryGuidance(getCADRetryGuidance("no_decision"));
       }
       await refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "CAD completion failed.");
       if (!responseReceived) {
-        setRetryGuidance("The connection ended before a response was received. Your draft is preserved. Refresh completion history before retrying; the server may have received the request even though its response was lost.");
+        setRetryGuidance(getCADRetryGuidance("network"));
       } else if (!decisionReceived) {
-        setRetryGuidance("Your draft is preserved. Refresh completion history before retrying. Do not assume that a missing response means no server-side work occurred.");
+        setRetryGuidance(getCADRetryGuidance("no_decision"));
       }
     } finally {
       setBusy(false);
