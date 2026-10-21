@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          result="$(printf '%s\n' '{"operation":"inspect","path":"fixture.ply","units":"mm","coordinateFrame":"ci-fixture"}' | docker run --rm --network none --read-only --security-opt no-new-privileges --cap-drop ALL --memory=2g --cpus=2 --pids-limit=128 --tmpfs /tmp:rw,noexec,nosuid,size=64m -v "$RUNNER_TEMP/perception-input:/work/input:ro" engineering-open3d-perception:ci)"
+          result="$(printf '%s\n' '{"operation":"inspect","path":"fixture.ply","units":"mm","coordinateFrame":"ci-fixture"}' | docker run --rm -i --network none --read-only --security-opt no-new-privileges --cap-drop ALL --memory=2g --cpus=2 --pids-limit=128 --tmpfs /tmp:rw,noexec,nosuid,size=64m -v "$RUNNER_TEMP/perception-input:/work/input:ro" engineering-open3d-perception:ci)"
           worker_exit=$?
           set -e
           printf '%s\n' "$result"
