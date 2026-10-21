@@ -13,6 +13,11 @@ on:
         type: boolean
         required: true
         default: false
+      replace_empty_environments:
+        description: "Allow guarded replacement of the two known empty/failed Container Apps environments; requires subscription-wide app/job inventory to be empty"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -41,6 +46,7 @@ jobs:
       SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mepmogsqhxxasahwhete.supabase.co' }}
       ENABLE_SCHEDULE: ${{ inputs.enable_schedule }}
       DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
+      REPLACE_EMPTY_ENVIRONMENTS: ${{ inputs.replace_empty_environments }}
 
     steps:
       - name: Check required deployment configuration
@@ -226,8 +232,48 @@ jobs:
               echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP"
             } >> "$GITHUB_ENV"
           elif [[ "$EXISTING_ENVIRONMENT_COUNT" -gt 0 ]]; then
-            echo "::error::The subscription already has $EXISTING_ENVIRONMENT_COUNT Container Apps environment(s), but none is both ready, workload-profile-enabled, and in an approved region. Azure for Students has a one-environment quota; no new environment was attempted and no existing environment was deleted. Review the metadata inventory above before deciding whether to retire or replace an incompatible environment."
-            exit 1
+            if [[ "$REPLACE_EMPTY_ENVIRONMENTS" != "true" ]]; then
+              echo "::error::The subscription already has $EXISTING_ENVIRONMENT_COUNT Container Apps environment(s), but none is ready, workload-profile-enabled, and in an approved region. No existing environment was deleted. Re-run manually with replace_empty_environments=true only after reviewing the inventory and confirming there are no attached apps/jobs."
+              exit 1
+            fi
+
+            # Guard destructive replacement aggressively. This path is allowed only when
+            # the subscription has exactly the two known environment names in the target
+            # resource group, both in the explicit allowlist, and no Container Apps/apps/jobs.
+            APP_COUNT="$(jq 'length' <<<"$EXISTING_APPS_JSON")"
+            JOB_COUNT="$(jq 'length' <<<"$EXISTING_JOBS_JSON")"
+            if [[ "$APP_COUNT" != "0" || "$JOB_COUNT" != "0" ]]; then
+              echo "::error::Refusing to replace environments because subscription-wide inventory found $APP_COUNT app(s) and $JOB_COUNT job(s)."
+              exit 1
+            fi
+            if ! jq -e \
+              --arg resourceGroup "$AZURE_RESOURCE_GROUP" \
+              --argjson allowed "$CONFIGURED_ALLOWED_LOCATIONS_JSON" \
+              'length == 2 and all(.[]; ((.resourceGroup // ((.id // "") | split("/") | .[4])) == $resourceGroup) and (.name == "env-engineering-execution" or .name == "env-engineering-execution-jobs") and (($allowed | index((.location // "") | ascii_downcase)) != null))' \
+              <<<"$EXISTING_ENVIRONMENTS_JSON" >/dev/null; then
+              echo "::error::Refusing replacement: the current subscription inventory is not exactly the two previously inspected empty environments in '$AZURE_RESOURCE_GROUP' and approved locations."
+              exit 1
+            fi
+
+            # Refresh the app/job inventory immediately before deleting the two environments.
+            # Any newly attached app/job is a hard stop; nothing is force-deleted.
+            APP_COUNT="$(az containerapp list --output json | jq 'length')"
+            JOB_COUNT="$(az containerapp job list --output json | jq 'length')"
+            if [[ "$APP_COUNT" != "0" || "$JOB_COUNT" != "0" ]]; then
+              echo "::error::Refusing replacement after fresh inventory: found $APP_COUNT app(s) and $JOB_COUNT job(s)."
+              exit 1
+            fi
+
+            echo "::notice::Replacing only the two pre-identified empty environments after fresh subscription-wide app/job checks returned zero. Automatic scheduling remains disabled."
+            az containerapp env delete --name "env-engineering-execution-jobs" --resource-group "$AZURE_RESOURCE_GROUP" --yes --only-show-errors
+            az containerapp env delete --name "env-engineering-execution" --resource-group "$AZURE_RESOURCE_GROUP" --yes --only-show-errors
+
+            az containerapp env create \
+              --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --location "$AZURE_LOCATION" \
+              --environment-mode WorkloadProfiles \
+              --only-show-errors
           else
             echo "No existing Container Apps environment was returned. Creating the requested workload-profile environment in the configured approved region."
             az containerapp env create \
