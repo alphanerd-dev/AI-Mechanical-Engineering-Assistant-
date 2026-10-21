@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 
 const TABLE = "engineering_execution_jobs";
 const EXPECTED_TORQUE_NM = (9550 * 5) / 1500;
@@ -12,9 +12,19 @@ function fail(message) {
   throw new Error(message);
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function isUuid(value) {
   return typeof value === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function requiredEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) fail("Required environment variable " + name + " is not set.");
+  return value;
 }
 
 function canonical(value) {
@@ -37,36 +47,37 @@ function requestDigest(request) {
 }
 
 function getUrl(params = {}) {
-  if (!baseUrl) fail("SUPABASE_URL is required for Azure queue E2E.");
+  if (!baseUrl) fail("SUPABASE_URL is required for read-only Azure queue acceptance checks.");
   const url = new URL("/rest/v1/" + TABLE, baseUrl);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   return url;
 }
 
-async function rest(params, options = {}) {
-  if (!serviceKey) fail("SUPABASE_SERVICE_ROLE_KEY is required for Azure queue E2E.");
-  const method = options.method || "GET";
+async function restRead(params) {
+  if (!serviceKey) fail("SUPABASE_SERVICE_ROLE_KEY is required for read-only Azure queue acceptance checks.");
   const response = await fetch(getUrl(params), {
-    method,
     headers: {
       apikey: serviceKey,
       Authorization: "Bearer " + serviceKey,
-      Accept: "application/json",
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(options.prefer ? { Prefer: options.prefer } : {})
+      Accept: "application/json"
     },
-    ...(options.body ? { body: JSON.stringify(options.body) } : {})
+    signal: AbortSignal.timeout(20_000),
+    cache: "no-store"
   });
-  const text = await response.text();
-  if (!response.ok) {
-    fail("Supabase queue " + method + " request failed with HTTP " + response.status + ".");
-  }
-  if (!text) return null;
+  if (!response.ok) fail("Read-only Supabase queue request failed with HTTP " + response.status + ".");
   try {
-    return JSON.parse(text);
-  } catch {
-    fail("Supabase queue request returned invalid JSON.");
+    const result = await response.json();
+    if (!Array.isArray(result)) fail("Supabase queue query did not return an array.");
+    return result;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Supabase queue")) throw error;
+    fail("Supabase queue query returned invalid JSON.");
   }
+}
+
+function expectedCorrelationId() {
+  if (!runId) fail("GITHUB_RUN_ID is required to verify the queue acceptance job.");
+  return "azure-worker-e2e:" + runId + ":" + runAttempt;
 }
 
 function assertTestRequest(row, expectedId) {
@@ -80,119 +91,102 @@ function assertTestRequest(row, expectedId) {
       request?.inputs?.speedRpm !== 1500) {
     fail("Queue E2E job request does not match the bounded shaft-torque acceptance case.");
   }
-  if (request?.correlationId !== "azure-worker-e2e:" + runId + ":" + runAttempt) {
+  if (request?.correlationId !== expectedCorrelationId()) {
     fail("Queue E2E correlation ID did not match this workflow attempt.");
   }
 }
 
-async function enqueue() {
-  if (!runId) fail("GITHUB_RUN_ID is required to make the queue test idempotent.");
-  const sourceRows = await rest({
-    select: "owner_id,project_id,request",
-    capability: "eq.ANALYSIS.SHAFT_TORQUE",
-    backend: "eq.typescript-safe",
-    status: "eq.SUCCEEDED",
-    order: "finished_at.desc",
+function requireJobId() {
+  const jobId = process.env.AZURE_E2E_JOB_ID?.trim();
+  if (!isUuid(jobId)) fail("AZURE_E2E_JOB_ID is required for Azure queue acceptance checks.");
+  return jobId;
+}
+
+async function authorizedApi(method, path, body, extraHeaders = {}) {
+  const base = new URL(requiredEnv("CAD_WORKSPACE_BASE_URL"));
+  if (base.protocol !== "https:" && !["localhost", "127.0.0.1", "::1"].includes(base.hostname)) {
+    fail("CAD_WORKSPACE_BASE_URL must use HTTPS except for local development.");
+  }
+  const cookie = requiredEnv("CAD_WORKSPACE_COOKIE");
+  if (/\r|\n/.test(cookie)) fail("CAD_WORKSPACE_COOKIE must be a single HTTP Cookie header value.");
+  const response = await fetch(new URL(path, base.origin), {
+    method,
+    headers: {
+      Accept: "application/json",
+      Cookie: cookie,
+      ...extraHeaders,
+      ...(body !== undefined ? { "Content-Type": "application/json" } : {})
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(30_000),
+    cache: "no-store"
+  });
+  let parsed;
+  try {
+    parsed = await response.json();
+  } catch {
+    fail("The authenticated execution API returned a non-JSON response (HTTP " + response.status + ").");
+  }
+  return { response, body: parsed };
+}
+
+async function enqueueApi() {
+  const projectId = requiredEnv("CAD_WORKSPACE_PROJECT_ID");
+  if (!isUuid(projectId)) fail("CAD_WORKSPACE_PROJECT_ID must be a registered project UUID.");
+  const idempotencyKey = "azure-worker-e2e-" + requiredEnv("GITHUB_RUN_ID") + "-" + runAttempt;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(idempotencyKey)) fail("Generated idempotency key is invalid.");
+  const { response, body } = await authorizedApi(
+    "POST",
+    "/api/execution",
+    {
+      projectId,
+      capability: "ANALYSIS.SHAFT_TORQUE",
+      backend: "typescript-safe",
+      inputs: { powerKw: 5, speedRpm: 1500 },
+      requestedOutputs: ["torque"]
+    },
+    { "Idempotency-Key": idempotencyKey, "X-Request-ID": expectedCorrelationId() }
+  );
+  if (!response.ok || response.status !== 202 || !isRecord(body) ||
+      body.status !== "QUEUED" || !isUuid(body.id) || body.request?.projectId !== projectId) {
+    const status = isRecord(body) && typeof body.status === "string" ? body.status : "unknown";
+    fail("Authenticated execution API did not durably enqueue the E2E request (HTTP " +
+      response.status + ", status=" + status + "). Check durable-execution configuration; no direct database insert was attempted.");
+  }
+  console.log(JSON.stringify({ jobId: body.id, initialStatus: body.status }));
+}
+
+async function preflight() {
+  const jobId = requireJobId();
+  const rowResults = await restRead({
+    select: "id,project_id,status,capability,backend,request,attempts",
+    id: "eq." + jobId,
     limit: "1"
   });
-  const source = Array.isArray(sourceRows) ? sourceRows[0] : undefined;
-  if (!source || !isUuid(source.owner_id) || !isUuid(source.project_id)) {
-    fail("No prior successful shaft-torque job exists to establish a valid owner/project scope. No test job was inserted.");
-  }
-  if (source.request?.projectId !== source.project_id) {
-    fail("The previous successful job has inconsistent project scope. No test job was inserted.");
-  }
+  const row = rowResults[0];
+  if (!row) fail("Authenticated API queued job was not found in Supabase.");
+  assertTestRequest(row, jobId);
+  if (row.status !== "QUEUED") fail("Queue acceptance job is not QUEUED at preflight; refusing to start an untargeted worker run.");
 
-  const idempotencyKey = "azure-worker-e2e-" + runId + "-" + runAttempt;
-  const correlationId = "azure-worker-e2e:" + runId + ":" + runAttempt;
-  const newId = randomUUID();
-  const request = {
-    id: newId,
-    capability: "ANALYSIS.SHAFT_TORQUE",
-    backend: "typescript-safe",
-    inputs: { powerKw: 5, speedRpm: 1500 },
-    requestedOutputs: ["torque"],
-    timeoutMs: 10000,
-    projectId: source.project_id,
-    correlationId
-  };
-  const requestHash = requestDigest(request);
-
-  const existingRows = await rest({
-    select: "id,status,request_hash,request,capability,backend",
-    owner_id: "eq." + source.owner_id,
-    project_id: "eq." + source.project_id,
-    idempotency_key: "eq." + idempotencyKey,
-    limit: "1"
+  const activeRows = await restRead({
+    select: "id,status,capability,request",
+    or: "(status.eq.QUEUED,status.eq.RUNNING)",
+    limit: "25"
   });
-  let row = Array.isArray(existingRows) ? existingRows[0] : undefined;
-  let created = false;
-
-  if (row) {
-    if (row.request_hash !== requestHash) {
-      fail("The queue E2E idempotency key already exists with a different request. Refusing to reuse it.");
-    }
-    if (row.status !== "QUEUED" && row.status !== "SUCCEEDED") {
-      fail("A prior queue E2E job is in state " + row.status + "; refusing to race or replay it.");
-    }
-  } else {
-    const activeRows = await rest({
-      select: "id,status",
-      or: "(status.eq.QUEUED,status.eq.RUNNING)",
-      limit: "20"
-    });
-    if (Array.isArray(activeRows) && activeRows.length > 0) {
-      fail("The production execution queue is not idle (" + activeRows.length +
-        " active row(s) found in the bounded inspection). No test job was inserted; resolve pending work before retrying.");
-    }
-
-    const now = new Date().toISOString();
-    const inserted = await rest(
-      { select: "id,status,request_hash,request,capability,backend" },
-      {
-        method: "POST",
-        prefer: "return=representation",
-        body: [{
-          id: newId,
-          owner_id: source.owner_id,
-          project_id: source.project_id,
-          idempotency_key: idempotencyKey,
-          request_hash: requestHash,
-          capability: request.capability,
-          backend: request.backend,
-          request,
-          status: "QUEUED",
-          attempts: 0,
-          max_attempts: 1,
-          next_attempt_at: now,
-          queued_at: now,
-          artifact_ids: [],
-          evidence_ids: [],
-          attempt_history: []
-        }]
-      }
-    );
-    row = Array.isArray(inserted) ? inserted[0] : undefined;
-    if (!row || row.id !== newId || row.status !== "QUEUED" || row.request_hash !== requestHash) {
-      fail("Supabase did not confirm insertion of the queue E2E record.");
-    }
-    created = true;
+  if (activeRows.length !== 1 || activeRows[0]?.id !== jobId || activeRows[0]?.status !== "QUEUED") {
+    fail("Execution queue is not exclusively occupied by this acceptance job; refusing to run a worker that might consume unrelated work.");
   }
-
-  if (!row || !isUuid(row.id)) fail("Queue E2E job ID is invalid.");
-  assertTestRequest(row, row.id);
-  console.log(JSON.stringify({ jobId: row.id, created, initialStatus: row.status }));
+  console.log("Azure queue E2E preflight passed: the authenticated acceptance job is the only active queue item.");
 }
 
 async function verify() {
-  const jobId = process.env.AZURE_E2E_JOB_ID?.trim();
-  if (!isUuid(jobId)) fail("AZURE_E2E_JOB_ID is required for queue-result verification.");
-  const rows = await rest({
+  const jobId = requireJobId();
+  const rows = await restRead({
     select: "id,project_id,status,attempts,result,provenance,lease_owner,lease_token,lease_expires_at,started_at,finished_at,request,error_code",
     id: "eq." + jobId,
     limit: "1"
   });
-  const row = Array.isArray(rows) ? rows[0] : undefined;
+  const row = rows[0];
   if (!row) fail("Azure queue E2E job was not found after worker execution.");
   assertTestRequest(row, jobId);
   if (row.status !== "SUCCEEDED") {
@@ -217,11 +211,32 @@ async function verify() {
     row.attempts + ", torqueNm=" + torque.toFixed(9) + ", provenance=verified, lease=cleared.");
 }
 
+async function cleanupApi() {
+  const jobId = requireJobId();
+  const projectId = requiredEnv("CAD_WORKSPACE_PROJECT_ID");
+  if (!isUuid(projectId)) fail("CAD_WORKSPACE_PROJECT_ID must be a registered project UUID.");
+  const path = "/api/execution/" + encodeURIComponent(jobId) + "?projectId=" + encodeURIComponent(projectId);
+  const { response, body } = await authorizedApi("DELETE", path);
+  if (!response.ok || !isRecord(body) || !isRecord(body.job) || body.job.id !== jobId) {
+    fail("Authenticated execution API could not confirm safe cancellation of the acceptance job (HTTP " + response.status + ").");
+  }
+  const status = body.job.status;
+  if (status !== "QUEUED" && status !== "RUNNING" && status !== "SUCCEEDED" &&
+      status !== "FAILED" && status !== "CANCELLED") {
+    fail("Execution API returned an unknown job state during cleanup.");
+  }
+  const cancellationPending = body.cancellationPending === true;
+  console.log("Azure queue E2E cleanup via authenticated API: status=" + status +
+    ", cancellationPending=" + cancellationPending + ".");
+}
+
 async function main() {
   const mode = process.argv[2];
-  if (mode === "enqueue") return enqueue();
+  if (mode === "enqueue-api") return enqueueApi();
+  if (mode === "preflight") return preflight();
   if (mode === "verify") return verify();
-  fail("Usage: node scripts/azure-execution-queue-e2e.mjs enqueue|verify");
+  if (mode === "cleanup-api") return cleanupApi();
+  fail("Usage: node scripts/azure-execution-queue-e2e.mjs enqueue-api|preflight|verify|cleanup-api");
 }
 
 main().catch((error) => {
