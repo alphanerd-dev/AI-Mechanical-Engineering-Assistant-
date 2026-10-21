@@ -261,31 +261,68 @@ export async function probeRemoteCADWorker(config: RemoteCADWorkerConfig): Promi
   checks: Array<{ name: string; status: string; detail: string }>;
 }> {
   const controller = new AbortController();
-  // Free Render workers may cold-import build123d/OpenCascade before readiness is reported.
-  // Keep readiness bounded, but allow the runtime's documented cold-start path.
+  // Free Render services return a transient HTML 503 page while waking from sleep.
+  // Retry gateway responses within a single bounded readiness window, but return a
+  // valid worker readiness payload immediately (including explicit NOT_READY checks).
   const timer = setTimeout(() => controller.abort(), REMOTE_CAD_READINESS_TIMEOUT_MS);
   try {
-    const response = await fetch(new URL("/v1/readiness", config.baseUrl), {
-      headers: { authorization: "Bearer " + config.token, accept: "application/json" },
-      cache: "no-store",
-      signal: controller.signal
-    });
-    const payload: unknown = await response.json().catch(() => ({}));
-    if (isRecord(payload) && typeof payload.ready === "boolean" &&
-        typeof payload.status === "string" && Array.isArray(payload.checks)) {
+    while (!controller.signal.aborted) {
+      const response = await fetch(new URL("/v1/readiness", config.baseUrl), {
+        headers: { authorization: "Bearer " + config.token, accept: "application/json" },
+        cache: "no-store",
+        signal: controller.signal
+      });
+      const raw = await response.text();
+      let payload: unknown;
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        payload = {};
+      }
+
+      if (isRecord(payload) && typeof payload.ready === "boolean" &&
+          typeof payload.status === "string" && Array.isArray(payload.checks)) {
+        return {
+          ready: response.ok && payload.ready,
+          status: payload.status,
+          ...(typeof payload.build123dVersion === "string" ? { build123dVersion: payload.build123dVersion } : {}),
+          capabilities: Array.isArray(payload.capabilities) ? payload.capabilities.filter((item): item is string => typeof item === "string") : [],
+          checks: payload.checks.filter(isRecord).map((item) => ({
+            name: typeof item.name === "string" ? item.name : "worker_check",
+            status: typeof item.status === "string" ? item.status : "FAIL",
+            detail: typeof item.detail === "string" ? item.detail : "Worker check returned no detail."
+          }))
+        };
+      }
+
+      // Render's sleep interstitial is not the worker API contract: it is an HTML
+      // 503 (sometimes a gateway 502/504) emitted before the container is serving.
+      // A worker-generated 503 with { ready, status, checks } is handled above and
+      // must fail immediately with the actual dependency check details.
+      if ([502, 503, 504].includes(response.status)) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+        if (controller.signal.aborted) {
+          const timeoutError = new Error("Remote CAD worker readiness timed out.");
+          timeoutError.name = "AbortError";
+          throw timeoutError;
+        }
+        continue;
+      }
+
       return {
-        ready: response.ok && payload.ready,
-        status: payload.status,
-        ...(typeof payload.build123dVersion === "string" ? { build123dVersion: payload.build123dVersion } : {}),
-        capabilities: Array.isArray(payload.capabilities) ? payload.capabilities.filter((item): item is string => typeof item === "string") : [],
-        checks: payload.checks.filter(isRecord).map((item) => ({
-          name: typeof item.name === "string" ? item.name : "worker_check",
-          status: typeof item.status === "string" ? item.status : "FAIL",
-          detail: typeof item.detail === "string" ? item.detail : "Worker check returned no detail."
-        }))
+        ready: false,
+        status: "NOT_READY",
+        capabilities: [],
+        checks: [{
+          name: "cad_worker_response",
+          status: "FAIL",
+          detail: "Worker returned an invalid readiness response."
+        }]
       };
     }
-    return { ready: false, status: "NOT_READY", capabilities: [], checks: [{ name: "cad_worker_response", status: "FAIL", detail: "Worker returned an invalid readiness response." }] };
+    const timeoutError = new Error("Remote CAD worker readiness timed out.");
+    timeoutError.name = "AbortError";
+    throw timeoutError;
   } catch {
     return { ready: false, status: "UNREACHABLE", capabilities: [], checks: [{ name: "cad_worker_reachable", status: "FAIL", detail: "The authenticated CAD worker readiness endpoint could not be reached." }] };
   } finally {
