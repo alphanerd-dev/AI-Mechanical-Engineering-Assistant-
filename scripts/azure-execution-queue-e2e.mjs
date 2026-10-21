@@ -127,7 +127,7 @@ async function createCookie(session, url, publishableKey) {
   return cookie;
 }
 async function setup() {
-  const { url, serviceKey, publishableKey } = getSupabaseConfig();
+  const { url, publishableKey } = getSupabaseConfig();
   const service = createServiceClient();
   const runId = requiredEnv("GITHUB_RUN_ID");
   const attempt = process.env.GITHUB_RUN_ATTEMPT?.trim() || "1";
