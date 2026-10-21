@@ -16,6 +16,10 @@ class Open3DWorkerTests(unittest.TestCase):
         cloud.points=o3d.utility.Vector3dVector(grid)
         self.cloud_path=self.root/"fixture.ply"
         self.assertTrue(o3d.io.write_point_cloud(str(self.cloud_path),cloud,write_ascii=False))
+        translated=o3d.geometry.PointCloud()
+        translated.points=o3d.utility.Vector3dVector(grid + np.array([1.0,2.0,3.0]))
+        self.reference_path=self.root/"reference.ply"
+        self.assertTrue(o3d.io.write_point_cloud(str(self.reference_path),translated,write_ascii=False))
 
     def tearDown(self):
         self.temp.cleanup()
@@ -37,16 +41,19 @@ class Open3DWorkerTests(unittest.TestCase):
         self.assertEqual(len(response["sourceSha256"]),64)
         self.assertFalse(response["engineeringDesignApproved"])
 
-    def test_registration_is_candidate_only(self):
-        code,response=self.invoke({"operation":"register","sourcePath":"fixture.ply","referencePath":"fixture.ply",
+    def test_registration_recovers_a_known_rigid_translation_and_stays_candidate_only(self):
+        code,response=self.invoke({"operation":"register","sourcePath":"fixture.ply","referencePath":"reference.ply",
             "sourceUnits":"mm","referenceUnits":"mm","sourceFrame":"scan-frame","referenceFrame":"reference-frame",
-            "maxCorrespondenceDistanceMm":1.0,"maxIterations":10,
+            "maxCorrespondenceDistanceMm":8.0,"maxIterations":20,
             "initialTransform":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]})
         self.assertEqual(code,0)
         self.assertEqual(response["status"],"CANDIDATE")
         self.assertGreaterEqual(response["metrics"]["fitness"],0.99)
-        self.assertLessEqual(response["metrics"]["inlierRmseMm"],1e-9)
+        self.assertLessEqual(response["metrics"]["inlierRmseMm"],1e-8)
         self.assertEqual(response["metrics"]["correspondenceCount"],64)
+        transform=response["transformSourceToReference"]
+        np.testing.assert_allclose(np.asarray(transform)[:3,3],[1.0,2.0,3.0],atol=1e-4,rtol=0)
+        self.assertNotEqual(response["source"]["sha256"],response["reference"]["sha256"])
         self.assertFalse(response["engineeringDesignApproved"])
 
     def test_bad_units_and_traversal_fail_closed(self):
