@@ -170,8 +170,10 @@ async function setup() {
     cookie = await createCookie(login.data.session, url, publishableKey);
     setGithubEnv("AZURE_E2E_COOKIE", cookie);
 
+    const projectName = "Azure execution E2E " + runId + "." + attempt;
+    setGithubEnv("AZURE_E2E_PROJECT_NAME", projectName);
     const projectResponse = await authorizedApi("POST", "/api/projects", cookie, {
-      name: "Azure execution E2E " + runId + "." + attempt,
+      name: projectName,
       problemStatement: "Temporary bounded acceptance test; deterministic shaft-torque execution only."
     }, { "X-Request-ID": correlationId() });
     if (projectResponse.response.status !== 201 || !isRecord(projectResponse.body) ||
@@ -261,9 +263,24 @@ async function cleanup() {
     return;
   }
   if (!isUuid(userId)) fail("Temporary test user ID is invalid; refusing cleanup.");
-  const projectId = process.env.AZURE_E2E_PROJECT_ID?.trim();
+  let projectId = process.env.AZURE_E2E_PROJECT_ID?.trim();
+  const projectName = process.env.AZURE_E2E_PROJECT_NAME?.trim();
   const cookie = process.env.AZURE_E2E_COOKIE?.trim();
   const service = createServiceClient();
+
+  // Recover a project created by the API if the response was lost before its ID
+  // could be exported. Match both the temporary owner and unique run-specific name.
+  if (!projectId && projectName) {
+    const recovered = await service.from("engineering_projects")
+      .select("id")
+      .eq("owner_id", userId)
+      .eq("name", projectName)
+      .limit(2);
+    if (recovered.error) fail("Could not recover a partially created temporary project; preserving the test identity.");
+    if ((recovered.data ?? []).length > 1) fail("More than one project matched the temporary run identity; refusing cleanup.");
+    projectId = recovered.data?.[0]?.id;
+    if (projectId && !isUuid(projectId)) fail("Recovered temporary project ID is invalid; refusing cleanup.");
+  }
 
   if (projectId) {
     if (!isUuid(projectId)) fail("Temporary project ID is invalid; refusing cleanup.");
