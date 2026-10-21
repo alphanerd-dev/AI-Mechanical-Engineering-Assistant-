@@ -447,6 +447,13 @@ jobs:
           E2E_PROJECT_ID=""
           if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
             E2E_SETUP_JSON="$(node scripts/azure-execution-queue-e2e.mjs setup)"
+            # The script persists the temporary session cookie for the always-run cleanup
+            # step. Mask it in the runner immediately, before any later step logs its env.
+            E2E_COOKIE_TO_MASK="$(sed -n 's/^AZURE_E2E_COOKIE=//p' "$GITHUB_ENV" | tail -n 1)"
+            if [[ -n "$E2E_COOKIE_TO_MASK" ]]; then
+              echo "::add-mask::$E2E_COOKIE_TO_MASK"
+              unset E2E_COOKIE_TO_MASK
+            fi
             echo "$E2E_SETUP_JSON" | jq .
             E2E_JOB_ID="$(jq -er '.jobId' <<<"$E2E_SETUP_JSON")"
             E2E_PROJECT_ID="$(jq -er '.projectId' <<<"$E2E_SETUP_JSON")"
