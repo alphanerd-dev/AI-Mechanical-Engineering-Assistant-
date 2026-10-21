@@ -1134,6 +1134,7 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     });
   } finally {
     if (projectId && page) {
+      let cleanupBody = null;
       // A timeout/reset can happen after the server already deleted the project.
       // Retry once, then verify absence explicitly before classifying cleanup as failed.
       let cleanupResponse = await page.request.delete("/api/projects/" + projectId, { timeout: 60_000 }).catch(() => null);
@@ -1157,7 +1158,7 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
           throw new Error("Disposable accepted-CAD project cleanup could not be confirmed after a bounded retry.");
         }
       } else {
-        const cleanupBody = await cleanupResponse.json().catch(() => ({}));
+        cleanupBody = await cleanupResponse.json().catch(() => ({}));
         diagnostics.cleanup = { status: cleanupResponse.status(), body: cleanupBody };
         expect(
           cleanupResponse.status(),
@@ -1170,7 +1171,7 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
         });
       }
       const expectedCleanupObjects = Number(diagnostics.storageObjectCount ?? 0);
-      if (expectedCleanupObjects > 0) {
+      if (expectedCleanupObjects > 0 && cleanupBody) {
         expect(
           Number(cleanupBody.artifactCleanup?.objectsRemoved ?? 0),
           "all persisted CAD objects must be removed during cleanup; diagnostics=" + JSON.stringify({
