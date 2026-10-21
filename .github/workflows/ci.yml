@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Validate Azure queue E2E probe syntax
+        run: node --check scripts/azure-execution-queue-e2e.mjs
       - run: npm ci
       - run: npm test
       - name: Generate architecture dependency graph

@@ -13,6 +13,11 @@ on:
         type: boolean
         required: true
         default: false
+      verify_queue_e2e:
+        description: "Enqueue a bounded torque test, run one Azure worker item, and verify the persisted result and cleared lease"
+        type: boolean
+        required: true
+        default: false
       replace_empty_environments:
         description: "Allow guarded replacement of the two known empty/failed Container Apps environments; requires subscription-wide app/job inventory to be empty"
         type: boolean
@@ -47,6 +52,7 @@ jobs:
       ENABLE_SCHEDULE: ${{ inputs.enable_schedule }}
       DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
       REPLACE_EMPTY_ENVIRONMENTS: ${{ inputs.replace_empty_environments }}
+      VERIFY_QUEUE_E2E: ${{ inputs.verify_queue_e2e }}
 
     steps:
       - name: Check required deployment configuration
@@ -55,6 +61,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
           PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
         run: |
@@ -77,8 +84,16 @@ jobs:
             echo "::error::PYTHON_WORKER_API_TOKEN cannot be set without PYTHON_WORKER_URL."
             exit 1
           fi
+          if [[ "$VERIFY_QUEUE_E2E" == "true" && -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
+            echo "::error::SUPABASE_PUBLISHABLE_KEY is required for the opt-in authenticated queue acceptance test."
+            exit 1
+          fi
           if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
             echo "::error::Choose either enable_schedule or disable_schedule, not both."
+            exit 1
+          fi
+          if [[ "$ENABLE_SCHEDULE" == "true" && "$VERIFY_QUEUE_E2E" == "true" ]]; then
+            echo "::error::Run queue E2E with enable_schedule=false first. Do not enqueue the manual acceptance job in a deployment that switches to scheduled mode."
             exit 1
           fi
           if [[ ${#AZURE_JOB_NAME} -gt 22 || ! "$AZURE_JOB_NAME" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ || "$AZURE_JOB_NAME" == *--* ]]; then
@@ -87,6 +102,13 @@ jobs:
           fi
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Validate Azure queue E2E probe syntax
+        run: node --check scripts/azure-execution-queue-e2e.mjs
+
+      - name: Install application dependencies for authenticated queue acceptance
+        if: ${{ inputs.verify_queue_e2e }}
+        run: npm ci
 
       - name: Authenticate to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -300,6 +322,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
           PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          EXECUTION_API_BASE_URL: https://ai-mechanical-engineering-assistant.vercel.app
         run: |
           set -euo pipefail
 
@@ -311,11 +335,16 @@ jobs:
           # The GitHub Environment is the source of truth for runtime configuration.
           # Python-worker settings are paired, optional, and copied to both create/update paths.
           worker_secrets=("supabase-service-role-key=$SUPABASE_SERVICE_ROLE_KEY")
+          worker_max_jobs=5
+          if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
+            # The E2E path preflights an idle queue and consumes only its acceptance job.
+            worker_max_jobs=1
+          fi
           worker_env_vars=(
             "SUPABASE_URL=$SUPABASE_URL"
             "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
             "EXECUTION_WORKER_MODE=drain"
-            "EXECUTION_WORKER_MAX_JOBS=5"
+            "EXECUTION_WORKER_MAX_JOBS=$worker_max_jobs"
             "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
             "EXECUTION_WORKER_LEASE_SECONDS=45"
             "EXECUTION_WORKER_HEARTBEAT_MS=10000"
@@ -411,6 +440,23 @@ jobs:
             --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
             --output json
 
+          # Optional production acceptance test: create an ephemeral, authenticated
+          # identity/project through the normal app API and enqueue one deterministic job.
+          # The script preflights an idle queue and records cleanup state in GITHUB_ENV.
+          E2E_JOB_ID=""
+          E2E_PROJECT_ID=""
+          if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
+            E2E_SETUP_JSON="$(node scripts/azure-execution-queue-e2e.mjs setup)"
+            echo "$E2E_SETUP_JSON" | jq .
+            E2E_JOB_ID="$(jq -er '.jobId' <<<"$E2E_SETUP_JSON")"
+            E2E_PROJECT_ID="$(jq -er '.projectId' <<<"$E2E_SETUP_JSON")"
+            if [[ ! "$E2E_JOB_ID" =~ ^[0-9a-fA-F-]{36}$ || ! "$E2E_PROJECT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+              echo "::error::Queue E2E setup did not return valid identifiers."
+              exit 1
+            fi
+            AZURE_E2E_JOB_ID="$E2E_JOB_ID" AZURE_E2E_PROJECT_ID="$E2E_PROJECT_ID" node scripts/azure-execution-queue-e2e.mjs preflight
+          fi
+
           # Execute one bounded manual run when scheduling remains disabled. The worker is
           # configured in drain mode, so it exits after processing up to the bounded job limit.
           if [[ "$ENABLE_SCHEDULE" != "true" ]]; then
@@ -461,6 +507,66 @@ jobs:
                 --output json || true
               exit 1
             fi
+            if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
+              AZURE_E2E_JOB_ID="$E2E_JOB_ID" AZURE_E2E_PROJECT_ID="$E2E_PROJECT_ID" node scripts/azure-execution-queue-e2e.mjs verify
+            fi
           else
             echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
           fi
+ 
+      - name: Restore normal Azure manual worker drain limit after acceptance
+        if: ${{ always() && inputs.verify_queue_e2e }}
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          JOB_NAME="${AZURE_JOB_NAME}-manual"
+          if ! az containerapp job show --name "$JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+            echo "No manual Azure worker job exists to restore; nothing to change."
+            exit 0
+          fi
+          worker_env_vars=(
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
+            "EXECUTION_WORKER_MODE=drain"
+            "EXECUTION_WORKER_MAX_JOBS=5"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_LEASE_SECONDS=45"
+            "EXECUTION_WORKER_HEARTBEAT_MS=10000"
+          )
+          if [[ -n "${PYTHON_WORKER_URL:-}" ]]; then
+            if [[ -z "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+              echo "::error::PYTHON_WORKER_URL requires the matching PYTHON_WORKER_API_TOKEN secret."
+              exit 1
+            fi
+            worker_env_vars+=(
+              "PYTHON_WORKER_URL=$PYTHON_WORKER_URL"
+              "PYTHON_WORKER_API_TOKEN=secretref:python-worker-api-token"
+            )
+          fi
+          az containerapp job update \
+            --name "$JOB_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --image "$IMAGE" \
+            --cpu 0.25 \
+            --memory 0.5Gi \
+            --replace-env-vars "${worker_env_vars[@]}" \
+            --only-show-errors
+          echo "Restored the Azure manual worker's normal five-job drain limit."
+
+      - name: Cancel and remove temporary Azure queue E2E identity
+        if: ${{ always() && inputs.verify_queue_e2e }}
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          EXECUTION_API_BASE_URL: https://ai-mechanical-engineering-assistant.vercel.app
+        run: |
+          set -euo pipefail
+          if [[ -n "${AZURE_E2E_COOKIE:-}" ]]; then
+            echo "::add-mask::${AZURE_E2E_COOKIE}"
+          fi
+          node scripts/azure-execution-queue-e2e.mjs cleanup
