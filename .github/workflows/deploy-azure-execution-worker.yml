@@ -440,6 +440,7 @@ jobs:
               echo "::error::Queue E2E did not return a valid job ID."
               exit 1
             fi
+            echo "AZURE_E2E_JOB_ID=$E2E_JOB_ID" >> "$GITHUB_ENV"
             echo "Azure queue E2E job queued: $E2E_JOB_ID"
           fi
 
@@ -499,3 +500,10 @@ jobs:
           else
             echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
           fi
+
+      - name: Safely cancel a failed Azure queue E2E probe
+        if: ${{ failure() && inputs.verify_queue_e2e && env.AZURE_E2E_JOB_ID != '' }}
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/azure-execution-queue-e2e.mjs cleanup
