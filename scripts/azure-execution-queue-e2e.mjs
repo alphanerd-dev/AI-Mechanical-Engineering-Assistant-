@@ -119,7 +119,7 @@ async function enqueue() {
   const requestHash = requestDigest(request);
 
   const existingRows = await rest({
-    select: "id,status,request_hash,request",
+    select: "id,status,request_hash,request,capability,backend",
     owner_id: "eq." + source.owner_id,
     project_id: "eq." + source.project_id,
     idempotency_key: "eq." + idempotencyKey,
@@ -148,7 +148,7 @@ async function enqueue() {
 
     const now = new Date().toISOString();
     const inserted = await rest(
-      { select: "id,status,request_hash,request" },
+      { select: "id,status,request_hash,request,capability,backend" },
       {
         method: "POST",
         prefer: "return=representation",
