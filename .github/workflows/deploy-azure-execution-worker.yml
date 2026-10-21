@@ -61,6 +61,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
           PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
         run: |
@@ -83,6 +84,10 @@ jobs:
             echo "::error::PYTHON_WORKER_API_TOKEN cannot be set without PYTHON_WORKER_URL."
             exit 1
           fi
+          if [[ "$VERIFY_QUEUE_E2E" == "true" && -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
+            echo "::error::SUPABASE_PUBLISHABLE_KEY is required for the opt-in authenticated queue acceptance test."
+            exit 1
+          fi
           if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
             echo "::error::Choose either enable_schedule or disable_schedule, not both."
             exit 1
@@ -100,6 +105,10 @@ jobs:
 
       - name: Validate Azure queue E2E probe syntax
         run: node --check scripts/azure-execution-queue-e2e.mjs
+
+      - name: Install application dependencies for authenticated queue acceptance
+        if: ${{ inputs.verify_queue_e2e }}
+        run: npm ci
 
       - name: Authenticate to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -512,4 +521,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           EXECUTION_API_BASE_URL: https://ai-mechanical-engineering-assistant.vercel.app
-        run: node scripts/azure-execution-queue-e2e.mjs cleanup
+        run: |
+          set -euo pipefail
+          if [[ -n "${AZURE_E2E_COOKIE:-}" ]]; then
+            echo "::add-mask::${AZURE_E2E_COOKIE}"
+          fi
+          node scripts/azure-execution-queue-e2e.mjs cleanup
