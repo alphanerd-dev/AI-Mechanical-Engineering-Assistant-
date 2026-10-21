@@ -79,9 +79,8 @@ async function authorizedApi(method, path, cookie, body, headers = {}) {
   const parsed = await response.json().catch(() => null);
   return { response, body: parsed };
 }
-function setGithubEnv(name, value, secret = false) {
+function setGithubEnv(name, value) {
   if (/[\r\n]/.test(value)) fail("Cannot export a multiline GitHub environment value.");
-  if (secret) process.stdout.write("::add-mask::" + value + "\n");
   const envFile = process.env.GITHUB_ENV;
   if (!envFile) fail("GITHUB_ENV is unavailable; run this mode only in GitHub Actions.");
   appendFileSync(envFile, name + "=" + value + "\n", { encoding: "utf8", mode: 0o600 });
@@ -160,13 +159,14 @@ async function setup() {
       fail("Could not create the temporary test identity in Supabase Auth.");
     }
     userId = created.data.user.id;
+    setGithubEnv("AZURE_E2E_USER_ID", userId);
     const loginClient = createClient(url, publishableKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
     });
     const login = await loginClient.auth.signInWithPassword({ email, password });
     if (login.error || !login.data.session) fail("Temporary test identity could not obtain an authenticated session.");
     cookie = await createCookie(login.data.session, url, publishableKey);
-    process.stdout.write("::add-mask::" + cookie + "\n");
+    setGithubEnv("AZURE_E2E_COOKIE", cookie);
 
     const projectResponse = await authorizedApi("POST", "/api/projects", cookie, {
       name: "Azure execution E2E " + runId + "." + attempt,
@@ -177,6 +177,7 @@ async function setup() {
       fail("Authenticated project setup failed (HTTP " + projectResponse.response.status + ").");
     }
     projectId = projectResponse.body.project.id;
+    setGithubEnv("AZURE_E2E_PROJECT_ID", projectId);
 
     const idempotency = idempotencyKey();
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(idempotency)) fail("Generated idempotency key is invalid.");
@@ -199,10 +200,7 @@ async function setup() {
     }
     assertTestRequest(row, jobId, projectId);
 
-    setGithubEnv("AZURE_E2E_USER_ID", userId);
-    setGithubEnv("AZURE_E2E_PROJECT_ID", projectId);
     setGithubEnv("AZURE_E2E_JOB_ID", jobId);
-    setGithubEnv("AZURE_E2E_COOKIE", cookie, true);
     console.log(JSON.stringify({ jobId, projectId, status: "QUEUED", request: "ANALYSIS.SHAFT_TORQUE", backend: "typescript-safe" }));
   } catch (error) {
     if (userId) {
