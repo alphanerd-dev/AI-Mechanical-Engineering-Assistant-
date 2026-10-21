@@ -1,114 +1,46 @@
 # AI Mechanical Engineering Assistant
 
-Portable AI-native engineering intelligence for mechanical R&D.
+A provider-neutral Engineering Workspace and Engineering Core, starting with Mechanical Engineering. The product goal is to turn engineering intent into deterministic, validated and traceable outcomes—not to generate plausible answers or CAD files without proof.
 
-The system is designed around the engineering lifecycle:
+**Core rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
 
-**Problem → Requirements → Research → Analysis → Design → CAD → Simulation → Manufacturing → Test → Validation → Iteration → Release**
+## Current status — 22 October 2026
 
-## Product doctrine
+- Main baseline: [5da2823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/5da2823ff7792cb23e9ae36b193cd627f2d4d7ba).
+- [Core CI](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39644040159), ESLint, CodeQL and Codacy passed on the reviewed revision.
+- The latest reviewed live CAD acceptance attempt was [blocked during environment preflight](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) because CAD_WORKSPACE_BASE_URL was missing. The authenticated smoke test did not run, so current-revision live CAD readiness is **not verified**.
+- Durable execution code and migrations exist; production schema parity, deployed worker behavior and end-to-end recovery must be demonstrated before enabling the feature in production.
 
-**Engineering outcomes, not engineering overhead.** The product aims to turn engineering intent into usable, evidence-backed results with less manual work, less rework, and lower total cost. Supported workflows should coordinate execution, checks, evidence, and the next decision without making engineers orchestrate internal steps.
-
-The product promise is governed by the engineering invariant: **AI proposes. Deterministic systems execute. Validation decides. Evidence proves.** The product remains explicit about missing inputs, unsupported tasks, validation limits, and required human approval. An adapter or successful process exit is not proof of engineering correctness.
-
-See [the product doctrine](docs/product-doctrine.md) for the adoption strategy, feature acceptance gate, and outcome-economics measures.
+These are revision-specific observations, not permanent deployment guarantees. See the [implementation plan and milestone exit gates](docs/implementation-plan.md).
 
 ## Architecture
 
-The Engineering Core is provider-independent. It requests capabilities such as geometry validation, static structural analysis, or PLM revision management and routes those capabilities to adapters.
+Engineering user → engineering workspace/project context → engineering core → capability router → bounded deterministic providers/workers → independent validation → artifact/evidence/provenance → authorized approval where required.
 
-Current architectural boundaries include:
-- **CAD/geometry:** OCCT, build123d, CadQuery, FreeCAD, Onshape
-- **Simulation:** Python/numerical analysis and Ansys Mechanical via PyMechanical
-- **PLM/PDM:** OdooPLM
-- **Evidence:** structured engineering artifacts and provenance records
+The application uses Next.js, React and TypeScript with Supabase for identity, project/workspace data and persistence. CAD and numerical work run through bounded provider/worker contracts. A provider being present or returning success does not make its output verified.
 
-External systems are represented as adapters. This repository does not claim that a provider is installed, authenticated, licensed, or reachable merely because an adapter exists.
+## Supported scope and limits
 
-## V1.3
+Repository capabilities include project-scoped workspace foundations, provider-neutral intent routing, deterministic engineering calculations, bounded CAD/build123d paths, independent OCCT BREP validation, evidence/provenance contracts and reference numerical/FEA workflows. The presence of these components does not mean every provider is provisioned or every workflow is live-verified.
 
-V1.3 introduces:
-- rich capability definitions with risk/status/provider metadata
-- provider SDK contracts for CAD, simulation, and PLM
-- engineering artifact and evidence models
-- OCCT geometry-provider boundary
-- PyMechanical simulation-provider boundary
-- OdooPLM PLM-provider boundary
-- provider-priority routing
+The first priority is one complete, authenticated shaft-to-CAD outcome with a matching validation receipt and exact persisted artifact digest. Broader geometry, general structural safety claims and additional engineering domains stay behind separate acceptance gates.
 
-See:
-- `docs/architecture.md` — system layers, trust boundaries and result-state guarantees
-- `docs/provider-architecture.md`
-- `docs/artifacts-and-evidence.md`
-- `docs/implementation-plan.md` — prioritized execution and acceptance gates
-- `docs/engineering-ecosystem-inventory.md` — saved inventory location and adoption policy
-- `docs/roadmap.md`
+## Start here
 
-
-## V2.0.28 — Cross-domain completion
-
-The shared natural-intent completion path now has acceptance coverage for a mechanical shaft, a bounded steady-state DC electrical load, and a bounded single-phase sensible-heating duty. Thermal calculations use explicit mass flow, constant specific heat, inlet/outlet temperatures, and a maximum-duty limit; missing inputs escalate, failed limits emit no verified evidence, and passing results still require authorized approval. This is not a heat-exchanger design or broad thermal simulation capability.
-
-See [V2.0.28 cross-domain and thermal acceptance](docs/v2-0-28-cross-domain-thermal-acceptance.md) and the [roadmap](docs/roadmap.md).
-
-## V2.1.1 — Provider-neutral CAD model identity
-
-The CAD layer now defines a canonical, project-scoped model identity that can be linked to multiple provider-native references. The reference registry fails closed on cross-project access and duplicate native mappings. It is an in-memory identity primitive only; it does not synchronize geometry or claim provider connectivity.
-
-See [V2.1.1 identity contract](docs/v2-1-1-cad-identity.md).
-
-## V2.1.2 — Multi-CAD capability routing
-
-The CAD layer now has an explicit routing policy for provider priority, host-declared availability, preferred or required providers, and risk-sensitive fallback. Mock and planned providers are excluded by default, and provider execution does not imply geometry acceptance.
-
-See [V2.1.2 routing contract](docs/v2-1-2-cad-routing.md).
-
-## V2.1.3 — CAD artifact provenance and validation integration
-
-CAD execution outputs can now be bound to a canonical project/model identity, host-authored provider id, execution id, and a SHA-256 digest of the exact source text. Geometry validation evidence is marked VERIFIED only when a receipt references the exact generated solid and matches its model and source lineage. A source-text digest is not an output-file content digest.
-
-See [V2.1.3 provenance contract](docs/v2-1-3-cad-provenance.md).
-
-## V2.1.4 — First reference CAD provider: build123d
-
-The first executable CAD provider is wired to the repository's isolated build123d worker through a Docker stdio transport. The host sends one JSON request over stdin, receives a JSON response over stdout, applies timeout/resource/network/read-only-container controls, verifies each returned artifact path, and records source/model/provider provenance. It does not run generated Python in the application process or claim geometry is verified without an independent validator receipt.
-
-The adapter is opt-in. Create it with trusted server-side Docker image and artifact-root configuration, register it in the capability registry, and mark the provider AVAILABLE in CADCapabilityRouter only when the runtime is provisioned and reachable. The provider executes CAD source supplied by the engineering workflow; it does not yet generate parametric source from natural language or dimensions.
-
-See [V2.1.4 deployment and provider contract](docs/v2-1-4-build123d-provider.md).
-
-## Benchmark
-
-Input: "Design a shaft that transmits 5 kW at 1500 rpm."
-
-The core calculates torque (~31.83 N·m) and reports critical missing design inputs rather than inventing them.
-
-## Live reasoning model acceptance
-
-The configured model transport is optional during development. To run the real-provider acceptance, configure the GitHub Environment and follow [the provider stack decision and setup guide](docs/reasoning-model-provider-stack.md). Trigger **Actions → Live Reasoning Model Acceptance** on `main`; the workflow calls the real endpoint and uploads redacted evidence. Ordinary CI uses deterministic fixtures and never requires a live API key.
-
-See also [Phase G acceptance scope](docs/reasoning-frameworks-phase-g.md).
-
-## V2.1.6 — Verified CAD workspace and live readiness
-
-The bounded CAD workspace supports explicitly dimensioned cylindrical shafts/cylinders. Before enabling execution, apply the Supabase migration, configure the server-only CAD runtime, and pin production worker images by immutable SHA-256 digest.
-
-- Workspace: `/projects/[projectId]/cad`
-- Readiness: `GET /api/cad/readiness?projectId=<project-uuid>`
-- End-to-end acceptance smoke: `npm run smoke:cad-live` or Actions → **CAD Workspace Live Acceptance** after configuring the `cad-workspace-live-acceptance` GitHub Environment
-- Deployment, environment variables, evidence guarantees and smoke-test instructions: [V2.1.6 verified CAD workspace](docs/v2-1-6-cad-verified-workspace.md).
-
-The live smoke test requires a short-lived authenticated test session, a registered project and a registered CAD model. Keep `CAD_WORKSPACE_COOKIE` and `SUPABASE_SERVICE_ROLE_KEY` out of source control and logs. The workspace must not be called production-verified until a live run confirms that the downloaded BREP bytes match the persisted validation receipt and metadata.
-
-## Browser end-to-end acceptance
-
-The guarded Playwright journey checks sign-in, project creation and persistence, sign-out, and project ownership isolation on a dedicated non-production deployment. See [Playwright end-to-end acceptance](docs/playwright-e2e.md) for setup and safety requirements.
+- [Implementation plan and milestones](docs/implementation-plan.md) — sole source of truth for current work and acceptance gates.
+- [Product doctrine](docs/product-doctrine.md) — intended product experience and decision rules.
+- [Architecture and trust boundaries](docs/architecture.md) — module responsibilities, states and evidence boundaries.
+- [Verified CAD workspace contract](docs/v2-1-6-cad-verified-workspace.md) — exact artifact/receipt binding and validation scope.
+- [Playwright and live CAD acceptance runbook](docs/playwright-e2e.md) — safe non-production test setup and current evidence.
+- [Worker security policy](docs/worker-security.md) — required worker controls.
+- [Provider promotion and benchmark gates](docs/architecture/2026-10-14-provider-promotion-and-benchmark-gates.md) — rules for accepting providers and source reuse.
+- [Outcome baseline methodology](docs/outcome-baseline.md) — measuring accepted outcomes and engineering effort.
+- [Durable execution E2E record](docs/plans/2026-10-17-durable-execution-e2e-validation.md) and [production migration reconciliation procedure](docs/architecture/2026-10-17-production-migration-ledger-reconciliation.md).
 
 ## Development
 
-```bash
-npm ci
-npm test
-npm run build
-```
+1. Use a feature branch and pull request; do not push directly to main.
+2. Run npm ci and the relevant scripts in package.json.
+3. Require CI and review of the diff before merging.
+4. Run live acceptance only against the dedicated non-production environment and its dedicated database. Never put secrets in source or logs.
+5. Describe an outcome as verified only when the relevant independent validator passed and the retained evidence is bound to the exact artifact bytes and source/runtime revision.

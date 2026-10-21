@@ -1,6 +1,10 @@
 # Architecture and Trust Boundaries
 
-**Status:** Current target architecture, aligned to the implemented bounded workflows as of 13 October 2026. This document distinguishes existing behavior from planned work.
+**Status:** Current architecture contract, reviewed 22 October 2026. This document distinguishes implemented behavior from target state; deployment readiness requires exact-revision live acceptance evidence.
+
+## Active implementation sequence
+
+The authoritative current milestones and exit gates are in [Implementation Plan](implementation-plan.md). This architecture document defines boundaries; it is not a release-status report.
 
 ## Product principle
 
@@ -8,7 +12,7 @@
 
 Turn engineering intent into a usable, evidence-backed result with less manual work, less rework, and lower total cost. Fit into the engineer's workflow. Automate coordination, execution, checking, and documentation where the current capability can do so reliably. Bring the engineer in when judgment, approval, or missing information genuinely matters.
 
-The user-facing outcome is: **“I stated the problem. I got a checked result and a clear decision.”** This is a direction and acceptance standard, not a claim that every domain or provider is supported today.
+The user-facing outcome is: **âI stated the problem. I got a checked result and a clear decision.â** This is a direction and acceptance standard, not a claim that every domain or provider is supported today.
 
 See [Product Doctrine](product-doctrine.md) for the full product promise, product-led adoption loop, feature acceptance gate, economics, and validation requirements.
 
@@ -61,10 +65,10 @@ The user interface is not an authority for project ownership or engineering vali
 
 The product's primary path is organized around the engineer's work, not the internal module order:
 
-`intent → trusted context → minimum material questions → bounded execution → validation and evidence → decision or safe continuation`
+`intent â trusted context â minimum material questions â bounded execution â validation and evidence â decision or safe continuation`
 
 - Reuse project-scoped context only after authorization and provenance checks. Context can remove questions; it never licenses invented values.
-- The UI must distinguish a pending request from an actual completion and must present structured `NEEDS_INPUT`, `WAITING_APPROVAL`, `FAILED`, and `UNSUPPORTED` outcomes as decisions or blockers when the server returns them—not disguise them as generic transport errors.
+- The UI must distinguish a pending request from an actual completion and must present structured `NEEDS_INPUT`, `WAITING_APPROVAL`, `FAILED`, and `UNSUPPORTED` outcomes as decisions or blockers when the server returns themânot disguise them as generic transport errors.
 - Preserve user input after transport, authorization, provider, persistence, or validation failures. Retry only when safe; do not repeat non-idempotent side effects blindly.
 - Decision-ready responses expose only claims supported by the result contract: values and units, validation status, linked evidence, assumptions/limitations, blockers, and next action where available.
 - Measure cost per accepted outcome from trustworthy execution and product telemetry plus validated user/task baselines. Do not add an analytics store or cost-estimation precision merely for symmetry; first reuse existing run IDs, provider metadata, audit, and evidence seams.
@@ -115,7 +119,7 @@ A process exit code of zero, a passing schema, a plausible visualization, or a m
 ## Provider and AI policy
 
 - Core code requests capabilities such as `CAD.CREATE_PART`, `ANALYSIS.SHAFT_TORQUE`, or `SIMULATION.STATIC_STRUCTURAL`, not vendor tool names.
-- Provider IDs, runtime availability, validator identity and evidence lineage are host-authored or independently verified—not accepted from untrusted provider output.
+- Provider IDs, runtime availability, validator identity and evidence lineage are host-authored or independently verifiedânot accepted from untrusted provider output.
 - External agents and MCP servers may be adapters at the edge; they do not replace the deterministic core, project authorization, validation or evidence model.
 - Choose the lowest complexity that meets the use case: deterministic workflow first; one model call or bounded tools when needed; durable orchestration only when pause/resume, recovery, adaptive planning or human checkpoints justify it.
 - Treat retrieved documents, repositories, prompts and tool output as untrusted data. Apply schema validation, authorization at each resource/tool operation, redaction, rate limits, tracing and sandboxing.

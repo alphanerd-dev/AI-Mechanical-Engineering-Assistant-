@@ -1,4 +1,4 @@
-# Product Doctrine — Engineering Outcomes, Not Engineering Overhead
+# Product Doctrine â Engineering Outcomes, Not Engineering Overhead
 
 **Decision date:** 13 October 2026  
 **Status:** Adopted product direction; individual capabilities remain bounded by their documented acceptance contracts.
@@ -7,7 +7,7 @@
 
 > **Engineering outcomes, not engineering overhead.**
 
-Turn engineering intent into a usable, evidence-backed result—with less manual work, less rework, and lower total cost.
+Turn engineering intent into a usable, evidence-backed resultâwith less manual work, less rework, and lower total cost.
 
 Fit into the engineer's workflow. Automate coordination, execution, checking, and documentation. Bring the engineer in when judgment, approval, or missing information genuinely matters.
 
@@ -19,7 +19,7 @@ This is a product direction and acceptance standard, not a claim that every engi
 
 ## What the engineer should experience
 
-> “I stated the problem. I got a checked result and a clear decision.”
+> âI stated the problem. I got a checked result and a clear decision.â
 
 For a supported workflow, the system should resolve available project context, ask only material unanswered questions, select an eligible capability, coordinate deterministic execution, run the required checks, collect evidence, and present the outcome and next decision.
 
@@ -120,10 +120,10 @@ A feature that merely adds an AI model, provider, tool, dashboard, or configurat
 ## Architecture implications
 
 - Keep the existing provider-neutral Engineering Core, Capability Router, deterministic execution adapters, validation contracts, evidence/provenance model, server-side authorization, and human approval boundaries authoritative.
-- Treat models and external agents as intent/interpreting/orchestration contributors—not sources of engineering truth, trusted provider identity, validation status, or evidence IDs.
+- Treat models and external agents as intent/interpreting/orchestration contributorsânot sources of engineering truth, trusted provider identity, validation status, or evidence IDs.
 - Prefer the existing task, provider, audit, artifact, and evidence seams for observability before introducing another queue, database, analytics platform, or orchestration framework.
 - Record operational and cost signals only where a trusted source exists; keep product analytics separate from engineering-validity claims.
-- Design the main experience around intent → context resolution → required questions → execution → validation/evidence → decision/continuation, not around the architecture's internal modules.
+- Design the main experience around intent â context resolution â required questions â execution â validation/evidence â decision/continuation, not around the architecture's internal modules.
 - Keep support boundaries visible. An adapter or interface does not imply an installed, licensed, configured, reachable, or production-verified runtime.
 
 ## Current product boundary
