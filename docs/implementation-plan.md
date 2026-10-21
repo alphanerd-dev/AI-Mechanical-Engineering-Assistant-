@@ -25,86 +25,95 @@ These are a dated evidence snapshot, not permanent guarantees. Recheck the exact
 
 ## Milestone overview
 
+The first implementation step is the decision/recovery experience, as the corrected independent review recommends. Operational setup is a parallel prerequisite for live acceptance—not a reason to postpone fixing a user-visible contract problem.
+
 | ID | Milestone | Status | Dependency |
 |---|---|---|---|
-| M0 | Release controls and isolated acceptance environment | BLOCKED / first | None |
-| M1 | One accepted shaft-to-CAD engineering outcome | NOT VERIFIED on current deployed revision | M0 |
-| M2 | Prove the existing durable execution path end to end | NOT VERIFIED in production | M0; build on M1's accepted workflow |
-| M3 | Measure usability and cost per accepted outcome | NOT STARTED | M1; preferably M2 for representative operational measurements |
-| M4 | Add one geometry family at a time | DEFERRED | M1–M3 exit gates |
-| M5 | Broader FEA and additional engineering domains | DEFERRED | A specific user need, provider acceptance and separate validation plan |
+| M0 | Decision surfaces, failure recovery and outcome instrumentation | **NEXT** | Existing API/result contracts |
+| M1 | CAD production confidence | **BLOCKED for current-revision live acceptance** | M0 regression suite; isolated runtime and environment configured |
+| M2 | Expand the bounded calculation family under the same evidence contract | **PLANNED** | M0; M1 confidence gate should remain active for any CAD-linked result |
+| M3 | Provider-promotion contract and one evidence-backed pilot | **DEFERRED until value is measured** | M0–M2 evidence and a specific user need |
 
-## M0 — Release controls and isolated acceptance environment
+## M0 — Decision surfaces, failure recovery and outcome instrumentation
 
-**Outcome:** every claim about the current product can be tied to a source revision and the right test evidence, without putting production data at risk.
+**Outcome:** every supported API result becomes a truthful, actionable decision in the workspace. The user can understand what happened, what remains unresolved and what to do next, without losing their work.
 
-Tasks:
+### Implementation
 
-1. Protect main: require pull requests, prevent force-pushes, and configure required status checks for Core CI, ESLint and CodeQL. Add provider benchmark checks when the workflow applies to the changed area. Treat security tooling marked SKIPPED (for example, because its project token is absent) as unverified, not as a pass.
-2. Check the Vercel deployment SHA and the actual CAD worker deployment/image revision. Verify worker health, authentication, artifact path, resource limits and the exact runtime variables used by the app. Do not enable a feature flag merely because a deployment says READY.
-3. Configure the GitHub Environment cad-workspace-live-acceptance with CAD_WORKSPACE_BASE_URL, CAD_WORKSPACE_PROJECT_ID, CAD_WORKSPACE_MODEL_ID and secret CAD_WORKSPACE_COOKIE. Do not print or commit secret values. The preflight should fail clearly when a required value is absent.
-4. Configure e2e-staging only for a dedicated non-production app/database and disposable accounts. Confirm E2E_BASE_URL is on the exact host allowlist, matches E2E_CANONICAL_BASE_URL, and uses an E2E_SUPABASE_PROJECT_REF different from PRODUCTION_SUPABASE_PROJECT_REF. Do not reinstate a shared/production database override.
-5. Re-check production migration history and schema for 20261017104855_v2_0_29_durable_execution_jobs and 20261017105801_v2_0_30_database_clock_execution_leases. Follow the reviewed [production migration reconciliation procedure](architecture/2026-10-17-production-migration-ledger-reconciliation.md); inspect its before/after evidence and explicit gate. Do not repair migration history or apply production migrations ad hoc.
-6. Keep changes isolated on feature branches; document exact commit SHAs, workflow URLs and what each result actually proves.
+1. Map every existing result state to an explicit UI decision: PROPOSED, NEEDS_INPUT, UNSUPPORTED, EXECUTED, VALIDATED, VERIFIED, WAITING_APPROVAL and FAILED (plus any additional state actually defined in the API contract). Do not infer success from HTTP 200 alone or from a single boolean whose contract does not mean “verified”.
+2. For each state, render the facts already supplied by the API: key values and units, assumptions, validation/evidence status, evidence links, limitations, approval requirement and next action. Do not manufacture absent engineering values or evidence references. Keep unsupported and blocked work visibly distinct from validation failure.
+3. Preserve the user's draft and trusted workspace context after transport, authorization, provider, validation or persistence errors. Make retries explicit. A retry must not silently replay a non-idempotent CAD POST or create duplicate jobs, artifacts or evidence.
+4. Keep the current deterministic execution and evidence contracts. Do not add another state machine, agent runtime, evidence store or analytics system unless testing exposes a concrete missing capability.
+5. Add component/API/Playwright acceptance for the complete result-state matrix, including seeded partial failures, missing inputs, unsupported intents, validation failure, approval required, server/transport timeout, persistence failure and recovery. Assert that the displayed state, next action and evidence status match the API response.
+6. Begin outcome instrumentation now. For representative supported tasks, capture time to accepted outcome, measured engineer-active time including review/correction, stage latency, failures/retries/recovery, evidence completeness, repeat usage and available cost components. Mark unobserved effort/cost as unknown; do not claim time or cost savings before a comparable baseline exists.
 
-**Exit gate:** required CI checks pass on one PR revision; the dedicated E2E environment has passed its preflight; live CAD acceptance runs against that same revision and successfully authenticates, executes, persists and reads back an artifact; the app/worker SHA and configuration are recorded; production migration status is known without unauthorized writes.
+### Exit gate
 
-## M1 — One accepted shaft-to-CAD outcome
+Every supported result state is tested at the UI/API boundary; no partial failure is shown as silent success; drafts/context survive recoverable failures; retry behavior cannot duplicate non-idempotent effects; evidence/validation semantics remain unchanged; existing deterministic and CAD tests stay green. Record actual baseline observations and unknowns rather than declaring a productivity improvement.
 
-**Outcome:** an engineer can start with supported, explicit inputs and receive a traceable engineering result or a useful blocker—not a plausible-looking, unverified artifact.
+## M1 — CAD production confidence
 
-Implement and verify this single path before broadening geometry:
+**Outcome:** the existing explicitly dimensioned cylindrical CAD path is accepted on the exact current revision in an isolated environment—not merely present in source or green in offline CI.
 
-1. Gather and reuse trusted project context. Validate units, required dimensions and material/load assumptions. If an input material to the calculation is missing, return NEEDS_INPUT before execution; do not guess it.
-2. Route the request to an existing registered deterministic capability. Keep shaft torque/preliminary sizing explicitly preliminary. For example, torque from power and rotational speed does not establish a safe shaft diameter without the governing loads, material allowables, safety factor, failure modes and appropriate review.
-3. Keep the initial CAD scope bounded to geometry the current provider contract actually supports. Reject unsupported geometry before worker execution. Do not run arbitrary model-written source as a capability.
-4. Build in the isolated worker, validate the BREP independently with OCCT, and bind the validator receipt to the exact BREP bytes, measured geometry, project/model/run lineage and persisted artifact digest.
-5. Persist artifacts privately and authorize every read. Display result state, key values and units, assumptions, validator outcome, evidence links, limitations, approval requirement and the next action.
-6. Add negative-path tests for missing inputs, unsupported intent, worker timeout/non-zero exit, malformed manifest, path traversal, unexpected or oversized output, digest mismatch, validator disagreement, persistence/cleanup failure and cross-project access.
-7. Make exports' status precise. A receipt for a validated BREP does not independently validate derived STEP/STL/3MF bytes. Re-import and validate the exact export and bind a separate receipt before calling that export verified; otherwise label it as a representation derived from the validated BREP.
-8. Set per-stage timeouts for queue wait, model proposal, CAD build, validation and persistence from staging measurements. Do not apply a blanket 60-second timeout that ignores worker cold starts and previously measured stage durations.
+### Implementation
 
-**Exit gate:** the same-revision authenticated live acceptance is green; nominal and failure fixtures behave as specified; stored BREP bytes hash-match the receipt; independent measured geometry and project/model lineage match; unsupported/missing inputs fail closed; results never claim structural safety merely because CAD geometry passed.
+1. Unblock the current live acceptance environment. The last reviewed [CAD Workspace Live Acceptance run](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) stopped before the authenticated test because CAD_WORKSPACE_BASE_URL was missing. Configure the protected cad-workspace-live-acceptance environment with CAD_WORKSPACE_BASE_URL, CAD_WORKSPACE_PROJECT_ID, CAD_WORKSPACE_MODEL_ID and secret CAD_WORKSPACE_COOKIE; rerun after M0 on the new exact revision. Never print or commit the cookie.
+2. Verify the app deployment revision and actual worker/source image revision, health, authentication, artifact directory/storage, runtime flags and resource controls. Check DURABLE_EXECUTION_ENABLED, the worker endpoint and production migration/schema status before enabling any durable path. Reconcile production migration history only through the reviewed migration workflow.
+3. Preserve the supported pipeline: explicit typed cylindrical intent → deterministic build123d source generation → isolated worker → artifact registration → independent OCCT BREP validation → evidence receipt bound to exact artifact bytes and trusted project/model/run lineage. Do not turn free-form model-generated code or an arbitrary BREP script into the primary production contract.
+4. Add/retain negative-path fixtures for missing dimensions, unsupported intent, malformed request/manifest, worker timeout or non-zero exit, path traversal, unexpected/missing/oversized artifact, digest mismatch, validator disagreement, persistence failure, cleanup failure and cross-project read/write attempts.
+5. Verify that the persisted BREP digest matches the validator receipt and that measured geometry and model/project lineage agree on readback. Authorization must protect all model, artifact, completion and evidence reads.
+6. Distinguish validated BREP from exports. A receipt for BREP does not independently validate STEP/STL/3MF bytes. Re-import and validate each exact exported representation and issue its own bound receipt before labelling that export independently verified; otherwise label it as an export derived from a validated BREP.
+7. Choose stage-specific queue, generation, build, validation and persistence timeouts from measured staging durations and worker cold-start behavior. Do not impose a blanket 60-second end-to-end limit without evidence.
 
-## M2 — Prove the existing durable execution path end to end
+### Parallel release and runtime preconditions
 
-**Outcome:** long-running operations can recover and finish without duplicate side effects or stale workers overwriting accepted results.
+These are enabling controls for safe acceptance and release, not a reason to delay M0's UI/recovery work:
 
-1. Exercise the existing src/execution/supabase-job-store.ts, job migrations and lease RPCs before proposing a replacement queue. Do not introduce pg-boss unless measured tests show a required guarantee that the current implementation cannot provide.
-2. Confirm the deployed value of DURABLE_EXECUTION_ENABLED and the actual persistent worker URL, image/source revision, health check and service authentication. Keep the feature off by default until all rollout gates pass.
-3. Test authenticated submission → claim → lease renewal/heartbeat → result commit → status read. Also test idempotency replay and conflict, retry exhaustion, cancellation before and during execution, worker outage/restart, expired lease recovery and stale fencing-token rejection.
-4. Prove that retries and repeated client requests do not create duplicate accepted artifacts, completion evidence or audit events. Make side effects idempotent; do not promise universal exactly-once execution.
-5. Record queue wait, worker start-up, each execution stage, validation and persistence durations. Set budgets from observed distributions and explicit capability limits.
-6. Apply production schema changes only through the reviewed migration workflow after reconciling the exact migration history. Roll out the feature flag to a controlled test cohort first, then expand only after verification.
+- Protect main, require pull requests and appropriate Core CI/ESLint/CodeQL checks, and prevent force-pushes. Add provider benchmark checks for relevant changes.
+- Treat a security scanner marked SKIPPED because a token/configuration is missing as unverified, not as a pass.
+- Use only dedicated non-production app/database and disposable accounts for Playwright; ensure E2E_SUPABASE_PROJECT_REF differs from PRODUCTION_SUPABASE_PROJECT_REF, the exact host is allowlisted and the auth origin matches.
+- The previous migration reconciliation run skipped apply/repair/write steps. Do not infer migrations were applied from that run; verify history and schema explicitly.
+- Keep all changes on reviewed feature branches. Do not enable production flags or deploy merely because source CI passes.
 
-**Exit gate:** an authenticated live end-to-end job passes; crash/restart and lease-expiry tests recover safely; stale workers cannot commit; replay is idempotent; cancellation/retry behavior is explicit; the production schema and flag are verified; rollback to the prior path is documented and exercised.
+### Exit gate
 
-## M3 — Measure product usefulness and outcome economics
+Same-revision CI passes and the authenticated live CAD workflow completes on the exact revision; it records the deployed app/worker versions; the persisted BREP bytes match the receipt and digest; geometry measurements and project/model lineage match; unauthorized access and failure cases fail closed; the result surface tells the truth about the artifact and any outstanding approval.
 
-**Outcome:** prioritize work using observed engineering effort and quality, not feature count or unverified savings claims.
+## M2 — Expand the bounded calculation family
 
-1. Use [docs/outcome-baseline.md](outcome-baseline.md) to record a small baseline of representative tasks. Capture time to accepted outcome, active engineer time including review/correction, evidence completeness, failure/recovery rate, repeat use and known cost components.
-2. Start with a directional pilot (for example, 3–5 intended users over 5–10 task trials). Record the actual sample and limitations; do not present a small pilot as statistically conclusive.
-3. Make the workspace experience help users start, retain their draft after failure, understand assumptions and distinguish EXECUTED, VALIDATED, VERIFIED, BLOCKED and approval-required states. Do not ask again for known trusted context or convert an absent field into a fabricated fact.
-4. Mark unknown cost/effort components as unknown. Compare equivalent task classes and include correction/review time; do not claim reduced cost or increased productivity without a comparable baseline.
+**Outcome:** extend engineering value with one well-defined calculation family at a time, using the same input, units, validation, evidence and decision contracts as existing calculations.
 
-**Exit gate:** a repeatable baseline and task log are stored; users can complete the supported journey or identify a clear blocker; product decisions point to the observed data, and any adoption/savings claim is bounded by that evidence.
+### Implementation
 
-## M4 — Add one geometry family at a time
+1. Start with the existing shaft torque/preliminary-sizing path and its known-answer tests. Treat these as calculation results under stated assumptions, not a blanket claim that a shaft design is safe. Torque from power and RPM alone does not determine an acceptable diameter without the relevant load cases, material allowables, safety factor, failure modes and engineering review.
+2. Use M0's task observations to choose the next calculation family; do not select work merely because a library or provider exists. Before coding, define its user problem, required inputs, units, assumptions, validity range, known-answer/analytical references, missing-input behavior and required approval.
+3. Normalize/validate units and domain limits before execution. Return NEEDS_INPUT where a material input is absent; return UNSUPPORTED when outside declared scope. Do not guess inputs to make a calculation complete.
+4. Execute through registered deterministic providers, independently check the result where possible, and persist inputs, assumptions, provider/version, calculations, validation method, failures and evidence lineage.
+5. Add boundary/invalid-value fixtures, dimensional-analysis tests, known-answer cases and API/UI/Playwright coverage for success, missing inputs, invalid units, domain-limit failure and recovery.
 
-**Outcome:** expand only after the first complete path is useful and reliable.
+### Exit gate
 
-The next candidate may be a plate with holes or a bracket, but it is not part of the current verified CAD scope. Before implementation, define a typed parametric specification, units and tolerances, valid/invalid/boundary cases, independent analytic or known-answer checks, expected BREP measures, exact export validation and a provider-neutral fixture contract. Add the geometry family behind an explicit supported-capability route.
+The selected calculation family has an explicit scope/assumption contract, independent known-answer evidence, correct unit and boundary behavior, truthful result state, and traceable persisted evidence. It is selected based on a documented user need, and any benefit claim is supported by M0 measurements.
 
-Use the same fixture contract and security review for any alternative provider. Evaluate one candidate at a time; screen exact source/release, license and dependency obligations, runtime isolation, reproducibility and evidence. Do not set an arbitrary universal 95% success threshold or a 20-shape target without a representative baseline and predeclared acceptance criteria.
+## M3 — Provider promotion contract and one evidence-backed pilot
 
-**Exit gate:** fixtures cover nominal, boundary and invalid inputs; validators reject corrupted or mismatched artifacts; independent checks support the claimed result; current CI and live acceptance are green; limitations and failure cases are visible; no provider is promoted based only on a model score or successful process exit.
+**Outcome:** promote at most one strategically useful provider based on repeatable evidence, not documentation presence, marketing claims or process exit code.
 
-## M5 — FEA and other domains (deferred)
+### Implementation
 
-Do not claim a design is safe because one FEA run completed or a reported stress is below yield. A bounded FEA pilot needs explicit geometry, material properties, loads, supports, contacts where applicable, mesh controls, solver diagnostics, convergence evidence, a known-answer/analytical reference and independent engineering review. Report results only under the stated assumptions and limits.
+1. Record the capability/provider ID and version, exact source/image digest, licence and dependency obligations, required configuration, unit/input/output schema, timeout/resource budgets, expected artifacts, validation/evidence contract, known limitations and rollback procedure.
+2. Screen the selected candidate's current source release, maintenance, licensing, dependency/security posture and worker isolation. Do not copy code, datasets or models until the applicable terms and use rights are confirmed.
+3. Use the same declared benchmark fixtures, known-answer/analytic reference where applicable, independent validator, negative cases and evidence schema as the existing capability. Record all failed and excluded trials, not only successful runs.
+4. Run one pilot only, selected by user demand and M0–M2 results. It may be an alternative CAD provider or a bounded open FEA path such as CalculiX/Gmsh, but do not start both in parallel. A provider's presence in the repository does not imply its runtime is deployed or production-ready.
+5. Keep providers EXPERIMENTAL/PILOT until exact-revision tests, isolated runtime controls, independent validation and retained evidence pass with review approval. Do not adopt LangGraph/LangChain, LiteLLM, Vercel AI SDK, pg-boss or another orchestration/queue stack unless a measured gap in accepted outcomes justifies the added complexity.
 
-Defer new robotics, CAM, ECAD, CFD, perception and autonomous multi-step capabilities until a user need justifies a capability-specific acceptance plan, isolated runtime, validator, evidence contract and owner. The repository may contain interfaces or prototypes; their existence is not production readiness.
+### Exit gate
+
+One candidate has a reviewable licence/security record, pinned runtime, reproducible fixture results, independent validation, clear limits, operational observability and rollback. Promotion is scoped to the capability and exact runtime/version tested; it does not certify other providers or domains.
+
+## Deferred scope
+
+Broad freeform/assembly CAD, general-purpose topological repair, production-grade FEA/CFD safety claims, manufacturing/CAM output, robotics, ECAD, PLM rollout and physical-perception workflows remain deferred until a specific user need and a separate capability-level acceptance contract justify them. For FEA, a pilot must declare geometry, material, loads, supports, contacts where relevant, mesh controls, solver diagnostics, convergence, analytical/known-answer comparison and independent engineering review. A completed solve or stress below yield alone is not a design-safety verdict.
 
 ## Non-negotiable engineering gates
 

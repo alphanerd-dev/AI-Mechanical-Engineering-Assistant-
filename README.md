@@ -23,7 +23,7 @@ The application uses Next.js, React and TypeScript with Supabase for identity, p
 
 Repository capabilities include project-scoped workspace foundations, provider-neutral intent routing, deterministic engineering calculations, bounded CAD/build123d paths, independent OCCT BREP validation, evidence/provenance contracts and reference numerical/FEA workflows. The presence of these components does not mean every provider is provisioned or every workflow is live-verified.
 
-The first priority is one complete, authenticated shaft-to-CAD outcome with a matching validation receipt and exact persisted artifact digest. Broader geometry, general structural safety claims and additional engineering domains stay behind separate acceptance gates.
+The next implementation priority is hardening decision surfaces and recovery for the existing calculation and CAD contracts. The first operational outcome is one complete, authenticated shaft-to-CAD path with a matching validation receipt and exact persisted artifact digest. Broader geometry, general structural safety claims and additional engineering domains stay behind separate acceptance gates.
 
 ## Start here
 
