@@ -1,0 +1,80 @@
+name: Open3D Physical Perception Worker
+
+on:
+  pull_request:
+    paths:
+      - "src/perception/**"
+      - "tests/perception-point-cloud.test.ts"
+      - "worker/perception/**"
+      - "docs/v2-2-physical-perception.md"
+      - ".github/workflows/perception-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: open3d-perception-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-worker:
+    name: Bounded Open3D worker tests and image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Open3D native runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libgl1 libgomp1 libglib2.0-0
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install pinned Open3D worker dependencies
+        run: python -m pip install --no-cache-dir -r worker/perception/requirements.txt
+
+      - name: Run synthetic point-cloud and fail-closed worker tests
+        run: python -m unittest worker/perception/test_open3d_worker.py
+
+      - name: Build isolated non-root worker image
+        run: docker build --pull -f worker/perception/Dockerfile -t engineering-open3d-perception:ci worker/perception
+
+      - name: Create deterministic container smoke fixture
+        run: |
+          mkdir -p "$RUNNER_TEMP/perception-input"
+          python - <<'PY'
+          import os
+          import numpy as np
+          import open3d as o3d
+          from pathlib import Path
+          grid = np.array([[x * 10.0, y * 10.0, z * 10.0] for x in range(4) for y in range(4) for z in range(4)], dtype=np.float64)
+          cloud = o3d.geometry.PointCloud()
+          cloud.points = o3d.utility.Vector3dVector(grid)
+          if not o3d.io.write_point_cloud(str(Path(os.environ["RUNNER_TEMP"]) / "perception-input" / "fixture.ply"), cloud):
+              raise SystemExit("Could not write the deterministic point-cloud fixture.")
+          PY
+
+      - name: Preflight Open3D import and synthetic fixture read in isolated image
+        run: |
+          docker run --rm -i --network none --read-only --security-opt no-new-privileges --cap-drop ALL --memory=2g --cpus=2 --pids-limit=128 --tmpfs /tmp:rw,noexec,nosuid,size=64m -v "$RUNNER_TEMP/perception-input:/work/input:ro" --entrypoint python engineering-open3d-perception:ci -I -c 'import open3d as o3d; c=o3d.io.read_point_cloud("/work/input/fixture.ply", remove_nan_points=False, remove_infinite_points=False); print("Open3D", o3d.__version__, "points", len(c.points)); assert len(c.points) == 64'
+
+      - name: Smoke test worker container without network or root filesystem writes
+        shell: bash
+        run: |
+          set +e
+          result="$(printf '%s\n' '{"operation":"inspect","path":"fixture.ply","units":"mm","coordinateFrame":"ci-fixture"}' | docker run --rm -i --network none --read-only --security-opt no-new-privileges --cap-drop ALL --memory=2g --cpus=2 --pids-limit=128 --tmpfs /tmp:rw,noexec,nosuid,size=64m -v "$RUNNER_TEMP/perception-input:/work/input:ro" engineering-open3d-perception:ci)"
+          worker_exit=$?
+          set -e
+          printf '%s\n' "$result"
+          if [[ "$worker_exit" -ne 0 ]]; then
+            echo "::error::Open3D container returned a bounded worker failure (exit $worker_exit). See structured errorCode above."
+            exit "$worker_exit"
+          fi
+          printf '%s\n' "$result" | python -c 'import json,sys; r=json.load(sys.stdin); assert r["status"] == "MEASURED", r; assert r["pointCount"] == 64, r; assert r["boundsMm"]["extent"] == [30.0,30.0,30.0], r; assert r["engineeringDesignApproved"] is False, r; print("isolated container smoke passed")'
