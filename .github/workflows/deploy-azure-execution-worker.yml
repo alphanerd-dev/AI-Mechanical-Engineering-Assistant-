@@ -178,6 +178,14 @@ jobs:
           ENVIRONMENT_SUMMARY="$(jq -c '[.[] | {name: .name, location: .location, resourceGroup: (.resourceGroup // ((.id // "") | split("/") | .[4])), provisioningState: (.properties.provisioningState // "unknown")}]' <<<"$EXISTING_ENVIRONMENTS_JSON")"
           echo "Existing Container Apps environments (metadata only): $ENVIRONMENT_SUMMARY"
 
+          # Read-only attachment inventory before any decision to replace an incompatible environment.
+          EXISTING_APPS_JSON="$(az containerapp list --resource-group "$AZURE_RESOURCE_GROUP" --output json)"
+          EXISTING_JOBS_JSON="$(az containerapp job list --resource-group "$AZURE_RESOURCE_GROUP" --output json)"
+          APP_SUMMARY="$(jq -c '[.[] | {name: .name, provisioningState: (.properties.provisioningState // "unknown"), environment: ((.properties.managedEnvironmentId // "") | split("/") | last), externalIngress: (.properties.configuration.ingress.external // false)}]' <<<"$EXISTING_APPS_JSON")"
+          JOB_SUMMARY="$(jq -c '[.[] | {name: .name, provisioningState: (.properties.provisioningState // "unknown"), environment: ((.properties.environmentId // "") | split("/") | last), triggerType: (.properties.configuration.triggerType // "unknown")}]' <<<"$EXISTING_JOBS_JSON")"
+          echo "Existing Container Apps applications (metadata only): $APP_SUMMARY"
+          echo "Existing Container Apps jobs (metadata only): $JOB_SUMMARY"
+
           SELECTED_ENVIRONMENT_NAME=""
           SELECTED_ENVIRONMENT_RESOURCE_GROUP=""
           SELECTED_ENVIRONMENT_LOCATION=""
