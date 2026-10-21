@@ -17,6 +17,11 @@ on:
         required: true
         type: boolean
         default: false
+      test_point_cloud_upload:
+        description: Opt in to signed point-cloud upload/hash/audit/cleanup acceptance in isolated E2E
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,6 +41,7 @@ jobs:
       E2E_BASE_URL: ${{ inputs.base_url }}
       CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
       E2E_RUN_ACCEPTED_CAD_SMOKE: ${{ inputs.test_accepted_cad_completion }}
+      E2E_RUN_POINT_CLOUD_UPLOAD_SMOKE: ${{ inputs.test_point_cloud_upload }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
       E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
