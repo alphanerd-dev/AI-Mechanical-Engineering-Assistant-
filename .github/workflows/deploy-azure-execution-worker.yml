@@ -34,56 +34,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare_queue_e2e:
-    if: ${{ github.ref == 'refs/heads/main' && inputs.verify_queue_e2e }}
-    name: Enqueue acceptance task through authenticated API
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: cad-workspace-live-acceptance
-    outputs:
-      job_id: ${{ steps.enqueue.outputs.job_id }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-      - name: Validate authenticated acceptance configuration
-        shell: bash
-        env:
-          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
-          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
-          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
-        run: |
-          set -euo pipefail
-          for key in CAD_WORKSPACE_BASE_URL CAD_WORKSPACE_PROJECT_ID CAD_WORKSPACE_COOKIE; do
-            if [[ -z "${!key:-}" ]]; then
-              echo "::error::The ${key} value is missing from the cad-workspace-live-acceptance GitHub Environment."
-              exit 1
-            fi
-          done
-          echo "Authenticated acceptance inputs are present; values are not printed."
-      - name: Enqueue via the authenticated execution API
-        id: enqueue
-        shell: bash
-        env:
-          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
-          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
-          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
-        run: |
-          set -euo pipefail
-          node --check scripts/azure-execution-queue-e2e.mjs
-          ENQUEUE_JSON="$(node scripts/azure-execution-queue-e2e.mjs enqueue-api)"
-          echo "$ENQUEUE_JSON" | jq .
-          JOB_ID="$(jq -er '.jobId' <<<"$ENQUEUE_JSON")"
-          if [[ ! "$JOB_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
-            echo "::error::Authenticated API did not return a valid job UUID."
-            exit 1
-          fi
-          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
-
   deploy:
-    needs: [prepare_queue_e2e]
-    if: ${{ always() && github.ref == 'refs/heads/main' && (!inputs.verify_queue_e2e || needs.prepare_queue_e2e.result == 'success') }}
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: azure-execution-worker
@@ -101,7 +53,6 @@ jobs:
       DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
       REPLACE_EMPTY_ENVIRONMENTS: ${{ inputs.replace_empty_environments }}
       VERIFY_QUEUE_E2E: ${{ inputs.verify_queue_e2e }}
-      AZURE_E2E_JOB_ID: ${{ needs.prepare_queue_e2e.outputs.job_id }}
 
     steps:
       - name: Check required deployment configuration
@@ -362,6 +313,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
           PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          EXECUTION_API_BASE_URL: https://ai-mechanical-engineering-assistant.vercel.app
         run: |
           set -euo pipefail
 
@@ -478,10 +431,21 @@ jobs:
             --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
             --output json
 
-          # The task was created through the authenticated API in a separate job.
-          # Before starting the one-shot worker, prove the test task is the only active job.
+          # Optional production acceptance test: create an ephemeral, authenticated
+          # identity/project through the normal app API and enqueue one deterministic job.
+          # The script preflights an idle queue and records cleanup state in GITHUB_ENV.
+          E2E_JOB_ID=""
+          E2E_PROJECT_ID=""
           if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
-            node scripts/azure-execution-queue-e2e.mjs preflight
+            E2E_SETUP_JSON="$(node scripts/azure-execution-queue-e2e.mjs setup)"
+            echo "$E2E_SETUP_JSON" | jq .
+            E2E_JOB_ID="$(jq -er '.jobId' <<<"$E2E_SETUP_JSON")"
+            E2E_PROJECT_ID="$(jq -er '.projectId' <<<"$E2E_SETUP_JSON")"
+            if [[ ! "$E2E_JOB_ID" =~ ^[0-9a-fA-F-]{36}$ || ! "$E2E_PROJECT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+              echo "::error::Queue E2E setup did not return valid identifiers."
+              exit 1
+            fi
+            AZURE_E2E_JOB_ID="$E2E_JOB_ID" AZURE_E2E_PROJECT_ID="$E2E_PROJECT_ID" node scripts/azure-execution-queue-e2e.mjs preflight
           fi
 
           # Execute one bounded manual run when scheduling remains disabled. The worker is
@@ -535,30 +499,17 @@ jobs:
               exit 1
             fi
             if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
-              node scripts/azure-execution-queue-e2e.mjs verify
+              AZURE_E2E_JOB_ID="$E2E_JOB_ID" AZURE_E2E_PROJECT_ID="$E2E_PROJECT_ID" node scripts/azure-execution-queue-e2e.mjs verify
             fi
           else
             echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
           fi
-
-
-  cleanup_queue_e2e:
-    needs: [prepare_queue_e2e, deploy]
-    if: ${{ always() && inputs.verify_queue_e2e && needs.prepare_queue_e2e.result == 'success' && needs.deploy.result != 'success' }}
-    name: Cancel failed acceptance task through authenticated API
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: cad-workspace-live-acceptance
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-      - name: Request safe cancellation through the authenticated API
+ 
+      - name: Cancel and remove temporary Azure queue E2E identity
+        if: ${{ always() && inputs.verify_queue_e2e }}
         shell: bash
         env:
-          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
-          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
-          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
-          AZURE_E2E_JOB_ID: ${{ needs.prepare_queue_e2e.outputs.job_id }}
-        run: node scripts/azure-execution-queue-e2e.mjs cleanup-api
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          EXECUTION_API_BASE_URL: https://ai-mechanical-engineering-assistant.vercel.app
+        run: node scripts/azure-execution-queue-e2e.mjs cleanup
