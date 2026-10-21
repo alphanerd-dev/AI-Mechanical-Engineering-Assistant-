@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
-
 const TABLE = "engineering_execution_jobs";
 const EXPECTED_TORQUE_NM = (9550 * 5) / 1500;
 const baseUrl = process.env.SUPABASE_URL?.trim();
@@ -25,25 +23,6 @@ function requiredEnv(name) {
   const value = process.env[name]?.trim();
   if (!value) fail("Required environment variable " + name + " is not set.");
   return value;
-}
-
-function canonical(value) {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, item]) => [key, canonical(item)])
-    );
-  }
-  return value;
-}
-
-function requestDigest(request) {
-  const body = { ...request };
-  delete body.id;
-  delete body.correlationId;
-  return createHash("sha256").update(JSON.stringify(canonical(body))).digest("hex");
 }
 
 function getUrl(params = {}) {
@@ -166,6 +145,7 @@ async function preflight() {
   const row = rowResults[0];
   if (!row) fail("Authenticated API queued job was not found in Supabase.");
   assertTestRequest(row, jobId);
+  if (row.request?.projectId !== row.project_id) fail("Queue acceptance job has inconsistent project scope.");
   if (row.status !== "QUEUED") fail("Queue acceptance job is not QUEUED at preflight; refusing to start an untargeted worker run.");
 
   const activeRows = await restRead({
