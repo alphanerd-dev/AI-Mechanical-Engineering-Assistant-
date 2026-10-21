@@ -13,6 +13,11 @@ on:
         type: boolean
         required: true
         default: false
+      verify_queue_e2e:
+        description: "Enqueue a bounded torque test, run one Azure worker item, and verify the persisted result and cleared lease"
+        type: boolean
+        required: true
+        default: false
       replace_empty_environments:
         description: "Allow guarded replacement of the two known empty/failed Container Apps environments; requires subscription-wide app/job inventory to be empty"
         type: boolean
@@ -47,6 +52,7 @@ jobs:
       ENABLE_SCHEDULE: ${{ inputs.enable_schedule }}
       DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
       REPLACE_EMPTY_ENVIRONMENTS: ${{ inputs.replace_empty_environments }}
+      VERIFY_QUEUE_E2E: ${{ inputs.verify_queue_e2e }}
 
     steps:
       - name: Check required deployment configuration
@@ -79,6 +85,10 @@ jobs:
           fi
           if [[ "$ENABLE_SCHEDULE" == "true" && "$DISABLE_SCHEDULE" == "true" ]]; then
             echo "::error::Choose either enable_schedule or disable_schedule, not both."
+            exit 1
+          fi
+          if [[ "$ENABLE_SCHEDULE" == "true" && "$VERIFY_QUEUE_E2E" == "true" ]]; then
+            echo "::error::Run queue E2E with enable_schedule=false first. Do not enqueue the manual acceptance job in a deployment that switches to scheduled mode."
             exit 1
           fi
           if [[ ${#AZURE_JOB_NAME} -gt 22 || ! "$AZURE_JOB_NAME" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ || "$AZURE_JOB_NAME" == *--* ]]; then
@@ -311,11 +321,16 @@ jobs:
           # The GitHub Environment is the source of truth for runtime configuration.
           # Python-worker settings are paired, optional, and copied to both create/update paths.
           worker_secrets=("supabase-service-role-key=$SUPABASE_SERVICE_ROLE_KEY")
+          worker_max_jobs=5
+          if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
+            # The E2E path preflights an idle queue and consumes only its acceptance job.
+            worker_max_jobs=1
+          fi
           worker_env_vars=(
             "SUPABASE_URL=$SUPABASE_URL"
             "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
             "EXECUTION_WORKER_MODE=drain"
-            "EXECUTION_WORKER_MAX_JOBS=5"
+            "EXECUTION_WORKER_MAX_JOBS=$worker_max_jobs"
             "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
             "EXECUTION_WORKER_LEASE_SECONDS=45"
             "EXECUTION_WORKER_HEARTBEAT_MS=10000"
@@ -411,6 +426,20 @@ jobs:
             --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
             --output json
 
+          # Optional production queue acceptance test. It fails closed when the queue is busy,
+          # uses an idempotent test key, and constrains this run to one queue item.
+          E2E_JOB_ID=""
+          if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
+            E2E_ENQUEUE_JSON="$(node scripts/azure-execution-queue-e2e.mjs enqueue)"
+            echo "$E2E_ENQUEUE_JSON" | jq .
+            E2E_JOB_ID="$(jq -r '.jobId' <<<"$E2E_ENQUEUE_JSON")"
+            if [[ ! "$E2E_JOB_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+              echo "::error::Queue E2E did not return a valid job ID."
+              exit 1
+            fi
+            echo "Azure queue E2E job queued: $E2E_JOB_ID"
+          fi
+
           # Execute one bounded manual run when scheduling remains disabled. The worker is
           # configured in drain mode, so it exits after processing up to the bounded job limit.
           if [[ "$ENABLE_SCHEDULE" != "true" ]]; then
@@ -460,6 +489,9 @@ jobs:
                 --job-execution-name "$EXECUTION_NAME" \
                 --output json || true
               exit 1
+            fi
+            if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
+              AZURE_E2E_JOB_ID="$E2E_JOB_ID" node scripts/azure-execution-queue-e2e.mjs verify
             fi
           else
             echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
