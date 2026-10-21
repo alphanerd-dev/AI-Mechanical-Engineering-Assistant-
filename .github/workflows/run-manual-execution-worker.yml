@@ -1,0 +1,114 @@
+name: Run bounded engineering execution worker (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_jobs:
+        description: "Maximum jobs to claim in this one-shot run (1-5)"
+        type: number
+        required: true
+        default: 1
+      max_runtime_ms:
+        description: "Maximum worker runtime in milliseconds (1000-240000)"
+        type: number
+        required: true
+        default: 180000
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-engineering-execution-worker
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: azure-execution-worker
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mepmogsqhxxasahwhete.supabase.co' }}
+      EXECUTION_WORKER_MODE: drain
+      EXECUTION_WORKER_MAX_JOBS: ${{ inputs.max_jobs }}
+      EXECUTION_WORKER_MAX_RUNTIME_MS: ${{ inputs.max_runtime_ms }}
+      EXECUTION_WORKER_POLL_INTERVAL_MS: "1000"
+      EXECUTION_WORKER_LEASE_SECONDS: "45"
+      EXECUTION_WORKER_HEARTBEAT_MS: "10000"
+      EXECUTION_WORKER_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Validate bounded-run configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXECUTION_WORKER_MAX_JOBS" =~ ^[1-5]$ ]]; then
+            echo "::error::max_jobs must be an integer from 1 through 5."
+            exit 1
+          fi
+          if [[ ! "$EXECUTION_WORKER_MAX_RUNTIME_MS" =~ ^[0-9]+$ ]] || (( EXECUTION_WORKER_MAX_RUNTIME_MS < 1000 || EXECUTION_WORKER_MAX_RUNTIME_MS > 240000 )); then
+            echo "::error::max_runtime_ms must be between 1000 and 240000."
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Build worker container locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --file worker/execution/Dockerfile --tag execution-worker:manual .
+          docker image inspect execution-worker:manual --format 'Worker image ready: {{.Id}}'
+
+      - name: Run one bounded worker drain
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL:-}" || -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
+            echo "::error::SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required in the azure-execution-worker environment."
+            exit 1
+          fi
+          if [[ -n "${PYTHON_WORKER_URL:-}" && -z "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+            echo "::error::PYTHON_WORKER_URL requires PYTHON_WORKER_API_TOKEN."
+            exit 1
+          fi
+
+          LOG_FILE="$(mktemp)"
+          set +e
+          docker run --rm --init \
+            --env SUPABASE_URL \
+            --env SUPABASE_SERVICE_ROLE_KEY \
+            --env PYTHON_WORKER_URL \
+            --env PYTHON_WORKER_API_TOKEN \
+            --env EXECUTION_WORKER_MODE \
+            --env EXECUTION_WORKER_MAX_JOBS \
+            --env EXECUTION_WORKER_MAX_RUNTIME_MS \
+            --env EXECUTION_WORKER_POLL_INTERVAL_MS \
+            --env EXECUTION_WORKER_LEASE_SECONDS \
+            --env EXECUTION_WORKER_HEARTBEAT_MS \
+            --env EXECUTION_WORKER_ID \
+            execution-worker:manual 2>&1 | tee "$LOG_FILE"
+          WORKER_STATUS="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "$WORKER_STATUS" -ne 0 ]]; then
+            echo "::error::The bounded execution worker exited with status $WORKER_STATUS."
+            exit "$WORKER_STATUS"
+          fi
+
+          RESULT_LINE="$(grep '"event":"execution_worker_drain_finished"' "$LOG_FILE" | tail -n 1 || true)"
+          if [[ -z "$RESULT_LINE" ]]; then
+            echo "::error::Worker exited without its drain-finished evidence record."
+            exit 1
+          fi
+
+          PROCESSED_JOBS="$(printf '%s' "$RESULT_LINE" | jq -r '.processedJobs // 0')"
+          echo "Bounded worker run completed. processed_jobs=$PROCESSED_JOBS"
+          echo "processed_jobs=$PROCESSED_JOBS" >> "$GITHUB_OUTPUT"
+          if [[ "$PROCESSED_JOBS" -eq 0 ]]; then
+            echo "::notice::No queued jobs were available during this run. Runtime startup and the claim check completed, but no job was processed."
+          fi
