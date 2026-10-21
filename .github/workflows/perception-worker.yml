@@ -1,0 +1,43 @@
+name: Open3D Physical Perception Worker
+
+on:
+  pull_request:
+    paths:
+      - "src/perception/**"
+      - "tests/perception-point-cloud.test.ts"
+      - "worker/perception/**"
+      - "docs/v2-2-physical-perception.md"
+      - ".github/workflows/perception-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: open3d-perception-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-worker:
+    name: Bounded Open3D worker tests and image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: worker/perception/requirements.txt
+
+      - name: Install pinned Open3D worker dependencies
+        run: python -m pip install --no-cache-dir -r worker/perception/requirements.txt
+
+      - name: Run synthetic point-cloud and fail-closed worker tests
+        run: python -m unittest worker/perception/test_open3d_worker.py
+
+      - name: Build isolated non-root worker image
+        run: docker build --pull -f worker/perception/Dockerfile -t engineering-open3d-perception:ci worker/perception
