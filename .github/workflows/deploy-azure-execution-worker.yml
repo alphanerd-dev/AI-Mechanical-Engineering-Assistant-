@@ -514,6 +514,49 @@ jobs:
             echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
           fi
  
+      - name: Restore normal Azure manual worker drain limit after acceptance
+        if: ${{ always() && inputs.verify_queue_e2e }}
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          JOB_NAME="${AZURE_JOB_NAME}-manual"
+          if ! az containerapp job show --name "$JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+            echo "No manual Azure worker job exists to restore; nothing to change."
+            exit 0
+          fi
+          worker_env_vars=(
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
+            "EXECUTION_WORKER_MODE=drain"
+            "EXECUTION_WORKER_MAX_JOBS=5"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_LEASE_SECONDS=45"
+            "EXECUTION_WORKER_HEARTBEAT_MS=10000"
+          )
+          if [[ -n "${PYTHON_WORKER_URL:-}" ]]; then
+            if [[ -z "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+              echo "::error::PYTHON_WORKER_URL requires the matching PYTHON_WORKER_API_TOKEN secret."
+              exit 1
+            fi
+            worker_env_vars+=(
+              "PYTHON_WORKER_URL=$PYTHON_WORKER_URL"
+              "PYTHON_WORKER_API_TOKEN=secretref:python-worker-api-token"
+            )
+          fi
+          az containerapp job update \
+            --name "$JOB_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --image "$IMAGE" \
+            --cpu 0.25 \
+            --memory 0.5Gi \
+            --replace-env-vars "${worker_env_vars[@]}" \
+            --only-show-errors
+          echo "Restored the Azure manual worker's normal five-job drain limit."
+
       - name: Cancel and remove temporary Azure queue E2E identity
         if: ${{ always() && inputs.verify_queue_e2e }}
         shell: bash
