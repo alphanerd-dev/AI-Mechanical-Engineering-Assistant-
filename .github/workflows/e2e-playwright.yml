@@ -137,10 +137,10 @@ jobs:
           # Traces and videos can retain request headers or browser storage state.
           # Keep structured diagnostics and screenshots, but never publish raw traces.
           if [[ -d test-results ]]; then
-            find test-results -type f \\( -name 'trace.zip' -o -name '*.webm' \\) -print -delete
+            find test-results -type f \( -name 'trace.zip' -o -name '*.webm' \) -print -delete
           fi
           if [[ -d playwright-report ]]; then
-            find playwright-report -type f \\( -name 'trace.zip' -o -name '*.webm' \\) -print -delete
+            find playwright-report -type f \( -name 'trace.zip' -o -name '*.webm' \) -print -delete
           fi
 
       - name: Upload Playwright report, traces, screenshots, and diagnostics
