@@ -399,13 +399,11 @@ jobs:
               --only-show-errors
           fi
 
-          # Azure Container Apps Jobs must explicitly configure non-ACR registries,
-          # including public GHCR images. Keep this in the create and update path.
-          az containerapp job registry set \
-            --name "$JOB_NAME" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --server ghcr.io \
-            --only-show-errors
+          # The preceding anonymous docker pull verifies that this commit-tagged GHCR image
+          # is public. Avoid 'az containerapp job registry set --server ghcr.io' here:
+          # the current job-registry CLI extension rejects anonymous GHCR and requires
+          # credentials even for public images. Do not persist an unnecessary registry token;
+          # let Container Apps pull this verified public image without credentials.
 
           az containerapp job show \
             --name "$JOB_NAME" \
