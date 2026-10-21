@@ -332,8 +332,8 @@ export async function POST(request: Request) {
       { providerId: "cad.build123d", availability: "AVAILABLE" },
       { providerId: "cad.occt", availability: "AVAILABLE" }
     ]);
-    // The remote worker contract allows up to 60 seconds for deterministic CAD generation; keep local runs shorter and retain the route-level 120s cap for independent validation/persistence.
-    const workflow = new CADPartCompletionWorkflow(router, new Build123dIntentCodeGenerator(), { timeoutMs: configured.mode === "remote" ? 60_000 : 30_000 });
+    // Reserve budget within the 120s route cap for independent OCCT validation and durable audit persistence.
+    const workflow = new CADPartCompletionWorkflow(router, new Build123dIntentCodeGenerator(), { timeoutMs: configured.mode === "remote" ? 55_000 : 30_000 });
     result = await workflow.complete({ projectId, modelIdentity, rawIntent, requirementIds, risk: "HIGH" });
   } catch {
     return httpError("CAD runtime failed before a completion result could be produced.", 503);

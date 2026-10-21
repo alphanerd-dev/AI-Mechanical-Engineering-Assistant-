@@ -238,7 +238,7 @@ export class RemoteOCCTValidatorExecutor implements OcctExecutor {
       artifactSha256,
       parameters,
       toleranceMm: 0.01
-    }, 45_000);
+    }, 55_000);
     if (response.artifactSha256 !== artifactSha256 || typeof response.valid !== "boolean" ||
         !Number.isInteger(response.solidCount) || typeof response.checkedBy !== "string" ||
         typeof response.validatorVersion !== "string" || !Array.isArray(response.warnings) ||
