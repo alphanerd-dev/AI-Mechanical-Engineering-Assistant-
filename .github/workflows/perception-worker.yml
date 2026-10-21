@@ -61,6 +61,10 @@ jobs:
               raise SystemExit("Could not write the deterministic point-cloud fixture.")
           PY
 
+      - name: Preflight Open3D import and synthetic fixture read in isolated image
+        run: |
+          docker run --rm --network none --read-only --security-opt no-new-privileges --cap-drop ALL --memory=2g --cpus=2 --pids-limit=128 --tmpfs /tmp:rw,noexec,nosuid,size=64m -v "$RUNNER_TEMP/perception-input:/work/input:ro" --entrypoint python engineering-open3d-perception:ci -I -c 'import open3d as o3d; c=o3d.io.read_point_cloud("/work/input/fixture.ply", remove_nan_points=False, remove_infinite_points=False); print("Open3D", o3d.__version__, "points", len(c.points)); assert len(c.points) == 64'
+
       - name: Smoke test worker container without network or root filesystem writes
         shell: bash
         run: |
