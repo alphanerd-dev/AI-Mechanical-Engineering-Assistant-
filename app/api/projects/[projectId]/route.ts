@@ -282,7 +282,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       artifactCleanup: {
         status: "COMPLETED",
         objectsRemoved,
-        objectsRemaining: remainingPaths.size,
+        objectsRemaining: remainingCAD.size + remainingPointCloud.size,
         verification: "POST_REMOVE_STORAGE_INVENTORY",
       },
     }, { headers: { "cache-control": "no-store" } });
