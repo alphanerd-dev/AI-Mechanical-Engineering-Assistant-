@@ -199,7 +199,7 @@ jobs:
           COMPATIBLE_ENVIRONMENT_COUNT=0
           while IFS=$'\t' read -r candidate_name candidate_resource_group candidate_location candidate_state; do
             [[ -n "$candidate_name" && -n "$candidate_resource_group" && -n "$candidate_location" ]] || continue
-            candidate_location="${candidate_location,,}"
+            candidate_location="$(tr -d '[:space:]' <<<"${candidate_location,,}")"
             if [[ "${candidate_state,,}" != "succeeded" ]]; then
               continue
             fi
@@ -249,7 +249,7 @@ jobs:
             if ! jq -e \
               --arg resourceGroup "$AZURE_RESOURCE_GROUP" \
               --argjson allowed "$CONFIGURED_ALLOWED_LOCATIONS_JSON" \
-              'length == 2 and all(.[]; ((.resourceGroup // ((.id // "") | split("/") | .[4])) == $resourceGroup) and (.name == "env-engineering-execution" or .name == "env-engineering-execution-jobs") and (($allowed | index((.location // "") | ascii_downcase)) != null))' \
+              'length == 2 and all(.[]; ((.resourceGroup // ((.id // "") | split("/") | .[4])) == $resourceGroup) and (.name == "env-engineering-execution" or .name == "env-engineering-execution-jobs") and (($allowed | index((.location // "") | ascii_downcase | gsub("[[:space:]]"; ""))) != null))' \
               <<<"$EXISTING_ENVIRONMENTS_JSON" >/dev/null; then
               echo "::error::Refusing replacement: the current subscription inventory is not exactly the two previously inspected empty environments in '$AZURE_RESOURCE_GROUP' and approved locations."
               exit 1
