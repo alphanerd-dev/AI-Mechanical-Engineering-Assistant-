@@ -170,23 +170,72 @@ jobs:
             echo "::notice::Azure Policy assignment metadata is not readable; using the explicitly configured sys.regionrestriction allowlist for region validation."
           fi
 
-          if ! az containerapp env show --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
-            az containerapp env create \
-              --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
-              --resource-group "$AZURE_RESOURCE_GROUP" \
-              --location "$AZURE_LOCATION" \
-              --environment-mode WorkloadProfiles \
+          # Azure for Students may cap Container Apps environments at one per subscription.
+          # Inventory first and reuse a supported existing environment instead of blindly
+          # attempting to create another. Never delete or mutate existing environments here.
+          EXISTING_ENVIRONMENTS_JSON="$(az containerapp env list --output json)"
+          EXISTING_ENVIRONMENT_COUNT="$(jq 'length' <<<"$EXISTING_ENVIRONMENTS_JSON")"
+          ENVIRONMENT_SUMMARY="$(jq -c '[.[] | {name: .name, location: .location, resourceGroup: (.resourceGroup // ((.id // "") | split("/") | .[4])), provisioningState: (.properties.provisioningState // "unknown")}]' <<<"$EXISTING_ENVIRONMENTS_JSON")"
+          echo "Existing Container Apps environments (metadata only): $ENVIRONMENT_SUMMARY"
+
+          SELECTED_ENVIRONMENT_NAME=""
+          SELECTED_ENVIRONMENT_RESOURCE_GROUP=""
+          SELECTED_ENVIRONMENT_LOCATION=""
+          COMPATIBLE_ENVIRONMENT_COUNT=0
+          while IFS=$'\t' read -r candidate_name candidate_resource_group candidate_location candidate_state; do
+            [[ -n "$candidate_name" && -n "$candidate_resource_group" && -n "$candidate_location" ]] || continue
+            candidate_location="${candidate_location,,}"
+            if [[ "${candidate_state,,}" != "succeeded" ]]; then
+              continue
+            fi
+            if ! jq -e --arg location "$candidate_location" 'index($location) != null' <<<"$CONFIGURED_ALLOWED_LOCATIONS_JSON" >/dev/null; then
+              continue
+            fi
+
+            candidate_profile_count="$(az containerapp env workload-profile list \\
+              --name "$candidate_name" \\
+              --resource-group "$candidate_resource_group" \\
+              --query 'length(@)' \\
+              --output tsv 2>/dev/null || true)"
+            if [[ "$candidate_profile_count" =~ ^[1-9][0-9]*$ ]]; then
+              COMPATIBLE_ENVIRONMENT_COUNT=$((COMPATIBLE_ENVIRONMENT_COUNT + 1))
+              SELECTED_ENVIRONMENT_NAME="$candidate_name"
+              SELECTED_ENVIRONMENT_RESOURCE_GROUP="$candidate_resource_group"
+              SELECTED_ENVIRONMENT_LOCATION="$candidate_location"
+            fi
+          done < <(jq -r '.[] | [(.name // ""), (.resourceGroup // ((.id // "") | split("/") | .[4])), (.location // ""), (.properties.provisioningState // "unknown")] | @tsv' <<<"$EXISTING_ENVIRONMENTS_JSON")
+
+          if [[ "$COMPATIBLE_ENVIRONMENT_COUNT" -gt 1 ]]; then
+            echo "::error::Found more than one ready workload-profile Container Apps environment in the approved regions. Refusing to choose ambiguously."
+            exit 1
+          elif [[ "$COMPATIBLE_ENVIRONMENT_COUNT" -eq 1 ]]; then
+            echo "::notice::Reusing existing workload-profile environment '$SELECTED_ENVIRONMENT_NAME' in approved region '$SELECTED_ENVIRONMENT_LOCATION'."
+            AZURE_CONTAINERAPPS_ENVIRONMENT="$SELECTED_ENVIRONMENT_NAME"
+            AZURE_RESOURCE_GROUP="$SELECTED_ENVIRONMENT_RESOURCE_GROUP"
+            {
+              echo "AZURE_CONTAINERAPPS_ENVIRONMENT=$AZURE_CONTAINERAPPS_ENVIRONMENT"
+              echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP"
+            } >> "$GITHUB_ENV"
+          elif [[ "$EXISTING_ENVIRONMENT_COUNT" -gt 0 ]]; then
+            echo "::error::The subscription already has $EXISTING_ENVIRONMENT_COUNT Container Apps environment(s), but none is both ready, workload-profile-enabled, and in an approved region. Azure for Students has a one-environment quota; no new environment was attempted and no existing environment was deleted. Review the metadata inventory above before deciding whether to retire or replace an incompatible environment."
+            exit 1
+          else
+            echo "No existing Container Apps environment was returned. Creating the requested workload-profile environment in the configured approved region."
+            az containerapp env create \\
+              --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \\
+              --resource-group "$AZURE_RESOURCE_GROUP" \\
+              --location "$AZURE_LOCATION" \\
+              --environment-mode WorkloadProfiles \\
               --only-show-errors
           fi
 
-          # Fail early with a clear message if an existing environment is Express or otherwise
-          # does not expose workload profiles; Container Apps Jobs are not supported there.
-          if ! PROFILE_COUNT="$(az containerapp env workload-profile list \
-            --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --query 'length(@)' \
+          # Fail early if the selected or newly created environment cannot host Container Apps Jobs.
+          if ! PROFILE_COUNT="$(az containerapp env workload-profile list \\
+            --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \\
+            --resource-group "$AZURE_RESOURCE_GROUP" \\
+            --query 'length(@)' \\
             --output tsv 2>/dev/null)" || [[ ! "$PROFILE_COUNT" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::The Azure Container Apps environment '$AZURE_CONTAINERAPPS_ENVIRONMENT' does not expose workload profiles and cannot host Container Apps Jobs. Set AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT to a workload-profiles environment."
+            echo "::error::The Azure Container Apps environment '$AZURE_CONTAINERAPPS_ENVIRONMENT' does not expose workload profiles and cannot host Container Apps Jobs. No existing environment was deleted."
             exit 1
           fi
 
