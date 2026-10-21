@@ -388,3 +388,20 @@ Notes:
 V2.1.6 implementation notes (PR #49): the acceptance path binds the receipt to the exact BREP bytes, complete measured cylinder bounds, fixed 0.01 mm host tolerance and analytical cylinder volume (PR #51 merged and CI passed); the geometry measurements are included in the persisted validation receipt for later audit; completion INSERTs are restricted to the server-only service-role boundary after project authorization; object reads are private and issued with short-lived signed links. Repository CI passed on the merged PR head `a5c3425` and post-merge `main` commit `bfd949f`. The migration is applied to the connected Supabase project and its schema, RLS, grants, and private bucket were verified live on 2026-10-10. The live authenticated CAD artifact smoke test remains outstanding because no linked Vercel project was available through the connected Vercel account and production CAD runtime/secrets have not been verified. Do not represent the workflow as production-verified until a real authenticated request has generated, persisted, and re-read a BREP with matching evidence.
 
 PR #52 operational readiness work adds a project-authorized `/api/cad/readiness` route and `npm run smoke:cad-live` script. These diagnose the production host, prove that a persisted BREP can be retrieved from private storage, and compare the retrieved byte digest with the database receipt. The live smoke script has not been run until a target application deployment and a short-lived authenticated test session are available. PR #53 adds a manual GitHub Actions workflow to perform the live test once a dedicated non-production application, project/model IDs, and short-lived session cookie are configured.
+
+
+## V2.2 — Physical Perception Foundation
+
+- [x] Provider-neutral point-cloud source identity, explicit units and coordinate-frame contract (implementation in the V2.2 feature branch; CI acceptance pending)
+- [x] Deterministic point-cloud measurement and ICP registration-candidate validation gates (implementation in the V2.2 feature branch; CI acceptance pending)
+- [x] Isolated Open3D worker prototype for PLY/PCD/XYZ inspection and point-to-point ICP, with bounded inputs and fail-closed path/coordinate validation
+- [x] Python worker acceptance fixtures and a dedicated CI workflow for unit tests and the container-image build
+- [ ] Authenticated upload API and project-scoped private point-cloud artifact persistence
+- [ ] Real known-transform/noise/outlier benchmark corpus and independent registration-threshold calibration
+- [ ] Controlled scan-to-CAD deviation reporting and authorized review workflow
+
+Notes:
+- The initial worker is a one-shot prototype, not a production HTTP service. It must run in a constrained isolated container with network access disabled and only a read-only input mount.
+- Measurements are normalized to millimetres while the source units and coordinate frame remain part of provenance.
+- Registration is always returned as CANDIDATE. Passing explicit fitness/RMSE/correspondence thresholds does not prove dimensional conformity, scan completeness, reconstructed CAD correctness or engineering design safety.
+- Do not promote V2.2 to production readiness until authenticated storage, artifact digest readback, authorization isolation and independent real-scan benchmarks pass.
