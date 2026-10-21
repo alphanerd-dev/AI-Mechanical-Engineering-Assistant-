@@ -10,13 +10,50 @@ function requiredEnv(name) {
   return value;
 }
 
+function safeTransportFailureDetails(error) {
+  const value = typeof error === "object" && error !== null ? error : {};
+  const cause = typeof value.cause === "object" && value.cause !== null ? value.cause : {};
+  const allowedCodes = new Set([
+    "ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EPIPE", "ECONNABORTED", "EAI_AGAIN",
+    "UND_ERR_SOCKET", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT",
+    "UND_ERR_BODY_TIMEOUT", "UND_ERR_ABORTED"
+  ]);
+  const code = [value.code, cause.code].find((candidate) =>
+    typeof candidate === "string" && allowedCodes.has(candidate)
+  ) ?? null;
+  const name = ["AbortError", "TimeoutError", "TypeError"].includes(value.name)
+    ? value.name
+    : "TransportError";
+  const message = typeof value.message === "string" ? value.message : "";
+  const category = code
+    ? "socket_or_network_code"
+    : /timeout|timed out|deadline/i.test(message)
+      ? "timeout"
+      : /socket|connection reset|broken pipe/i.test(message)
+        ? "socket_failure"
+        : "unknown";
+  return { name, category, code };
+}
+
 async function safeAuthenticatedRequest(label, requestFn) {
+  const startedAt = Date.now();
   try {
-    return await requestFn();
-  } catch {
-    // Playwright's default transport error includes request headers, including the
-    // Supabase session cookie. Never propagate that low-level error into CI logs.
-    throw new Error(label + " failed or timed out; detailed transport diagnostics were suppressed to protect session credentials.");
+    const response = await requestFn();
+    console.log("[cad-e2e] " + label + " status=" + response.status() +
+      " elapsedMs=" + (Date.now() - startedAt));
+    return response;
+  } catch (error) {
+    // Never log the raw transport error: it can include request headers and session cookies.
+    const elapsedMs = Date.now() - startedAt;
+    const details = safeTransportFailureDetails(error);
+    console.error("[cad-e2e] " + label + " transport failure", {
+      ...details,
+      elapsedMs
+    });
+    throw new Error(label + " failed after " + elapsedMs + "ms (" +
+      details.name + "/" + details.category +
+      (details.code ? "/" + details.code : "") +
+      "); raw transport diagnostics were suppressed.");
   }
 }
 
