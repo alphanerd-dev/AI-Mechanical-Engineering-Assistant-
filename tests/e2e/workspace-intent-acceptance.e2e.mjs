@@ -20,6 +20,20 @@ async function safeAuthenticatedRequest(label, requestFn) {
   }
 }
 
+function safeE2EDiagnosticText(value) {
+  return String(value ?? "")
+    .replace(/\b[a-f0-9]{64}\b/gi, "[redacted-digest-or-token]")
+    .replace(/https?:\/\/[^\s"'<>]+/gi, "[redacted-url]")
+    .replace(/[\r\n\t]+/g, " ")
+    .slice(0, 300);
+}
+
+function safeE2EDiagnosticList(value) {
+  return Array.isArray(value)
+    ? value.slice(0, 10).map(safeE2EDiagnosticText)
+    : [];
+}
+
 function accessTokenFromContextCookies(cookies, projectRef) {
   const baseName = "sb-" + projectRef + "-auth-token";
   const baseCookie = cookies.find((cookie) => cookie.name === baseName);
@@ -906,7 +920,19 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
   const suffix = randomUUID();
   const projectName = "E2E accepted CAD atomic audit " + suffix;
-  const diagnostics = { projectId: null, modelIdentityId: null, completionId: null, completionStatus: null, storageObjectCount: 0, readiness: null, auditEvent: null, cleanup: null };
+  const diagnostics = {
+    projectId: null,
+    modelIdentityId: null,
+    completionId: null,
+    completionStatus: null,
+    completionStage: null,
+    completionErrors: [],
+    completionWarnings: [],
+    storageObjectCount: 0,
+    readiness: null,
+    auditEvent: null,
+    cleanup: null,
+  };
   const context = await browser.newContext({ baseURL });
   let page;
   let projectId;
@@ -968,15 +994,20 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     const completion = completionBody?.completion;
     diagnostics.completionId = completion?.id ?? null;
     diagnostics.completionStatus = completion?.status ?? null;
+    diagnostics.completionStage = completion?.stage ?? null;
+    diagnostics.completionErrors = safeE2EDiagnosticList(completion?.errors);
+    diagnostics.completionWarnings = safeE2EDiagnosticList(completion?.warnings);
     diagnostics.storageObjectCount = Array.isArray(completion?.storage_objects) ? completion.storage_objects.length : 0;
     expect(
       completionResponse.status(),
       "fully specified request must reach an accepted, persisted completion; body=" + JSON.stringify({
         status: completionResponse.status(),
-        error: completionBody?.error,
-        code: completionBody?.code,
+        error: safeE2EDiagnosticText(completionBody?.error),
+        code: safeE2EDiagnosticText(completionBody?.code),
         completionStatus: completion?.status,
         completionStage: completion?.stage,
+        completionErrors: diagnostics.completionErrors,
+        completionWarnings: diagnostics.completionWarnings,
       }),
     ).toBe(201);
     expect(completion).toMatchObject({
@@ -1103,26 +1134,41 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     });
   } finally {
     if (projectId && page) {
-      const cleanupResponse = await page.request.delete("/api/projects/" + projectId).catch(() => null);
+      // A timeout/reset can happen after the server already deleted the project.
+      // Retry once, then verify absence explicitly before classifying cleanup as failed.
+      let cleanupResponse = await page.request.delete("/api/projects/" + projectId, { timeout: 60_000 }).catch(() => null);
       if (!cleanupResponse) {
-        diagnostics.cleanup = { status: "REQUEST_FAILED" };
-        await testInfo.attach("accepted-cad-cleanup-diagnostics.json", {
-          body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
-          contentType: "application/json",
-        });
-        throw new Error("Disposable accepted-CAD project cleanup request failed.");
+        cleanupResponse = await page.request.delete("/api/projects/" + projectId, { timeout: 60_000 }).catch(() => null);
       }
-      const cleanupBody = await cleanupResponse.json().catch(() => ({}));
-      diagnostics.cleanup = { status: cleanupResponse.status(), body: cleanupBody };
-      expect(
-        cleanupResponse.status(),
-        "disposable project and generated CAD objects must clean up even when the acceptance path fails; body=" + JSON.stringify(cleanupBody),
-      ).toBe(200);
-      expect(cleanupBody).toMatchObject({
-        projectId,
-        deleted: true,
-        artifactCleanup: { status: "COMPLETED", objectsRemaining: 0 },
-      });
+      if (!cleanupResponse || cleanupResponse.status() === 404) {
+        const absenceResponse = await page.request.get("/api/projects/" + projectId, { timeout: 30_000 }).catch(() => null);
+        if (absenceResponse?.status() === 404) {
+          diagnostics.cleanup = { status: "ALREADY_ABSENT", verifiedAbsent: true };
+        } else {
+          diagnostics.cleanup = {
+            status: "UNCONFIRMED",
+            deleteResponseStatus: cleanupResponse?.status() ?? null,
+            verificationStatus: absenceResponse?.status() ?? null,
+          };
+          await testInfo.attach("accepted-cad-cleanup-diagnostics.json", {
+            body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+            contentType: "application/json",
+          });
+          throw new Error("Disposable accepted-CAD project cleanup could not be confirmed after a bounded retry.");
+        }
+      } else {
+        const cleanupBody = await cleanupResponse.json().catch(() => ({}));
+        diagnostics.cleanup = { status: cleanupResponse.status(), body: cleanupBody };
+        expect(
+          cleanupResponse.status(),
+          "disposable project and generated CAD objects must clean up even when the acceptance path fails; body=" + JSON.stringify(cleanupBody),
+        ).toBe(200);
+        expect(cleanupBody).toMatchObject({
+          projectId,
+          deleted: true,
+          artifactCleanup: { status: "COMPLETED", objectsRemaining: 0 },
+        });
+      }
       const expectedCleanupObjects = Number(diagnostics.storageObjectCount ?? 0);
       if (expectedCleanupObjects > 0) {
         expect(
