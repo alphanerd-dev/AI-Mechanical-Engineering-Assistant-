@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PERCEPTION_INPUT_ROOT=/work/inp
 WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libegl1 libgl1 libgomp1 libglib2.0-0 \
+    && apt-get install -y --no-install-recommends libegl1 libgl1 libgomp1 libglib2.0-0 libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --disable-pip-version-check -r /app/requirements.txt \
     && groupadd --gid 10001 perception \
