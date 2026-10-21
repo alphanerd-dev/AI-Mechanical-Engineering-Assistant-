@@ -908,7 +908,7 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
 });
 
 
-test("OPT-IN live accepted CAD completion persists artifacts and independently verifiable atomic audit correlation", async ({ browser }, testInfo) => {
+test("OPT-IN live accepted CAD completion persists artifacts and independently verifiable atomic audit correlation", { retries: 0 }, async ({ browser }, testInfo) => {
   test.skip(
     process.env.E2E_RUN_ACCEPTED_CAD_SMOKE !== "true",
     "Opt-in only: exercises a real CAD worker and writes then removes disposable artifacts in the dedicated E2E project.",
