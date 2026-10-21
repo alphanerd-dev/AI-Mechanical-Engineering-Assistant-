@@ -19,6 +19,10 @@ type CADCompletion = {
   stage: string;
   raw_intent: string;
   intent_resolution?: { status?: string; nextQuestion?: string; reason?: string };
+  nextAction?: string;
+  approvalRequirement?: string;
+  validationStatus?: string;
+  evidenceStatus?: string;
   specification?: { name?: string; diameterMm?: number; lengthMm?: number };
   artifact_records?: CADArtifact[];
   evidence_records?: Array<{ id: string; status: string; type: string; claim: string }>;
@@ -33,7 +37,7 @@ const EXAMPLE = "Create a cylindrical shaft with a diameter of 30 mm and a lengt
 
 function statusClass(status: string) {
   if (status === "ACCEPTED" || status === "VERIFIED" || status === "PASS") return "cadStatus cadStatusGood";
-  if (status === "NEEDS_INPUT" || status === "INCOMPLETE" || status === "BLOCKED") return "cadStatus cadStatusWarn";
+  if (status === "NEEDS_INPUT" || status === "INCOMPLETE" || status === "BLOCKED" || status === "WAITING_APPROVAL") return "cadStatus cadStatusWarn";
   if (status === "REJECTED" || status === "FAILED" || status === "UNSUPPORTED" || status === "FAIL") return "cadStatus cadStatusBad";
   return "cadStatus";
 }
@@ -55,6 +59,8 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [lastDecision, setLastDecision] = useState<CADCompletion | null>(null);
+  const [retryGuidance, setRetryGuidance] = useState("");
 
   const refresh = useCallback(async () => {
     const [modelsResponse, completionsResponse, readinessResponse] = await Promise.all([
@@ -128,29 +134,57 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
     setBusy(true);
     setError("");
     setNotice("");
+    setRetryGuidance("");
+    setLastDecision(null);
+    let responseReceived = false;
+    let decisionReceived = false;
     try {
       const response = await fetch("/api/cad/completions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ projectId, modelIdentityId: modelId, rawIntent: intent.trim() })
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "CAD completion request failed.");
-      const completion = body.completion as CADCompletion | undefined;
+      responseReceived = true;
+      const parsed = await response.json().catch(() => ({}));
+      const body = parsed && typeof parsed === "object" ? parsed as { completion?: CADCompletion; verified?: boolean; error?: unknown } : {};
+      const completion = body.completion && typeof body.completion === "object" ? body.completion : undefined;
+
+      // Non-2xx responses can still carry a durable engineering decision such as
+      // NEEDS_INPUT or FAILED. Render that decision rather than collapsing it to a
+      // generic transport error. Only treat the response as an opaque failure when
+      // there is no structured decision payload to show.
+      if (completion) {
+        decisionReceived = true;
+        setLastDecision(completion);
+      }
+      if (!response.ok && !completion) {
+        throw new Error(typeof body.error === "string" ? body.error : "The CAD service returned no usable decision payload.");
+      }
+
       if (completion?.status === "ACCEPTED" && body.verified === true) {
-        setNotice("Accepted. The solid was independently validated and its evidence and artifacts were persisted.");
+        setNotice("Accepted. The solid passed independent geometry validation and its evidence and artifacts were persisted. This is not engineering design approval.");
       } else if (completion?.status === "NEEDS_INPUT") {
         setNotice(completion.intent_resolution?.nextQuestion ?? "More dimensional input is required before geometry generation.");
       } else if (completion?.status === "UNSUPPORTED") {
         setNotice(completion.intent_resolution?.reason ?? "This reference workflow does not support that geometry yet.");
+      } else if (completion?.status === "WAITING_APPROVAL") {
+        setNotice("The result is waiting for an authorized human approval. It is not released or complete.");
+      } else if (completion?.status === "FAILED" || completion?.status === "REJECTED" || completion?.status === "BLOCKED" || completion?.status === "INCOMPLETE") {
+        setNotice("The request ended as " + completion.status + ". Review the recorded reason and next action before deciding whether to revise and resubmit.");
       } else if (completion) {
-        setNotice("Attempt recorded as " + completion.status + ". No unverified artifact was presented as accepted.");
+        setNotice("Decision recorded as " + completion.status + ". Review its validation and evidence status below.");
       } else {
-        setNotice("Request completed; reload the history to inspect the stored record.");
+        setNotice("The request returned no structured decision. Refresh history before retrying.");
+        setRetryGuidance("Your draft is preserved. Refresh history before retrying so you can check whether a completion was recorded.");
       }
       await refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "CAD completion failed.");
+      if (!responseReceived) {
+        setRetryGuidance("The connection ended before a response was received. Your draft is preserved. Refresh completion history before retrying; the server may have received the request even though its response was lost.");
+      } else if (!decisionReceived) {
+        setRetryGuidance("Your draft is preserved. Refresh completion history before retrying. Do not assume that a missing response means no server-side work occurred.");
+      }
     } finally {
       setBusy(false);
     }
@@ -178,6 +212,26 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
 
     {error && <div className="notice cadError" role="alert">{error}</div>}
     {notice && <div className="cadNotice" role="status">{notice}</div>}
+    {retryGuidance && <div className="cadNotice" role="status">{retryGuidance}</div>}
+
+    {lastDecision && <section className="panel cadDecisionPanel" aria-live="polite">
+      <div className="cadHistoryHeader">
+        <div><p className="eyebrow">LATEST ENGINEERING DECISION</p><h3>{lastDecision.status.replaceAll("_", " ")}</h3></div>
+        <span className={statusClass(lastDecision.status)}>{lastDecision.status}</span>
+      </div>
+      {lastDecision.intent_resolution?.nextQuestion && <p className="cadFollowup"><strong>Required input:</strong> {lastDecision.intent_resolution.nextQuestion}</p>}
+      {lastDecision.intent_resolution?.reason && <p className="muted"><strong>Reason:</strong> {lastDecision.intent_resolution.reason}</p>}
+      {lastDecision.nextAction && <p className="muted"><strong>Next action:</strong> {lastDecision.nextAction}</p>}
+      {lastDecision.approvalRequirement && <p className="muted"><strong>Approval:</strong> {lastDecision.approvalRequirement}</p>}
+      {lastDecision.errors?.length ? <div className="cadMessageList"><strong>Recorded errors</strong>{lastDecision.errors.map((item, index) => <p key={index}>{item}</p>)}</div> : null}
+      {lastDecision.warnings?.length ? <div className="cadMessageList"><strong>Limitations and warnings</strong>{lastDecision.warnings.map((item, index) => <p key={index}>{item}</p>)}</div> : null}
+      <div className="cadSummary">
+        <span>Stage: <strong>{lastDecision.stage}</strong></span>
+        {lastDecision.validationStatus && <span>Validation: <strong>{lastDecision.validationStatus}</strong></span>}
+        {lastDecision.evidenceStatus && <span>Evidence: <strong>{lastDecision.evidenceStatus}</strong></span>}
+      </div>
+      {lastDecision.status !== "ACCEPTED" && <p className="cadSmall">No engineering approval or verified result is implied by this status. The original request remains in the input field so you can revise it deliberately.</p>}
+    </section>}
 
     <div className="cadWorkspaceGrid">
       <section className="panel">
