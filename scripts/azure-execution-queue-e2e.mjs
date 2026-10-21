@@ -203,12 +203,8 @@ async function setup() {
     setGithubEnv("AZURE_E2E_JOB_ID", jobId);
     console.log(JSON.stringify({ jobId, projectId, status: "QUEUED", request: "ANALYSIS.SHAFT_TORQUE", backend: "typescript-safe" }));
   } catch (error) {
-    if (userId) {
-      const removal = await service.auth.admin.deleteUser(userId);
-      if (removal.error) {
-        console.error("::error::Temporary identity cleanup failed after queue setup error; manual cleanup may be required for the test identity/project.");
-      }
-    }
+    // The same workflow job runs cleanup under if: always(), using the identifiers
+    // already written to GITHUB_ENV. Do not race the cleanup step here.
     throw error;
   }
 }
