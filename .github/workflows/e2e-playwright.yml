@@ -129,19 +129,28 @@ jobs:
       - name: Run end-to-end acceptance journey
         run: npm run test:e2e
 
-      - name: Remove session-bearing Playwright traces before artifact upload
+      - name: Remove session-bearing Playwright trace archives before artifact upload
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          # Traces and videos can retain request headers or browser storage state.
-          # Keep structured diagnostics and screenshots, but never publish raw traces.
-          if [[ -d test-results ]]; then
-            find test-results -type f \( -name 'trace.zip' -o -name '*.webm' \) -print -delete
-          fi
-          if [[ -d playwright-report ]]; then
-            find playwright-report -type f \( -name 'trace.zip' -o -name '*.webm' \) -print -delete
-          fi
+          # Playwright's HTML reporter copies trace ZIPs under hashed names in
+          # playwright-report/data, not only as trace.zip. Any ZIP or video can
+          # retain authenticated request headers or browser storage state.
+          for evidence_dir in test-results playwright-report; do
+            if [[ -d "$evidence_dir" ]]; then
+              find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -print -delete
+            fi
+          done
+
+          # Fail closed if any raw trace archive or video remains in either
+          # directory. Screenshots and sanitized Markdown diagnostics are retained.
+          for evidence_dir in test-results playwright-report; do
+            if [[ -d "$evidence_dir" ]] && find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -print -quit | grep -q .; then
+              echo "::error::Refusing to upload Playwright trace archives or videos."
+              exit 1
+            fi
+          done
 
       - name: Upload Playwright report, traces, screenshots, and diagnostics
         if: always()
