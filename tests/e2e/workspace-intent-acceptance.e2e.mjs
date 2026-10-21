@@ -10,6 +10,16 @@ function requiredEnv(name) {
   return value;
 }
 
+async function safeAuthenticatedRequest(label, requestFn) {
+  try {
+    return await requestFn();
+  } catch {
+    // Playwright's default transport error includes request headers, including the
+    // Supabase session cookie. Never propagate that low-level error into CI logs.
+    throw new Error(label + " failed or timed out; detailed transport diagnostics were suppressed to protect session credentials.");
+  }
+}
+
 function accessTokenFromContextCookies(cookies, projectRef) {
   const baseName = "sb-" + projectRef + "-auth-token";
   const baseCookie = cookies.find((cookie) => cookie.name === baseName);
@@ -906,12 +916,14 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     page = await context.newPage();
     await signIn(page, userAEmail, userAPassword);
 
-    const projectResponse = await page.request.post("/api/projects", {
-      data: {
-        name: projectName,
-        problemStatement: "Opt-in E2E: verify one accepted CAD result and its atomic durable audit, using disposable artifacts.",
-      },
-    });
+    const projectResponse = await safeAuthenticatedRequest("Disposable accepted-CAD project creation", () =>
+      page.request.post("/api/projects", {
+        data: {
+          name: projectName,
+          problemStatement: "Opt-in E2E: verify one accepted CAD result and its atomic durable audit, using disposable artifacts.",
+        },
+      }),
+    );
     expect(projectResponse.status(), "disposable project creation must succeed in the isolated E2E project").toBe(201);
     const projectBody = await projectResponse.json();
     projectId = projectBody.project?.id;
@@ -920,7 +932,9 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
 
     // The production readiness helper caps remote Render cold-start probing at 45 s.
     // Give the API request bounded headroom beyond that probe, rather than the 15 s default.
-    const readinessResponse = await page.request.get("/api/cad/readiness?projectId=" + encodeURIComponent(projectId), { timeout: 60_000 });
+    const readinessResponse = await safeAuthenticatedRequest("CAD readiness probe", () =>
+      page.request.get("/api/cad/readiness?projectId=" + encodeURIComponent(projectId), { timeout: 60_000 }),
+    );
     const readinessBody = await readinessResponse.json();
     diagnostics.readiness = { status: readinessResponse.status(), body: readinessBody };
     expect(
@@ -929,23 +943,27 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     ).toBe(200);
     expect(readinessBody).toMatchObject({ projectId, ready: true, status: "READY" });
 
-    const modelResponse = await page.request.post("/api/cad/models", {
-      data: { projectId, name: "E2E accepted cylindrical shaft " + suffix },
-    });
+    const modelResponse = await safeAuthenticatedRequest("CAD model identity creation", () =>
+      page.request.post("/api/cad/models", {
+        data: { projectId, name: "E2E accepted cylindrical shaft " + suffix },
+      }),
+    );
     expect(modelResponse.status(), "a project-scoped CAD model identity should be created").toBe(201);
     const modelBody = await modelResponse.json();
     modelIdentityId = modelBody.model?.id;
     diagnostics.modelIdentityId = modelIdentityId;
     expect(modelIdentityId).toMatch(/^[0-9a-f-]{36}$/i);
 
-    const completionResponse = await page.request.post("/api/cad/completions", {
-      data: {
-        projectId,
-        modelIdentityId,
-        rawIntent: "Create a cylindrical shaft with a diameter of 30 mm and a length of 200 mm.",
-      },
-      timeout: 180_000,
-    });
+    const completionResponse = await safeAuthenticatedRequest("Live accepted CAD completion", () =>
+      page.request.post("/api/cad/completions", {
+        data: {
+          projectId,
+          modelIdentityId,
+          rawIntent: "Create a cylindrical shaft with a diameter of 30 mm and a length of 200 mm.",
+        },
+        timeout: 180_000,
+      }),
+    );
     const completionBody = await completionResponse.json();
     const completion = completionBody?.completion;
     diagnostics.completionId = completion?.id ?? null;
@@ -997,17 +1015,23 @@ test("OPT-IN live accepted CAD completion persists artifacts and independently v
     const signedUrls = completionBody.signedUrls;
     expect(typeof signedUrls?.[solidPath]).toBe("string");
     expect(signedUrls[solidPath]).toMatch(/^https:\/\//);
-    const downloadedSolid = await page.request.get(signedUrls[solidPath], { timeout: 60_000 });
+    const downloadedSolid = await safeAuthenticatedRequest("Persisted BREP readback", () =>
+      page.request.get(signedUrls[solidPath], { timeout: 60_000 }),
+    );
     expect(downloadedSolid.ok(), "the short-lived private signed URL must read the stored BREP bytes").toBe(true);
     const downloadedDigest = createHash("sha256").update(await downloadedSolid.body()).digest("hex");
     expect(downloadedDigest).toBe(receipt.artifactSha256);
 
-    const historyResponse = await page.request.get("/api/cad/completions?projectId=" + encodeURIComponent(projectId));
+    const historyResponse = await safeAuthenticatedRequest("CAD completion history readback", () =>
+      page.request.get("/api/cad/completions?projectId=" + encodeURIComponent(projectId)),
+    );
     expect(historyResponse.status()).toBe(200);
     const historyBody = await historyResponse.json();
     expect((historyBody.completions ?? []).some((item) => item.id === completion.id && item.status === "ACCEPTED")).toBe(true);
 
-    const auditResponse = await page.request.get("/api/engineering/audit?projectId=" + encodeURIComponent(projectId) + "&limit=200");
+    const auditResponse = await safeAuthenticatedRequest("Durable audit-chain readback", () =>
+      page.request.get("/api/engineering/audit?projectId=" + encodeURIComponent(projectId) + "&limit=200"),
+    );
     const auditBody = await auditResponse.json();
     expect(
       auditResponse.status(),
