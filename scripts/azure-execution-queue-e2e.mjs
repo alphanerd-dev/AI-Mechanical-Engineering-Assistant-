@@ -272,8 +272,12 @@ async function cleanup() {
       project_id: "eq." + projectId,
       limit: "10"
     });
+    if (projectRows.length >= 10) {
+      fail("Temporary project contains an unexpected number of queue records; refusing broad cleanup.");
+    }
     for (const row of projectRows) {
       if (row.owner_id !== userId || row.project_id !== projectId ||
+          row.idempotency_key !== idempotencyKey() ||
           row.request?.correlationId !== correlationId() ||
           row.request?.capability !== "ANALYSIS.SHAFT_TORQUE" ||
           row.request?.backend !== "typescript-safe") {
