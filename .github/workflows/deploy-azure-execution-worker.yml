@@ -34,8 +34,56 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare_queue_e2e:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.verify_queue_e2e }}
+    name: Enqueue acceptance task through authenticated API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: cad-workspace-live-acceptance
+    outputs:
+      job_id: ${{ steps.enqueue.outputs.job_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Validate authenticated acceptance configuration
+        shell: bash
+        env:
+          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
+          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
+          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
+        run: |
+          set -euo pipefail
+          for key in CAD_WORKSPACE_BASE_URL CAD_WORKSPACE_PROJECT_ID CAD_WORKSPACE_COOKIE; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::The ${key} value is missing from the cad-workspace-live-acceptance GitHub Environment."
+              exit 1
+            fi
+          done
+          echo "Authenticated acceptance inputs are present; values are not printed."
+      - name: Enqueue via the authenticated execution API
+        id: enqueue
+        shell: bash
+        env:
+          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
+          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
+          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
+        run: |
+          set -euo pipefail
+          node --check scripts/azure-execution-queue-e2e.mjs
+          ENQUEUE_JSON="$(node scripts/azure-execution-queue-e2e.mjs enqueue-api)"
+          echo "$ENQUEUE_JSON" | jq .
+          JOB_ID="$(jq -er '.jobId' <<<"$ENQUEUE_JSON")"
+          if [[ ! "$JOB_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::Authenticated API did not return a valid job UUID."
+            exit 1
+          fi
+          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+
   deploy:
-    if: github.ref == 'refs/heads/main'
+    needs: [prepare_queue_e2e]
+    if: ${{ always() && github.ref == 'refs/heads/main' && (!inputs.verify_queue_e2e || needs.prepare_queue_e2e.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: azure-execution-worker
@@ -53,6 +101,7 @@ jobs:
       DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
       REPLACE_EMPTY_ENVIRONMENTS: ${{ inputs.replace_empty_environments }}
       VERIFY_QUEUE_E2E: ${{ inputs.verify_queue_e2e }}
+      AZURE_E2E_JOB_ID: ${{ needs.prepare_queue_e2e.outputs.job_id }}
 
     steps:
       - name: Check required deployment configuration
@@ -429,19 +478,10 @@ jobs:
             --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
             --output json
 
-          # Optional production queue acceptance test. It fails closed when the queue is busy,
-          # uses an idempotent test key, and constrains this run to one queue item.
-          E2E_JOB_ID=""
+          # The task was created through the authenticated API in a separate job.
+          # Before starting the one-shot worker, prove the test task is the only active job.
           if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
-            E2E_ENQUEUE_JSON="$(node scripts/azure-execution-queue-e2e.mjs enqueue)"
-            echo "$E2E_ENQUEUE_JSON" | jq .
-            E2E_JOB_ID="$(jq -r '.jobId' <<<"$E2E_ENQUEUE_JSON")"
-            if [[ ! "$E2E_JOB_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
-              echo "::error::Queue E2E did not return a valid job ID."
-              exit 1
-            fi
-            echo "AZURE_E2E_JOB_ID=$E2E_JOB_ID" >> "$GITHUB_ENV"
-            echo "Azure queue E2E job queued: $E2E_JOB_ID"
+            node scripts/azure-execution-queue-e2e.mjs preflight
           fi
 
           # Execute one bounded manual run when scheduling remains disabled. The worker is
@@ -495,15 +535,30 @@ jobs:
               exit 1
             fi
             if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
-              AZURE_E2E_JOB_ID="$E2E_JOB_ID" node scripts/azure-execution-queue-e2e.mjs verify
+              node scripts/azure-execution-queue-e2e.mjs verify
             fi
           else
             echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
           fi
 
-      - name: Safely cancel a failed Azure queue E2E probe
-        if: ${{ failure() && inputs.verify_queue_e2e && env.AZURE_E2E_JOB_ID != '' }}
+
+  cleanup_queue_e2e:
+    needs: [prepare_queue_e2e, deploy]
+    if: ${{ always() && inputs.verify_queue_e2e && needs.prepare_queue_e2e.result == 'success' && needs.deploy.result != 'success' }}
+    name: Cancel failed acceptance task through authenticated API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: cad-workspace-live-acceptance
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Request safe cancellation through the authenticated API
         shell: bash
         env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/azure-execution-queue-e2e.mjs cleanup
+          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
+          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
+          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
+          AZURE_E2E_JOB_ID: ${{ needs.prepare_queue_e2e.outputs.job_id }}
+        run: node scripts/azure-execution-queue-e2e.mjs cleanup-api
