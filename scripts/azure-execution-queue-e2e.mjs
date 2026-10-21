@@ -262,36 +262,76 @@ async function cleanup() {
   }
   if (!isUuid(userId)) fail("Temporary test user ID is invalid; refusing cleanup.");
   const projectId = process.env.AZURE_E2E_PROJECT_ID?.trim();
-  const jobId = process.env.AZURE_E2E_JOB_ID?.trim();
   const cookie = process.env.AZURE_E2E_COOKIE?.trim();
-  if (projectId && jobId && cookie) {
-    const before = await readJob(jobId, projectId);
-    if (before && (before.status === "QUEUED" || before.status === "RUNNING")) {
-      const cancel = await authorizedApi("DELETE",
-        "/api/execution/" + encodeURIComponent(jobId) + "?projectId=" + encodeURIComponent(projectId),
-        cookie);
-      if (!cancel.response.ok || !isRecord(cancel.body) || !isRecord(cancel.body.job)) {
-        fail("Authenticated cancellation of the temporary acceptance job failed (HTTP " + cancel.response.status + "); preserving the temporary identity for safe recovery.");
+  const service = createServiceClient();
+
+  if (projectId) {
+    if (!isUuid(projectId)) fail("Temporary project ID is invalid; refusing cleanup.");
+    const projectRows = await restRead({
+      select: "id,owner_id,project_id,idempotency_key,capability,backend,request,status",
+      project_id: "eq." + projectId,
+      limit: "10"
+    });
+    for (const row of projectRows) {
+      if (row.owner_id !== userId || row.project_id !== projectId ||
+          row.request?.correlationId !== correlationId() ||
+          row.request?.capability !== "ANALYSIS.SHAFT_TORQUE" ||
+          row.request?.backend !== "typescript-safe") {
+        fail("Refusing to clean the temporary project because it contains a row outside this acceptance run's scope.");
       }
-      let latest = cancel.body.job;
-      for (let attempt = 0; attempt < 36 && (latest.status === "QUEUED" || latest.status === "RUNNING"); attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        const polled = await authorizedApi("GET",
-          "/api/execution/" + encodeURIComponent(jobId) + "?projectId=" + encodeURIComponent(projectId),
-          cookie);
-        if (!polled.response.ok || !isRecord(polled.body) || typeof polled.body.status !== "string") {
-          fail("Could not confirm terminal state for the temporary acceptance job; preserving the temporary identity for safe recovery.");
+      if (row.status === "QUEUED" || row.status === "RUNNING") {
+        if (!cookie) fail("Cannot safely cancel the temporary queue item because its authenticated session cookie is missing.");
+        const cancellation = await authorizedApi(
+          "DELETE",
+          "/api/execution/" + encodeURIComponent(row.id) + "?projectId=" + encodeURIComponent(projectId),
+          cookie
+        );
+        if (!cancellation.response.ok || !isRecord(cancellation.body) ||
+            !isRecord(cancellation.body.job) || cancellation.body.job.id !== row.id) {
+          fail("Authenticated cancellation failed for the temporary acceptance job; preserving the project and identity for safe recovery.");
         }
-        latest = polled.body;
-      }
-      if (latest.status === "QUEUED" || latest.status === "RUNNING") {
-        fail("Temporary acceptance job did not reach a terminal state within 180 seconds after cancellation; preserving the user/project rather than deleting a live lease.");
+        let latest = cancellation.body.job;
+        for (let attempt = 0; attempt < 36 && (latest.status === "QUEUED" || latest.status === "RUNNING"); attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          latest = await readJob(row.id, projectId);
+          if (!latest) break;
+        }
+        if (latest && (latest.status === "QUEUED" || latest.status === "RUNNING")) {
+          fail("Temporary acceptance job did not reach a terminal state within 180 seconds after cancellation; preserving the project and identity rather than deleting a live lease.");
+        }
       }
     }
+
+    // The project owner FK is RESTRICT, not CASCADE. Delete this run's project only
+    // after all its execution jobs are terminal; child rows such as jobs, workspace
+    // snapshots and memberships cascade from the project.
+    const removedProject = await service.from("engineering_projects")
+      .delete()
+      .eq("id", projectId)
+      .eq("owner_id", userId)
+      .select("id")
+      .maybeSingle();
+    if (removedProject.error) {
+      fail("Could not remove the temporary acceptance project after queue cleanup; preserving the test identity.");
+    }
+    if (removedProject.data && removedProject.data.id !== projectId) {
+      fail("Project cleanup returned an unexpected ID; preserving the test identity.");
+    }
   }
-  const result = await createServiceClient().auth.admin.deleteUser(userId);
-  if (result.error) fail("Could not delete the temporary acceptance identity and its owned test project.");
-  console.log("Azure queue E2E cleanup passed: temporary test identity removed after queue terminal state.");
+
+  const existingUser = await service.auth.admin.getUserById(userId);
+  if (existingUser.error) {
+    const status = existingUser.error.status;
+    const code = existingUser.error.code;
+    if (status === 404 || code === "user_not_found") {
+      console.log("Azure queue E2E cleanup: temporary identity and project were already removed.");
+      return;
+    }
+    fail("Could not verify the temporary test identity state; manual cleanup may be required.");
+  }
+  const removedUser = await service.auth.admin.deleteUser(userId);
+  if (removedUser.error) fail("Could not delete the temporary acceptance identity after project cleanup.");
+  console.log("Azure queue E2E cleanup passed: test job terminal, temporary project removed, temporary identity deleted.");
 }
 async function main() {
   switch (process.argv[2]) {
