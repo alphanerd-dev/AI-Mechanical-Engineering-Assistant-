@@ -1,0 +1,254 @@
+name: Run bounded engineering execution worker on Azure Container Instances (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_jobs:
+        description: "Maximum jobs to claim in this one-shot run (1-5)"
+        type: number
+        required: true
+        default: 1
+      max_runtime_ms:
+        description: "Maximum worker runtime in milliseconds (1000-240000)"
+        type: number
+        required: true
+        default: 180000
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: azure-aci-execution-worker
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: azure-execution-worker
+    env:
+      IMAGE: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'italynorth' }}
+      AZURE_ALLOWED_LOCATIONS: ${{ vars.AZURE_ALLOWED_LOCATIONS || '' }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mepmogsqhxxasahwhete.supabase.co' }}
+      EXECUTION_WORKER_MAX_JOBS: ${{ inputs.max_jobs }}
+      EXECUTION_WORKER_MAX_RUNTIME_MS: ${{ inputs.max_runtime_ms }}
+      EXECUTION_WORKER_MODE: drain
+      EXECUTION_WORKER_POLL_INTERVAL_MS: "1000"
+      EXECUTION_WORKER_LEASE_SECONDS: "45"
+      EXECUTION_WORKER_HEARTBEAT_MS: "10000"
+      EXECUTION_WORKER_ID: aci-${{ github.run_id }}-${{ github.run_attempt }}
+      ACI_GROUP_NAME: engineering-execution-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Validate bounded run and Azure configuration
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY AZURE_ALLOWED_LOCATIONS AZURE_LOCATION; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Missing required GitHub environment variable or secret: $key"
+              exit 1
+            fi
+          done
+          if [[ "$SUPABASE_URL" != https://*.supabase.co ]]; then
+            echo "::error::SUPABASE_URL must be an HTTPS Supabase project URL."
+            exit 1
+          fi
+          if [[ ! "$EXECUTION_WORKER_MAX_JOBS" =~ ^[1-5]$ ]]; then
+            echo "::error::max_jobs must be an integer from 1 through 5."
+            exit 1
+          fi
+          if [[ ! "$EXECUTION_WORKER_MAX_RUNTIME_MS" =~ ^[0-9]+$ ]] || (( EXECUTION_WORKER_MAX_RUNTIME_MS < 1000 || EXECUTION_WORKER_MAX_RUNTIME_MS > 240000 )); then
+            echo "::error::max_runtime_ms must be between 1000 and 240000."
+            exit 1
+          fi
+          if [[ -n "${PYTHON_WORKER_URL:-}" && -z "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+            echo "::error::PYTHON_WORKER_URL requires the matching PYTHON_WORKER_API_TOKEN secret."
+            exit 1
+          fi
+          if [[ -z "${PYTHON_WORKER_URL:-}" && -n "${PYTHON_WORKER_API_TOKEN:-}" ]]; then
+            echo "::error::PYTHON_WORKER_API_TOKEN cannot be set without PYTHON_WORKER_URL."
+            exit 1
+          fi
+          ALLOWED_LOCATIONS_JSON="$(jq -Rn --arg locations "$AZURE_ALLOWED_LOCATIONS" '$locations | split(",") | map(ascii_downcase | gsub("[[:space:]]"; "")) | map(select(length > 0)) | unique')"
+          if [[ "$ALLOWED_LOCATIONS_JSON" == "[]" ]] || ! jq -e --arg region "$AZURE_LOCATION" 'index($region | ascii_downcase) != null' <<<"$ALLOWED_LOCATIONS_JSON" >/dev/null; then
+            echo "::error::AZURE_LOCATION '$AZURE_LOCATION' must exactly match one of the subscription's configured permitted region identifiers."
+            echo "Configured permitted regions: $ALLOWED_LOCATIONS_JSON"
+            exit 1
+          fi
+          if [[ ! "$ACI_GROUP_NAME" =~ ^[a-z][a-z0-9-]{1,62}[a-z0-9]$ ]]; then
+            echo "::error::Generated Azure Container Instance group name is invalid."
+            exit 1
+          fi
+          echo "Validated bounded worker configuration in approved region '$AZURE_LOCATION'. Automatic scheduling is not configured."
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build and publish bounded execution worker image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: worker/execution/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Require a publicly pullable image before Azure execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          docker pull "$IMAGE"
+
+      - name: Sign in to Azure using workload identity federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run one bounded worker drain in Azure Container Instances
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
+          PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          az group show --name "$AZURE_RESOURCE_GROUP" --output none
+
+          ALLOWED_LOCATIONS_JSON="$(jq -Rn --arg locations "$AZURE_ALLOWED_LOCATIONS" '$locations | split(",") | map(ascii_downcase | gsub("[[:space:]]"; "")) | map(select(length > 0)) | unique')"
+          if ! jq -e --arg region "$AZURE_LOCATION" 'index($region | ascii_downcase) != null' <<<"$ALLOWED_LOCATIONS_JSON" >/dev/null; then
+            echo "::error::Azure execution stopped: region '$AZURE_LOCATION' is not in the configured subscription allowlist."
+            exit 1
+          fi
+
+          if az container show --name "$ACI_GROUP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+            echo "::error::The run-specific Azure Container Instance group '$ACI_GROUP_NAME' already exists. Refusing to reuse or delete an unowned group."
+            exit 1
+          fi
+
+          GROUP_CREATED=false
+          cleanup() {
+            local result=$?
+            trap - EXIT
+            if [[ "$GROUP_CREATED" == "true" ]]; then
+              echo "Cleaning up this run's one-shot Azure Container Instance group to avoid residual resource charges."
+              az container delete --name "$ACI_GROUP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --yes --only-show-errors --output none || echo "::warning::Could not delete run-owned group '$ACI_GROUP_NAME'; remove it after inspecting its state."
+            fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+
+          secure_env_vars=(
+            "SUPABASE_URL=$SUPABASE_URL"
+            "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
+            "EXECUTION_WORKER_MODE=drain"
+            "EXECUTION_WORKER_MAX_JOBS=$EXECUTION_WORKER_MAX_JOBS"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=$EXECUTION_WORKER_MAX_RUNTIME_MS"
+            "EXECUTION_WORKER_POLL_INTERVAL_MS=$EXECUTION_WORKER_POLL_INTERVAL_MS"
+            "EXECUTION_WORKER_LEASE_SECONDS=$EXECUTION_WORKER_LEASE_SECONDS"
+            "EXECUTION_WORKER_HEARTBEAT_MS=$EXECUTION_WORKER_HEARTBEAT_MS"
+            "EXECUTION_WORKER_ID=$EXECUTION_WORKER_ID"
+          )
+          if [[ -n "${PYTHON_WORKER_URL:-}" ]]; then
+            secure_env_vars+=("PYTHON_WORKER_URL=$PYTHON_WORKER_URL")
+            secure_env_vars+=("PYTHON_WORKER_API_TOKEN=$PYTHON_WORKER_API_TOKEN")
+          fi
+
+          echo "Creating an ephemeral Linux container group in approved region '$AZURE_LOCATION'; restart policy is Never, with no public IP and no recurring schedule."
+          if az container create --resource-group "$AZURE_RESOURCE_GROUP" --name "$ACI_GROUP_NAME" --location "$AZURE_LOCATION" --image "$IMAGE" --os-type Linux --cpu 1 --memory 2 --restart-policy Never --secure-environment-variables "${secure_env_vars[@]}" --only-show-errors --output none; then
+            GROUP_CREATED=true
+          else
+            if az container show --name "$ACI_GROUP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output none 2>/dev/null; then
+              GROUP_CREATED=true
+            fi
+            echo "::error::Azure Container Instances failed to create or start the one-shot worker group."
+            exit 1
+          fi
+
+          GROUP_STATE="Unknown"
+          GROUP_JSON=""
+          for attempt in $(seq 1 96); do
+            GROUP_JSON="$(az container show --name "$ACI_GROUP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output json)"
+            GROUP_STATE="$(jq -r '.properties.instanceView.state // .instanceView.state // "Unknown"' <<<"$GROUP_JSON")"
+            echo "Azure Container Instance group state check $attempt/96: $GROUP_STATE"
+            case "${GROUP_STATE,,}" in
+              succeeded|failed|stopped)
+                break
+                ;;
+            esac
+            sleep 5
+          done
+
+          LOG_FILE="$(mktemp)"
+          set +e
+          az container logs --name "$ACI_GROUP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" >"$LOG_FILE" 2>&1
+          LOG_STATUS=$?
+          set -e
+          cat "$LOG_FILE"
+
+          if [[ "${GROUP_STATE,,}" != "succeeded" ]]; then
+            echo "::error::Azure Container Instance group did not finish successfully. Final state: $GROUP_STATE."
+            az container show --name "$ACI_GROUP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --query '{groupState:properties.instanceView.state,provisioningState:properties.provisioningState,containerState:properties.containers[0].properties.instanceView.currentState.state,exitCode:properties.containers[0].properties.instanceView.currentState.exitCode}' --output json || true
+            rm -f "$LOG_FILE"
+            exit 1
+          fi
+          if [[ "$LOG_STATUS" -ne 0 ]]; then
+            echo "::error::Azure Container Instances completed, but its logs could not be retrieved for execution evidence."
+            rm -f "$LOG_FILE"
+            exit 1
+          fi
+
+          EXIT_CODE="$(jq -r '.properties.containers[0].properties.instanceView.currentState.exitCode // .containers[0].properties.instanceView.currentState.exitCode // empty' <<<"$GROUP_JSON")"
+          if [[ -n "$EXIT_CODE" && "$EXIT_CODE" != "0" ]]; then
+            echo "::error::Worker container exited with non-zero exit code $EXIT_CODE."
+            rm -f "$LOG_FILE"
+            exit 1
+          fi
+
+          RESULT_LINE="$(grep -F '"event":"execution_worker_drain_finished"' "$LOG_FILE" | tail -n 1 || true)"
+          if [[ -z "$RESULT_LINE" ]]; then
+            echo "::error::Worker exited without the execution_worker_drain_finished evidence record."
+            rm -f "$LOG_FILE"
+            exit 1
+          fi
+          PROCESSED_JOBS="$(printf '%s' "$RESULT_LINE" | jq -er '.processedJobs | numbers')"
+          if [[ ! "$PROCESSED_JOBS" =~ ^[0-5]$ ]]; then
+            echo "::error::Worker evidence contains an invalid processedJobs value."
+            rm -f "$LOG_FILE"
+            exit 1
+          fi
+          rm -f "$LOG_FILE"
+          echo "Azure one-shot worker completed successfully. processed_jobs=$PROCESSED_JOBS"
+          echo "## Azure Container Instances worker run" >>"$GITHUB_STEP_SUMMARY"
+          echo "- Region: $AZURE_LOCATION" >>"$GITHUB_STEP_SUMMARY"
+          echo "- Bounded maximum jobs: $EXECUTION_WORKER_MAX_JOBS" >>"$GITHUB_STEP_SUMMARY"
+          echo "- Processed jobs: $PROCESSED_JOBS" >>"$GITHUB_STEP_SUMMARY"
+          echo "- Runtime limit: $EXECUTION_WORKER_MAX_RUNTIME_MS ms" >>"$GITHUB_STEP_SUMMARY"
+          echo "- Group lifecycle: run once; group deleted by workflow cleanup" >>"$GITHUB_STEP_SUMMARY"
+          if [[ "$PROCESSED_JOBS" -eq 0 ]]; then
+            echo "::notice::No queued jobs were available. Worker startup and drain evidence succeeded, but no job was processed."
+          fi
