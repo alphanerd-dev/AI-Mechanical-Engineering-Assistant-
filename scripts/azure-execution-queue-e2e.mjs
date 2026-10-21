@@ -37,7 +37,9 @@ function getSupabaseConfig() {
   return { url, serviceKey, publishableKey };
 }
 function createServiceClient() {
-  const { url, serviceKey } = getSupabaseConfig();
+  const url = requiredEnv("SUPABASE_URL");
+  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url.startsWith("https://")) fail("SUPABASE_URL must use HTTPS.");
   return createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   });
