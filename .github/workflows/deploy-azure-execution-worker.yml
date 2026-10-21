@@ -192,10 +192,10 @@ jobs:
               continue
             fi
 
-            candidate_profile_count="$(az containerapp env workload-profile list \\
-              --name "$candidate_name" \\
-              --resource-group "$candidate_resource_group" \\
-              --query 'length(@)' \\
+            candidate_profile_count="$(az containerapp env workload-profile list \
+              --name "$candidate_name" \
+              --resource-group "$candidate_resource_group" \
+              --query 'length(@)' \
               --output tsv 2>/dev/null || true)"
             if [[ "$candidate_profile_count" =~ ^[1-9][0-9]*$ ]]; then
               COMPATIBLE_ENVIRONMENT_COUNT=$((COMPATIBLE_ENVIRONMENT_COUNT + 1))
@@ -221,19 +221,19 @@ jobs:
             exit 1
           else
             echo "No existing Container Apps environment was returned. Creating the requested workload-profile environment in the configured approved region."
-            az containerapp env create \\
-              --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \\
-              --resource-group "$AZURE_RESOURCE_GROUP" \\
-              --location "$AZURE_LOCATION" \\
-              --environment-mode WorkloadProfiles \\
+            az containerapp env create \
+              --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --location "$AZURE_LOCATION" \
+              --environment-mode WorkloadProfiles \
               --only-show-errors
           fi
 
           # Fail early if the selected or newly created environment cannot host Container Apps Jobs.
-          if ! PROFILE_COUNT="$(az containerapp env workload-profile list \\
-            --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \\
-            --resource-group "$AZURE_RESOURCE_GROUP" \\
-            --query 'length(@)' \\
+          if ! PROFILE_COUNT="$(az containerapp env workload-profile list \
+            --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query 'length(@)' \
             --output tsv 2>/dev/null)" || [[ ! "$PROFILE_COUNT" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::The Azure Container Apps environment '$AZURE_CONTAINERAPPS_ENVIRONMENT' does not expose workload profiles and cannot host Container Apps Jobs. No existing environment was deleted."
             exit 1
