@@ -1,57 +1,66 @@
-# Reasoning Model Provider Stack
+# Conversational AI and Model Provider Stack
+
+**Decision reviewed:** 22 October 2026  
+**Status:** Selected stack; repository integration remains planned work.
 
 ## Decision
 
-Keep the provider-neutral `ModelReasoningGenerator` interface and the existing server-side Chat Completions-compatible transport for the first live-provider acceptance. Do not add a new model SDK or gateway solely to make the first real request.
+Implement the conversational AI experience using:
 
-The current implementation already supports a configured HTTP endpoint, model identifier, optional bearer credential, bounded timeout, JSON-object response mode, and response parsing. Its response remains untrusted input and is passed to the existing controlled reasoning service. That service continues to own proposal validation and record creation.
+- **assistant-ui** for the chat interface and client-side conversation UX.
+- **Vercel AI SDK** for model integration, streaming and typed tool calls.
+- **A configurable OpenAI-compatible hosted endpoint** for initial model access.
+- **Next.js server routes** as the authenticated boundary.
+- **Supabase** for existing project authorization, workspace context and conversation persistence.
+- **The existing Engineering Core** for capability routing, deterministic execution, validation, evidence and approvals.
 
-## Evaluated options
+The selected provider is an OpenAI-compatible endpoint, not Vercel AI Gateway. The hosted model has not been chosen yet; lowest practical API cost is the priority, subject to benchmarked tool correctness, engineering-task quality, latency and reliability.
 
-### Direct HTTP transport — use now
+The SDK and UI library are integration components. They do not replace authorization, domain policy, deterministic execution or independent validation.
 
-- No additional SDK dependency.
-- Endpoint, model, and credential remain server-side configuration.
-- Injected `fetch` makes transport behavior straightforward to test.
-- Requires a Chat Completions-compatible request and response shape.
+## Existing transport is not streaming chat
 
-Reference: https://platform.openai.com/docs/api-reference/chat
+The repository currently has a server-side structured reasoning transport configured through the ENGINEERING_REASONING_MODEL_* variables and a separate optional intent-interpreter transport configured through the ENGINEERING_INTENT_MODEL_* variables. The existing reasoning transport requests a structured proposal; the intent transport returns structured interpretation. Neither is equivalent to a complete streaming conversational API.
 
-### Vercel AI SDK — revisit when required
+During implementation, define a canonical server-side configuration contract and a tested adapter for any legacy configuration names. Avoid creating conflicting model selections for chat, intent interpretation and structured proposal work where the same endpoint can safely serve those needs. Preserve existing contracts until migration tests demonstrate parity.
 
-A strong candidate if the product needs more provider adapters, provider-native structured generation, streaming, tool integration, or consistent usage metadata. If adopted, implement it behind `ModelReasoningGenerator` and retain JSON Schema/Ajv as the canonical acceptance boundary. It must not create a path around controlled capability execution.
+Never accept an endpoint, credential or privileged model-selection override from an ordinary browser request. Production endpoints must use HTTPS and a deployment-owned allowlist. Reject endpoint configurations that could access unintended internal services. Credentials must not use NEXT_PUBLIC_ names or appear in client bundles, logs, prompts, evidence artifacts or error responses.
 
-Reference: https://ai-sdk.dev/docs
+## Model-selection and cost policy
 
-### LiteLLM gateway — defer until centralized operations are needed
+1. Compare current provider pricing for input, output, cached tokens and any other billed features relevant to candidates.
+2. Build a fixed task set that includes normal conversation, ambiguous requests, missing dimensions/material/load inputs, tool-call selection, structured output, refusal/unsupported work, timeout recovery and concise result explanation.
+3. Score task correctness and required-input behavior before comparing cost; exclude candidates that fabricate evidence, validation or approval state.
+4. Track measured tokens and latency when returned reliably, plus failures, retries and tool-call success. Do not invent cost numbers when provider usage/pricing data is unavailable.
+5. Choose the least expensive model meeting the predeclared quality, latency and reliability thresholds. Re-run the benchmark after changing the default model.
+6. Bound message history, output tokens, request duration, retries and per-user/project usage. Keep deterministic calculation and CAD/FEA execution outside the model.
 
-Consider a gateway when organization-level model routing, budgets, rate limits, provider fallback, centralized access control, or shared usage reporting become real requirements. It adds a separately operated service and is unnecessary solely to proxy the first provider.
+## Controlled tool boundary
 
-Reference: https://docs.litellm.ai/docs/
+The model can request a typed, allowlisted capability, but the server independently authenticates the user, checks project membership and role, validates the tool schema and applies capability risk/approval policy.
 
-### OpenTelemetry — stage after a telemetry destination is selected
+Tool output should be returned to the conversation as structured, source-linked results. The model cannot invent an artifact ID, trusted provider identity, validation receipt, evidence ID or approval decision. Mutating calls need idempotency and safe retry semantics. Untrusted model output remains a proposal until the existing engineering service accepts it.
 
-OpenTelemetry is the preferred standards-based foundation for traces and metrics. A collector/exporter and a production telemetry destination have not yet been selected, so SDK instrumentation is deferred until the application can consume it operationally.
+Never expose unrestricted Python, shell, SQL, filesystem, network or arbitrary provider URLs as chat tools. CAD and solver runtimes remain in bounded isolated workers.
 
-The current live acceptance harness records a redacted evidence result containing outcome, deployment revision, model identifier, timestamp, duration, reasoning status, and validation status. It does not store API keys, raw prompts, or full model output. Reasoning records also preserve host-authored provider ID, model ID, and deployment revision, and the workspace displays that provenance beside the proposal. Proposal evidence references must match a server-supplied allowlist; the current API route supplies an empty list until authoritative artifact/evidence-registry lookup is connected, so model-invented evidence IDs are rejected.
+## Streaming and conversation requirements
 
-Reference: https://opentelemetry.io/docs/languages/js/
+- Secure streamed text and typed tool-call lifecycle; explicit loading, cancellation and error state.
+- Project-scoped history restored through authorized server APIs and existing revision/conflict protection.
+- Bounded context: use authorized project facts and artifact references, not an indiscriminate dump of project records or raw storage URLs.
+- Reliable persistence and recovery after aborted streams, provider timeouts, invalid responses and conflicting revisions.
+- No duplicate execution when a tool call, client request or network response is retried.
+- Explicit states for NEEDS_INPUT, UNSUPPORTED, BLOCKED, FAILED, EXECUTED, VALIDATED, VERIFIED and WAITING_APPROVAL wherever those states are returned by the engineering API.
+- Usage/latency telemetry with secret and sensitive-content redaction.
 
-## Live-provider acceptance workflow
+## Acceptance distinction
 
-The manually triggered `.github/workflows/reasoning-model-live-acceptance.yml` workflow invokes `scripts/reasoning-model-live-acceptance.ts` from `main` only. It calls the configured provider, routes the response through the controlled reasoning service, and uploads a redacted result for 14 days.
+The existing Live Reasoning Model Acceptance workflow tests a bounded structured proposal path and its provider provenance. It is not proof that streamed chat, assistant-ui, tool execution, long conversations or chat recovery work.
 
-Configure a GitHub Environment named `reasoning-model-acceptance` with:
+Add dedicated tests for streaming, endpoint/model compatibility, client abort, limits, authorization, tool allowlisting, duplicate requests, evidence spoofing, conversation persistence and model-cost measurement. The live provider acceptance workflow must test only its documented contract; do not claim production readiness from ordinary unit tests.
 
-| Name | Type | Required | Purpose |
-|---|---|---:|---|
-| `ENGINEERING_REASONING_MODEL_URL` | Environment variable | Yes | Approved Chat Completions-compatible endpoint |
-| `ENGINEERING_REASONING_MODEL_NAME` | Environment variable | Yes | Model identifier accepted by the endpoint |
-| `ENGINEERING_REASONING_MODEL_TIMEOUT_MS` | Environment variable | No | Integer from 1000 to 120000; blank uses 45000 |
-| `ENGINEERING_REASONING_MODEL_API_KEY` | Environment secret | Provider-dependent | Server-side bearer token |
+## References
 
-Restrict the environment to the `main` branch. Add required reviewer approval if the deployment policy calls for it. The workflow uses read-only repository permissions and has no pull-request trigger.
-
-After setting up the environment, open **Actions → Live Reasoning Model Acceptance → Run workflow** and select `main`. Success requires a valid `PROPOSED` record through controlled validation, trusted identity preservation, `NOT_PERFORMED` validation status, unchanged `PROPOSED` task state, and the mandatory advisory limitation.
-
-Green ordinary CI proves deterministic tests/builds passed; it does not replace a successful live-provider acceptance run.
+- [Vercel AI SDK documentation](https://ai-sdk.dev/docs)
+- [AI SDK OpenAI-compatible providers](https://ai-sdk.dev/providers/openai-compatible-providers)
+- [assistant-ui AI SDK integration](https://www.assistant-ui.com/docs/integrations/frameworks/ai-sdk)

@@ -1,134 +1,99 @@
 # Architecture and Trust Boundaries
 
-**Status:** Current architecture contract, reviewed 22 October 2026. This document distinguishes implemented behavior from target state; deployment readiness requires exact-revision live acceptance evidence.
+**Reviewed:** 22 October 2026  
+**Status:** Current architecture contract. Production readiness must be demonstrated on the exact source, deployment and worker revisions.
 
-## Active implementation sequence
-
-The authoritative current milestones and exit gates are in [Implementation Plan](implementation-plan.md). This architecture document defines boundaries; it is not a release-status report.
+See the [Product Brief](product-brief.md) for the agreed experience and the [Implementation Plan](implementation-plan.md) for current milestones and blockers.
 
 ## Product principle
 
-> **Engineering outcomes, not engineering overhead.**
+**Engineering outcomes, not engineering overhead.** Reduce the total work and cost required to produce a usable, defensible engineering outcome. Fit into the engineer's workflow, automate coordination and checking where reliable, and bring a human in when material judgment, approval or missing information requires it.
 
-Turn engineering intent into a usable, evidence-backed result with less manual work, less rework, and lower total cost. Fit into the engineer's workflow. Automate coordination, execution, checking, and documentation where the current capability can do so reliably. Bring the engineer in when judgment, approval, or missing information genuinely matters.
+Core invariants:
 
-The user-facing outcome is: **âI stated the problem. I got a checked result and a clear decision.â** This is a direction and acceptance standard, not a claim that every domain or provider is supported today.
+- **AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.**
+- **Fast by default. Rigorous when it matters. Explicit when risk increases.**
+- **Never claim success without evidence.**
 
-See [Product Doctrine](product-doctrine.md) for the full product promise, product-led adoption loop, feature acceptance gate, economics, and validation requirements.
-
-## Core engineering invariants
-
-> **AI proposes. Deterministic systems execute. Validation decides. Evidence proves.**
-
-> **Fast by default. Rigorous when it matters. Explicit when risk increases.**
-
-> **NEVER CLAIM SUCCESS WITHOUT EVIDENCE.**
-
-Provider availability, a successful process exit, an LLM response, or a stored artifact is not by itself engineering verification. Validation proves only what its checks and evidence contract cover; it does not replace sound requirements, adequate physical models, or human judgment where required.
+A plausible model response, completed process, successful schema parse, stored artifact or rendered visualization is not proof of engineering validity.
 
 ## System view
 
-```text
-User
-  |
-  v
-Next.js Engineering Workspace (session, project context, explicit UX states)
-  |
-  v
-Server API / authorization / input contracts
-  |
-  v
-Engineering Core
-  |-- project state, requirements, memory
-  |-- intent normalization and bounded workflow orchestration
-  |-- capability catalog + capability router
-  |
-  v
-Provider interfaces (deterministic execution adapters)
-  |-- calculations / units
-  |-- CAD generation and execution
-  |-- geometry validation
-  |-- simulation / FEA
-  |-- research retrieval
-  |-- manufacturing / PLM (when provisioned)
-  |
-  v
-Validation gates -> artifact + provenance -> evidence records
-  |
-  v
-Authorized approval when required -> project state transition
-```
+Engineering user
+→ Next.js Engineering Workspace (conversation, project context, decisions, artifacts and viewers)
+→ authenticated server API and request contracts
+→ Engineering Core (intent, context, requirements, state and capability policy)
+→ capability router
+→ deterministic providers and bounded workers
+→ independent validation and evidence/provenance
+→ authorized approval or next action.
 
-The user interface is not an authority for project ownership or engineering validity. The server resolves the authenticated identity and project membership before reading or mutating project-scoped records. Client-supplied labels, provider IDs, filesystem paths, and claims such as `valid: true` are not trusted evidence.
+Supabase provides identity/session integration, project and workspace persistence, database authorization and private artifact storage where configured. External CAD, solver, research, robotics and PLM systems remain provider adapters with explicit runtime and acceptance requirements.
 
-## Product-to-system contract
+## Conversational AI boundary
 
-The product's primary path is organized around the engineer's work, not the internal module order:
+The selected conversational stack is assistant-ui for the user-facing chat interface, Vercel AI SDK for streaming/model integration/tool calls, and a configurable OpenAI-compatible hosted endpoint. The hosted model has not yet been selected; evaluate current pricing and representative task quality before fixing a default. Vercel AI Gateway is not the selected initial provider.
 
-`intent â trusted context â minimum material questions â bounded execution â validation and evidence â decision or safe continuation`
+The application must keep the provider endpoint and credential server-side. The client cannot choose an arbitrary URL or pass a provider secret. Model output and tool-call arguments are untrusted. Server-side code must authenticate the actor, check project membership and permissions, validate tool schemas and enforce capability/risk policy before any operation executes.
 
-- Reuse project-scoped context only after authorization and provenance checks. Context can remove questions; it never licenses invented values.
-- The UI must distinguish a pending request from an actual completion and must present structured `NEEDS_INPUT`, `WAITING_APPROVAL`, `FAILED`, and `UNSUPPORTED` outcomes as decisions or blockers when the server returns themânot disguise them as generic transport errors.
-- Preserve user input after transport, authorization, provider, persistence, or validation failures. Retry only when safe; do not repeat non-idempotent side effects blindly.
-- Decision-ready responses expose only claims supported by the result contract: values and units, validation status, linked evidence, assumptions/limitations, blockers, and next action where available.
-- Measure cost per accepted outcome from trustworthy execution and product telemetry plus validated user/task baselines. Do not add an analytics store or cost-estimation precision merely for symmetry; first reuse existing run IDs, provider metadata, audit, and evidence seams.
-- Low-risk UX shortcuts may reduce ceremony but cannot bypass resource authorization, deterministic validation, evidence gates, or required human approvals.
+The model may interpret intent, discuss trade-offs, ask for missing inputs, explain results and request allowlisted tools. It is not the source of engineering truth. The existing structured reasoning and intent-interpreter transports must retain their contracts while the streaming endpoint is added and configuration is consolidated through tested adapters.
 
-The exact completion boundary remains capability-specific. See the acceptance and exclusions in each capability's documentation before making a product-wide claim.
+Do not expose arbitrary Python, shell, SQL, filesystem access, unrestricted network access or arbitrary provider endpoints as conversational tools. Do not introduce a graph/agent framework or another job queue unless a measured acceptance gap justifies it.
 
-## Architectural modules and seams
+## Engineering execution boundary
 
-| Module | Responsibility | Interface / seam | Key invariant |
-|---|---|---|---|
-| Engineering Workspace | Present intent, project state, artifacts, evidence and blockers | Next.js routes and typed UI models | UI state never substitutes for server authorization |
-| Server API | Authenticate, authorize, validate request shape, orchestrate persistence | Route handlers and shared request contracts | Fail closed on missing session, role, membership or required configuration |
-| Engineering Core | Normalize intent, resolve requirements, route capabilities, coordinate state | Capability and workflow contracts | Domain policy remains independent of vendor-specific SDKs |
-| Capability Router | Select eligible provider from trusted policy and host availability | Capability + provider contracts | Mock/planned/unavailable providers are not silently promoted |
-| Provider adapters | Translate a capability into a provider-specific operation | Narrow, typed adapter interface | Adapter does not make the final verification decision |
-| Execution workers | Run CAD/solver code with bounded resources | JSON/job contract over isolated process/container | No arbitrary generated code in the Next.js/Node process |
-| Validation | Independently check domain-specific acceptance criteria | Validator result/receipt contract | Missing, mismatched or contradictory evidence fails closed |
-| Artifact and evidence layer | Persist artifact bytes, provenance, receipts and trace links | Artifact/evidence records and storage adapter | Evidence binds to the exact artifact and execution lineage |
-| Approval and project-state transition | Record authorized human decision and reason | Approval contract | Approval cannot bypass failed validation |
+The Engineering Core requests capabilities such as shaft torque, bounded CAD creation or static structural analysis, not raw vendor commands. The capability catalog states purpose, inputs, outputs, risk, candidate providers and maturity.
 
-Prefer deep modules: a small, explicit interface should hide the complexity of provider execution, normalization, validation and persistence. Add a new seam when a real variation exists or a second adapter makes the seam concrete; do not add pass-through abstractions merely for symmetry.
+Provider adapters translate typed requests into external calls. Adapters do not decide engineering verification or bypass policy. Runtime availability must be sourced from trusted deployment configuration and readiness checks; it must not be accepted from user input or untrusted provider output.
 
-## Data and trust flow
+Generated CAD/solver programs and untrusted file conversions execute outside the Next.js process in isolated workers. Runtime controls include allowlisted capabilities, bounded request sizes, timeouts, CPU/memory/process limits, least privilege, restricted filesystem, network policy, explicit artifact directories and cleanup. A code path or policy document alone does not prove that the deployed runtime enforces these controls.
 
-1. **Resolve identity and scope.** Authenticate on the server; verify role and membership for the requested project. Apply ownership checks to every resource operation, not only page navigation.
-2. **Normalize intent.** Parse only supported shapes and units into typed input. Ask for critical missing information; do not silently invent dimensions, material properties, constraints, or boundary conditions.
-3. **Choose a bounded workflow.** Use deterministic code for known calculation/workflow steps. A model may propose or normalize intent, but must not authoritatively mark a result verified.
-4. **Route to an eligible provider.** Availability comes from trusted host configuration/runtime checks. Provider selection and fallback are risk-sensitive and observable.
-5. **Execute in a constrained environment.** Use allowlisted capabilities, resource/time limits, least privilege, and explicit artifact roots. Docker access remains server-only and security-sensitive.
-6. **Validate independently.** Validate outputs against the requested specification, engineering invariants, provenance and exact output bytes where applicable.
-7. **Persist atomically enough to fail closed.** Do not return an accepted/persisted result if a required artifact upload, receipt check, or metadata write fails. Clean up orphaned objects best-effort.
-8. **Record evidence and approval.** Evidence must identify what was checked, by which validator/version, against which inputs and artifact digest. Consequential project completion remains approval-gated where the capability contract requires it.
+Mutating operations need idempotency and explicit retry rules. A network timeout after a mutating request can be ambiguous; do not blindly replay it.
 
-## Engineering result states
+## Artifact, viewer and evidence boundary
 
-Keep execution, validation and approval separate:
+Artifacts are typed, project-scoped objects—not loose model attachments. Where applicable, preserve artifact ID/type/format/schema, exact source revision, project/model/job lineage, provider/runtime, input assumptions, units and coordinate frame, storage reference, checksum, validation receipt, evidence links and known limitations.
 
-- **PROPOSED / CALCULATED:** a model or deterministic calculation produced a candidate result.
-- **EXECUTED:** a provider completed its operation and returned outputs.
-- **VALIDATED:** the configured deterministic checks passed for the exact outputs and inputs.
-- **VERIFIED:** the domain-specific evidence contract is satisfied; use only when that contract explicitly permits it.
-- **WAITING_APPROVAL:** checks passed but an authorized decision is still required.
-- **BLOCKED / NEEDS_INPUT / UNSUPPORTED / FAILED:** the workflow cannot safely continue.
+The unified workspace is planned to select renderers by trusted artifact type:
 
-A process exit code of zero, a passing schema, a plausible visualization, or a model confidence score does not establish engineering correctness.
+- Three.js for interactive CAD/display geometry.
+- VTK.js for supported FEA meshes and scientific fields after format and conversion validation.
+- A typed diagram model with SVG/canvas rendering for P&ID/PFD.
+- Specialized chart, table, PDF and drawing viewers for other supported artifacts.
 
-## Provider and AI policy
+These viewer choices are planned integrations, not claims that the libraries are installed or all files already render. Display derivatives must reference the canonical artifact and conversion process. A validated BREP does not automatically validate STEP/STL/3MF exports; each representation needs applicable independent checks. A rendered mesh does not constitute an FEA solve or validation.
 
-- Core code requests capabilities such as `CAD.CREATE_PART`, `ANALYSIS.SHAFT_TORQUE`, or `SIMULATION.STATIC_STRUCTURAL`, not vendor tool names.
-- Provider IDs, runtime availability, validator identity and evidence lineage are host-authored or independently verifiedânot accepted from untrusted provider output.
-- External agents and MCP servers may be adapters at the edge; they do not replace the deterministic core, project authorization, validation or evidence model.
-- Choose the lowest complexity that meets the use case: deterministic workflow first; one model call or bounded tools when needed; durable orchestration only when pause/resume, recovery, adaptive planning or human checkpoints justify it.
-- Treat retrieved documents, repositories, prompts and tool output as untrusted data. Apply schema validation, authorization at each resource/tool operation, redaction, rate limits, tracing and sandboxing.
-- Do not add LangGraph, CrewAI, an agent SDK, a vector database or another major dependency without a demonstrated requirement and a measurable acceptance criterion.
+Authorize every artifact operation server-side. Keep storage private and use appropriately short-lived signed access. Treat uploads and conversion inputs as untrusted. Make stale dependent results visibly stale when their source artifact/revision changes.
+
+## Validation and engineering result states
+
+Keep execution, validation, verification and approval separate:
+
+- **PROPOSED / CALCULATED:** a candidate result exists.
+- **EXECUTED:** a provider completed an operation.
+- **VALIDATED:** the configured checks passed for the exact inputs and outputs.
+- **VERIFIED:** the capability-specific evidence contract is satisfied.
+- **WAITING_APPROVAL:** the required authorized human decision remains.
+- **NEEDS_INPUT / BLOCKED / UNSUPPORTED / FAILED:** the operation cannot safely or successfully proceed.
+
+Do not collapse these states into a generic success banner. Do not display absent values as zero, invent an evidence reference, or claim a check ran when it did not. Validation proves only what its stated checks and evidence contract cover; it does not automatically prove physical-model adequacy or remove the need for qualified review.
+
+## Security, authorization and persistence
+
+1. Resolve authenticated identity and project membership on the server before any project-scoped read or mutation.
+2. Use Supabase RLS and project permissions as data boundaries; do not trust client-supplied owner, role or project associations.
+3. Validate request and response schemas. Fail closed on unknown or contradictory evidence, provider identity, artifact bytes or lineage.
+4. Persist accepted records only after required artifact storage and receipt checks succeed. Clean up orphaned objects when writes fail.
+5. Use optimistic revisions for shared workspace/conversation state. Surface conflicts rather than silently overwriting another update.
+6. Keep privileged service-role keys and external provider credentials in server-side secret stores.
+7. Capture sufficient run/provider/validator metadata for diagnosis while redacting credentials and avoiding unnecessary retention of sensitive raw prompts/content.
 
 ## Current implementation versus target
 
-**Implemented or documented in repository:** provider-neutral capability routing; numerical and unit-aware calculation paths; structured artifacts/evidence; CAD provider contracts; opt-in isolated build123d execution; bounded cylindrical CAD intent completion; independent OCCT geometry acceptance; project-scoped CAD persistence and authorization contracts; explicit approval in supported completion workflows.
+**Implemented or documented in repository:** provider-neutral capability routing; numerical/unit-aware calculation paths; project/workspace persistence; a persisted engineering conversation; configurable structured reasoning/intent model transports; bounded cylindrical CAD intent completion; isolated CAD-worker and independent OCCT validation contracts; private project-scoped CAD artifact persistence; evidence/provenance contracts; durable-execution foundations; reference/pilot FEA providers.
 
-**Not implied by the architecture:** every listed adapter is installed or reachable; every solver is independently benchmarked; all CAD shapes/assemblies are supported; every provider has a production runtime; manufacturing readiness or standards compliance; certified FEA/CFD; continuous production monitoring.
+**Planned after this review:** assistant-ui + Vercel AI SDK streamed chat; canonicalized configuration for compatible hosted model access; chat tool-call lifecycle and cost/usage evaluation; unified typed artifact/viewer registry; interactive CAD display; VTK.js-backed FEA mesh/result visualization; P&ID/PFD model and viewer.
 
-See [provider architecture](provider-architecture.md), [artifacts and evidence](artifacts-and-evidence.md), [verified CAD workspace](v2-1-6-cad-verified-workspace.md), [implementation plan](implementation-plan.md), and [ecosystem inventory index](engineering-ecosystem-inventory.md).
+**Not implied by either the catalog or target design:** every adapter is installed, licensed or reachable; every declared provider is live-verified; general CAD/assembly support; certified FEA/CFD; manufacturing readiness; standards compliance; or production readiness for every workflow.
+
+See also [Engineering Capabilities and Maturity](engineering-capabilities.md), [Artifacts and Evidence](artifacts-and-evidence.md), [Verified CAD Workspace](v2-1-6-cad-verified-workspace.md), [Worker Security](worker-security.md) and the [Implementation Plan](implementation-plan.md).

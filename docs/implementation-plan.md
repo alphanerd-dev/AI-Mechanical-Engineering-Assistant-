@@ -1,125 +1,167 @@
 # Implementation Plan and Milestones
 
 **Updated:** 22 October 2026  
-**Status:** Active execution plan. This document replaces the old release-by-release roadmap as the source of truth for upcoming work. Completed capabilities are established by source, tests, migrations and retained workflow evidence—not by milestone notes alone.
+**Status:** Active plan; implementation and live readiness claims require evidence on the exact revision.
+
+This is the single source of truth for upcoming work, priorities, dependencies and exit gates. See the [Product Brief](product-brief.md) for the agreed experience and [Engineering Capabilities](engineering-capabilities.md) for the distinction between existing provider contracts and supported live capabilities.
 
 ## Product and engineering rule
 
 **AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.**
 
-Optimize for the first useful, accepted engineering outcome—not the number of providers, agent frameworks, dashboards or domain labels. Keep the existing Next.js/TypeScript control plane, Supabase project/workspace and durable-job foundations, bounded workers, provider contracts and independent validators. Add complexity only when an acceptance test demonstrates a gap.
+Keep the existing Next.js/React/TypeScript control plane, Supabase project/workspace and authorization, provider-neutral Engineering Core, capability routing, deterministic execution, isolated workers, independent validators and artifact/evidence contracts. Add libraries and abstractions only where they close an evidenced gap.
 
-## Verified baseline and blockers
+The current product decision is to implement assistant-ui + Vercel AI SDK for a streamed conversational experience over a configurable OpenAI-compatible hosted model endpoint. The model vendor/model is not yet selected; lowest practical API cost is the priority subject to measured capability and reliability. Three.js, VTK.js and a typed SVG/canvas diagram renderer are proposed for later visualization milestones, not currently installed viewer features.
 
-Baseline checked against main commit [5da2823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/5da2823ff7792cb23e9ae36b193cd627f2d4d7ba) on 22 October 2026.
+## 1. Current baseline, known gaps and blockers
 
-| Area | Current evidence | Consequence |
+The current main branch head is the documentation-only merge [76425a0](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/76425a096d52c87741222645a65d616ff773460a). The source code baseline reviewed before that documentation-only merge is [5da2823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/5da2823ff7792cb23e9ae36b193cd627f2d4d7ba).
+
+| Area | Evidence / finding | Consequence |
 |---|---|---|
-| Repository CI | [Core CI run](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39644040159), ESLint, CodeQL and Codacy passed for the reviewed main revision. | Good source-level baseline; it does not prove live provider connectivity or production engineering correctness. |
-| Live CAD acceptance | [Run 39634636058](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) stopped at environment preflight because CAD_WORKSPACE_BASE_URL was missing. The authenticated test did not execute. | Treat as BLOCKED by configuration, not as evidence that CAD itself failed or passed. |
-| Deployed app and worker | The Vercel app deployment was reported READY for this revision. render.yaml and worker workflows exist, but an authenticated current-revision app-to-worker result is still required. | Confirm the exact deployed revisions, worker health, authentication and runtime configuration in non-production. |
-| Durable execution | The Supabase job store, migrations and lease/idempotency code exist. The recorded E2E database checks cover important lease and cancellation constraints. | Do not assume the production API-to-worker route is live. Re-check the production migration ledger and feature flag before rollout. The [reconciliation run](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634898622) skipped apply/repair/write actions; a successful reconciliation run is not proof that migrations were applied. |
-| Main branch controls | Main branch protection and required status checks were disabled at review time. Dependabot security updates were also disabled. | Close repository release-control gaps before production feature changes. |
+| Existing source CI | [Core CI](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39644040159), ESLint, CodeQL and Codacy passed for the reviewed code revision. | Good repository-level baseline; does not prove live provider connectivity or general engineering correctness. |
+| Live CAD acceptance | [Run 39634636058](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) stopped during preflight because CAD_WORKSPACE_BASE_URL was absent. Authenticated testing did not run. | Blocked/unverified, not a CAD algorithm failure and not a live pass. |
+| CAD application pipeline | Bounded cylindrical intent, build123d worker, OCCT BREP validation, project-scoped persisted records and evidence contracts exist. | Re-run authenticated non-production acceptance on the exact current revision before claiming live readiness. |
+| FEA | Gmsh/CalculiX and PyMechanical provider contracts/pilots exist. | Runtime availability and current artifact/field pipeline must be verified; execution integrity is not a safety verdict. |
+| Conversational AI | A project-scoped persisted engineering conversation and structured reasoning workbench exist. The model transport is configured for structured proposals/intent interpretation. | The selected assistant-ui streaming chat integration is not yet implemented. |
+| Dependencies and chat route | The inspected package.json does not include assistant-ui or Vercel AI SDK; no dedicated streaming chat route was found. | Add and pin compatible versions only in the feature PR; check current official integration guidance before choosing versions. |
+| Viewers | The inspected source contains CAD status/history/metadata surfaces but no complete interactive CAD or VTK-based FEA viewer; no P&ID renderer was identified. | Treat these as new features. Do not represent provider or artifact metadata as a rendered visualization. |
+| Cost baseline | No reviewed task-level cost/quality baseline selected a default hosted model. | Compare current model prices and representative engineering tasks before choosing the default. |
 
-These are a dated evidence snapshot, not permanent guarantees. Recheck the exact SHA, deployment and workflow evidence before promoting a release.
+The above observations are revision-specific. Recheck exact SHA, build, CI, runtime and workflow evidence before promoting a release.
 
 ## Milestone overview
 
-The first implementation step is the decision/recovery experience, as the corrected independent review recommends. Operational setup is a parallel prerequisite for live acceptance—not a reason to postpone fixing a user-visible contract problem.
-
-| ID | Milestone | Status | Dependency |
+| ID | Milestone | Priority/status | Depends on |
 |---|---|---|---|
-| M0 | Decision surfaces, failure recovery and outcome instrumentation | **NEXT** | Existing API/result contracts |
-| M1 | CAD production confidence | **BLOCKED for current-revision live acceptance** | M0 regression suite; isolated runtime and environment configured |
-| M2 | Expand the bounded calculation family under the same evidence contract | **PLANNED** | M0; M1 confidence gate should remain active for any CAD-linked result |
-| M3 | Provider-promotion contract and one evidence-backed pilot | **DEFERRED until value is measured** | M0–M2 evidence and a specific user need |
+| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance setup | **NEXT** | Existing API/result contracts |
+| M1 | Secure streamed AI conversation and controlled engineering tools | **PLANNED after M0 acceptance design** | Existing auth, session persistence, model transport |
+| M2 | Shared artifact/viewer registry and interactive CAD visualization | **PLANNED** | Artifact/access contract; M0 CAD acceptance remains a release gate |
+| M3 | FEA mesh and result-field visualization | **PLANNED** | M2 artifact/viewer contract; a supported solver-output path |
+| M4 | Typed P&ID/PFD model and viewer | **PLANNED** | Shared artifact/version/access contract |
+| M5 | Additional artifact viewers and one evidence-backed provider pilot | **DEFERRED until need and value are measured** | M0–M4 evidence and a specific user need |
 
-## M0 — Decision surfaces, failure recovery and outcome instrumentation
+Milestones describe ordered outcomes; they are not proof that their capabilities are already delivered. Small UI and design-contract changes can be reviewed together where dependency is clear, but each exit gate must remain independently auditable.
 
-**Outcome:** every supported API result becomes a truthful, actionable decision in the workspace. The user can understand what happened, what remains unresolved and what to do next, without losing their work.
+## M0 — Trustworthy decision surfaces, recovery and outcome measurement
 
-### Implementation
+**Outcome:** every currently supported workflow gives a truthful, recoverable engineering decision, and its current-revision runtime status can be verified without confusing a blocked environment with a failed algorithm.
 
-1. Map every existing result state to an explicit UI decision: PROPOSED, NEEDS_INPUT, UNSUPPORTED, EXECUTED, VALIDATED, VERIFIED, WAITING_APPROVAL and FAILED (plus any additional state actually defined in the API contract). Do not infer success from HTTP 200 alone or from a single boolean whose contract does not mean “verified”.
-2. For each state, render the facts already supplied by the API: key values and units, assumptions, validation/evidence status, evidence links, limitations, approval requirement and next action. Do not manufacture absent engineering values or evidence references. Keep unsupported and blocked work visibly distinct from validation failure.
-3. Preserve the user's draft and trusted workspace context after transport, authorization, provider, validation or persistence errors. Make retries explicit. A retry must not silently replay a non-idempotent CAD POST or create duplicate jobs, artifacts or evidence.
-4. Keep the current deterministic execution and evidence contracts. Do not add another state machine, agent runtime, evidence store or analytics system unless testing exposes a concrete missing capability.
-5. Add component/API/Playwright acceptance for the complete result-state matrix, including seeded partial failures, missing inputs, unsupported intents, validation failure, approval required, server/transport timeout, persistence failure and recovery. Assert that the displayed state, next action and evidence status match the API response.
-6. Begin outcome instrumentation now. For representative supported tasks, capture time to accepted outcome, measured engineer-active time including review/correction, stage latency, failures/retries/recovery, evidence completeness, repeat usage and available cost components. Mark unobserved effort/cost as unknown; do not claim time or cost savings before a comparable baseline exists.
+### Work
 
-### Exit gate
-
-Every supported result state is tested at the UI/API boundary; no partial failure is shown as silent success; drafts/context survive recoverable failures; retry behavior cannot duplicate non-idempotent effects; evidence/validation semantics remain unchanged; existing deterministic and CAD tests stay green. Record actual baseline observations and unknowns rather than declaring a productivity improvement.
-
-## M1 — CAD production confidence
-
-**Outcome:** the existing explicitly dimensioned cylindrical CAD path is accepted on the exact current revision in an isolated environment—not merely present in source or green in offline CI.
-
-### Implementation
-
-1. Unblock the current live acceptance environment. The last reviewed [CAD Workspace Live Acceptance run](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) stopped before the authenticated test because CAD_WORKSPACE_BASE_URL was missing. Configure the protected cad-workspace-live-acceptance environment with CAD_WORKSPACE_BASE_URL, CAD_WORKSPACE_PROJECT_ID, CAD_WORKSPACE_MODEL_ID and secret CAD_WORKSPACE_COOKIE; rerun after M0 on the new exact revision. Never print or commit the cookie.
-2. Verify the app deployment revision and actual worker/source image revision, health, authentication, artifact directory/storage, runtime flags and resource controls. Check DURABLE_EXECUTION_ENABLED, the worker endpoint and production migration/schema status before enabling any durable path. Reconcile production migration history only through the reviewed migration workflow.
-3. Preserve the supported pipeline: explicit typed cylindrical intent → deterministic build123d source generation → isolated worker → artifact registration → independent OCCT BREP validation → evidence receipt bound to exact artifact bytes and trusted project/model/run lineage. Do not turn free-form model-generated code or an arbitrary BREP script into the primary production contract.
-4. Add/retain negative-path fixtures for missing dimensions, unsupported intent, malformed request/manifest, worker timeout or non-zero exit, path traversal, unexpected/missing/oversized artifact, digest mismatch, validator disagreement, persistence failure, cleanup failure and cross-project read/write attempts.
-5. Verify that the persisted BREP digest matches the validator receipt and that measured geometry and model/project lineage agree on readback. Authorization must protect all model, artifact, completion and evidence reads.
-6. Distinguish validated BREP from exports. A receipt for BREP does not independently validate STEP/STL/3MF bytes. Re-import and validate each exact exported representation and issue its own bound receipt before labelling that export independently verified; otherwise label it as an export derived from a validated BREP.
-7. Choose stage-specific queue, generation, build, validation and persistence timeouts from measured staging durations and worker cold-start behavior. Do not impose a blanket 60-second end-to-end limit without evidence.
-
-### Parallel release and runtime preconditions
-
-These are enabling controls for safe acceptance and release, not a reason to delay M0's UI/recovery work:
-
-- Protect main, require pull requests and appropriate Core CI/ESLint/CodeQL checks, and prevent force-pushes. Add provider benchmark checks for relevant changes.
-- Treat a security scanner marked SKIPPED because a token/configuration is missing as unverified, not as a pass.
-- Use only dedicated non-production app/database and disposable accounts for Playwright; ensure E2E_SUPABASE_PROJECT_REF differs from PRODUCTION_SUPABASE_PROJECT_REF, the exact host is allowlisted and the auth origin matches.
-- The previous migration reconciliation run skipped apply/repair/write steps. Do not infer migrations were applied from that run; verify history and schema explicitly.
-- Keep all changes on reviewed feature branches. Do not enable production flags or deploy merely because source CI passes.
+1. Map each existing result state to a clear UI/API outcome: PROPOSED, NEEDS_INPUT, UNSUPPORTED, EXECUTED, VALIDATED, VERIFIED, WAITING_APPROVAL, FAILED, and other states only where defined by the current contract.
+2. Render values and units, assumptions, validation/evidence status, provenance, blockers, limitations, approvals and next action only when the source response provides them. Never infer verification from HTTP 200 or a single boolean with a weaker contract.
+3. Preserve drafts and trusted project context after transport, authorization, provider, validation or persistence failures. Make recovery explicit. Do not blindly replay a mutating CAD request or create duplicate jobs, artifacts or evidence.
+4. Complete component/API/Playwright coverage for missing inputs, unsupported intent, validation failure, approval-required states, timeout, failed persistence, authorization denials and safe recovery.
+5. Instrument representative tasks: time to accepted outcome, measured engineering-active time including review/correction, stage latency, tool calls, retries/recovery, evidence completeness and available cost components. Mark unmeasured values unknown.
+6. In parallel with the UI work, resolve the CAD live-acceptance environment configuration. The protected environment requires CAD_WORKSPACE_BASE_URL, CAD_WORKSPACE_PROJECT_ID, CAD_WORKSPACE_MODEL_ID and a short-lived CAD_WORKSPACE_COOKIE secret. Use only a dedicated non-production project/account; never print or commit the cookie.
+7. Verify deployed app and worker/source image revisions, worker health, auth, private storage, immutable image digests, required migrations and the durable-execution feature flag before enabling relevant paths. Do not infer that migrations were applied from a skipped reconciliation job.
+8. Preserve the current CAD acceptance chain: typed cylindrical intent → deterministic build123d source → isolated worker → artifact registration → independent OCCT BREP validation → receipt bound to exact BREP bytes and trusted project/model/run lineage.
 
 ### Exit gate
 
-Same-revision CI passes and the authenticated live CAD workflow completes on the exact revision; it records the deployed app/worker versions; the persisted BREP bytes match the receipt and digest; geometry measurements and project/model lineage match; unauthorized access and failure cases fail closed; the result surface tells the truth about the artifact and any outstanding approval.
+The result-state matrix and important negative paths are tested; failure does not appear as silent success; saved work survives recoverable failures; retries cannot duplicate non-idempotent effects; CAD acceptance passes on the exact current revision in non-production; retrieved private BREP bytes match the stored digest and validation receipt. If environment configuration is still missing, report M0 CAD live acceptance as BLOCKED.
 
-## M2 — Expand the bounded calculation family
+## M1 — Conversational AI, streaming and controlled engineering tools
 
-**Outcome:** extend engineering value with one well-defined calculation family at a time, using the same input, units, validation, evidence and decision contracts as existing calculations.
+**Outcome:** users can converse with the assistant directly in the Engineering Workspace and request allowed operations without bypassing existing engineering controls.
 
-### Implementation
+### Work
 
-1. Start with the existing shaft torque/preliminary-sizing path and its known-answer tests. Treat these as calculation results under stated assumptions, not a blanket claim that a shaft design is safe. Torque from power and RPM alone does not determine an acceptable diameter without the relevant load cases, material allowables, safety factor, failure modes and engineering review.
-2. Use M0's task observations to choose the next calculation family; do not select work merely because a library or provider exists. Before coding, define its user problem, required inputs, units, assumptions, validity range, known-answer/analytical references, missing-input behavior and required approval.
-3. Normalize/validate units and domain limits before execution. Return NEEDS_INPUT where a material input is absent; return UNSUPPORTED when outside declared scope. Do not guess inputs to make a calculation complete.
-4. Execute through registered deterministic providers, independently check the result where possible, and persist inputs, assumptions, provider/version, calculations, validation method, failures and evidence lineage.
-5. Add boundary/invalid-value fixtures, dimensional-analysis tests, known-answer cases and API/UI/Playwright coverage for success, missing inputs, invalid units, domain-limit failure and recovery.
-
-### Exit gate
-
-The selected calculation family has an explicit scope/assumption contract, independent known-answer evidence, correct unit and boundary behavior, truthful result state, and traceable persisted evidence. It is selected based on a documented user need, and any benefit claim is supported by M0 measurements.
-
-## M3 — Provider promotion contract and one evidence-backed pilot
-
-**Outcome:** promote at most one strategically useful provider based on repeatable evidence, not documentation presence, marketing claims or process exit code.
-
-### Implementation
-
-1. Record the capability/provider ID and version, exact source/image digest, licence and dependency obligations, required configuration, unit/input/output schema, timeout/resource budgets, expected artifacts, validation/evidence contract, known limitations and rollback procedure.
-2. Screen the selected candidate's current source release, maintenance, licensing, dependency/security posture and worker isolation. Do not copy code, datasets or models until the applicable terms and use rights are confirmed.
-3. Use the same declared benchmark fixtures, known-answer/analytic reference where applicable, independent validator, negative cases and evidence schema as the existing capability. Record all failed and excluded trials, not only successful runs.
-4. Run one pilot only, selected by user demand and M0–M2 results. It may be an alternative CAD provider or a bounded open FEA path such as CalculiX/Gmsh, but do not start both in parallel. A provider's presence in the repository does not imply its runtime is deployed or production-ready.
-5. Keep providers EXPERIMENTAL/PILOT until exact-revision tests, isolated runtime controls, independent validation and retained evidence pass with review approval. Do not adopt LangGraph/LangChain, LiteLLM, Vercel AI SDK, pg-boss or another orchestration/queue stack unless a measured gap in accepted outcomes justifies the added complexity.
+1. Check current official compatibility guidance and install compatible pinned versions of assistant-ui and Vercel AI SDK. Add only the packages required for chat and streaming; do not add an agent framework or gateway as a substitute for the existing core.
+2. Implement a dedicated authenticated Next.js chat route that streams responses from a configurable OpenAI-compatible endpoint. Credentials, endpoint allowlist and model configuration remain server-side. Do not accept arbitrary base URLs or API keys from the request body.
+3. Reconcile the existing structured reasoning transport configuration and intent-interpreter configuration behind a tested server-side configuration/adapter. Preserve current intent interpretation and structured proposal behavior until the new shared configuration has parity tests; avoid silently changing response semantics.
+4. Reuse the existing project-scoped conversation persistence and revision/conflict handling where suitable. Do not create a parallel chat-history store without a demonstrated schema or retention gap.
+5. Add typed, schema-validated tool definitions that call only explicitly allowlisted engineering capabilities. The model may request operations; server-side authorization and capability/risk policy determine whether they are allowed.
+6. Require explicit missing-input decisions, correct project scope, idempotency for mutating tools, independent validation and required human approval. Do not expose arbitrary source-code execution, shell, unrestricted filesystem or unrestricted database tools to the model.
+7. Benchmark candidate hosted models on representative conversational tasks, input extraction, missing-input behavior, valid tool calls, structured results, failure handling, latency and current API price. Choose the lowest-cost candidate that meets minimum predeclared thresholds; record the rationale and unknowns.
+8. Bound requests, message/history size, output tokens, duration, retries and usage. Record only trustworthy provider/model/usage/latency/cost metadata; redact secrets and avoid indiscriminate raw prompt retention.
+9. Add tests for streaming start/finish/abort, provider timeout and malformed responses, authentication/project isolation, tool allowlisting, failed execution, tool-call duplicates, approval gates, usage limits and persisted-history conflict recovery.
 
 ### Exit gate
 
-One candidate has a reviewable licence/security record, pinned runtime, reproducible fixture results, independent validation, clear limits, operational observability and rollback. Promotion is scoped to the capability and exact runtime/version tested; it does not certify other providers or domains.
+A signed-in project member can hold a multi-turn conversation, refresh and restore it, and safely invoke an allowed deterministic task. A user without authorization cannot read the history or execute a tool. Model output cannot forge evidence IDs, validation status or approval. Streaming and retries recover without duplicate effects. Default model selection has a documented task-quality and cost comparison; it is not chosen from price alone.
 
-## Deferred scope
+## M2 — Shared artifact/viewer registry and CAD visualization
 
-Broad freeform/assembly CAD, general-purpose topological repair, production-grade FEA/CFD safety claims, manufacturing/CAM output, robotics, ECAD, PLM rollout and physical-perception workflows remain deferred until a specific user need and a separate capability-level acceptance contract justify them. For FEA, a pilot must declare geometry, material, loads, supports, contacts where relevant, mesh controls, solver diagnostics, convergence, analytical/known-answer comparison and independent engineering review. A completed solve or stress below yield alone is not a design-safety verdict.
+**Outcome:** a user can inspect a supported CAD model directly beside the conversation and trace the view to the exact canonical engineering artifact.
 
-## Non-negotiable engineering gates
+### Work
 
-- Keep the current stack and provider-neutral seams; do not add LangGraph/LangChain, LiteLLM, Vercel AI SDK or another runtime unless actual runtime wiring and a measured requirement justify it.
-- Worker policy is defined in [docs/worker-security.md](worker-security.md): allowlisted capabilities, isolated non-root execution, no network by default where possible, read-only root, scoped artifacts, resource limits, schema validation and run provenance. Verify deployed controls; a policy document is not proof of enforcement.
-- Hashes and hash chains provide integrity evidence only within their threat model. Do not describe a record as digitally signed or immutable without protected signing keys and a verification anchor.
-- A CI pass proves only what that run tests. A live provider smoke test proves its stated connectivity/contract, not broad engineering correctness or structural safety.
-- Evidence must identify source revision, provider/runtime version, inputs/units, validation method, exact artifact digest, measured outcome, assumptions, failures, reviewer/approval and applicable limitations.
-- Every milestone closes with code/tests where applicable, retained evidence, current docs, explicit scope limits and a rollback path. A milestone is complete only when its exit gate has evidence on the exact revision.
+1. Define a versioned artifact contract for type, format, ID, revision, project/source-object identity, originating operation, private storage URI, checksum, provider/runtime, units/coordinate frame, result metadata, validation receipt, evidence and known limitations.
+2. Build a viewer registry/dispatcher that selects a specialized viewer from the trusted artifact type and format. Unknown formats receive a useful unsupported/download/conversion state.
+3. Implement a 3D viewer using Three.js after verifying supported files and size/performance on representative fixtures. Use glTF/GLB only as explicitly linked display derivatives where appropriate. Do not replace canonical CAD or re-label an unvalidated export as verified.
+4. Add orbit, zoom, pan, fit-to-view and orientation controls, loading/progress/error states, model revision identity and access checks. Measurements or properties appear only when supplied by trusted geometry/provider data.
+5. Bind each preview to its source artifact ID, revision, checksum and conversion metadata. If the source revision changes, old dependent views and simulations become visibly stale rather than being displayed as current.
+6. Preserve the existing private Supabase Storage, signed-URL expiry and project authorization boundaries. Treat uploads, converters and render inputs as untrusted.
+7. Retain independent OCCT receipt checks and test failures for empty/corrupt geometry, unsupported format, checksum mismatch, permission denial, expired URL, conversion failure, large models and revision mismatch.
+
+### Exit gate
+
+Representative canonical CAD artifacts and supported derivatives render with predictable controls; source and display-derivative lineage remains visible; authorization and stale-revision tests pass; viewer failure does not modify engineering validation state; and M0 live CAD acceptance is green for the release revision.
+
+## M3 — FEA mesh and field visualization
+
+**Outcome:** supported mesh and solver-result artifacts can be inspected without making the viewer or a successful solve the engineering authority.
+
+### Work
+
+1. Define the accepted mesh/result formats and conversion path for the selected provider. Start with bounded Gmsh/CalculiX pilot fixtures rather than promising generic CAD-to-FEA.
+2. Integrate VTK.js if its supported readers and the chosen normalized data format satisfy the fixtures. Keep conversion in a bounded backend/worker when needed, not in an untrusted server request.
+3. Show mesh edges/surfaces and available scalar/vector fields such as stress, strain, displacement and temperature, with units, color legends and documented deformation scale.
+4. Support probe values and overlays only when the source dataset supplies consistent node/element IDs, field locations, coordinate frames and boundary-condition metadata.
+5. Display solver/version, completion/convergence status, mesh statistics, warnings and validation findings. Separate execution integrity, numeric checks, convergence/mesh-independence evidence and engineering approval.
+6. Test against source values and supported formats, including malformed datasets, non-finite values, absent fields, unit mismatch, invalid topology, interrupted conversion and oversized files.
+
+### Exit gate
+
+Rendered field values, units and legends match source outputs for benchmark fixtures. Invalid data fails closed. Solver state and limitations remain visible. No UI status implies physical correctness or structural safety without the required, independently reviewed evidence.
+
+## M4 — P&ID/PFD data model and visualization
+
+**Outcome:** users can inspect process diagrams as structured engineering artifacts, not just static generated images.
+
+### Work
+
+1. Specify a typed diagram schema for symbols, equipment, ports, line segments, connectivity, flow direction, tags, layers, coordinate/layout data, schema version and source revision.
+2. Implement an SVG or canvas renderer with pan/zoom, fit-to-view, symbol and layer selection, tag search and accessible labels.
+3. Validate connections, required identifiers, unsupported symbols and inconsistent references before labeling a diagram accepted.
+4. Link selectable elements to project equipment, calculations, requirements and evidence only through authorized, typed references.
+5. Keep symbol sets and drafting conventions explicit and configurable. Claim standards compliance only after applicable requirements and validation fixtures have been implemented and reviewed.
+6. Test round-trip identity/connectivity, rendering at multiple scales, malformed connections, missing tags, revision changes and project-isolation controls.
+
+### Exit gate
+
+Diagram structure round-trips without dropping element IDs or connections; representative schematics remain readable at tested sizes; validation findings and revision lineage are inspectable; authorization applies to diagram and linked project data.
+
+## M5 — Other artifact viewers and one measured provider pilot
+
+**Outcome:** add only result types and provider integrations whose user value, trust boundary and runtime acceptance are explicit.
+
+### Work
+
+1. Add charts/tables, PDFs, drawings, BOMs, engineering reports and other viewers through the registry. Reuse trusted artifacts; do not build a separate result database without need.
+2. Evaluate point-cloud visualization/inspection only after its source branch, authenticated upload/persistence, known-transform/noise/outlier tests, artifact checks and review gates pass. Header/hash preflight or ICP fit alone is not dimensional verification.
+3. Choose at most one additional provider pilot based on M0 outcomes and a documented user need. It may concern CAD or a bounded FEA path; do not promote overlapping providers in parallel.
+4. Record exact provider/runtime version, license obligations, configuration, isolated resource controls, benchmark fixture digest, independent reference and validator, output digest, failed trials, limitations, reviewer decision and rollback.
+5. Measure viewer performance, artifact failure rates and total cost per accepted result before widening scope.
+
+### Exit gate
+
+Each viewer supports its declared artifact types and safe failure paths. The selected provider passes the same capability-specific benchmark, independent validation and security/runtime gates. A pilot remains PILOT until promotion evidence and review are complete.
+
+## Release controls and non-negotiable gates
+
+- Work on a feature branch and open a pull request; do not push directly to main.
+- Run npm ci, tests, the Webpack Next.js build/type-check, lint, architecture-boundary checks, and relevant provider/Playwright acceptance.
+- Reconcile branch protections, required checks and security-scanner configuration before production release. A skipped scanner is unverified, not a pass.
+- Use only dedicated non-production app/database/projects for E2E. Do not transfer test data or cookies into production.
+- Check deployment and worker revision, secrets, runtime flags, database migration status and rollback before enabling new paths.
+- Keep provider runtimes allowlisted, isolated, least-privileged and resource-bounded. No arbitrary generated code may execute inside the Next.js process.
+- Evidence must bind the actual inputs and artifact bytes to the provider/validator versions and execution lineage. Hashes are integrity checks within their threat model, not proof of correctness.
+- CI pass, render success, provider availability and process exit code prove only what those checks exercise.
+- Do not claim certified FEA/CFD, general CAD/assembly coverage, standards compliance, safety or measured savings without capability-specific evidence and qualified review.
+
+## Explicitly deferred
+
+General-purpose free-form and assembly CAD, certified FEA/CFD safety conclusions, production manufacturing/CAM actions, autonomous consequential approval, broad robotics/ECAD/PLM rollout, and unrestricted model-generated code remain deferred pending a specific user need and separate capability-level acceptance contract.
