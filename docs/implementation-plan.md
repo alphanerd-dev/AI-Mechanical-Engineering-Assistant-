@@ -1,107 +1,125 @@
-# Implementation Plan: Evidence-Gated Engineering Capabilities
+# Implementation Plan and Milestones
 
-**Updated:** 13 October 2026  
-**Status:** Prioritized implementation plan; roadmap items below are not claims of completed work.
+**Updated:** 22 October 2026  
+**Status:** Active execution plan. This document replaces the old release-by-release roadmap as the source of truth for upcoming work. Completed capabilities are established by source, tests, migrations and retained workflow evidence—not by milestone notes alone.
 
-## Delivery rules
+## Product and engineering rule
 
-- Keep changes on feature branches and open pull requests; do not push directly to `main`.
-- Avoid a deployment for documentation-only or non-release work unless required by CI policy. Deploy after a reviewed PR merge or when a live acceptance run specifically requires a deployment.
-- Every capability has an owner module, typed input/output contract, explicit status, deterministic acceptance criteria, provenance, failure semantics and an opt-out/rollback path.
-- A passing unit test or CI workflow proves only the assertions it runs. A live provider test proves connectivity and its stated contract, not broad engineering correctness.
-- Never promote a provider from EXPERIMENTAL/PILOT to VERIFIED based only on README claims, a successful process exit, or an LLM-generated assessment.
+**AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.**
 
-## Priority 0 — Make the first accepted outcome low-friction and measurable
+Optimize for the first useful, accepted engineering outcome—not the number of providers, agent frameworks, dashboards or domain labels. Keep the existing Next.js/TypeScript control plane, Supabase project/workspace and durable-job foundations, bounded workers, provider contracts and independent validators. Add complexity only when an acceptance test demonstrates a gap.
 
-**Goal:** turn the already implemented bounded intent-to-decision path into a coherent product experience before expanding the number of providers or engineering domains.
+## Verified baseline and blockers
 
-1. Keep the primary entry point outcome-oriented: state the engineering task, reuse trusted project context, ask only the smallest material unanswered question, and keep supported scope visible.
-2. Make the request/result contract work end to end. Display structured `NEEDS_INPUT`, `WAITING_APPROVAL`, and `FAILED` decisions when the API returns a decision payload, including the next question/action and the validation/evidence state. Reserve generic error messaging for requests that return no usable decision payload.
-3. Preserve the engineer's draft after a transport, authorization, provider, or persistence failure. A retry must be explicit, safe, and must not silently duplicate a non-idempotent operation.
-4. Present a decision-ready result using only fields the current capability provides: status, key values and units, validation outcome, evidence references, known assumptions/limitations, approval requirement, and next action. Do not infer that `validationPassed: false` means a validation failure when the contract only establishes that the result is not verified.
-5. Keep onboarding lightweight: explain that the current product supports bounded workflows; provide a clearly separated demo; do not require a user to configure every provider before trying a supported task.
-6. Establish a comparable baseline with representative engineering tasks. Measure time to first accepted result, net engineer time (including review/correction), total cost per accepted outcome, applicable validation completeness, failure recovery, and repeat usage. Use observed user/task effort plus trusted provider/compute data; mark unknown cost components as unmeasured rather than guessing.
-7. Validate the experience with intended users by giving them a task goal without naming the route/control. Observe whether they can find where to begin, explain what the result means, identify unresolved work, and continue after a seeded failure.
-8. Use existing run IDs, provider metadata, audit events, and evidence links where sufficient. Do not introduce a second workflow state machine, evidence store, agent runtime, or analytics stack before a demonstrated gap requires it.
+Baseline checked against main commit [5da2823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/5da2823ff7792cb23e9ae36b193cd627f2d4d7ba) on 22 October 2026.
 
-**Exit gate:** a supported first task can be started without avoidable setup; known context is not re-requested; the user receives a truthful decision or actionable blocker; request failures preserve the draft; required engineering checks and evidence cannot be bypassed; test evidence covers success, needs-input, server/transport failure, validation failure, and required approval; and baseline measurement identifies which cost/time components are observed versus unknown. Product claims about reduced effort or cost remain hypotheses until a comparable user/task baseline supports them.
+| Area | Current evidence | Consequence |
+|---|---|---|
+| Repository CI | [Core CI run](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39644040159), ESLint, CodeQL and Codacy passed for the reviewed main revision. | Good source-level baseline; it does not prove live provider connectivity or production engineering correctness. |
+| Live CAD acceptance | [Run 39634636058](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) stopped at environment preflight because CAD_WORKSPACE_BASE_URL was missing. The authenticated test did not execute. | Treat as BLOCKED by configuration, not as evidence that CAD itself failed or passed. |
+| Deployed app and worker | The Vercel app deployment was reported READY for this revision. render.yaml and worker workflows exist, but an authenticated current-revision app-to-worker result is still required. | Confirm the exact deployed revisions, worker health, authentication and runtime configuration in non-production. |
+| Durable execution | The Supabase job store, migrations and lease/idempotency code exist. The recorded E2E database checks cover important lease and cancellation constraints. | Do not assume the production API-to-worker route is live. Re-check the production migration ledger and feature flag before rollout. The [reconciliation run](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634898622) skipped apply/repair/write actions; a successful reconciliation run is not proof that migrations were applied. |
+| Main branch controls | Main branch protection and required status checks were disabled at review time. Dependabot security updates were also disabled. | Close repository release-control gaps before production feature changes. |
 
-## Priority 1 — Strengthen the existing bounded CAD workflow
+These are a dated evidence snapshot, not permanent guarantees. Recheck the exact SHA, deployment and workflow evidence before promoting a release.
 
-**Goal:** increase confidence in the current supported cylinder/shaft path before expanding geometric breadth.
+## Milestone overview
 
-1. Maintain the intent → typed specification → deterministic build123d source → isolated worker → artifact registration → independent OCCT validation → provenance-bound evidence path.
-2. Add or tighten failure-injection coverage for worker timeout/non-zero exit, malformed manifest, unexpected/missing artifact, path traversal, oversized output, source/artifact digest mismatch, validator disagreement, persistence failure and cleanup failure.
-3. Verify the exact persisted BREP bytes against the validator receipt and persisted metadata; retain a regression fixture for every corrected failure.
-4. Extend geometry acceptance only when each new geometry family has explicit dimension/tolerance rules, analytic or known-answer checks, negative cases and independently reviewed fixtures.
-5. Keep the initial cylindrical intent scope explicit. Unsupported geometry and missing critical inputs must not invoke the worker or emit VERIFIED evidence.
-6. Review authorization on every model, completion, artifact, signed-URL and requirement lookup. Test cross-project access through both UI and direct API requests.
+The first implementation step is the decision/recovery experience, as the corrected independent review recommends. Operational setup is a parallel prerequisite for live acceptance—not a reason to postpone fixing a user-visible contract problem.
 
-**Exit gate:** CI is green on the PR revision; tests prove negative/failure paths; a live CAD workspace acceptance run is green when the runtime is provisioned; artifact digest, receipt and project/model lineage match; limitations remain visible in the UI and docs.
-
-## Priority 2 — Establish a reusable provider and benchmark contract
-
-1. Define a provider acceptance manifest: capability ID/version, provider ID/version, required runtime/configuration, units and input schema, output schema, timeout/resource budgets, expected artifact kinds, evidence contract, license status and known limitations.
-2. Standardize statuses: EXPERIMENTAL, PILOT, VERIFIED, BLOCKED, DEPRECATED. Promotion requires evidence and reviewer sign-off; provider availability remains a separate runtime property.
-3. Create known-answer benchmark suites for one bounded family at a time:
-   - CAD geometry: dimensions, volume, topology/solid count, tolerances, malformed/unsupported inputs.
-   - FEA: canonical analytical cases, boundary-condition checks, mesh quality and convergence where applicable, solver/version/input provenance.
-   - Thermofluids/calculations: dimensional analysis, unit conversion, independent formula cross-checks and valid-range/error behavior.
-   - Research retrieval: source authority, citation-to-claim traceability, freshness, authorization filtering and prompt-injection resilience.
-4. Keep deterministic engineering acceptance separate from model quality, UI usability, process execution, and knowledge retrieval scores.
-5. Record benchmark fixtures, expected ranges, tolerances, exact software versions, test commands, artifacts and known exclusions. Use independent references; do not let a provider validate its own output without a separately trusted acceptance rule.
-
-**Exit gate:** at least one candidate provider passes the same contract and benchmark as the current implementation; the scorecard records failures and exclusions; no provider is promoted solely on marketing claims.
-
-## Priority 3 — Promote only the highest-value ecosystem candidates
-
-Use the saved [ecosystem inventory](engineering-ecosystem-inventory.md) as a research backlog, not a dependency manifest. Reconfirm repository identity, current commit, maintenance, license, dependency tree, security posture and actual interfaces before code reuse.
-
-| Candidate lane | Initial disposition | Pilot acceptance focus | Promotion blocker |
+| ID | Milestone | Status | Dependency |
 |---|---|---|---|
-| CAD/CAE Copilot | Comparator/reference | Manifest/provenance, topology references, approval gates, analytical FEA tests | Overlap with current workflow; run comparable tests before adopting code |
-| FreeCAD provider candidates, including AnkusDrive | Isolated adapter pilot | Headless execution, declared tool schemas, geometry/FEM fixtures, resource isolation | Arbitrary Python/macro execution, runtime/license and real test-corpus coverage |
-| build123d / OCCT / CadQuery | Core geometry foundation / adapter options | Round-trip geometry, dimensions, topology, artifact bytes and deterministic failure behavior | Pin versions and define compatibility matrix |
-| Gmsh + CalculiX (or one comparable FEA stack) | One solver pilot, not parallel broad integration | Analytical benchmark cases, mesh checks, BC/material provenance, convergence | No VERIFIED status without independently checked numerical results |
-| Pint and deterministic calculation libraries | Core calculation support where already appropriate | Dimensional correctness, serialization and offset-unit/ambiguous-input handling | Avoid duplicate unit systems and undocumented conversion |
-| Research/RAG sources and frameworks | Read-only pilot | Citation-level provenance, authorization filtering, source freshness and injection resistance | License/terms, access controls and evidence grounding |
-| CAM, robotics, ECAD, CFD and physics-ML | Deferred expansion | Domain-specific acceptance plan first | Safety, licensing, data rights, runtime complexity and no generic validation baseline |
+| M0 | Decision surfaces, failure recovery and outcome instrumentation | **NEXT** | Existing API/result contracts |
+| M1 | CAD production confidence | **BLOCKED for current-revision live acceptance** | M0 regression suite; isolated runtime and environment configured |
+| M2 | Expand the bounded calculation family under the same evidence contract | **PLANNED** | M0; M1 confidence gate should remain active for any CAD-linked result |
+| M3 | Provider-promotion contract and one evidence-backed pilot | **DEFERRED until value is measured** | M0–M2 evidence and a specific user need |
 
-Do not add all candidates at once. Select the next pilot by user value, risk reduction, integration effort, licensing clarity and testability. Preserve a clean adapter seam and compare alternatives through the same contract.
+## M0 — Decision surfaces, failure recovery and outcome instrumentation
 
-## Cross-cutting engineering work
+**Outcome:** every supported API result becomes a truthful, actionable decision in the workspace. The user can understand what happened, what remains unresolved and what to do next, without losing their work.
 
-### Security and tenant isolation
-- Recheck authn/authz on server routes and data access; enforce project membership in database policies and server logic.
-- Treat metadata supplied by the browser as untrusted; derive role, provider, project scope and artifact paths from trusted server-side state.
-- Test unauthenticated access, unauthorized role, cross-project IDs, guessed artifact keys, expired signed URLs and direct API calls.
-- Keep service-role keys, worker cookies and provider secrets server-only; redact secrets and customer content from logs.
+### Implementation
 
-### Reliability and operations
-- Set bounded timeouts, resource ceilings, idempotency behavior and cleanup policy for worker jobs and retries.
-- Distinguish retryable transport failures from invalid inputs and deterministic validation failures. Do not retry a side effect unless it is safe/idempotent.
-- Emit structured run IDs, sanitized provider/job states, latency, failure class and evidence references. Do not expose raw sensitive tool output to users.
-- Add a health/readiness signal that separates application availability from individual provider readiness.
+1. Map every existing result state to an explicit UI decision: PROPOSED, NEEDS_INPUT, UNSUPPORTED, EXECUTED, VALIDATED, VERIFIED, WAITING_APPROVAL and FAILED (plus any additional state actually defined in the API contract). Do not infer success from HTTP 200 alone or from a single boolean whose contract does not mean “verified”.
+2. For each state, render the facts already supplied by the API: key values and units, assumptions, validation/evidence status, evidence links, limitations, approval requirement and next action. Do not manufacture absent engineering values or evidence references. Keep unsupported and blocked work visibly distinct from validation failure.
+3. Preserve the user's draft and trusted workspace context after transport, authorization, provider, validation or persistence errors. Make retries explicit. A retry must not silently replay a non-idempotent CAD POST or create duplicate jobs, artifacts or evidence.
+4. Keep the current deterministic execution and evidence contracts. Do not add another state machine, agent runtime, evidence store or analytics system unless testing exposes a concrete missing capability.
+5. Add component/API/Playwright acceptance for the complete result-state matrix, including seeded partial failures, missing inputs, unsupported intents, validation failure, approval required, server/transport timeout, persistence failure and recovery. Assert that the displayed state, next action and evidence status match the API response.
+6. Begin outcome instrumentation now. For representative supported tasks, capture time to accepted outcome, measured engineer-active time including review/correction, stage latency, failures/retries/recovery, evidence completeness, repeat usage and available cost components. Mark unobserved effort/cost as unknown; do not claim time or cost savings before a comparable baseline exists.
 
-### UX and intuitive behavior
-- Show supported input scope before execution; explain missing inputs and unsupported geometry in actionable language.
-- Separate states for queued/running, executed, validation failed/passed, awaiting approval, persisted and unavailable.
-- Keep critical errors visible; do not turn partial failures into success banners.
-- Preserve reviewability: inputs, assumptions, units, provider/validator versions, artifact links, evidence and approval reason.
+### Exit gate
 
-## Pull request and monitoring protocol
+Every supported result state is tested at the UI/API boundary; no partial failure is shown as silent success; drafts/context survive recoverable failures; retry behavior cannot duplicate non-idempotent effects; evidence/validation semantics remain unchanged; existing deterministic and CAD tests stay green. Record actual baseline observations and unknowns rather than declaring a productivity improvement.
 
-1. Inspect the exact branch diff and repository instructions.
-2. Run targeted tests, full unit tests, type-check/build, lint and security workflows required by CI.
-3. For worker or persistence changes, run the relevant isolated/live acceptance only with configured test credentials and provisioned runtimes.
-4. Open a PR with scope, risk, evidence, test commands/results, limitations and rollback path.
-5. Monitor every required check for the PR head SHA. Re-run only transient failures after classifying the cause; fix deterministic failures before merge.
-6. Merge only when required checks pass and any mandatory review is satisfied. If deployment is necessary, wait for deployment readiness and run the relevant smoke test.
-7. Report the exact PR/commit/run URLs, final status and any unverified claims. Do not claim continuous monitoring after the session ends.
+## M1 — CAD production confidence
 
-## Rollback
+**Outcome:** the existing explicitly dimensioned cylindrical CAD path is accepted on the exact current revision in an isolated environment—not merely present in source or green in offline CI.
 
-- Disable a provider through trusted configuration/router status without deleting evidence or changing other providers.
-- Revert the smallest PR/commit if a release introduces a regression.
-- For schema/storage changes, document compatibility and cleanup before migration; do not delete artifacts or evidence as an automatic rollback.
-- Keep previously accepted evidence immutable and auditable; new validation should create new records rather than silently rewriting prior claims.
+### Implementation
+
+1. Unblock the current live acceptance environment. The last reviewed [CAD Workspace Live Acceptance run](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) stopped before the authenticated test because CAD_WORKSPACE_BASE_URL was missing. Configure the protected cad-workspace-live-acceptance environment with CAD_WORKSPACE_BASE_URL, CAD_WORKSPACE_PROJECT_ID, CAD_WORKSPACE_MODEL_ID and secret CAD_WORKSPACE_COOKIE; rerun after M0 on the new exact revision. Never print or commit the cookie.
+2. Verify the app deployment revision and actual worker/source image revision, health, authentication, artifact directory/storage, runtime flags and resource controls. Check DURABLE_EXECUTION_ENABLED, the worker endpoint and production migration/schema status before enabling any durable path. Reconcile production migration history only through the reviewed migration workflow.
+3. Preserve the supported pipeline: explicit typed cylindrical intent → deterministic build123d source generation → isolated worker → artifact registration → independent OCCT BREP validation → evidence receipt bound to exact artifact bytes and trusted project/model/run lineage. Do not turn free-form model-generated code or an arbitrary BREP script into the primary production contract.
+4. Add/retain negative-path fixtures for missing dimensions, unsupported intent, malformed request/manifest, worker timeout or non-zero exit, path traversal, unexpected/missing/oversized artifact, digest mismatch, validator disagreement, persistence failure, cleanup failure and cross-project read/write attempts.
+5. Verify that the persisted BREP digest matches the validator receipt and that measured geometry and model/project lineage agree on readback. Authorization must protect all model, artifact, completion and evidence reads.
+6. Distinguish validated BREP from exports. A receipt for BREP does not independently validate STEP/STL/3MF bytes. Re-import and validate each exact exported representation and issue its own bound receipt before labelling that export independently verified; otherwise label it as an export derived from a validated BREP.
+7. Choose stage-specific queue, generation, build, validation and persistence timeouts from measured staging durations and worker cold-start behavior. Do not impose a blanket 60-second end-to-end limit without evidence.
+
+### Parallel release and runtime preconditions
+
+These are enabling controls for safe acceptance and release, not a reason to delay M0's UI/recovery work:
+
+- Protect main, require pull requests and appropriate Core CI/ESLint/CodeQL checks, and prevent force-pushes. Add provider benchmark checks for relevant changes.
+- Treat a security scanner marked SKIPPED because a token/configuration is missing as unverified, not as a pass.
+- Use only dedicated non-production app/database and disposable accounts for Playwright; ensure E2E_SUPABASE_PROJECT_REF differs from PRODUCTION_SUPABASE_PROJECT_REF, the exact host is allowlisted and the auth origin matches.
+- The previous migration reconciliation run skipped apply/repair/write steps. Do not infer migrations were applied from that run; verify history and schema explicitly.
+- Keep all changes on reviewed feature branches. Do not enable production flags or deploy merely because source CI passes.
+
+### Exit gate
+
+Same-revision CI passes and the authenticated live CAD workflow completes on the exact revision; it records the deployed app/worker versions; the persisted BREP bytes match the receipt and digest; geometry measurements and project/model lineage match; unauthorized access and failure cases fail closed; the result surface tells the truth about the artifact and any outstanding approval.
+
+## M2 — Expand the bounded calculation family
+
+**Outcome:** extend engineering value with one well-defined calculation family at a time, using the same input, units, validation, evidence and decision contracts as existing calculations.
+
+### Implementation
+
+1. Start with the existing shaft torque/preliminary-sizing path and its known-answer tests. Treat these as calculation results under stated assumptions, not a blanket claim that a shaft design is safe. Torque from power and RPM alone does not determine an acceptable diameter without the relevant load cases, material allowables, safety factor, failure modes and engineering review.
+2. Use M0's task observations to choose the next calculation family; do not select work merely because a library or provider exists. Before coding, define its user problem, required inputs, units, assumptions, validity range, known-answer/analytical references, missing-input behavior and required approval.
+3. Normalize/validate units and domain limits before execution. Return NEEDS_INPUT where a material input is absent; return UNSUPPORTED when outside declared scope. Do not guess inputs to make a calculation complete.
+4. Execute through registered deterministic providers, independently check the result where possible, and persist inputs, assumptions, provider/version, calculations, validation method, failures and evidence lineage.
+5. Add boundary/invalid-value fixtures, dimensional-analysis tests, known-answer cases and API/UI/Playwright coverage for success, missing inputs, invalid units, domain-limit failure and recovery.
+
+### Exit gate
+
+The selected calculation family has an explicit scope/assumption contract, independent known-answer evidence, correct unit and boundary behavior, truthful result state, and traceable persisted evidence. It is selected based on a documented user need, and any benefit claim is supported by M0 measurements.
+
+## M3 — Provider promotion contract and one evidence-backed pilot
+
+**Outcome:** promote at most one strategically useful provider based on repeatable evidence, not documentation presence, marketing claims or process exit code.
+
+### Implementation
+
+1. Record the capability/provider ID and version, exact source/image digest, licence and dependency obligations, required configuration, unit/input/output schema, timeout/resource budgets, expected artifacts, validation/evidence contract, known limitations and rollback procedure.
+2. Screen the selected candidate's current source release, maintenance, licensing, dependency/security posture and worker isolation. Do not copy code, datasets or models until the applicable terms and use rights are confirmed.
+3. Use the same declared benchmark fixtures, known-answer/analytic reference where applicable, independent validator, negative cases and evidence schema as the existing capability. Record all failed and excluded trials, not only successful runs.
+4. Run one pilot only, selected by user demand and M0–M2 results. It may be an alternative CAD provider or a bounded open FEA path such as CalculiX/Gmsh, but do not start both in parallel. A provider's presence in the repository does not imply its runtime is deployed or production-ready.
+5. Keep providers EXPERIMENTAL/PILOT until exact-revision tests, isolated runtime controls, independent validation and retained evidence pass with review approval. Do not adopt LangGraph/LangChain, LiteLLM, Vercel AI SDK, pg-boss or another orchestration/queue stack unless a measured gap in accepted outcomes justifies the added complexity.
+
+### Exit gate
+
+One candidate has a reviewable licence/security record, pinned runtime, reproducible fixture results, independent validation, clear limits, operational observability and rollback. Promotion is scoped to the capability and exact runtime/version tested; it does not certify other providers or domains.
+
+## Deferred scope
+
+Broad freeform/assembly CAD, general-purpose topological repair, production-grade FEA/CFD safety claims, manufacturing/CAM output, robotics, ECAD, PLM rollout and physical-perception workflows remain deferred until a specific user need and a separate capability-level acceptance contract justify them. For FEA, a pilot must declare geometry, material, loads, supports, contacts where relevant, mesh controls, solver diagnostics, convergence, analytical/known-answer comparison and independent engineering review. A completed solve or stress below yield alone is not a design-safety verdict.
+
+## Non-negotiable engineering gates
+
+- Keep the current stack and provider-neutral seams; do not add LangGraph/LangChain, LiteLLM, Vercel AI SDK or another runtime unless actual runtime wiring and a measured requirement justify it.
+- Worker policy is defined in [docs/worker-security.md](worker-security.md): allowlisted capabilities, isolated non-root execution, no network by default where possible, read-only root, scoped artifacts, resource limits, schema validation and run provenance. Verify deployed controls; a policy document is not proof of enforcement.
+- Hashes and hash chains provide integrity evidence only within their threat model. Do not describe a record as digitally signed or immutable without protected signing keys and a verification anchor.
+- A CI pass proves only what that run tests. A live provider smoke test proves its stated connectivity/contract, not broad engineering correctness or structural safety.
+- Evidence must identify source revision, provider/runtime version, inputs/units, validation method, exact artifact digest, measured outcome, assumptions, failures, reviewer/approval and applicable limitations.
+- Every milestone closes with code/tests where applicable, retained evidence, current docs, explicit scope limits and a rollback path. A milestone is complete only when its exit gate has evidence on the exact revision.
