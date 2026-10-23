@@ -3,6 +3,7 @@ import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { inventoryProjectArtifacts, inventoryProjectStorageArtifacts, removeProjectArtifacts } from "../../../../src/projects/artifact-cleanup";
+import { POINT_CLOUD_ARTIFACT_BUCKET } from "../../../../src/perception/uploads";
 
 export const runtime = "nodejs";
 
@@ -173,16 +174,20 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return jsonError("Only the project owner can delete this project.", 403);
     }
 
-    let objectPaths: Set<string>;
+    // The owner and PROJECT.WRITE checks above authorize server-role cleanup.
+    // Inventory both private artifact buckets before removal, then verify both are empty.
+    const cleanupDb = createServiceRoleClient();
+    let cadObjectPaths: Set<string>;
+    let pointCloudObjectPaths: Set<string>;
     try {
-      objectPaths = await inventoryProjectArtifacts(
+      cadObjectPaths = await inventoryProjectArtifacts(
         projectId,
         async (folder, options) => {
-          const { data, error } = await db.storage.from(ARTIFACT_BUCKET).list(folder, options);
+          const { data, error } = await cleanupDb.storage.from(ARTIFACT_BUCKET).list(folder, options);
           return { data: data ?? null, error };
         },
         async () => {
-          const { data, error } = await db
+          const { data, error } = await cleanupDb
             .from("engineering_cad_completions")
             .select("storage_objects")
             .eq("project_id", projectId);
@@ -194,28 +199,46 @@ export async function DELETE(_request: Request, context: RouteContext) {
           };
         },
       );
+      pointCloudObjectPaths = await inventoryProjectStorageArtifacts(
+        projectId,
+        async (folder, options) => {
+          const { data, error } = await cleanupDb.storage.from(POINT_CLOUD_ARTIFACT_BUCKET).list(folder, options);
+          return { data: data ?? null, error };
+        },
+      );
     } catch {
       return jsonError("Project artifacts could not be safely inventoried; deletion was stopped.", 503);
     }
 
     let objectsRemoved: number;
     try {
-      objectsRemoved = await removeProjectArtifacts([...objectPaths], async (paths) => {
-        const { data, error } = await db.storage.from(ARTIFACT_BUCKET).remove(paths);
+      const removedCAD = await removeProjectArtifacts([...cadObjectPaths], async (paths) => {
+        const { data, error } = await cleanupDb.storage.from(ARTIFACT_BUCKET).remove(paths);
         return { data: data ?? null, error };
       });
+      const removedPointCloud = await removeProjectArtifacts([...pointCloudObjectPaths], async (paths) => {
+        const { data, error } = await cleanupDb.storage.from(POINT_CLOUD_ARTIFACT_BUCKET).remove(paths);
+        return { data: data ?? null, error };
+      });
+      objectsRemoved = removedCAD + removedPointCloud;
     } catch {
       return jsonError("Project artifact cleanup failed; project records were retained and no deletion success was reported.", 503);
     }
 
-    // Verify the bucket prefix is empty while the project owner row still exists.
-    // Do not rely only on the requested deletion count or on the remove API result.
-    let remainingPaths: Set<string>;
+    let remainingCAD: Set<string>;
+    let remainingPointCloud: Set<string>;
     try {
-      remainingPaths = await inventoryProjectStorageArtifacts(
+      remainingCAD = await inventoryProjectStorageArtifacts(
         projectId,
         async (folder, options) => {
-          const { data, error } = await db.storage.from(ARTIFACT_BUCKET).list(folder, options);
+          const { data, error } = await cleanupDb.storage.from(ARTIFACT_BUCKET).list(folder, options);
+          return { data: data ?? null, error };
+        },
+      );
+      remainingPointCloud = await inventoryProjectStorageArtifacts(
+        projectId,
+        async (folder, options) => {
+          const { data, error } = await cleanupDb.storage.from(POINT_CLOUD_ARTIFACT_BUCKET).list(folder, options);
           return { data: data ?? null, error };
         },
       );
@@ -226,18 +249,16 @@ export async function DELETE(_request: Request, context: RouteContext) {
         { code: "PROJECT_ARTIFACT_CLEANUP_UNVERIFIED" },
       );
     }
-    if (remainingPaths.size > 0) {
+
+    const objectsRemaining = remainingCAD.size + remainingPointCloud.size;
+    if (objectsRemaining > 0) {
       return jsonError(
         "Project artifact cleanup left objects behind; project records were retained.",
         503,
-        { code: "PROJECT_ARTIFACTS_REMAIN", objectsRemaining: remainingPaths.size },
+        { code: "PROJECT_ARTIFACTS_REMAIN", objectsRemaining },
       );
     }
 
-    // Use the server-only service client only after authentication, owner verification,
-    // complete storage inventory, removal, and post-removal verification. Authenticated
-    // clients must not be able to bypass this cleanup by calling PostgREST DELETE directly.
-    const cleanupDb = createServiceRoleClient();
     const { data: deleted, error: deleteError } = await cleanupDb
       .from("engineering_projects")
       .delete()
@@ -261,7 +282,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       artifactCleanup: {
         status: "COMPLETED",
         objectsRemoved,
-        objectsRemaining: remainingPaths.size,
+        objectsRemaining: remainingCAD.size + remainingPointCloud.size,
         verification: "POST_REMOVE_STORAGE_INVENTORY",
       },
     }, { headers: { "cache-control": "no-store" } });

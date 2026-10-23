@@ -17,6 +17,11 @@ on:
         required: true
         type: boolean
         default: false
+      test_point_cloud_upload:
+        description: Opt in to signed point-cloud upload/hash/audit/cleanup acceptance in isolated E2E
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,6 +41,7 @@ jobs:
       E2E_BASE_URL: ${{ inputs.base_url }}
       CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
       E2E_RUN_ACCEPTED_CAD_SMOKE: ${{ inputs.test_accepted_cad_completion }}
+      E2E_RUN_POINT_CLOUD_UPLOAD_SMOKE: ${{ inputs.test_point_cloud_upload }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
       E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
@@ -130,30 +136,36 @@ jobs:
         run: npm run test:e2e
 
       - name: Remove session-bearing Playwright trace archives before artifact upload
+        id: sanitize_evidence
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          # Playwright's HTML reporter copies trace ZIPs under hashed names in
-          # playwright-report/data, not only as trace.zip. Any ZIP or video can
-          # retain authenticated request headers or browser storage state.
+          # Playwright traces and videos can retain authenticated request headers or
+          # browser storage state. Remove every archive from both output trees.
+          # Use rm explicitly, followed by a separate verification pass.
           for evidence_dir in test-results playwright-report; do
             if [[ -d "$evidence_dir" ]]; then
-              find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -print -delete
+              find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -exec rm -f -- {} +
             fi
           done
 
-          # Fail closed if any raw trace archive or video remains in either
-          # directory. Screenshots and sanitized Markdown diagnostics are retained.
           for evidence_dir in test-results playwright-report; do
-            if [[ -d "$evidence_dir" ]] && find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -print -quit | grep -q .; then
-              echo "::error::Refusing to upload Playwright trace archives or videos."
-              exit 1
+            if [[ -d "$evidence_dir" ]]; then
+              leftovers="$(find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -print)"
+              if [[ -n "$leftovers" ]]; then
+                echo "::error::Refusing to upload Playwright evidence because session-bearing trace archives or videos remain."
+                echo "$leftovers" | sed 's#^#[blocked-evidence] #'
+                exit 1
+              fi
             fi
           done
 
-      - name: Upload Playwright report, traces, screenshots, and diagnostics
-        if: always()
+          # Upload remains disabled unless sanitization is verified.
+          echo "safe_to_upload=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Playwright report and sanitized screenshots/diagnostics
+        if: always() && steps.sanitize_evidence.outputs.safe_to_upload == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-e2e-evidence

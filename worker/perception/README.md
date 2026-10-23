@@ -24,3 +24,9 @@ Run with a read-only-mounted, dedicated input directory, no network, read-only r
 ## Promotion gate
 
 Use independently measured, noisy and outlier-containing fixtures with known rigid transforms; verify both pass and fail thresholds; check project isolation; and demonstrate that malformed scans cannot produce accepted artifacts. Do not select production thresholds from the synthetic self-registration fixture alone.
+
+## Authenticated source upload intake
+
+The application API creates project-scoped upload intents, returns a short-lived non-upsert signed upload token for direct private Supabase Storage upload, and finalizes only after host-side streaming SHA-256 and bounded PLY/PCD/XYZ header or XYZ-row preflight. Initial limits are 40 MiB per file, 2,000,000 points, five pending uploads per project, and a two-hour token expiry. Metadata is server-only and the bucket is private.
+
+A finalized item remains UPLOADED with PENDING_OPEN3D_INSPECTION; it must not be treated as MEASURED or VERIFIED. The isolated Open3D worker still must inspect the exact bytes and emit measurements before registration or scan-to-CAD review.
