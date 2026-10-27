@@ -188,3 +188,46 @@
 .decisionOutcome--neutral{border-color:#405062;background:#111820}
 .decisionFollowUp{margin-top:12px;padding:12px 14px;border-left:2px solid #46d6c3;background:#101820}
 .decisionFollowUp strong{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a0b2bb}
+
+/* Forge v11.2 design tokens and conservative visual alignment. */
+:root {
+  --color-bg: #08111a; --color-surface: #0e1a25; --color-surface-raised: #142330;
+  --color-surface-hover: #1a2b39; --color-border: #2a3b49; --color-border-strong: #3b5363;
+  --color-text: #edf4f7; --color-text-muted: #a2b3c0; --color-text-subtle: #7f94a4;
+  --color-accent: #42c8b4; --color-accent-hover: #68d8c7; --color-info: #65aef5;
+  --color-warning: #e8b35c; --color-danger: #f07878; --color-success: #53c5a4;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-pill: 999px;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --focus-ring: 0 0 0 3px #42c8b455;
+}
+:root { font-family: var(--font-sans); color: var(--color-text); background: var(--color-bg); color-scheme: dark; }
+body { background: var(--color-bg); color: var(--color-text); }
+.shell { max-width: 1600px; padding: 28px 24px; }
+h1 { font-size: clamp(25px, 2.5vw, 32px); line-height: 1.2; margin: 6px 0 12px; letter-spacing: -0.025em; }
+h2 { font-size: 18px; line-height: 1.35; }
+h3 { font-size: 14px; line-height: 1.4; }
+.hero { padding: 24px 0; }
+.projectHead, .moduleHead { padding: 24px 0 20px; }
+.card, .panel, .metric, .pipe { background: var(--color-surface); border-color: var(--color-border); border-radius: var(--radius-md); }
+.card:hover { border-color: var(--color-border-strong); background: var(--color-surface-raised); }
+.button { background: var(--color-accent); border-color: var(--color-accent); color: #06151a; border-radius: var(--radius-sm); min-height: 40px; }
+.button:hover:not(:disabled) { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
+.button:disabled { opacity: .55; cursor: not-allowed; }
+.secondaryButton { background: transparent; border-color: var(--color-border-strong); color: var(--color-text); }
+.secondaryButton:hover:not(:disabled) { background: var(--color-surface-hover); border-color: var(--color-accent); }
+input, textarea, select { background: var(--color-surface-raised); color: var(--color-text); border-color: var(--color-border-strong); }
+input::placeholder, textarea::placeholder { color: var(--color-text-subtle); }
+a { text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent); outline-offset: 3px; box-shadow: var(--focus-ring);
+}
+button, .button { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}
+@media (max-width: 640px) {
+  .shell { padding: 20px 14px; }
+  .hero, .projectHead, .moduleHead { gap: 14px; }
+  h1 { font-size: clamp(24px, 6vw, 30px); }
+}

@@ -1,0 +1,10 @@
+{
+  "color": {
+    "bg": "#08111a", "surface": "#0e1a25", "surfaceRaised": "#142330", "surfaceHover": "#1a2b39",
+    "border": "#2a3b49", "text": "#edf4f7", "textMuted": "#a2b3c0", "accent": "#42c8b4",
+    "info": "#65aef5", "warning": "#e8b35c", "danger": "#f07878", "success": "#53c5a4"
+  },
+  "radius": {"sm": "6px", "md": "10px", "lg": "14px", "pill": "999px"},
+  "spacing": {"1": "4px", "2": "8px", "3": "12px", "4": "16px", "5": "20px", "6": "24px", "8": "32px", "10": "40px", "12": "48px"},
+  "typography": {"fontSans": "Inter, system-ui, sans-serif", "fontMono": "ui-monospace, monospace", "xs": "12px", "sm": "13px", "base": "14px", "lg": "18px", "xl": "22px", "2xl": "28px"}
+}
