@@ -177,3 +177,14 @@
 
 /* Accessible link contrast on dark panels, including authentication forms. */
 .panel a{color:#8bc6ff;text-underline-offset:3px}.panel a:focus-visible{outline:2px solid #8bc6ff;outline-offset:3px;border-radius:2px}
+
+/* M0: communicate engineering decisions without collapsing execution, validation, and approval. */
+.decisionOutcome{margin:12px 0;padding:14px 15px;border:1px solid #405062;border-radius:9px;background:#111820}
+.decisionOutcome strong{display:block;color:#e8edf3;font-size:13px}
+.decisionOutcome p,.decisionFollowUp p{margin:6px 0 0;font-size:13px;line-height:1.55}
+.decisionOutcome--positive{border-color:#2c6a58;background:#101d1b}
+.decisionOutcome--attention{border-color:#6f5e45;background:#191712}
+.decisionOutcome--danger{border-color:#713d43;background:#201416}
+.decisionOutcome--neutral{border-color:#405062;background:#111820}
+.decisionFollowUp{margin-top:12px;padding:12px 14px;border-left:2px solid #46d6c3;background:#101820}
+.decisionFollowUp strong{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a0b2bb}
