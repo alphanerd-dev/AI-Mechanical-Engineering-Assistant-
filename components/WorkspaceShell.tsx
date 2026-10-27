@@ -203,7 +203,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
         </div>
         <div className="workspaceTopbarRight">
           <span className="workspaceContextBadge"><span className="workspaceContextDot" aria-hidden="true" />{navigation.projectId ? <>PROJECT · <span className="workspaceCurrentProjectName" title={currentProjectLabel}>{currentProjectLabel}</span></> : "WORKSPACE"}</span>
-          <button type="button" className="workspaceSearchButton" onClick={openSearch} aria-haspopup="dialog" aria-expanded={searchOpen}>
+          <button type="button" className="workspaceSearchButton" onClick={openSearch} aria-label="Search workspace" aria-haspopup="dialog" aria-expanded={searchOpen}>
             <span aria-hidden="true">⌕</span><span className="workspaceSearchLabel">Search workspace</span><kbd>Ctrl K</kbd>
           </button>
           <div className="workspaceAccount"><AuthNavigation /></div>
