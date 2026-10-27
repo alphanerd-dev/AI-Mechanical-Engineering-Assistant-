@@ -15,6 +15,8 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const [hash, setHash] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
+  const searchDialog = useRef<HTMLElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const readHash = () => setHash(window.location.hash);
@@ -23,26 +25,34 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("hashchange", readHash);
   }, []);
 
-  useEffect(() => {
-    setSidebarOpen(false);
+  const closeSearch = useCallback(() => {
     setSearchOpen(false);
     setQuery("");
-  }, [pathname]);
+    previousFocus.current?.focus();
+  }, []);
+
+  const openSearch = useCallback(() => {
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSidebarOpen(false);
+    setSearchOpen(true);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setSidebarOpen(false);
         setSearchOpen(true);
       }
       if (event.key === "Escape") {
-        setSearchOpen(false);
         setSidebarOpen(false);
+        if (searchOpen) closeSearch();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [closeSearch, searchOpen]);
 
   useEffect(() => {
     if (searchOpen) searchInput.current?.focus();
@@ -54,11 +64,6 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     if (!normalized) return allItems;
     return allItems.filter((item) => (item.label + " " + (item.description ?? "")).toLowerCase().includes(normalized));
   }, [allItems, query]);
-
-  const closeSearch = useCallback(() => {
-    setSearchOpen(false);
-    setQuery("");
-  }, []);
 
   function chooseResult(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,7 +129,6 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
         <p>Requests, saved conversation and engineering records stay attached to the selected project ID. The demo sandbox is illustrative and may reset.</p>
       </div>}
       <footer className="workspaceSidebarFooter">
-        <div className="workspaceAccount"><AuthNavigation /></div>
         <span className="workspaceSidebarFooterLabel">AI proposes · deterministic systems execute · evidence proves</span>
       </footer>
     </aside>
@@ -140,7 +144,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
         </div>
         <div className="workspaceTopbarRight">
           <span className="workspaceContextBadge"><span className="workspaceContextDot" aria-hidden="true" />{navigation.projectId ? "PROJECT-SCOPED" : "WORKSPACE"}</span>
-          <button type="button" className="workspaceSearchButton" onClick={() => setSearchOpen(true)} aria-haspopup="dialog" aria-expanded={searchOpen}>
+          <button type="button" className="workspaceSearchButton" onClick={openSearch} aria-haspopup="dialog" aria-expanded={searchOpen}>
             <span aria-hidden="true">⌕</span><span className="workspaceSearchLabel">Search workspace</span><kbd>Ctrl K</kbd>
           </button>
           <div className="workspaceAccount"><AuthNavigation /></div>
@@ -159,7 +163,17 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
     {searchOpen && <>
       <button type="button" className="workspaceCommandBackdrop" aria-label="Close search" onClick={closeSearch} />
-      <section className="workspaceCommandDialog" role="dialog" aria-modal="true" aria-labelledby="workspace-command-title">
+      <section ref={searchDialog} className="workspaceCommandDialog" role="dialog" aria-modal="true" aria-labelledby="workspace-command-title" onKeyDown={(event) => {
+          if (event.key === "Escape") { event.stopPropagation(); closeSearch(); return; }
+          if (event.key === "Tab") {
+            const focusable = searchDialog.current?.querySelectorAll<HTMLElement>("input:not([disabled]), button:not([disabled]), a[href]");
+            if (!focusable?.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+          }
+        }}>
         <h2 id="workspace-command-title" className="workspaceCommandTitle">Search this workspace</h2>
         <form className="workspaceCommandForm" onSubmit={chooseResult}>
           <input

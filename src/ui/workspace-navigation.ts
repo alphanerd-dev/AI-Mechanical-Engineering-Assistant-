@@ -60,7 +60,6 @@ export function getWorkspaceNavigation(pathnameInput: string | null | undefined)
   const projectItems: WorkspaceNavItem[] = projectId ? [
     { id: "project-overview", label: "Project overview", href: projectPrefix, icon: "◫", description: "Status, decisions and open questions" },
     { id: "requirements", label: "Requirements", href: projectPrefix + "/requirements", icon: "≡", description: "Scope, assumptions and verification" },
-    { id: "engineering", label: "Engineering assistant", href: projectPrefix + "/engineering", icon: "✳", description: "Intent, tools and checked outcomes" },
     { id: "reasoning", label: "Reasoning workbench", href: projectPrefix + "/reasoning", icon: "∴", description: "Structured problem reasoning" },
     { id: "analysis", label: "Analysis", href: projectPrefix + "/analysis", icon: "∑", description: "Deterministic calculations and runs" },
     { id: "cad", label: "CAD", href: projectPrefix + "/cad", icon: "◇", description: "Geometry and validation state" },

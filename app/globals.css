@@ -328,3 +328,5 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
 .workspaceTopbarRight .workspaceAccount{margin-left:0}
 .workspaceMain .shell>header.hero{padding-top:22px;padding-bottom:22px}
 @media(max-width:900px){.workspaceSidebarFooter{margin-top:8px}.workspaceMain .shell>header.hero{padding-top:8px}}
+
+@media(max-width:900px){.workspaceMobileBrand{display:inline-flex;align-items:baseline;gap:6px;color:#edf4f7;text-decoration:none;font-size:12px;font-weight:900;letter-spacing:.12em}.workspaceMobileBrand span{color:#7f94a4;font-size:9px;font-weight:700;letter-spacing:.05em}}
