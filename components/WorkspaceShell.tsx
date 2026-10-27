@@ -14,6 +14,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [hash, setHash] = useState("");
+  const [loadedProjectName, setLoadedProjectName] = useState<{ projectId: string; name: string } | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchDialog = useRef<HTMLElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -24,6 +25,29 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     window.addEventListener("hashchange", readHash);
     return () => window.removeEventListener("hashchange", readHash);
   }, []);
+
+  useEffect(() => {
+    const selectedProjectId = navigation.projectId;
+    if (!selectedProjectId || selectedProjectId === "demo") return;
+
+    let active = true;
+    void fetch("/api/projects", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((body: unknown) => {
+        if (!active || !body || typeof body !== "object" || !("projects" in body)) return;
+        const projects = (body as { projects?: unknown }).projects;
+        if (!Array.isArray(projects)) return;
+        const project = projects.find((item) =>
+          item && typeof item === "object" &&
+          "id" in item && item.id === selectedProjectId &&
+          "name" in item && typeof item.name === "string"
+        ) as { id: string; name: string } | undefined;
+        if (project && active) setLoadedProjectName({ projectId: project.id, name: project.name });
+      })
+      .catch(() => undefined);
+
+    return () => { active = false; };
+  }, [navigation.projectId]);
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
@@ -90,6 +114,9 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
   if (navigation.isAuthRoute) return <div className="authLayout">{children}</div>;
 
+  const currentProjectLabel = loadedProjectName?.projectId === navigation.projectId
+    ? loadedProjectName.name
+    : navigation.projectLabel;
   const assistantHref = navigation.globalItems.find((item) => item.id === "assistant")?.href ?? "/projects/demo/engineering";
   const cadHref = navigation.projectId ? "/projects/" + navigation.projectId + "/cad" : "/projects/demo/cad";
   const overviewHref = navigation.projectId ? "/projects/" + navigation.projectId : "/";
@@ -110,7 +137,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
       {navigation.projectId && <nav className="workspaceNavGroup" aria-label="Current project">
         <p className="workspaceNavHeading">Project workspace</p>
-        <div className="workspaceProjectLabel"><span className="workspaceProjectDot" aria-hidden="true" />{navigation.projectLabel}</div>
+        <div className="workspaceProjectLabel"><span className="workspaceProjectDot" aria-hidden="true" />{currentProjectLabel}</div>
         {navigation.projectItems.map((item) => renderLink(item, "project"))}
       </nav>}
 
@@ -143,7 +170,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
         <div className="workspaceTopbarRight">
-          <span className="workspaceContextBadge"><span className="workspaceContextDot" aria-hidden="true" />{navigation.projectId ? "PROJECT-SCOPED" : "WORKSPACE"}</span>
+          <span className="workspaceContextBadge"><span className="workspaceContextDot" aria-hidden="true" />{navigation.projectId ? <>PROJECT · <span className="workspaceCurrentProjectName" title={currentProjectLabel}>{currentProjectLabel}</span></> : "WORKSPACE"}</span>
           <button type="button" className="workspaceSearchButton" onClick={openSearch} aria-haspopup="dialog" aria-expanded={searchOpen}>
             <span aria-hidden="true">⌕</span><span className="workspaceSearchLabel">Search workspace</span><kbd>Ctrl K</kbd>
           </button>

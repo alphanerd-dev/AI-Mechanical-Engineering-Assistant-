@@ -353,3 +353,6 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
 .projectPossibleMatch small{color:#8fa2af;font-size:10px}
 .projectCreateRiskNotice{margin:0;padding:9px 11px;border-left:2px solid #e8b35c;background:#211a0e;color:#eacb91;font-size:11px;line-height:1.5}
 @media(max-width:560px){.projectBriefReviewGrid{grid-template-columns:1fr}.projectCreateActions{align-items:stretch}.projectCreateActions>.button{width:100%;margin-left:0}.projectPossibleMatch{align-items:flex-start;flex-direction:column}}
+
+.workspaceContextBadge{max-width:min(300px,35vw);overflow:hidden;text-overflow:ellipsis}
+.workspaceCurrentProjectName{display:inline-block;max-width:180px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
