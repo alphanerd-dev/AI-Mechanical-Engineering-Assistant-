@@ -8,6 +8,29 @@ describe("engineering decision presentation",()=>{
     expect(result.message).toContain("does not mean an engineering operation has executed");
   });
 
+  it("keeps proposal, execution, validation, verification, and approval distinct",()=>{
+    const proposed=getEngineeringDecisionPresentation({status:"PROPOSED",validationPassed:false,evidenceIds:[]});
+    const executed=getEngineeringDecisionPresentation({status:"EXECUTED",validationPassed:false,evidenceIds:[]});
+    const validated=getEngineeringDecisionPresentation({status:"VALIDATED",validationPassed:true,evidenceIds:["receipt-1"]});
+    const verifiedNoEvidence=getEngineeringDecisionPresentation({status:"VERIFIED",validationPassed:true,evidenceIds:[]});
+    const approvedUnvalidated=getEngineeringDecisionPresentation({status:"APPROVED",validationPassed:false,evidenceIds:["approval-1"]});
+    expect(proposed.message).toContain("has not been executed");
+    expect(executed.message).toContain("does not by itself establish engineering correctness");
+    expect(validated.message).toContain("Human approval and release are separate");
+    expect(verifiedNoEvidence.tone).toBe("attention");
+    expect(verifiedNoEvidence.message).toContain("no linked evidence");
+    expect(approvedUnvalidated.message).toContain("not confirmed");
+  });
+
+  it("flags stale and cancelled outcomes without implying a current accepted result",()=>{
+    const stale=getEngineeringDecisionPresentation({status:"STALE",validationPassed:true,evidenceIds:["old-receipt"]});
+    const cancelled=getEngineeringDecisionPresentation({status:"CANCELLED",validationPassed:false,evidenceIds:[]});
+    expect(stale.title).toBe("Result is stale");
+    expect(stale.message).toContain("Do not use this result as current");
+    expect(cancelled.title).toBe("Operation cancelled");
+    expect(cancelled.message).toContain("cancelled");
+  });
+
   it("asks for the material input returned by the workflow",()=>{
     const result=getEngineeringDecisionPresentation({status:"NEEDS_INPUT",validationPassed:false,evidenceIds:[],nextQuestion:"What is the bending moment?"});
     expect(result.tone).toBe("attention");
