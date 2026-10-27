@@ -7,6 +7,14 @@ on:
         description: HTTPS URL of the dedicated non-production E2E deployment only
         required: true
         type: string
+      suite:
+        description: Run the public unauthenticated UI smoke or the full authenticated acceptance suite
+        required: true
+        type: choice
+        options:
+          - full
+          - public-ui-smoke
+        default: full
       confirm_isolated_environment:
         description: Confirm the deployment uses a dedicated E2E Supabase project and disposable test accounts, not production or shared development data
         required: true
@@ -34,18 +42,19 @@ jobs:
     environment: e2e-staging
     env:
       E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_SUITE: ${{ inputs.suite }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
       E2E_RUN_ACCEPTED_CAD_SMOKE: ${{ inputs.test_accepted_cad_completion }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
       E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
-      E2E_SUPABASE_PUBLISHABLE_KEY: ${{ vars.E2E_SUPABASE_PUBLISHABLE_KEY }}
+      E2E_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.suite != 'public-ui-smoke' && vars.E2E_SUPABASE_PUBLISHABLE_KEY || '' }}
       PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.PRODUCTION_SUPABASE_PROJECT_REF }}
-      E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
-      E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
-      E2E_USER_B_EMAIL: ${{ secrets.E2E_USER_B_EMAIL }}
-      E2E_USER_B_PASSWORD: ${{ secrets.E2E_USER_B_PASSWORD }}
+      E2E_USER_A_EMAIL: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_A_EMAIL || '' }}
+      E2E_USER_A_PASSWORD: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_A_PASSWORD || '' }}
+      E2E_USER_B_EMAIL: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_B_EMAIL || '' }}
+      E2E_USER_B_PASSWORD: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_B_PASSWORD || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,6 +96,11 @@ jobs:
             throw new Error("E2E target host is not in the exact E2E_ALLOWED_HOSTS allowlist.");
           }
 
+          const suite = process.env.E2E_SUITE || "full";
+          if (!["full", "public-ui-smoke"].includes(suite)) throw new Error("Unsupported E2E suite.");
+          if (suite === "public-ui-smoke" && process.env.E2E_RUN_ACCEPTED_CAD_SMOKE === "true") {
+            throw new Error("Public UI smoke cannot opt into CAD execution.");
+          }
           const e2eProject = (process.env.E2E_SUPABASE_PROJECT_REF || "").trim();
           const productionProject = (process.env.PRODUCTION_SUPABASE_PROJECT_REF || "").trim();
           const projectRefPattern = /^[a-z0-9]{20}$/;
@@ -100,17 +114,18 @@ jobs:
             throw new Error("Refusing to run: the E2E Supabase project reference equals the production project reference.");
           }
 
-          for (const key of [
-            "VERCEL_AUTOMATION_BYPASS_SECRET",
+          const requiredSecrets = ["VERCEL_AUTOMATION_BYPASS_SECRET"];
+          if (suite === "full") requiredSecrets.push(
             "E2E_SUPABASE_PUBLISHABLE_KEY",
             "E2E_USER_A_EMAIL", "E2E_USER_A_PASSWORD",
             "E2E_USER_B_EMAIL", "E2E_USER_B_PASSWORD"
-          ]) {
+          );
+          for (const key of requiredSecrets) {
             if (!process.env[key] || !process.env[key].trim()) {
               throw new Error("Missing required GitHub Actions secret: " + key);
             }
           }
-          console.log("Validated canonical auth origin, exact allowlisted E2E host, and distinct configured E2E/production Supabase project references.");
+          console.log("Validated suite=" + suite + ", canonical HTTPS origin, exact allowlisted isolated host, and distinct configured E2E/production Supabase references.");
           NODE
 
       - name: Set up Node.js
@@ -128,8 +143,15 @@ jobs:
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
 
-      - name: Run end-to-end acceptance journey
-        run: npm run test:e2e
+      - name: Run selected Playwright acceptance suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$E2E_SUITE" == "public-ui-smoke" ]]; then
+            npm run test:e2e -- tests/e2e/public-workspace-smoke.e2e.mjs
+          else
+            npm run test:e2e
+          fi
 
       - name: Remove session-bearing Playwright trace archives before artifact upload
         if: always()
