@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import AuthNavigation from "../components/AuthNavigation";
+import WorkspaceShell from "../components/WorkspaceShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body><AuthNavigation />{children}</body></html>;
+  return <html lang="en"><body><WorkspaceShell>{children}</WorkspaceShell></body></html>;
 }

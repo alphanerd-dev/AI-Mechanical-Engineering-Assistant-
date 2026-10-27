@@ -110,7 +110,7 @@ export default function ProjectBoard() {
         <h1>Engineering Workspace</h1>
         <p className="muted">Engineering outcomes, not engineering overhead. State the task; the workspace coordinates supported workflows and surfaces results, checks, evidence, and the next decision. Material gaps and unsupported tasks stay explicit.</p>
       </div>
-      <div className="actions"><Link className="button secondaryButton" href="/projects/demo">Open demo sandbox</Link><form method="post" action="/api/auth/logout"><button className="button secondaryButton" type="submit">Sign out</button></form></div>
+      <div className="actions"><Link className="button secondaryButton" href="/projects/demo">Open demo sandbox</Link></div>
     </header>
 
     {roleRequired && <section className="projectNotice projectNoticeWarning" role="status">
@@ -136,7 +136,7 @@ export default function ProjectBoard() {
         </form>
       </section>
 
-      <section className="projectListSection">
+      <section className="projectListSection" id="projects">
         <div className="projectListHeader">
           <div><p className="eyebrow">PERSISTED PROJECTS</p><h2>Your engineering projects</h2></div>
           <button type="button" className="button secondaryButton" onClick={() => { setLoading(true); refresh().catch((error: unknown) => setLoadingError(error instanceof Error ? error.message : "Refresh failed.")).finally(() => setLoading(false)); }} disabled={loading}>Refresh</button>
