@@ -18,6 +18,8 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const searchInput = useRef<HTMLInputElement>(null);
   const searchDialog = useRef<HTMLElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarToggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const readHash = () => setHash(window.location.hash);
@@ -61,6 +63,15 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     setSearchOpen(true);
   }, []);
 
+  const closeSidebar = useCallback((restoreFocus = false) => {
+    setSidebarOpen(false);
+    if (restoreFocus) sidebarToggleRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (sidebarOpen) sidebarRef.current?.querySelector<HTMLElement>('nav[aria-label="Workspace"] a[href]')?.focus();
+  }, [sidebarOpen]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -70,13 +81,13 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
         setSearchOpen(true);
       }
       if (event.key === "Escape") {
-        setSidebarOpen(false);
         if (searchOpen) closeSearch();
+        if (sidebarOpen) closeSidebar(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeSearch, searchOpen]);
+  }, [closeSearch, closeSidebar, searchOpen, sidebarOpen]);
 
   useEffect(() => {
     if (searchOpen) searchInput.current?.focus();
@@ -123,8 +134,8 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const requirementsHref = navigation.projectId ? "/projects/" + navigation.projectId + "/requirements" : "/projects/demo/requirements";
 
   return <div className={"workspaceApp" + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
-    <button type="button" className="workspaceMobileScrim" aria-label="Close navigation menu" onClick={() => setSidebarOpen(false)} tabIndex={sidebarOpen ? 0 : -1} />
-    <aside className="workspaceSidebar" id="workspace-sidebar" aria-label="Workspace navigation">
+    <button type="button" className="workspaceMobileScrim" aria-label="Close navigation menu" onClick={() => closeSidebar(true)} tabIndex={sidebarOpen ? 0 : -1} />
+    <aside ref={sidebarRef} className="workspaceSidebar" id="workspace-sidebar" aria-label="Workspace navigation">
       <Link href="/" className="workspaceBrand" onClick={() => setSidebarOpen(false)} aria-label="Forge workspace home">
         <span className="workspaceBrandMark" aria-hidden="true">F</span>
         <span><span className="workspaceBrandName">FORGE</span><span className="workspaceBrandSubtitle">ENGINEERING OS</span></span>
@@ -163,7 +174,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     <div className="workspaceMain">
       <header className="workspaceTopbar">
         <div className="workspaceTopbarLeft">
-          <button type="button" className="workspaceSidebarToggle" aria-label="Open workspace navigation" aria-controls="workspace-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>☰</button>
+          <button ref={sidebarToggleRef} type="button" className="workspaceSidebarToggle" aria-label="Open workspace navigation" aria-controls="workspace-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>☰</button>
           <Link href="/" className="workspaceMobileBrand">FORGE <span>ENGINEERING OS</span></Link>
           <nav className="workspaceBreadcrumb" aria-label="Current page">
             <span>WORKSPACE</span><span aria-hidden="true">/</span><strong>{navigation.pageTitle}</strong>

@@ -293,8 +293,8 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
 }
 @media(max-width:900px){
  .workspaceApp{display:block}
- .workspaceSidebar{position:fixed;left:0;top:0;width:min(288px,86vw);height:100dvh;transform:translateX(-105%);transition:transform 160ms ease;box-shadow:none}
- .workspaceApp--sidebar-open .workspaceSidebar{transform:translateX(0);box-shadow:18px 0 50px #0008}
+ .workspaceSidebar{position:fixed;left:0;top:0;width:min(288px,86vw);height:100dvh;transform:translateX(-105%);visibility:hidden;pointer-events:none;transition:transform 160ms ease,visibility 0s linear 160ms;box-shadow:none}
+ .workspaceApp--sidebar-open .workspaceSidebar{transform:translateX(0);visibility:visible;pointer-events:auto;transition:transform 160ms ease,visibility 0s;box-shadow:18px 0 50px #0008}
  .workspaceApp--sidebar-open .workspaceMobileScrim{display:block;position:fixed;inset:0;z-index:25;border:0;background:rgba(1,7,11,.62)}
  .workspaceTopbar{min-height:58px;padding:0 16px}
  .workspaceSidebarToggle{display:inline-grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border:1px solid #2a3b49;border-radius:8px;background:#0e1a25;color:#dce8ee;font-size:16px;cursor:pointer}
