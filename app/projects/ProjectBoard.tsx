@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isEngineeringRoleRequiredFailure } from "../../src/auth/http-error-classification";
-import { buildProjectBriefReview } from "../../src/projects/project-brief-review.js";
+import { buildProjectBriefReview, getProjectAssistantHref } from "../../src/projects/project-brief-review.js";
 
 type Project = {
   id: string;
@@ -117,7 +117,7 @@ export default function ProjectBoard() {
         await refresh().catch(() => undefined);
         setNotice(body.warning ?? "Project created; workspace initialization needs a retry.");
       } else {
-        router.push(`/projects/${body.project.id}`);
+        router.push(getProjectAssistantHref(body.project.id));
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Project creation failed.";

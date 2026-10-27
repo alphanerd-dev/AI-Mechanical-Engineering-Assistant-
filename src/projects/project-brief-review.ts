@@ -30,3 +30,10 @@ export function buildProjectBriefReview(name: string, problemStatement: string):
     disclaimer: "This is a summary of your inputs, not an AI-generated brief, design recommendation, validation result, or engineering approval."
   };
 }
+
+/** The first task surface belongs to the newly created stable project ID. */
+export function getProjectAssistantHref(projectId: string): string {
+  const id = projectId.trim();
+  if (!id) throw new Error("A project ID is required to open project-scoped engineering chat.");
+  return `/projects/${encodeURIComponent(id)}/engineering`;
+}

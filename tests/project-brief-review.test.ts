@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildProjectBriefReview } from "../src/projects/project-brief-review.js";
+import { buildProjectBriefReview, getProjectAssistantHref } from "../src/projects/project-brief-review.js";
 
 describe("project brief review", () => {
   it("summarizes only the submitted inputs and trims whitespace", () => {
@@ -24,5 +24,14 @@ describe("project brief review", () => {
     const review = buildProjectBriefReview("Pump", "");
     expect(review.disclaimer).toContain("validation result, or engineering approval");
     expect(review.artifactStatus).not.toContain("CAD model generated");
+  });
+
+  it("opens the new project's assistant by stable ID, never by display name", () => {
+    expect(getProjectAssistantHref("6e52d0b9-c54d-4412-bd1a-50818d401f42"))
+      .toBe("/projects/6e52d0b9-c54d-4412-bd1a-50818d401f42/engineering");
+  });
+
+  it("refuses to create an unscoped assistant route", () => {
+    expect(() => getProjectAssistantHref("  ")).toThrow("A project ID is required");
   });
 });
