@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getEngineeringDecisionPresentation } from "../../../../src/intent/decision-presentation.js";
+import { getEngineeringIntentRetryGuidance } from "../../../../src/intent/retry-guidance.js";
 
 type DecisionMetric = { key: string; value: number | string; unit?: string };
 type Decision = {
@@ -343,7 +344,10 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
       if (decision.status === "FAILED") setDraft(rawIntent);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Engineering request failed.";
-      setError(message);
+      // The POST may have reached the server even if its response was lost.
+      // Preserve the draft and never imply that retrying is automatically safe.
+      setDraft(rawIntent);
+      setError(getEngineeringIntentRetryGuidance(message));
       const nextMessages: Message[] = [
         ...pendingMessages,
         {
