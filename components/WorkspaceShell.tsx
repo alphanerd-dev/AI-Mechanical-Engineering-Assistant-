@@ -54,7 +54,15 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
     setQuery("");
-    previousFocus.current?.focus();
+    const prior = previousFocus.current;
+    if (prior?.closest("#workspace-sidebar")) {
+      // Search can be opened with Ctrl/⌘+K while a link in the mobile drawer
+      // is focused. The drawer is hidden while search is open, so restore focus
+      // to its toggle instead of attempting to focus an invisible link.
+      sidebarToggleRef.current?.focus();
+    } else {
+      prior?.focus();
+    }
   }, []);
 
   const openSearch = useCallback(() => {
@@ -135,7 +143,20 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
   return <div className={"workspaceApp" + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
     <button type="button" className="workspaceMobileScrim" aria-label="Close navigation menu" onClick={() => closeSidebar(true)} tabIndex={sidebarOpen ? 0 : -1} />
-    <aside ref={sidebarRef} className="workspaceSidebar" id="workspace-sidebar" aria-label="Workspace navigation">
+    <aside ref={sidebarRef} className="workspaceSidebar" id="workspace-sidebar" aria-label="Workspace navigation" onKeyDown={(event) => {
+      if (!sidebarOpen || event.key !== "Tab") return;
+      const focusable = sidebarRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled])');
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }}>
       <Link href="/" className="workspaceBrand" onClick={() => setSidebarOpen(false)} aria-label="Forge workspace home">
         <span className="workspaceBrandMark" aria-hidden="true">F</span>
         <span><span className="workspaceBrandName">FORGE</span><span className="workspaceBrandSubtitle">ENGINEERING OS</span></span>
