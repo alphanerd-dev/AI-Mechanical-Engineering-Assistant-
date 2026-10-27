@@ -330,3 +330,26 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
 @media(max-width:900px){.workspaceSidebarFooter{margin-top:8px}.workspaceMain .shell>header.hero{padding-top:8px}}
 
 @media(max-width:900px){.workspaceMobileBrand{display:inline-flex;align-items:baseline;gap:6px;color:#edf4f7;text-decoration:none;font-size:12px;font-weight:900;letter-spacing:.12em}.workspaceMobileBrand span{color:#7f94a4;font-size:9px;font-weight:700;letter-spacing:.05em}}
+
+/* Project setup uses an explicit review-before-create sequence. */
+.projectStepLabel{margin:2px 0 0;color:#7f94a4;font-size:10px;font-weight:850;letter-spacing:.12em}
+.projectStepHint{color:#91a4b1;font-size:11px;line-height:1.45}
+.projectCreateActions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.projectCreateActions .button{margin-left:auto}
+.projectBriefReview{display:flex;flex-direction:column;gap:14px;padding:16px;border:1px solid #2a3b49;border-radius:11px;background:#0c151d}
+.projectBriefReviewHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #263743;padding-bottom:13px}
+.projectBriefReviewHeader .eyebrow{margin:0;font-size:9px}
+.projectBriefReviewHeader h3{margin:5px 0 0;color:#edf4f7;font-size:18px;overflow-wrap:anywhere}
+.projectBriefReviewBadge{flex:none;padding:4px 7px;border:1px solid #3b5363;border-radius:5px;color:#9db2bf;font-size:9px;font-weight:800;letter-spacing:.08em}
+.projectBriefReviewSection h4{margin:0 0 5px;color:#a2b3c0;font-size:11px;font-weight:800;letter-spacing:.04em}
+.projectBriefReviewSection p,.projectBriefReviewSection li{margin:0;color:#d0dce4;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.projectBriefReviewSection ul{display:flex;flex-direction:column;gap:6px;margin:0;padding-left:16px}
+.projectBriefReviewGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.projectBriefReviewDisclaimer{margin:0;padding-top:11px;border-top:1px solid #263743;color:#8fa2af;font-size:10px;line-height:1.55}
+.projectPossibleMatches{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+.projectPossibleMatches>strong{font-size:11px}
+.projectPossibleMatch{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px;border:1px solid #3a4d59;border-radius:7px;color:#e0edf2;text-decoration:none;font-size:12px}
+.projectPossibleMatch:hover{border-color:#42c8b4}
+.projectPossibleMatch small{color:#8fa2af;font-size:10px}
+.projectCreateRiskNotice{margin:0;padding:9px 11px;border-left:2px solid #e8b35c;background:#211a0e;color:#eacb91;font-size:11px;line-height:1.5}
+@media(max-width:560px){.projectBriefReviewGrid{grid-template-columns:1fr}.projectCreateActions{align-items:stretch}.projectCreateActions>.button{width:100%;margin-left:0}.projectPossibleMatch{align-items:flex-start;flex-direction:column}}
