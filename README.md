@@ -4,7 +4,7 @@ A provider-neutral Engineering Workspace and Engineering Core, starting with Mec
 
 **Core rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
 
-## Current status — 22 October 2026
+## Main-branch baseline — 22 October 2026
 
 - Main is at [76425a0](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/76425a096d52c87741222645a65d616ff773460a), a documentation-only merge. The reviewed application-code baseline is [5da2823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/5da2823ff7792cb23e9ae36b193cd627f2d4d7ba).
 - Core CI, ESLint, CodeQL and Codacy passed on the reviewed code revision. These checks do not prove live provider readiness or broad engineering correctness.
@@ -13,6 +13,22 @@ A provider-neutral Engineering Workspace and Engineering Core, starting with Mec
 - The selected assistant-ui + Vercel AI SDK streamed chat stack and interactive CAD/FEA/P&ID viewers are **planned**, not already integrated. Provider catalog entries do not mean their runtimes are deployed or accepted.
 
 These are revision-specific observations; re-check exact source, deployed app/worker revisions and current workflow evidence before release.
+
+## Current feature branch — 27 October 2026
+
+The active implementation is tracked in [PR #121](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/121) and is not merged to `main`.
+
+Implemented in that branch:
+- A shared responsive Forge shell with route-aware workspace/project navigation, keyboard workspace search, mobile navigation and an authorized project-name label when project data loads.
+- A review-before-create project flow. The review is derived only from submitted inputs; it does not invent an AI brief, technical assumptions, artifacts or approval.
+- Explicit presentation for engineering proposal, execution, validation, verification, approval, failure and stale states.
+- Draft-preserving recovery guidance when an intent request's final outcome is uncertain, plus a project-creation retry guard that requires checking the project list and explicit acknowledgement before retrying.
+- The v11.2 design tokens, UX/component contracts, screen inventory, implementation prompt and source QA capture report under `docs/design/forge-v11.2/`.
+
+Still blocked or not claimed:
+- Vercel preview deployments for the branch repeatedly fail before build logs are available with `BUILD_FAILED: Resource provisioning failed`. The likely integration/provisioning cause is not confirmed, and no deployment setting or credential has been changed.
+- Visual screenshot comparison against a rendered current-branch preview and live authenticated CAD acceptance are not complete.
+- M0's exit gate remains open until current-head CI is green and the protected dedicated non-production CAD acceptance passes. M1 streaming chat and M2–M4 CAD/FEA/P&ID viewers remain separate roadmap milestones.
 
 ## Start here
 

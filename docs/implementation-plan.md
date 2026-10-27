@@ -1,6 +1,6 @@
 # Implementation Plan and Milestones
 
-**Updated:** 22 October 2026  
+**Updated:** 27 October 2026  
 **Status:** Active plan; implementation and live readiness claims require evidence on the exact revision.
 
 This is the single source of truth for upcoming work, priorities, dependencies and exit gates. See the [Product Brief](product-brief.md) for the agreed experience and [Engineering Capabilities](engineering-capabilities.md) for the distinction between existing provider contracts and supported live capabilities.
@@ -34,7 +34,7 @@ The above observations are revision-specific. Recheck exact SHA, build, CI, runt
 
 | ID | Milestone | Priority/status | Depends on |
 |---|---|---|---|
-| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance setup | **NEXT** | Existing API/result contracts |
+| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance setup | **IN PROGRESS — PR #121; exit gate not passed** | Existing API/result contracts |
 | M1 | Secure streamed AI conversation and controlled engineering tools | **PLANNED after M0 acceptance design** | Existing auth, session persistence, model transport |
 | M2 | Shared artifact/viewer registry and interactive CAD visualization | **PLANNED** | Artifact/access contract; M0 CAD acceptance remains a release gate |
 | M3 | FEA mesh and result-field visualization | **PLANNED** | M2 artifact/viewer contract; a supported solver-output path |
@@ -42,6 +42,25 @@ The above observations are revision-specific. Recheck exact SHA, build, CI, runt
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | **DEFERRED until need and value are measured** | M0–M4 evidence and a specific user need |
 
 Milestones describe ordered outcomes; they are not proof that their capabilities are already delivered. Small UI and design-contract changes can be reviewed together where dependency is clear, but each exit gate must remain independently auditable.
+
+## Current branch implementation evidence — PR #121
+
+The feature branch adds the following M0/design-contract work on top of the 22 October main baseline:
+
+- Status-aware engineering decision presentation that keeps proposal, execution, validation, verification, human approval, failure and freshness separate.
+- Intent transport-failure guidance that retains the draft and warns that the server may have received the request; it does not automatically replay an operation.
+- A shared responsive workspace shell and source-backed project context. Planned routes remain labelled as planned rather than exposed as working links.
+- A project create flow that makes the user review the entered problem before the single create request, and warns/guards against blindly repeating a request whose outcome is unconfirmed.
+- Design handoff source files, semantic CSS/JSON tokens, component and UX contracts, wireframes, screen inventory, original implementation prompt, and capture QA note under `docs/design/forge-v11.2/`.
+
+These are code changes in an open, draft PR; they are not yet a production release. Check the exact head SHA in the PR before relying on CI results. The PR's previous green run is not a substitute for checks on a later commit.
+
+### Remaining M0 blockers
+
+1. **Current-branch preview:** Vercel preview deployments have been failing immediately with `BUILD_FAILED: Resource provisioning failed` and no build events. The integration/provisioning path is a hypothesis, not a confirmed root cause. Do not rotate credentials, reconfigure the marketplace integration, or promote a preview until the project owner reviews the connection.
+2. **Visual acceptance:** Desktop 1440px and mobile 390px screenshots of the current branch have not been compared against the v11.2 reference because the branch preview cannot be rendered.
+3. **Live CAD acceptance:** The current feature SHA has not passed the dedicated non-production authenticated intent-to-verified-artifact workflow. The protected environment must use its configured isolated project/model/worker endpoint and short-lived cookie; production data and cookies must not be used.
+4. **Final exit gate:** Full Core CI, changed-source lint and security checks must pass on the exact final code SHA. Then run the isolated browser acceptance, review its evidence, and verify app/worker revisions plus database migration state.
 
 ## M0 — Trustworthy decision surfaces, recovery and outcome measurement
 
