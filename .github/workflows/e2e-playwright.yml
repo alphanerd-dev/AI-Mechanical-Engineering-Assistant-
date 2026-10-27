@@ -34,6 +34,7 @@ jobs:
     environment: e2e-staging
     env:
       E2E_BASE_URL: ${{ inputs.base_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
       E2E_RUN_ACCEPTED_CAD_SMOKE: ${{ inputs.test_accepted_cad_completion }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
@@ -100,6 +101,7 @@ jobs:
           }
 
           for (const key of [
+            "VERCEL_AUTOMATION_BYPASS_SECRET",
             "E2E_SUPABASE_PUBLISHABLE_KEY",
             "E2E_USER_A_EMAIL", "E2E_USER_A_PASSWORD",
             "E2E_USER_B_EMAIL", "E2E_USER_B_PASSWORD"
