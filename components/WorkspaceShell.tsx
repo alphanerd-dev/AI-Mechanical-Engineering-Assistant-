@@ -133,7 +133,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
   if (navigation.isAuthRoute) return <div className="authLayout">{children}</div>;
 
-  const currentProjectLabel = loadedProjectName?.projectId === navigation.projectId
+  const currentProjectLabel = loadedProjectName && loadedProjectName.projectId === navigation.projectId
     ? loadedProjectName.name
     : navigation.projectLabel;
   const assistantHref = navigation.globalItems.find((item) => item.id === "assistant")?.href ?? "/projects/demo/engineering";
