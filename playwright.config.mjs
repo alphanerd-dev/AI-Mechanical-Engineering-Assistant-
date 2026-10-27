@@ -21,6 +21,13 @@ export default defineConfig({
   outputDir: "test-results",
   use: {
     baseURL,
+    ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+      ? {
+          extraHTTPHeaders: {
+            "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+          },
+        }
+      : {}),
     browserName: "chromium",
     headless: true,
     trace: "retain-on-failure",
