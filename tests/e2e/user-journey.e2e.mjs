@@ -120,8 +120,16 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
     await test.step("Create a project through the workspace UI", async () => {
       await pageA.getByLabel("Project name").fill(projectName);
       await pageA.getByLabel(/Problem statement/).fill(problemStatement);
-      const createButton = pageA.getByRole("button", { name: "Create project" });
-      await expect(createButton, "project creation should be enabled after valid form input").toBeEnabled();
+      const reviewButton = pageA.getByRole("button", { name: "Review project brief" });
+      await expect(reviewButton, "valid project inputs should enable the review step").toBeEnabled();
+      await reviewButton.click();
+
+      await expect(pageA.getByText("STEP 2 OF 2 · REVIEW BEFORE CREATION")).toBeVisible();
+      await expect(pageA.getByRole("heading", { name: projectName, level: 3 })).toBeVisible();
+      await expect(pageA).not.toHaveURL(/\/projects\/[0-9a-f-]{36}$/i);
+
+      const createButton = pageA.getByRole("button", { name: /Create project & open workspace/ });
+      await expect(createButton, "creation should be enabled only after the reviewed brief is shown").toBeEnabled();
       await createButton.click();
 
       await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}$/i);
