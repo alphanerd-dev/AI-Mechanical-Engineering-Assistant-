@@ -132,15 +132,21 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       await expect(createButton, "creation should be enabled only after the reviewed brief is shown").toBeEnabled();
       await createButton.click();
 
-      await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}$/i);
-      await expect(pageA.getByRole("heading", { name: projectName })).toBeVisible();
+      await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}\/engineering$/i);
+      await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
     });
 
-    const projectId = new URL(pageA.url()).pathname.split("/").pop();
+    const createdProjectSegments = new URL(pageA.url()).pathname.split("/").filter(Boolean);
+    expect(createdProjectSegments[0]).toBe("projects");
+    const projectId = createdProjectSegments[1];
+    expect(createdProjectSegments[2]).toBe("engineering");
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
 
     await test.step("Reload the project and verify persisted state", async () => {
       await pageA.reload();
+      await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}\/engineering$/i);
+      await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
+      await pageA.goto(`/projects/${projectId}`);
       await expect(pageA.getByRole("heading", { name: projectName })).toBeVisible();
       await expect(pageA.getByText("PERSISTED ENGINEERING PROJECT")).toBeVisible();
 

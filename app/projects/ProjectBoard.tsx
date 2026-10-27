@@ -160,7 +160,7 @@ export default function ProjectBoard() {
     }
   }
 
-  return <main className="shell projectBoard">
+  return <div className="shell projectBoard">
     <header className="hero">
       <div>
         <p className="eyebrow">AI-NATIVE ENGINEERING WORKSPACE</p>
@@ -281,5 +281,5 @@ export default function ProjectBoard() {
       </section>
     </section>
     <section className="status"><div><span className="dot" /> Application online</div><div>Persisted state: Supabase</div><div>CAD: gated by runtime readiness</div><div>Authority: role and project membership checks</div></section>
-  </main>;
+  </div>;
 }

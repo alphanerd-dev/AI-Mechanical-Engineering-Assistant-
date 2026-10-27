@@ -3,7 +3,7 @@ import ReasoningWorkbench from "./ReasoningWorkbench";
 
 export default async function ReasoningPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  return <main className="shell">
+  return <div className="shell">
     <nav className="topbar">
       <Link href={`/projects/${projectId}`}>← Project</Link>
       <span>REASONING / {projectId}</span>
@@ -17,5 +17,5 @@ export default async function ReasoningPage({ params }: { params: Promise<{ proj
       </div>
     </header>
     <ReasoningWorkbench projectId={projectId} />
-  </main>;
+  </div>;
 }
