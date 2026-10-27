@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getEngineeringDecisionPresentation } from "../../../../src/intent/decision-presentation.js";
 
 type DecisionMetric = { key: string; value: number | string; unit?: string };
 type Decision = {
@@ -78,6 +79,10 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
     () => [...messages].reverse().find((message) => message.decision)?.decision,
     [messages],
   );
+
+  const decisionPresentation = lastDecision
+    ? getEngineeringDecisionPresentation(lastDecision)
+    : undefined;
 
   const persistConversation = useCallback(async (
     activeSessionId: string,
@@ -406,10 +411,14 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
       {busy && <div className="message assistant"><span className="messageRole">ENGINEERING CORE</span><p>Processing the engineering request…</p></div>}
     </div>
 
-    {lastDecision && <div className="decisionCard">
+    {lastDecision && decisionPresentation && <div className="decisionCard">
       <div className="decisionTop"><span className="tag">DECISION</span><strong>{lastDecision.status}</strong></div>
+      <div className={`decisionOutcome decisionOutcome--${decisionPresentation.tone}`} role="status" aria-live="polite">
+        <strong>{decisionPresentation.title}</strong>
+        <p>{decisionPresentation.message}</p>
+      </div>
       <div className="decisionGrid">
-        <Metric label="Validation" value={lastDecision.validationPassed ? "PASS" : "NOT VERIFIED"} />
+        <Metric label="Capability checks" value={lastDecision.validationPassed ? "PASS" : "NOT CONFIRMED"} />
         {lastDecision.metrics.map((metric) => <Metric
           key={metric.key}
           label={metric.key}
@@ -419,7 +428,9 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
         />)}
       </div>
       <div className="evidenceLine"><span>Evidence linked</span><strong>{lastDecision.evidenceIds.length} record{lastDecision.evidenceIds.length === 1 ? "" : "s"}</strong></div>
-      {lastDecision.evidenceIds.length === 0 && <p className="muted">No evidence is attached to this result. It is not verified unless and until the required checks and evidence contract are satisfied.</p>}
+      <p className="muted">{decisionPresentation.evidenceMessage}</p>
+      {lastDecision.nextQuestion && <div className="decisionFollowUp"><strong>Required input</strong><p>{lastDecision.nextQuestion}</p></div>}
+      {!lastDecision.nextQuestion && lastDecision.nextAction && <div className="decisionFollowUp"><strong>Next action</strong><p>{lastDecision.nextAction}</p></div>}
     </div>}
 
     {error && <div className="notice" role="alert">{error}</div>}
