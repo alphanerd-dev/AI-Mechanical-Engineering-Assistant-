@@ -15,6 +15,8 @@ jobs:
           node-version: 22
       - name: Validate Azure queue E2E probe syntax
         run: node --check scripts/azure-execution-queue-e2e.mjs
+      - name: Validate workspace acceptance E2E spec syntax
+        run: node --check tests/e2e/workspace-intent-acceptance.e2e.mjs
       - run: npm ci
       - run: npm test
       - name: Generate architecture dependency graph
