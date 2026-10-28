@@ -3,7 +3,7 @@ import EngineeringInteraction from "./EngineeringInteraction";
 
 export default async function EngineeringPage({params}:{params:Promise<{projectId:string}>}){
   const {projectId}=await params;
-  return <main className="shell">
+  return <div className="shell">
     <nav className="topbar">
       <Link href={`/projects/${projectId}`}>← Project</Link>
       <span>ENGINEERING / {projectId}</span>
@@ -19,5 +19,5 @@ export default async function EngineeringPage({params}:{params:Promise<{projectI
     </header>
 
     <EngineeringInteraction projectId={projectId} />
-  </main>;
+  </div>;
 }

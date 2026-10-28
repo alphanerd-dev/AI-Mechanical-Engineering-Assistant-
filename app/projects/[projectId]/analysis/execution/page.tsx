@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export default function ExecutionPage() {
-  return <main className="shell">
+  return <div className="shell">
     <Link href="/projects/demo/analysis">← Analysis</Link>
     <header className="moduleHead">
       <p className="eyebrow">EXECUTION LAYER</p>
@@ -18,5 +18,5 @@ export default function ExecutionPage() {
       <h2>Safety boundary</h2>
       <p>Model-generated source will never be evaluated directly inside the Next.js process. Workers will receive an explicit job, run inside an isolated environment, and return validated artifacts.</p>
     </section>
-  </main>;
+  </div>;
 }

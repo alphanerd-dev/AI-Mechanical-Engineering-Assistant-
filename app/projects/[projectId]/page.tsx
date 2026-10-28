@@ -46,7 +46,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const mustCount = requirements.filter((item) => item.priority === "MUST").length;
   const calculations = events.filter((event) => event.action?.startsWith("ANALYSIS.")).length;
 
-  return <main className="shell projectOverview">
+  return <div className="shell projectOverview">
     <nav className="topbar"><Link href="/">← All projects</Link><span>PROJECT / {project.id.slice(0, 8)}</span><span className={`projectState projectState-${String(project.status).toLowerCase()}`}>{project.status}</span></nav>
     <header className="projectHead"><div><p className="eyebrow">PERSISTED ENGINEERING PROJECT</p><h1>{project.name}</h1><p className="muted">{project.stage.replaceAll("_", " ")} · Revision {workspaceRow?.revision ?? 0} · Updated {new Date(project.updated_at).toLocaleString()}</p></div><div className="actions"><Link className="button" href={`/projects/${projectId}/requirements`}>Define requirements</Link><Link className="button secondaryButton" href={`/projects/${projectId}/engineering`}>Engineering interaction</Link><Link className="button secondaryButton" href={`/projects/${projectId}/reasoning`}>Reasoning workbench</Link><Link className="button secondaryButton" href={`/projects/${projectId}/research`}>Research verification</Link></div></header>
     <section className="metrics">
@@ -62,14 +62,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       <div className="panel"><p className="eyebrow">NEXT DECISIONS</p><h2>Open questions and risks</h2>{!state.openQuestions?.length && !state.unresolvedRisks?.length ? <p className="muted">No open questions or risks recorded yet.</p> : <ul className="workspaceSimpleList">{[...(state.openQuestions ?? []).map((item) => `Question: ${item}`), ...(state.unresolvedRisks ?? []).map((item) => `Risk: ${item}`)].map((item, index) => <li key={index}>{item}</li>)}</ul>}<Link className="button secondaryButton" href={`/projects/${projectId}/validation`}>Review gates and evidence</Link></div>
     </section>
     <section className="panel"><p className="eyebrow">AUDIT TIMELINE</p><h2>Latest workspace events</h2>{events.length === 0 ? <p className="muted">Project created. New requirements, calculations and validation checks will be recorded here.</p> : <div className="evidenceList">{[...events].reverse().slice(0, 8).map((event, index) => <div className="readinessCheck" key={`${event.action}-${event.timestamp}-${index}`}><span className="projectState">{event.action ?? "WORKSPACE_EVENT"}</span><div><strong>{event.timestamp ? new Date(event.timestamp).toLocaleString() : "Timestamp unavailable"}</strong><p>Recorded event; inspect Validation for evidence and gate details.</p></div></div>)}</div>}</section>
-  </main>;
+  </div>;
 }
 
 function DemoProjectPage() {
-  return <main className="shell">
+  return <div className="shell">
     <nav className="topbar"><Link href="/">← All projects</Link><span>PROJECT / DEMO</span><span className="projectState projectState-blocked">SANDBOX</span></nav>
     <header className="projectHead"><div><p className="eyebrow">ILLUSTRATIVE SANDBOX</p><h1>Shaft Design Benchmark</h1><p className="muted">Example: 5 kW · 1500 rpm. This sample is not a registered project and its data may reset.</p></div><Link className="button" href="/">Create a real project</Link></header>
     <section className="projectNotice projectNoticeWarning"><strong>Demo data only</strong><p>Use this area to explore the interface. Create a registered project from the home page for durable state, role-scoped database access and project evidence.</p></section>
     <section className="grid">{modules.map(([title, description, slug]) => <Link className="card" href={`/projects/demo/${slug}`} key={slug}><span className="tag">DEMO</span><h2>{title}</h2><p>{description}</p><span className="arrow">Open →</span></Link>)}<Link className="card" href="/projects/demo/reasoning"><span className="tag">DEMO</span><h2>Reasoning workbench</h2><p>Explore task reasoning in ephemeral demo mode.</p><span className="arrow">Open →</span></Link></section>
-  </main>;
+  </div>;
 }

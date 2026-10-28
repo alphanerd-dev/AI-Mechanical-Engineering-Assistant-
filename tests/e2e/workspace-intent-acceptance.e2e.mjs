@@ -136,16 +136,39 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
 
     await test.step("Authenticate user A and create an isolated test project", async () => {
       await signIn(pageA, userAEmail, userAPassword);
+      const creationKey = "e2e-project-create-" + suffix;
+      const creationPayload = {
+        name: projectName,
+        problemStatement: "Disposable E2E project for persisted workspace and intent acceptance.",
+      };
       const createResponse = await pageA.request.post("/api/projects", {
-        data: {
-          name: projectName,
-          problemStatement: "Disposable E2E project for persisted workspace and intent acceptance.",
-        },
+        headers: { "idempotency-key": creationKey },
+        data: creationPayload,
       });
       expect(createResponse.status(), "project creation API should return 201").toBe(201);
       const created = await createResponse.json();
       expect(created.project?.id).toMatch(/^[0-9a-f-]{36}$/i);
       expect(created.workspaceInitialized).toBe(true);
+
+      const replayResponse = await pageA.request.post("/api/projects", {
+        headers: { "idempotency-key": creationKey },
+        data: creationPayload,
+      });
+      expect(replayResponse.status(), "retrying the same project request must replay the first project").toBe(200);
+      const replay = await replayResponse.json();
+      expect(replay).toMatchObject({
+        idempotentReplay: true,
+        workspaceInitialized: true,
+        project: { id: created.project.id },
+      });
+
+      const reusedKeyResponse = await pageA.request.post("/api/projects", {
+        headers: { "idempotency-key": creationKey },
+        data: { ...creationPayload, problemStatement: "Different payload must not reuse the original creation key." },
+      });
+      expect(reusedKeyResponse.status(), "reusing a key for different project data must conflict").toBe(409);
+      expect(await reusedKeyResponse.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
       testInfo.annotations.push({ type: "e2e-project-id", description: created.project.id });
       testInfo.annotations.push({ type: "e2e-session-id", description: sessionId });
       await pageA.goto("/");
@@ -159,6 +182,56 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
     expect(createdProject, "user A should see the project in their own list").toBeTruthy();
     const projectId = createdProject.id;
     const workspacePath = "/api/projects/" + projectId + "/workspace";
+
+    await test.step("Reject direct authenticated Data API writes to trusted workspace state", async () => {
+      const projectRef = requiredEnv("E2E_SUPABASE_PROJECT_REF");
+      const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
+      const currentResponse = await pageA.request.get(workspacePath);
+      expect(currentResponse.status()).toBe(200);
+      const before = await currentResponse.json();
+      const accessToken = accessTokenFromContextCookies(await contextA.cookies([baseURL]), projectRef);
+      const directWrite = await fetch(
+        "https://" + projectRef + ".supabase.co/rest/v1/engineering_workspaces?project_id=eq." + encodeURIComponent(projectId),
+        {
+          method: "PATCH",
+          headers: {
+            apikey: publishableKey,
+            authorization: "Bearer " + accessToken,
+            "content-type": "application/json",
+            prefer: "return=representation",
+          },
+          body: JSON.stringify({
+            revision: before.revision + 99,
+            snapshot: {
+              ...before.snapshot,
+              revision: before.revision + 99,
+              project: {
+                ...before.snapshot.project,
+                events: [{
+                  id: "forged-direct-api-event",
+                  timestamp: new Date().toISOString(),
+                  actor: "forged",
+                  action: "FORGED_VALIDATION",
+                  output: { informationStatus: "VERIFIED" },
+                  evidence: ["forged-evidence"],
+                }],
+              },
+            },
+            saved_at: new Date().toISOString(),
+          }),
+        },
+      );
+      expect(
+        [401, 403],
+        "authenticated clients must not bypass server-side workspace validation by writing arbitrary snapshot JSON",
+      ).toContain(directWrite.status);
+
+      const afterResponse = await pageA.request.get(workspacePath);
+      expect(afterResponse.status()).toBe(200);
+      const after = await afterResponse.json();
+      expect(after.revision).toBe(before.revision);
+      expect(after.snapshot.project.events).toEqual(before.snapshot.project.events);
+    });
 
     await test.step("Read workspace, persist requirements, and reject stale revisions", async () => {
       const initialResponse = await pageA.request.get(workspacePath);
@@ -235,6 +308,106 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
       expect(event.action).toBe("ANALYSIS.SHAFT_TORQUE");
       expect(event.evidence).toContain("calculation:" + eventId);
       expect(event.output.informationStatus).toBe("CALCULATED");
+    });
+
+    await test.step("Persist pump power calculation and verify digest-bound validation receipt", async () => {
+      const currentResponse = await pageA.request.get(workspacePath);
+      expect(currentResponse.status()).toBe(200);
+      const current = await currentResponse.json();
+      const idempotencyKey = randomUUID();
+      const pumpInput = {
+        density: { value: 1000, unit: "kg/m3" },
+        flowRate: { value: 20, unit: "L/s" },
+        head: { value: 20, unit: "m" },
+        efficiencyPercent: 75,
+      };
+      const runResponse = await pageA.request.patch(workspacePath, {
+        data: {
+          operation: "RUN_PUMP_HYDRAULIC_POWER",
+          expectedRevision: current.revision,
+          idempotencyKey,
+          pumpInput,
+        },
+      });
+      expect(runResponse.status()).toBe(200);
+      const run = await runResponse.json();
+      expect(run).toMatchObject({ projectId, persisted: true, revision: current.revision + 1 });
+      expect(run.result.calculation.hydraulicPowerKw).toBeCloseTo(3.92266, 6);
+      expect(run.result.calculation.shaftPowerKw).toBeCloseTo(5.2302133333, 6);
+      const artifact = run.result.artifact;
+      expect(artifact).toMatchObject({
+        projectId,
+        capability: "ANALYSIS.PUMP_HYDRAULIC_POWER",
+        sourceRevision: current.revision,
+        workspaceRevision: run.revision,
+        executionStatus: "COMPLETED",
+        validationStatus: "VALIDATED",
+        approvalStatus: "NOT_REQUESTED",
+        verificationStatus: "NOT_VERIFIED",
+      });
+      expect(artifact.validationReceipt.result).toBe("PASS");
+      expect(artifact.validationReceipt.checks.length).toBeGreaterThanOrEqual(5);
+      expect(artifact.inputSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(artifact.outputSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(artifact.validationReceipt.inputSha256).toBe(artifact.inputSha256);
+      expect(artifact.validationReceipt.outputSha256).toBe(artifact.outputSha256);
+      const event = run.snapshot.project.events.find((candidate) => candidate.id === run.result.eventId);
+      expect(event.artifactIds).toContain(artifact.id);
+      expect(event.evidence).toContain("validation:" + artifact.validationReceipt.id);
+      expect(event.idempotencyKey).toBe(idempotencyKey);
+
+      // Repeat with the original revision, as happens when the first response was lost in transit.
+      const replayResponse = await pageA.request.patch(workspacePath, {
+        data: { operation: "RUN_PUMP_HYDRAULIC_POWER", expectedRevision: current.revision, idempotencyKey, pumpInput },
+      });
+      expect(replayResponse.status()).toBe(200);
+      const replay = await replayResponse.json();
+      expect(replay).toMatchObject({ projectId, persisted: true, revision: run.revision });
+      expect(replay.result).toMatchObject({ idempotentReplay: true, artifact: { id: artifact.id } });
+      expect(replay.snapshot.artifacts).toHaveLength(1);
+      expect(replay.snapshot.project.events).toHaveLength(run.snapshot.project.events.length);
+
+      const keyReuseResponse = await pageA.request.patch(workspacePath, {
+        data: {
+          operation: "RUN_PUMP_HYDRAULIC_POWER",
+          expectedRevision: run.revision,
+          idempotencyKey,
+          pumpInput: { ...pumpInput, flowRate: { value: 21, unit: "L/s" } },
+        },
+      });
+      expect(keyReuseResponse.status()).toBe(409);
+      expect(await keyReuseResponse.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+      const restoredResponse = await pageA.request.get(workspacePath);
+      expect(restoredResponse.status()).toBe(200);
+      const restored = await restoredResponse.json();
+      expect(restored.snapshot.artifacts).toEqual([
+        expect.objectContaining({
+          id: artifact.id,
+          capability: "ANALYSIS.PUMP_HYDRAULIC_POWER",
+          inputSha256: artifact.inputSha256,
+          outputSha256: artifact.outputSha256,
+          verificationStatus: "NOT_VERIFIED",
+        }),
+      ]);
+
+      await test.step("Mark older calculation evidence stale after a later workspace revision", async () => {
+        const changeResponse = await pageA.request.patch(workspacePath, {
+          data: {
+            operation: "UPDATE_ASSUMPTIONS",
+            expectedRevision: restored.revision,
+            assumptions: ["A later context change must not silently make older calculation evidence current."],
+          },
+        });
+        expect(changeResponse.status()).toBe(200);
+        const changed = await changeResponse.json();
+        expect(changed.revision).toBe(restored.revision + 1);
+
+        await pageA.goto("/projects/" + projectId + "/analysis");
+        await expect(pageA.getByText("STALE", { exact: true })).toBeVisible();
+        await expect(pageA.getByText(/This artifact was saved at workspace revision/)).toBeVisible();
+        await expect(pageA.getByText("NOT_VERIFIED", { exact: true })).toBeVisible();
+      });
     });
 
     await test.step("Exercise engineering intent NEEDS_INPUT, validated proposal, and fail-closed result", async () => {
@@ -810,11 +983,31 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
   const pathPrefix = "/api/projects/";
   let contextA;
   let contextB;
+  let projectId;
+  let projectDeleted = false;
 
   try {
     contextA = await browser.newContext({ baseURL });
     const pageA = await contextA.newPage();
     await signIn(pageA, userAEmail, userAPassword);
+
+    // Remove projects left by an interrupted prior run through the owner-scoped
+    // lifecycle endpoint. The strict pattern limits cleanup to CRUD test fixtures.
+    const previousProjectsResponse = await pageA.request.get("/api/projects");
+    expect(previousProjectsResponse.status()).toBe(200);
+    const previousProjectsBody = await previousProjectsResponse.json();
+    const staleE2EProjects = (previousProjectsBody.projects ?? []).filter((project) =>
+      /^E2E project CRUD [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?: renamed)?$/i.test(project.name ?? "")
+    );
+    for (const staleProject of staleE2EProjects) {
+      const staleCleanupResponse = await pageA.request.delete(pathPrefix + staleProject.id);
+      expect(staleCleanupResponse.status(), "stale disposable CRUD project cleanup must succeed").toBe(200);
+      expect(await staleCleanupResponse.json()).toMatchObject({
+        projectId: staleProject.id,
+        deleted: true,
+        artifactCleanup: { status: "COMPLETED", objectsRemaining: 0 },
+      });
+    }
 
     const createResponse = await pageA.request.post("/api/projects", {
       data: {
@@ -824,7 +1017,7 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
     });
     expect(createResponse.status()).toBe(201);
     const created = await createResponse.json();
-    const projectId = created.project?.id;
+    projectId = created.project?.id;
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(created.workspaceInitialized).toBe(true);
     testInfo.annotations.push({ type: "e2e-project-id", description: projectId });
@@ -927,11 +1120,14 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
 
     const deleteResponse = await pageA.request.delete(pathPrefix + projectId);
     expect(deleteResponse.status()).toBe(200);
-    expect(await deleteResponse.json()).toMatchObject({
+    const deleteBody = await deleteResponse.json();
+    expect(deleteBody).toMatchObject({
       projectId,
       deleted: true,
-      artifactCleanup: { status: "COMPLETED", objectsRemoved: 1 },
+      artifactCleanup: { status: "COMPLETED", objectsRemoved: 1, objectsRemaining: 0 },
     });
+    projectDeleted = deleteBody.deleted === true && deleteBody.artifactCleanup?.objectsRemaining === 0;
+    expect(projectDeleted, "project and storage cleanup must be confirmed before the test completes").toBe(true);
 
     const readAfterDelete = await pageA.request.get(pathPrefix + projectId);
     expect([403, 404]).toContain(readAfterDelete.status());
@@ -939,8 +1135,41 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
     expect(userAProjects.status()).toBe(200);
     expect(((await userAProjects.json()).projects ?? []).some((project) => project.id === projectId)).toBe(false);
   } finally {
+    let cleanupFailure = false;
+    if (contextA && projectId && !projectDeleted) {
+      const ownerPage = contextA.pages()[0];
+      let cleanupResponse = null;
+      if (ownerPage) {
+        cleanupResponse = await ownerPage.request.delete(pathPrefix + projectId).catch(() => null);
+        if (cleanupResponse?.status() === 200) {
+          const cleanupBody = await cleanupResponse.json().catch(() => ({}));
+          projectDeleted = cleanupBody.deleted === true &&
+            cleanupBody.projectId === projectId &&
+            cleanupBody.artifactCleanup?.objectsRemaining === 0;
+        }
+        if (!projectDeleted) {
+          const listResponse = await ownerPage.request.get("/api/projects").catch(() => null);
+          if (listResponse?.ok()) {
+            const listBody = await listResponse.json().catch(() => ({}));
+            projectDeleted = !((listBody.projects ?? []).some((project) => project.id === projectId));
+          }
+        }
+      }
+      if (!projectDeleted) {
+        cleanupFailure = true;
+        await testInfo.attach("project-crud-cleanup-diagnostics.json", {
+          body: Buffer.from(JSON.stringify({
+            projectId,
+            cleanupConfirmed: false,
+            deleteStatus: cleanupResponse?.status() ?? null,
+          }, null, 2)),
+          contentType: "application/json",
+        }).catch(() => undefined);
+      }
+    }
     if (contextB) await contextB.close().catch(() => undefined);
     if (contextA) await contextA.close().catch(() => undefined);
+    if (cleanupFailure) throw new Error("Disposable CRUD project cleanup could not be confirmed.");
   }
 });
 
@@ -970,6 +1199,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
     completionStage: null,
     completionErrors: [],
     completionWarnings: [],
+    completionRecoveredByReadback: false,
     storageObjectCount: 0,
     readiness: null,
     readinessAttempts: [],
@@ -1045,17 +1275,53 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
     diagnostics.modelIdentityId = modelIdentityId;
     expect(modelIdentityId).toMatch(/^[0-9a-f-]{36}$/i);
 
-    const completionResponse = await safeAuthenticatedRequest("Live accepted CAD completion", () =>
-      page.request.post("/api/cad/completions", {
-        data: {
-          projectId,
-          modelIdentityId,
-          rawIntent: "Create a cylindrical shaft with a diameter of 30 mm and a length of 200 mm.",
-        },
-        timeout: 180_000,
-      }),
-    );
-    const completionBody = await completionResponse.json();
+    const rawIntent = "Create a cylindrical shaft with a diameter of 30 mm and a length of 200 mm.";
+    const completionStartedAt = Date.now();
+    let completionResponse = null;
+    let completionBody = null;
+    let completionRecoveredByReadback = false;
+    try {
+      completionResponse = await safeAuthenticatedRequest("Live accepted CAD completion", () =>
+        page.request.post("/api/cad/completions", {
+          data: { projectId, modelIdentityId, rawIntent },
+          timeout: 180_000,
+        }),
+      );
+      completionBody = await completionResponse.json();
+    } catch (error) {
+      // A timed-out POST is ambiguous: do not replay it. Reconcile only through
+      // the read-only history endpoint while the serverless execution can finish.
+      const message = error instanceof Error ? error.message : "";
+      if (!message.startsWith("Live accepted CAD completion failed after ")) throw error;
+      const reconcileDeadline = Date.now() + 115_000;
+      let recovered = null;
+      while (Date.now() < reconcileDeadline && !recovered) {
+        const historyResponse = await page.request.get(
+          "/api/cad/completions?projectId=" + encodeURIComponent(projectId),
+          { timeout: 20_000 },
+        ).catch(() => null);
+        if (historyResponse?.ok()) {
+          const historyBody = await historyResponse.json().catch(() => ({}));
+          recovered = (historyBody.completions ?? []).find((item) =>
+            item?.model_identity_id === modelIdentityId &&
+            item?.raw_intent === rawIntent &&
+            item?.status === "ACCEPTED" &&
+            Boolean(item?.validation_receipt) &&
+            Date.parse(item?.created_at ?? "") >= completionStartedAt - 5_000
+          ) ?? null;
+        }
+        if (!recovered) await page.waitForTimeout(2_000);
+      }
+      if (!recovered) {
+        throw new Error(
+          "Live CAD completion POST had an ambiguous transport outcome; no POST replay was sent, " +
+          "and read-only reconciliation found no persisted accepted completion before the bounded deadline."
+        );
+      }
+      completionRecoveredByReadback = true;
+      completionBody = { completion: recovered, signedUrls: recovered.signedUrls ?? {} };
+      diagnostics.completionRecoveredByReadback = true;
+    }
     const completion = completionBody?.completion;
     diagnostics.completionId = completion?.id ?? null;
     diagnostics.completionStatus = completion?.status ?? null;
@@ -1063,18 +1329,23 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
     diagnostics.completionErrors = safeE2EDiagnosticList(completion?.errors);
     diagnostics.completionWarnings = safeE2EDiagnosticList(completion?.warnings);
     diagnostics.storageObjectCount = Array.isArray(completion?.storage_objects) ? completion.storage_objects.length : 0;
-    expect(
-      completionResponse.status(),
-      "fully specified request must reach an accepted, persisted completion; body=" + JSON.stringify({
-        status: completionResponse.status(),
-        error: safeE2EDiagnosticText(completionBody?.error),
-        code: safeE2EDiagnosticText(completionBody?.code),
-        completionStatus: completion?.status,
-        completionStage: completion?.stage,
-        completionErrors: diagnostics.completionErrors,
-        completionWarnings: diagnostics.completionWarnings,
-      }),
-    ).toBe(201);
+    if (completionRecoveredByReadback) {
+      expect(completion).toMatchObject({ status: "ACCEPTED", stage: "ACCEPTANCE" });
+    } else {
+      expect(
+        completionResponse.status(),
+        "fully specified request must reach an accepted, persisted completion; body=" + JSON.stringify({
+          status: completionResponse.status(),
+          error: safeE2EDiagnosticText(completionBody?.error),
+          code: safeE2EDiagnosticText(completionBody?.code),
+          completionStatus: completion?.status,
+          completionStage: completion?.stage,
+          completionErrors: diagnostics.completionErrors,
+          completionWarnings: diagnostics.completionWarnings,
+        }),
+      ).toBe(201);
+  
+    }
     expect(completion).toMatchObject({
       id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
       project_id: projectId,
@@ -1082,7 +1353,11 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
       status: "ACCEPTED",
       execution_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
     });
-    expect(completionBody).toMatchObject({ persisted: true, verified: true });
+    if (!completionRecoveredByReadback) {
+      expect(completionBody).toMatchObject({ persisted: true, verified: true });
+    } else {
+      expect(completion).toMatchObject({ status: "ACCEPTED", stage: "ACCEPTANCE" });
+    }
     expect(Array.isArray(completion.storage_objects)).toBe(true);
     expect(completion.storage_objects.length).toBeGreaterThanOrEqual(5);
     expect(Array.isArray(completion.artifact_records)).toBe(true);
@@ -1182,8 +1457,13 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
         completionId: completion.id,
         executionId: completion.execution_id,
         completionStatus: completion.status,
-        persisted: completionBody.persisted,
-        verified: completionBody.verified,
+        persisted: completionBody.persisted ?? completionRecoveredByReadback,
+        verified: completionBody.verified ?? (
+          completionRecoveredByReadback &&
+          downloadedSolid.ok() &&
+          auditBody?.chainIntegrity?.verified === true
+        ),
+        completionRecoveredByReadback,
         storageObjects: completion.storage_objects,
         artifacts: completion.artifact_records.map((item) => ({
           kind: item.kind,

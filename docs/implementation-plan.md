@@ -1,6 +1,6 @@
 # Implementation Plan and Milestones
 
-**Updated:** 22 October 2026  
+**Updated:** 27 October 2026  
 **Status:** Active plan; implementation and live readiness claims require evidence on the exact revision.
 
 This is the single source of truth for upcoming work, priorities, dependencies and exit gates. See the [Product Brief](product-brief.md) for the agreed experience and [Engineering Capabilities](engineering-capabilities.md) for the distinction between existing provider contracts and supported live capabilities.
@@ -34,7 +34,7 @@ The above observations are revision-specific. Recheck exact SHA, build, CI, runt
 
 | ID | Milestone | Priority/status | Depends on |
 |---|---|---|---|
-| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance setup | **NEXT** | Existing API/result contracts |
+| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance setup | **IN PROGRESS — PR #121; exit gate not passed** | Existing API/result contracts |
 | M1 | Secure streamed AI conversation and controlled engineering tools | **PLANNED after M0 acceptance design** | Existing auth, session persistence, model transport |
 | M2 | Shared artifact/viewer registry and interactive CAD visualization | **PLANNED** | Artifact/access contract; M0 CAD acceptance remains a release gate |
 | M3 | FEA mesh and result-field visualization | **PLANNED** | M2 artifact/viewer contract; a supported solver-output path |
@@ -42,6 +42,25 @@ The above observations are revision-specific. Recheck exact SHA, build, CI, runt
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | **DEFERRED until need and value are measured** | M0–M4 evidence and a specific user need |
 
 Milestones describe ordered outcomes; they are not proof that their capabilities are already delivered. Small UI and design-contract changes can be reviewed together where dependency is clear, but each exit gate must remain independently auditable.
+
+## Current branch implementation evidence — PR #121
+
+The feature branch adds the following M0/design-contract work on top of the 22 October main baseline:
+
+- Status-aware engineering decision presentation that keeps proposal, execution, validation, verification, human approval, failure and freshness separate.
+- Intent transport-failure guidance that retains the draft and warns that the server may have received the request; it does not automatically replay an operation.
+- A shared responsive workspace shell and source-backed project context. Planned routes remain labelled as planned rather than exposed as working links.
+- A project create flow that makes the user review the entered problem before the single create request, and warns/guards against blindly repeating a request whose outcome is unconfirmed.
+- Design handoff source files, semantic CSS/JSON tokens, component and UX contracts, wireframes, screen inventory, original implementation prompt, and capture QA note under `docs/design/forge-v11.2/`.
+
+These are code changes in an open, draft PR; they are not yet a production release. Check the exact head SHA in the PR before relying on CI results. The PR's previous green run is not a substitute for checks on a later commit.
+
+### Remaining M0 blockers
+
+1. **Original Vercel integration:** The original project's automatic previews fail before build events because its linked Supabase Marketplace resource `supabase-cerise-school` is suspended and points to a paused Supabase project. A separate protected Vercel recovery project has a READY deployment of app source SHA `4196cbe794f478743672b51c1b6adbd4f94deba1`; the last feature-branch commits after it only add E2E harness support. Do not change original production settings or protection to resolve this.
+2. **Authenticated persistence E2E:** Four PR-triggered checks passed for head `0d65ba82fbde93c994be37c201e2884cda4615b7`. Playwright run [40586963344](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40586963344) failed at the shared project-list startup with `Durable authorization audit is unavailable`. The recovery project Preview lacks its dedicated E2E `SUPABASE_SERVICE_ROLE_KEY`. Add it directly in Vercel as a sensitive Preview-only variable using the key for E2E project `mpbrlegwrrrfpeumtqhi`; never use the production project or put the key in `NEXT_PUBLIC_`.
+3. **Live CAD acceptance:** The recovery Preview has the non-secret isolated worker URL and `CAD_ARTIFACT_ROOT`, but still needs `CAD_WORKER_API_TOKEN` matching `WORKER_API_TOKEN` on the dedicated `ai-mechanical-cad-worker-issue79-preview` Render service. Keep the token server-side and Preview-only. Then rerun authenticated project/persistence/ownership E2E with the accepted-CAD option enabled and review artifact, digest, validator, audit-chain and cleanup evidence.
+4. **Visual/keyboard acceptance and final gate:** The protected UI can be served and the Forge workspace title/sections return HTTP 200, but the complete authenticated desktop/mobile/keyboard acceptance has not passed because the persistence gate blocks the user journeys. After secret configuration, rerun the full acceptance, capture current screenshots, check accessibility and inspect evidence. M0 exit remains open; PR #121 stays draft.
 
 ## M0 — Trustworthy decision surfaces, recovery and outcome measurement
 
@@ -61,6 +80,10 @@ Milestones describe ordered outcomes; they are not proof that their capabilities
 ### Exit gate
 
 The result-state matrix and important negative paths are tested; failure does not appear as silent success; saved work survives recoverable failures; retries cannot duplicate non-idempotent effects; CAD acceptance passes on the exact current revision in non-production; retrieved private BREP bytes match the stored digest and validation receipt. If environment configuration is still missing, report M0 CAD live acceptance as BLOCKED.
+
+### Additional M0 vertical slice — pump power calculation
+
+The feature branch also implements a project-scoped deterministic pump hydraulic/shaft-power operation, separate capability-specific validation, and a digest-bound calculation artifact persisted in the existing revision-guarded workspace snapshot. Unit/input validation, independent equation checks, tampered-output rejection and artifact digest binding are covered by Vitest; the isolated Playwright journey exercises persistence, revision lineage and result-state separation. This is an additive bounded capability, not a substitution for the original doctrine, the existing shaft/CAD workflows, or the remaining M0 release gates. Keep maturity at PILOT until current-head CI and isolated E2E evidence confirm the exact revision.
 
 ## M1 — Conversational AI, streaming and controlled engineering tools
 

@@ -60,6 +60,24 @@ function jsonArray(value: unknown): unknown[] {
 function httpError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
+
+/**
+ * Emits stage timing only. Never include user intent, request bodies, project/model IDs,
+ * artifact content, endpoint URLs, auth headers, or raw provider/database errors.
+ */
+function logCADCompletionStage(
+  stage: string,
+  startedAt: number,
+  correlation: string,
+  details: Record<string, string | number | boolean> = {}
+) {
+  console.info("[cad-completion-stage]", JSON.stringify({
+    ...details,
+    stage,
+    correlation,
+    elapsedMs: Math.max(0, Date.now() - startedAt)
+  }));
+}
 function rowModel(row: Row): CADModelIdentity {
   const model = {
     id: row.id,
@@ -200,6 +218,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const requestStartedAt = Date.now();
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > 64 * 1024) {
     return httpError("CAD request body exceeds the 64 KiB limit.", 413);
@@ -224,42 +243,77 @@ export async function POST(request: Request) {
   const requirementIds = [...new Set((requirementIdsRaw as string[]).map((item) => item.trim()))];
 
   const requestId = randomUUID();
+  const correlation = requestId.slice(0, 8);
+  logCADCompletionStage("request_validated", requestStartedAt, correlation, {
+    requirementCount: requirementIds.length
+  });
   let authorization;
   let db: Awaited<ReturnType<typeof createClient>>;
   let serviceDb: ReturnType<typeof createServiceRoleClient>;
+  logCADCompletionStage("authorization_started", requestStartedAt, correlation);
   try {
     authorization = await authorizeSupabaseRequest("TASK.EXECUTE", projectId, {
       requestId,
       taskId: modelIdentityId,
     });
-    if (!authorization.allowed) return httpError(authorization.reason, authorizationFailureStatus(authorization));
+    if (!authorization.allowed) {
+      logCADCompletionStage("authorization_denied", requestStartedAt, correlation, {
+        responseStatus: authorizationFailureStatus(authorization)
+      });
+      return httpError(authorization.reason, authorizationFailureStatus(authorization));
+    }
+    logCADCompletionStage("authorization_allowed", requestStartedAt, correlation);
     db = await createClient();
     serviceDb = createServiceRoleClient();
-  } catch {
+    logCADCompletionStage("server_clients_ready", requestStartedAt, correlation);
+  } catch (error) {
+    logCADCompletionStage("authorization_setup_failed", requestStartedAt, correlation, {
+      errorType: error instanceof Error ? error.name : "unknown"
+    });
     return httpError("CAD project authorization or trusted server-side persistence is unavailable. Configure Supabase service-role access on the server.", 503);
   }
+  logCADCompletionStage("model_lookup_started", requestStartedAt, correlation);
   const { data: modelRow, error: modelError } = await db
     .from("engineering_cad_models")
     .select("id,project_id,name,native_references,created_at,updated_at,revision")
     .eq("id", modelIdentityId)
     .eq("project_id", projectId)
     .maybeSingle();
-  if (modelError) return httpError("CAD model identity could not be resolved.", 503);
-  if (!modelRow) return httpError("CAD model identity was not found in this project.", 404);
+  if (modelError) {
+    logCADCompletionStage("model_lookup_failed", requestStartedAt, correlation);
+    return httpError("CAD model identity could not be resolved.", 503);
+  }
+  if (!modelRow) {
+    logCADCompletionStage("model_not_found", requestStartedAt, correlation);
+    return httpError("CAD model identity was not found in this project.", 404);
+  }
   const modelIdentity = rowModel(modelRow as unknown as Row);
+  logCADCompletionStage("model_resolved", requestStartedAt, correlation);
 
   if (requirementIds.length) {
+    logCADCompletionStage("requirements_lookup_started", requestStartedAt, correlation, {
+      requirementCount: requirementIds.length
+    });
     const { data: workspace, error } = await db
       .from("engineering_workspaces")
       .select("snapshot")
       .eq("project_id", projectId)
       .maybeSingle();
-    if (error) return httpError("Requirement context could not be loaded.", 503);
+    if (error) {
+      logCADCompletionStage("requirements_lookup_failed", requestStartedAt, correlation);
+      return httpError("Requirement context could not be loaded.", 503);
+    }
     const requirements = isRecord(workspace?.snapshot) && isRecord(workspace.snapshot.project)
       ? jsonArray(workspace.snapshot.project.requirements)
       : [];
     const known = new Set(requirements.filter(isRecord).map((requirement) => requirement.id).filter((id): id is string => typeof id === "string"));
-    if (requirementIds.some((id) => !known.has(id))) return httpError("Every requirementId must exist in this project's durable workspace snapshot.", 422);
+    if (requirementIds.some((id) => !known.has(id))) {
+      logCADCompletionStage("requirement_validation_failed", requestStartedAt, correlation);
+      return httpError("Every requirementId must exist in this project's durable workspace snapshot.", 422);
+    }
+    logCADCompletionStage("requirements_loaded", requestStartedAt, correlation, {
+      knownRequirementCount: known.size
+    });
   }
 
   // Incomplete/unsupported intent is safe to record without invoking an unconfigured CAD runtime.
@@ -306,7 +360,14 @@ export async function POST(request: Request) {
   }
 
   const configured = configuredRuntime();
-  if ("error" in configured && typeof configured.error === "string") return httpError(configured.error, 503);
+  if ("error" in configured && typeof configured.error === "string") {
+    logCADCompletionStage("runtime_configuration_failed", requestStartedAt, correlation);
+    return httpError(configured.error, 503);
+  }
+  logCADCompletionStage("runtime_selected", requestStartedAt, correlation, {
+    runtimeMode: configured.mode,
+    timeoutMs: configured.mode === "remote" ? 55_000 : 30_000
+  });
   let result: CADPartCompletionResult;
   try {
     const registry = new CapabilityRegistry();
@@ -332,10 +393,24 @@ export async function POST(request: Request) {
       { providerId: "cad.build123d", availability: "AVAILABLE" },
       { providerId: "cad.occt", availability: "AVAILABLE" }
     ]);
-    // Reserve budget within the 120s route cap for independent OCCT validation and durable audit persistence.
+    // Reserve budget within the route cap for independent OCCT validation and durable audit persistence.
     const workflow = new CADPartCompletionWorkflow(router, new Build123dIntentCodeGenerator(), { timeoutMs: configured.mode === "remote" ? 55_000 : 30_000 });
+    const workflowStartedAt = Date.now();
+    logCADCompletionStage("workflow_started", requestStartedAt, correlation, {
+      runtimeMode: configured.mode
+    });
     result = await workflow.complete({ projectId, modelIdentity, rawIntent, requirementIds, risk: "HIGH" });
-  } catch {
+    logCADCompletionStage("workflow_completed", requestStartedAt, correlation, {
+      workflowElapsedMs: Date.now() - workflowStartedAt,
+      resultStatus: result.status,
+      resultStage: result.stage,
+      executionStatus: result.execution?.status ?? "NOT_REACHED",
+      validationStatus: result.validation?.status ?? "NOT_REACHED"
+    });
+  } catch (error) {
+    logCADCompletionStage("workflow_threw", requestStartedAt, correlation, {
+      errorType: error instanceof Error ? error.name : "unknown"
+    });
     return httpError("CAD runtime failed before a completion result could be produced.", 503);
   }
 
@@ -381,12 +456,18 @@ export async function POST(request: Request) {
         const objectPath = objectPaths.get(artifact.id)!;
         // Track the intended key before upload so cleanup also covers ambiguous network errors.
         persistedPaths.push(objectPath);
+        logCADCompletionStage("artifact_upload_started", requestStartedAt, correlation, {
+          artifactKind: artifact.kind
+        });
         const { error } = await db.storage.from(CAD_ARTIFACT_BUCKET).upload(
           objectPath,
           artifactBytes.get(artifact.id)!,
           { upsert: false, contentType: contentType(artifact.kind) }
         );
         if (error) throw new Error("Private CAD artifact upload failed.");
+        logCADCompletionStage("artifact_uploaded", requestStartedAt, correlation, {
+          artifactKind: artifact.kind
+        });
       }
     }
 
@@ -442,6 +523,11 @@ export async function POST(request: Request) {
 
     let data: Record<string, unknown>;
     try {
+      logCADCompletionStage("completion_audit_commit_started", requestStartedAt, correlation, {
+        resultStatus: result.status,
+        artifactCount: artifactRecords.length,
+        storageObjectCount: persistedPaths.length
+      });
       const committed = await persistCADCompletionWithAudit(dbRecord, {
         timestamp: new Date().toISOString(),
         actor: { subject: authorization.subject, actorType: "USER" },
@@ -473,7 +559,13 @@ export async function POST(request: Request) {
       });
       data = committed.completion;
       completionPersisted = true;
+      logCADCompletionStage("completion_audit_committed", requestStartedAt, correlation, {
+        resultStatus: result.status,
+        artifactCount: artifactRecords.length,
+        storageObjectCount: persistedPaths.length
+      });
     } catch {
+      logCADCompletionStage("completion_audit_result_ambiguous", requestStartedAt, correlation);
       // RPC responses can be lost after PostgreSQL commits. Reconcile by the preselected
       // completion UUID before removing any uploaded artifacts. If the lookup itself
       // fails, preserve files rather than risk breaking a committed completion.
@@ -490,9 +582,18 @@ export async function POST(request: Request) {
         503,
       );
     }
+    logCADCompletionStage("completion_persisted", requestStartedAt, correlation, {
+      resultStatus: result.status,
+      completionPersisted,
+      storageObjectCount: persistedPaths.length
+    });
+    const signedUrls = await signObjectPaths(db, projectId, persistedPaths);
+    logCADCompletionStage("signed_urls_created", requestStartedAt, correlation, {
+      signedUrlCount: Object.keys(signedUrls).length
+    });
     return NextResponse.json({
       completion: data,
-      signedUrls: await signObjectPaths(db, projectId, persistedPaths),
+      signedUrls,
       persisted: true,
       verified: result.status === "ACCEPTED" && isVerifiedCADCompletion(result)
     }, { status: result.status === "ACCEPTED" ? 201 : result.status === "NEEDS_INPUT" || result.status === "UNSUPPORTED" ? 200 : 422 });
