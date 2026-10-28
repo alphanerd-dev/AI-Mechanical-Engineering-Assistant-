@@ -160,6 +160,56 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
     const projectId = createdProject.id;
     const workspacePath = "/api/projects/" + projectId + "/workspace";
 
+    await test.step("Reject direct authenticated Data API writes to trusted workspace state", async () => {
+      const projectRef = requiredEnv("E2E_SUPABASE_PROJECT_REF");
+      const publishableKey = requiredEnv("E2E_SUPABASE_PUBLISHABLE_KEY");
+      const currentResponse = await pageA.request.get(workspacePath);
+      expect(currentResponse.status()).toBe(200);
+      const before = await currentResponse.json();
+      const accessToken = accessTokenFromContextCookies(await contextA.cookies([baseURL]), projectRef);
+      const directWrite = await fetch(
+        "https://" + projectRef + ".supabase.co/rest/v1/engineering_workspaces?project_id=eq." + encodeURIComponent(projectId),
+        {
+          method: "PATCH",
+          headers: {
+            apikey: publishableKey,
+            authorization: "Bearer " + accessToken,
+            "content-type": "application/json",
+            prefer: "return=representation",
+          },
+          body: JSON.stringify({
+            revision: before.revision + 99,
+            snapshot: {
+              ...before.snapshot,
+              revision: before.revision + 99,
+              project: {
+                ...before.snapshot.project,
+                events: [{
+                  id: "forged-direct-api-event",
+                  timestamp: new Date().toISOString(),
+                  actor: "forged",
+                  action: "FORGED_VALIDATION",
+                  output: { informationStatus: "VERIFIED" },
+                  evidence: ["forged-evidence"],
+                }],
+              },
+            },
+            saved_at: new Date().toISOString(),
+          }),
+        },
+      );
+      expect(
+        [401, 403],
+        "authenticated clients must not bypass server-side workspace validation by writing arbitrary snapshot JSON",
+      ).toContain(directWrite.status);
+
+      const afterResponse = await pageA.request.get(workspacePath);
+      expect(afterResponse.status()).toBe(200);
+      const after = await afterResponse.json();
+      expect(after.revision).toBe(before.revision);
+      expect(after.snapshot.project.events).toEqual(before.snapshot.project.events);
+    });
+
     await test.step("Read workspace, persist requirements, and reject stale revisions", async () => {
       const initialResponse = await pageA.request.get(workspacePath);
       expect(initialResponse.status()).toBe(200);
