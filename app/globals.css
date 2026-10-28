@@ -356,3 +356,19 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
 
 .workspaceContextBadge{max-width:min(300px,35vw);overflow:hidden;text-overflow:ellipsis}
 .workspaceCurrentProjectName{display:inline-block;max-width:180px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+
+
+/* Bounded pump-power pilot: explicit units, traceable result, responsive inputs. */
+.pumpPowerPanel{display:flex;flex-direction:column;gap:14px;margin-bottom:16px;min-width:0}
+.pumpPowerPanel>h2{margin:0}
+.pumpPowerForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.pumpPowerFieldWithUnit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
+.pumpPowerFieldWithUnit input,.pumpPowerUnit,.pumpPowerPanel input{width:100%;min-width:0;border:1px solid #3a4856;border-radius:8px;background:#0b1015;color:#e8edf3;padding:11px 12px;font:inherit;font-size:14px;line-height:1.5;outline:none}
+.pumpPowerFieldWithUnit input:focus,.pumpPowerUnit:focus,.pumpPowerPanel input:focus{border-color:#8194a7;box-shadow:0 0 0 2px #41536433}
+.pumpPowerUnit{width:auto;max-width:116px}
+.pumpPowerEvidence{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px;border:1px solid #293644;border-radius:10px;background:#0c1218;min-width:0}
+.pumpPowerEvidence>div{display:flex;flex-direction:column;gap:5px;min-width:0}
+.pumpPowerEvidence span{font-size:11px;color:#8292a4}
+.pumpPowerEvidence strong{font-size:12px;color:#cbd6e0;font-weight:700}
+.pumpPowerEvidence code{font-size:10px;color:#c5d4df;overflow-wrap:anywhere;word-break:break-word}
+@media(max-width:520px){.pumpPowerForm,.pumpPowerEvidence{grid-template-columns:1fr}.pumpPowerUnit{max-width:120px}}
