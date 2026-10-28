@@ -49,6 +49,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
   const [head, setHead] = useState("");
   const [headUnit, setHeadUnit] = useState("m");
   const [efficiencyPercent, setEfficiencyPercent] = useState("");
+  const [pumpIdempotencyKey, setPumpIdempotencyKey] = useState("");
   const [powerKw, setPowerKw] = useState("");
   const [speedRpm, setSpeedRpm] = useState("");
   const [loading, setLoading] = useState(true);
@@ -130,13 +131,16 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
         head: { value: Number(head), unit: headUnit },
         efficiencyPercent: Number(efficiencyPercent)
       };
+      // Retain this key after ambiguous network failures; clear it only after input changes or a confirmed response.
+      const idempotencyKey = pumpIdempotencyKey || globalThis.crypto.randomUUID();
+      setPumpIdempotencyKey(idempotencyKey);
       if (![pumpInput.density.value, pumpInput.flowRate.value, pumpInput.head.value, pumpInput.efficiencyPercent].every(Number.isFinite)) {
         throw new Error("Enter numeric values for density, flow rate, head, and efficiency.");
       }
       const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/workspace`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ operation: "RUN_PUMP_HYDRAULIC_POWER", expectedRevision: revision, pumpInput })
+        body: JSON.stringify({ operation: "RUN_PUMP_HYDRAULIC_POWER", expectedRevision: revision, idempotencyKey, pumpInput })
       });
       const body = await readBody(response);
       if (!body.snapshot || !body.result?.artifact) throw new Error("The calculation artifact was not persisted.");
@@ -144,6 +148,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       setRequirements(body.snapshot.project.requirements ?? []);
       setEvents(body.snapshot.project.events ?? []);
       setArtifacts(body.snapshot.artifacts ?? []);
+      setPumpIdempotencyKey("");
       setNotice(body.result.artifact.validationStatus === "VALIDATED"
         ? "Pump calculation saved. Capability-specific checks passed; the result is not independently verified or design-approved."
         : "The run completed but validation did not pass. Inspect the saved findings before relying on this result.");
@@ -186,16 +191,16 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       <p className="muted">Uses Pₕ = ρgQH and Pshaft = Pₕ/η. Enter every value with an explicit unit. A passing calculation check does not select a pump or approve a design.</p>
       <div className="pumpPowerForm">
         <label className="projectField">Fluid density
-          <div className="pumpPowerFieldWithUnit"><input type="number" min="0.000001" step="any" value={density} onChange={(event) => setDensity(event.target.value)} disabled={busy || loading} placeholder="e.g. 1000" /><select aria-label="Density unit" className="pumpPowerUnit" value={densityUnit} onChange={(event) => setDensityUnit(event.target.value)} disabled={busy || loading}><option value="kg/m3">kg/m³</option><option value="g/cm3">g/cm³</option></select></div>
+          <div className="pumpPowerFieldWithUnit"><input type="number" min="0.000001" step="any" value={density} onChange={(event) => setDensity(event.target.value); setPumpIdempotencyKey("")} disabled={busy || loading} placeholder="e.g. 1000" /><select aria-label="Density unit" className="pumpPowerUnit" value={densityUnit} onChange={(event) => setDensityUnit(event.target.value); setPumpIdempotencyKey("")} disabled={busy || loading}><option value="kg/m3">kg/m³</option><option value="g/cm3">g/cm³</option></select></div>
         </label>
         <label className="projectField">Volume flow rate
-          <div className="pumpPowerFieldWithUnit"><input type="number" min="0.000001" step="any" value={flowRate} onChange={(event) => setFlowRate(event.target.value)} disabled={busy || loading} placeholder="e.g. 20" /><select aria-label="Flow rate unit" className="pumpPowerUnit" value={flowRateUnit} onChange={(event) => setFlowRateUnit(event.target.value)} disabled={busy || loading}><option value="m3/s">m³/s</option><option value="L/s">L/s</option><option value="m3/h">m³/h</option></select></div>
+          <div className="pumpPowerFieldWithUnit"><input type="number" min="0.000001" step="any" value={flowRate} onChange={(event) => setFlowRate(event.target.value); setPumpIdempotencyKey("")} disabled={busy || loading} placeholder="e.g. 20" /><select aria-label="Flow rate unit" className="pumpPowerUnit" value={flowRateUnit} onChange={(event) => setFlowRateUnit(event.target.value); setPumpIdempotencyKey("")} disabled={busy || loading}><option value="m3/s">m³/s</option><option value="L/s">L/s</option><option value="m3/h">m³/h</option></select></div>
         </label>
         <label className="projectField">Total dynamic head
-          <div className="pumpPowerFieldWithUnit"><input type="number" min="0.000001" step="any" value={head} onChange={(event) => setHead(event.target.value)} disabled={busy || loading} placeholder="e.g. 20" /><select aria-label="Head unit" className="pumpPowerUnit" value={headUnit} onChange={(event) => setHeadUnit(event.target.value)} disabled={busy || loading}><option value="m">m</option><option value="ft">ft</option></select></div>
+          <div className="pumpPowerFieldWithUnit"><input type="number" min="0.000001" step="any" value={head} onChange={(event) => setHead(event.target.value); setPumpIdempotencyKey("")} disabled={busy || loading} placeholder="e.g. 20" /><select aria-label="Head unit" className="pumpPowerUnit" value={headUnit} onChange={(event) => setHeadUnit(event.target.value); setPumpIdempotencyKey("")} disabled={busy || loading}><option value="m">m</option><option value="ft">ft</option></select></div>
         </label>
         <label className="projectField">Pump efficiency (%)
-          <input type="number" min="0.000001" max="100" step="any" value={efficiencyPercent} onChange={(event) => setEfficiencyPercent(event.target.value)} disabled={busy || loading} placeholder="e.g. 75" />
+          <input type="number" min="0.000001" max="100" step="any" value={efficiencyPercent} onChange={(event) => setEfficiencyPercent(event.target.value); setPumpIdempotencyKey("")} disabled={busy || loading} placeholder="e.g. 75" />
         </label>
       </div>
       <div className="calculationFormula"><code>Pₕ = ρgQH</code><code>Pshaft = Pₕ / η</code><span>SI calculation core · g = 9.80665 m/s²</span></div>
