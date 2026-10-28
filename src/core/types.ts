@@ -19,7 +19,7 @@ export interface Requirement {
 
 export interface EngineeringEvent {
   id:string; timestamp:string; actor:string; action:string;
-  input?:unknown; output?:unknown; evidence?:string[]; artifactIds?:string[];
+  input?:unknown; output?:unknown; evidence?:string[]; artifactIds?:string[]; idempotencyKey?:string;
 }
 
 export interface ProjectState {
