@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isEngineeringRoleRequiredFailure } from "../../src/auth/http-error-classification";
 import { buildProjectBriefReview, getProjectAssistantHref } from "../../src/projects/project-brief-review.js";
@@ -46,6 +46,7 @@ export default function ProjectBoard() {
   const [projectListCheckedAfterUncertain, setProjectListCheckedAfterUncertain] = useState(false);
   const [allowRetryAfterUncertain, setAllowRetryAfterUncertain] = useState(false);
   const [possibleMatches, setPossibleMatches] = useState<Project[]>([]);
+  const creationAttempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const briefReview = buildProjectBriefReview(name, problemStatement);
 
   const refresh = useCallback(async () => {
@@ -101,13 +102,22 @@ export default function ProjectBoard() {
     setProjectListCheckedAfterUncertain(false);
     setPossibleMatches([]);
     try {
+      const payload = { name: name.trim(), problemStatement: problemStatement.trim() };
+      const fingerprint = JSON.stringify(payload);
+      if (!creationAttempt.current || creationAttempt.current.fingerprint !== fingerprint) {
+        creationAttempt.current = { fingerprint, key: globalThis.crypto.randomUUID() };
+      }
+      // Reuse this key after ambiguous transport failures. The server binds it to the exact
+      // normalized payload and database uniqueness prevents concurrent duplicate project rows.
+      const idempotencyKey = creationAttempt.current.key;
       const response = await fetch("/api/projects", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), problemStatement: problemStatement.trim() })
+        headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify(payload)
       });
       const body = await apiBody(response);
       if (!body.project) throw new Error("The API did not return the created project.");
+      creationAttempt.current = null;
       if (body.warning) setNotice(body.warning);
       setName("");
       setProblemStatement("");
@@ -152,7 +162,7 @@ export default function ProjectBoard() {
       setAllowRetryAfterUncertain(false);
       setNotice(sameName.length > 0
         ? `Found ${sameName.length} project(s) with this exact name. Open and inspect the matching project(s) below before deciding whether another project is needed.`
-        : "The project list refreshed and no exact-name match is visible. This does not prove the original request did not create a project; only retry if you accept the remaining duplicate risk.");
+        : "The project list refreshed and no exact-name match is visible. Retrying this unchanged draft reuses its server idempotency key, so a repeated request will not create a second project. Editing the draft starts a new request.");
     } catch (error) {
       setLoadingError(error instanceof Error ? error.message : "The project list could not be checked.");
     } finally {
@@ -243,7 +253,7 @@ export default function ProjectBoard() {
                   <span>{project.name}</span><small>Revision {project.revision} · {project.status}</small>
                 </Link>)}
               </div>}
-              {allowRetryAfterUncertain && <p className="projectCreateRiskNotice">Retry enabled after your acknowledgement. A project may still be created twice if the original request completes later.</p>}
+              {allowRetryAfterUncertain && <p className="projectCreateRiskNotice">Retry enabled after your acknowledgement. The unchanged draft reuses its server key; edits are treated as a new project-creation request.</p>}
             </section>}
 
             {!createOutcomeUncertain && createError && <p className="projectError" role="alert">{createError}</p>}

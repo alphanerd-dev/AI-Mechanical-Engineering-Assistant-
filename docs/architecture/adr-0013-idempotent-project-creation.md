@@ -1,0 +1,11 @@
+# ADR-0013: Idempotent project creation
+
+- **Status:** Accepted for the M0 trustworthy-workspace increment.
+- **Date:** 2026-10-28.
+- **Context:** A client may lose the response after the project row commits. A user-interface retry guard is insufficient when requests are duplicated, concurrent, or retried after a timeout.
+- **Decision:** The client supplies an optional Idempotency-Key header. The server validates its format, binds it to a SHA-256 digest of the normalized project name and problem statement, and stores both on the project row. A partial unique index on (owner_id, creation_request_key) elects one creation winner. Replays with the same payload return the existing project; key reuse with a different payload returns HTTP 409. Requests without a key remain supported for compatibility.
+- **Workspace recovery:** A replay checks whether the first workspace snapshot exists and initializes it only if absent. It never overwrites an existing snapshot. Concurrent initializers are considered successful only after a read-back confirms the snapshot exists.
+- **Security:** The request key is not an authorization credential. Server-side identity, project-write authorization, durable authorization audit, and the service-only write boundary remain required. The digest and request key are not exposed in API response objects.
+- **Migration:** Apply 20261028151000_project_creation_idempotency.sql before deploying this code to any environment. The migration must first be applied and verified in the dedicated E2E project; production rollout requires the normal explicit release gate.
+- **Validation:** Unit tests cover key format and payload digest semantics. The isolated authenticated Playwright journey retries the same key, asserts exactly the same project ID, then reuses the key with different data and expects a 409 conflict. The Playwright scenario must be executed on the updated branch head before this capability is called live-verified.
+- **Limitations:** When a caller omits the key, this API does not promise retry deduplication. The current project and initial workspace rows are still separate writes; if workspace initialization fails, the created project remains visible and a same-key replay attempts a non-destructive workspace recovery. This ADR does not claim cross-table transaction atomicity.

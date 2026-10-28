@@ -136,16 +136,39 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
 
     await test.step("Authenticate user A and create an isolated test project", async () => {
       await signIn(pageA, userAEmail, userAPassword);
+      const creationKey = "e2e-project-create-" + suffix;
+      const creationPayload = {
+        name: projectName,
+        problemStatement: "Disposable E2E project for persisted workspace and intent acceptance.",
+      };
       const createResponse = await pageA.request.post("/api/projects", {
-        data: {
-          name: projectName,
-          problemStatement: "Disposable E2E project for persisted workspace and intent acceptance.",
-        },
+        headers: { "idempotency-key": creationKey },
+        data: creationPayload,
       });
       expect(createResponse.status(), "project creation API should return 201").toBe(201);
       const created = await createResponse.json();
       expect(created.project?.id).toMatch(/^[0-9a-f-]{36}$/i);
       expect(created.workspaceInitialized).toBe(true);
+
+      const replayResponse = await pageA.request.post("/api/projects", {
+        headers: { "idempotency-key": creationKey },
+        data: creationPayload,
+      });
+      expect(replayResponse.status(), "retrying the same project request must replay the first project").toBe(200);
+      const replay = await replayResponse.json();
+      expect(replay).toMatchObject({
+        idempotentReplay: true,
+        workspaceInitialized: true,
+        project: { id: created.project.id },
+      });
+
+      const reusedKeyResponse = await pageA.request.post("/api/projects", {
+        headers: { "idempotency-key": creationKey },
+        data: { ...creationPayload, problemStatement: "Different payload must not reuse the original creation key." },
+      });
+      expect(reusedKeyResponse.status(), "reusing a key for different project data must conflict").toBe(409);
+      expect(await reusedKeyResponse.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
       testInfo.annotations.push({ type: "e2e-project-id", description: created.project.id });
       testInfo.annotations.push({ type: "e2e-session-id", description: sessionId });
       await pageA.goto("/");
