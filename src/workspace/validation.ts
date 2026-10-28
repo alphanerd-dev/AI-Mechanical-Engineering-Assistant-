@@ -1,5 +1,6 @@
 import {EngineeringWorkspaceSnapshot,ENGINEERING_WORKSPACE_SCHEMA_VERSION} from "./types";
 import {validateEngineeringTaskGraph} from "../task-graph/validation";
+import {validateCalculationArtifact} from "../artifacts/calculation-artifact.js";
 
 export function validateEngineeringWorkspaceSnapshot(snapshot:EngineeringWorkspaceSnapshot):void{
   if(snapshot.schemaVersion!==ENGINEERING_WORKSPACE_SCHEMA_VERSION)
@@ -14,6 +15,19 @@ export function validateEngineeringWorkspaceSnapshot(snapshot:EngineeringWorkspa
     throw new Error("Engineering workspace productModelRevision must be a positive integer.");
   if(snapshot.artifactRegistryRevision!==undefined&&(!Number.isInteger(snapshot.artifactRegistryRevision)||snapshot.artifactRegistryRevision<1))
     throw new Error("Engineering workspace artifactRegistryRevision must be a positive integer.");
+  if(snapshot.artifacts!==undefined){
+    if(!Array.isArray(snapshot.artifacts)) throw new Error("Engineering workspace artifacts must be an array.");
+    const artifactIds=new Set<string>();
+    for(const artifact of snapshot.artifacts){
+      const artifactErrors=validateCalculationArtifact(artifact);
+      if(artifactErrors.length) throw new Error(artifactErrors.join(" "));
+      if(artifact.projectId!==snapshot.project.id) throw new Error("Calculation artifact projectId must match the workspace project.");
+      if(artifact.sourceRevision>artifact.workspaceRevision) throw new Error("Calculation artifact sourceRevision cannot exceed its workspaceRevision.");
+      if(artifact.workspaceRevision>snapshot.revision) throw new Error("Calculation artifact workspaceRevision cannot exceed the saved workspace revision.");
+      if(artifactIds.has(artifact.id)) throw new Error("Calculation artifact IDs must be unique within the workspace.");
+      artifactIds.add(artifact.id);
+    }
+  }
   const taskErrors=validateEngineeringTaskGraph(snapshot.taskGraph);
   if(taskErrors.length) throw new Error(taskErrors.join(" "));
 }
