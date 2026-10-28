@@ -6,6 +6,14 @@ import { assessRequirementCompleteness, calculateShaftTorque, normalizeRequireme
 import { createEmptyEngineeringWorkspaceSnapshot } from "../../../../../src/workspace/snapshot";
 import type { EngineeringWorkspaceSnapshot } from "../../../../../src/workspace/types";
 import { validateEngineeringWorkspaceSnapshot } from "../../../../../src/workspace/validation";
+import { createCalculationArtifact } from "../../../../../src/artifacts/calculation-artifact";
+import {
+  calculatePumpHydraulicPower,
+  PUMP_HYDRAULIC_POWER_CAPABILITY,
+  PUMP_HYDRAULIC_POWER_VALIDATOR_VERSION,
+  PUMP_HYDRAULIC_POWER_VERSION,
+  validatePumpHydraulicPower
+} from "../../../../../src/engineering/pump-hydraulic-power";
 
 export const runtime = "nodejs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -167,6 +175,56 @@ export async function PATCH(request: Request, context: RouteContext) {
         });
         snapshot.project.nextAction = "Review assumptions, loading arrangement, material and allowable stress before shaft sizing.";
         operationResult = { calculation, eventId };
+        break;
+      }
+      case "RUN_PUMP_HYDRAULIC_POWER": {
+        const { input: pumpInput, result: calculation } = calculatePumpHydraulicPower(input.pumpInput);
+        const validation = validatePumpHydraulicPower(pumpInput, calculation, now);
+        const eventId = randomUUID();
+        const artifact = createCalculationArtifact({
+          id: randomUUID(),
+          projectId,
+          name: "Pump hydraulic and shaft power calculation",
+          capability: PUMP_HYDRAULIC_POWER_CAPABILITY,
+          sourceRevision: loaded.revision,
+          workspaceRevision: loaded.revision + 1,
+          createdBy: authorization.subject,
+          createdAt: now,
+          providerId: "deterministic.pump-hydraulic-power",
+          providerVersion: PUMP_HYDRAULIC_POWER_VERSION,
+          inputs: pumpInput as unknown as Record<string, unknown>,
+          outputs: calculation as unknown as Record<string, unknown>,
+          executionStatus: "COMPLETED",
+          validation: {
+            id: randomUUID(),
+            result: validation.result,
+            validatorId: validation.validatorId,
+            validatorVersion: PUMP_HYDRAULIC_POWER_VALIDATOR_VERSION,
+            checks: validation.checks,
+            warnings: validation.warnings,
+            validatedAt: validation.validatedAt
+          },
+          approvalRequired: false,
+          approvalStatus: "NOT_REQUESTED",
+          verificationStatus: "NOT_VERIFIED",
+          limitations: calculation.assumptions
+        });
+        snapshot.artifacts ??= [];
+        snapshot.artifacts.push(artifact);
+        snapshot.project.events.push({
+          id: eventId,
+          timestamp: now,
+          actor: authorization.subject,
+          action: PUMP_HYDRAULIC_POWER_CAPABILITY,
+          input: pumpInput,
+          output: calculation,
+          artifactIds: [artifact.id],
+          evidence: validation.result === "PASS" ? ["validation:" + artifact.validationReceipt.id] : []
+        });
+        snapshot.project.nextAction = validation.result === "PASS"
+          ? "Review the duty point, system curve, NPSH/cavitation margin and motor/drive losses before selecting equipment."
+          : "Resolve the pump-power validation findings before relying on this result.";
+        operationResult = { calculation, artifact, validation, eventId };
         break;
       }
       case "CHECK_REQUIREMENTS": {
