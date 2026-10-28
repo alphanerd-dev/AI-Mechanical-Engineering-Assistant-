@@ -147,6 +147,18 @@ export function createCalculationArtifact<
   };
 }
 
+/**
+ * Conservatively mark a result stale whenever the current workspace revision differs
+ * from the revision in which the artifact was saved. The receipt remains historical
+ * evidence for its exact inputs/outputs; it is not evidence that the result is current.
+ */
+export function isCalculationArtifactStale(
+  artifact: Pick<CalculationArtifact, "workspaceRevision">,
+  currentWorkspaceRevision: number
+): boolean {
+  return !Number.isSafeInteger(currentWorkspaceRevision) || currentWorkspaceRevision !== artifact.workspaceRevision;
+}
+
 /** Validate artifact structure and digest/receipt bindings before persisting a workspace snapshot. */
 export function validateCalculationArtifact(value: unknown): string[] {
   const errors: string[] = [];
