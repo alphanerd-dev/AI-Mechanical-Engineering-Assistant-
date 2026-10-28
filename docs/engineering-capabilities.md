@@ -26,6 +26,14 @@ The shaft torque relation is T = P / ω, where ω = 2πn/60. Preliminary shaft s
 
 The constraint foundation supports bounded explicit inputs; a solved system is not a safety verdict. An incomplete search or reached sample limit must not be presented as an exhaustive optimum. Units, domains, missing inputs and assumptions remain explicit.
 
+## Pump hydraulic and shaft power — PILOT
+
+The current M0 feature branch adds a deterministic pump-power calculator using explicit fluid density, volume flow rate, total dynamic head, and pump efficiency. Supported units are kg/m³ or g/cm³; m³/s, L/s or m³/h; and metres or feet. The service converts to SI, applies P_h = rho * g * Q * H and P_shaft = P_h / eta, and records assumptions and normalized inputs.
+
+A separate capability-specific validator independently recomputes unit conversions and the governing relations. The resulting calculation artifact carries SHA-256 digests for canonical input/output JSON, a versioned validation receipt bound to those digests, execution status, validation status, approval status, verification status, source/workspace revisions, and limitations. The protected project-workspace route persists the artifact through its existing optimistic revision check; the event links to the artifact.
+
+**Maturity is PILOT, not general pump-selection or design verification.** A passing receipt establishes only that the declared inputs, conversions and equations are internally consistent under the documented assumptions. It does not establish a correct duty point, system curve, NPSH margin, cavitation adequacy, pump selection, motor/drive sizing, or field performance. It does not mark the result approved or VERIFIED. Automated unit, invalid-input, tamper-detection and digest-binding tests exist in the feature branch; treat the integration as unverified until current-commit CI and isolated authenticated E2E acceptance pass.
+
 ## CAD and geometry
 
 The reference CAD completion path is intentionally bounded to explicitly dimensioned cylindrical parts such as shafts/cylinders:
