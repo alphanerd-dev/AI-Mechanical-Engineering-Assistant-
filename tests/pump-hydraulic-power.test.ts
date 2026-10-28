@@ -53,6 +53,17 @@ describe("pump hydraulic and shaft power", () => {
     expect(() => calculatePumpHydraulicPower({ ...waterAtDutyPoint, efficiencyPercent: 100.1 })).toThrow(/efficiency/);
   });
 
+  it("rejects unknown API fields rather than silently accepting ambiguous inputs", () => {
+    expect(() => calculatePumpHydraulicPower({
+      ...waterAtDutyPoint,
+      hiddenAssumption: 0.9
+    })).toThrow(/hiddenAssumption/);
+    expect(() => calculatePumpHydraulicPower({
+      ...waterAtDutyPoint,
+      density: { value: 1000, unit: "kg/m3", correctionFactor: 2 }
+    })).toThrow(/density/);
+  });
+
   it("runs an independent capability validator and catches a tampered result", () => {
     const { input, result } = calculatePumpHydraulicPower(waterAtDutyPoint);
     expect(validatePumpHydraulicPower(input, result, "2026-10-28T12:00:00.000Z").result).toBe("PASS");
