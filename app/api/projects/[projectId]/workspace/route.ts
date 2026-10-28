@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createClient } from "../../../../../lib/supabase/server";
+import { createServiceRoleClient } from "../../../../../lib/supabase/service";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../../src/auth/supabase-service";
 import { assessRequirementCompleteness, calculateShaftTorque, normalizeRequirements, normalizeTextList } from "../../../../../src/workspace/engineering-inputs";
 import { createEmptyEngineeringWorkspaceSnapshot } from "../../../../../src/workspace/snapshot";
@@ -28,7 +28,7 @@ function jsonError(error: string, status: number, extra?: Record<string, unknown
   return NextResponse.json({ error, ...extra }, { status, headers: { "cache-control": "no-store" } });
 }
 
-async function loadOrInitializeWorkspace(db: Awaited<ReturnType<typeof createClient>>, projectId: string): Promise<WorkspaceRow | null> {
+async function loadOrInitializeWorkspace(db: ReturnType<typeof createServiceRoleClient>, projectId: string): Promise<WorkspaceRow | null> {
   const { data: project, error: projectError } = await db
     .from("engineering_projects")
     .select("id,name,stage,status")
@@ -92,7 +92,8 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
     if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
-    const db = await createClient();
+    // Privileged workspace IO is server-only. Authorization and current project membership were verified above.
+    const db = createServiceRoleClient();
     const loaded = await loadOrInitializeWorkspace(db, projectId);
     if (!loaded) return jsonError("Project not found or inaccessible.", 404);
     return NextResponse.json({
@@ -120,7 +121,8 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const authorization = await authorizeSupabaseRequest("PROJECT.WRITE", projectId);
     if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return jsonError(authorization.reason, status, status === 503 ? { code: "AUDIT_STORE_UNAVAILABLE" } : undefined); }
-    const db = await createClient();
+    // Privileged workspace IO is server-only. Authorization and current project membership were verified above.
+    const db = createServiceRoleClient();
     const loaded = await loadOrInitializeWorkspace(db, projectId);
     if (!loaded) return jsonError("Project not found or inaccessible.", 404);
     if (loaded.revision !== input.expectedRevision) {
