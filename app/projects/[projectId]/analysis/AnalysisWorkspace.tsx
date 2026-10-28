@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isCalculationArtifactStale } from "../../../../src/artifacts/calculation-artifact";
+import { isCalculationArtifactStale } from "../../../../src/artifacts/calculation-freshness";
 
 type EngineeringEvent = { id: string; timestamp: string; actor: string; action: string; input?: unknown; output?: unknown; evidence?: string[]; artifactIds?: string[] };
 type Requirement = { name: string; value?: number | string; unit?: string };
