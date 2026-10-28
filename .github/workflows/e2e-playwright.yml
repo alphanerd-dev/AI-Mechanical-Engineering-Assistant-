@@ -154,6 +154,7 @@ jobs:
           fi
 
       - name: Remove session-bearing Playwright trace archives before artifact upload
+        id: sanitize-evidence
         if: always()
         shell: bash
         run: |
@@ -176,13 +177,17 @@ jobs:
             fi
           done
 
-      - name: Upload Playwright report, traces, screenshots, and diagnostics
-        if: always()
+      - name: Upload sanitized Playwright evidence only
+        if: always() && steps.sanitize-evidence.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-e2e-evidence
           path: |
             playwright-report/
             test-results/
+            !playwright-report/**/*.zip
+            !playwright-report/**/*.webm
+            !test-results/**/*.zip
+            !test-results/**/*.webm
           if-no-files-found: warn
           retention-days: 14
