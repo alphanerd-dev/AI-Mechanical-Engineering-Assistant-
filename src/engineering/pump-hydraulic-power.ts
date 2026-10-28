@@ -56,9 +56,9 @@ const unitQuantitySchema = <TUnit extends readonly [string, ...string[]]>(units:
   z.object({ value: z.number().finite(), unit: z.enum(units) }).strict();
 
 const pumpHydraulicPowerInputSchema = z.object({
-  density: unitQuantitySchema(["kg/m3", "g/cm3"]),
-  flowRate: unitQuantitySchema(["m3/s", "L/s", "m3/h"]),
-  head: unitQuantitySchema(["m", "ft"]),
+  density: unitQuantitySchema(["kg/m3", "g/cm3"] as const),
+  flowRate: unitQuantitySchema(["m3/s", "L/s", "m3/h"] as const),
+  head: unitQuantitySchema(["m", "ft"] as const),
   efficiencyPercent: z.number().finite()
 }).strict();
 
