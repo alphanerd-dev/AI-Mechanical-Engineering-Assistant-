@@ -1,4 +1,5 @@
 import type { ValidationResult } from "../artifacts/calculation-artifact.js";
+import { z } from "zod";
 
 export const PUMP_HYDRAULIC_POWER_CAPABILITY = "ANALYSIS.PUMP_HYDRAULIC_POWER";
 export const PUMP_HYDRAULIC_POWER_VERSION = "1.0.0";
@@ -51,43 +52,27 @@ export interface PumpHydraulicPowerValidation {
   validatedAt: string;
 }
 
-type RecordValue = Record<string, unknown>;
-function isRecord(value: unknown): value is RecordValue {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-function finiteNumber(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(field + " must be a finite number.");
-  return value;
-}
+const unitQuantitySchema = <TUnit extends readonly [string, ...string[]]>(units: TUnit) =>
+  z.object({ value: z.number().finite(), unit: z.enum(units) }).strict();
 
+const pumpHydraulicPowerInputSchema = z.object({
+  density: unitQuantitySchema(["kg/m3", "g/cm3"]),
+  flowRate: unitQuantitySchema(["m3/s", "L/s", "m3/h"]),
+  head: unitQuantitySchema(["m", "ft"]),
+  efficiencyPercent: z.number().finite()
+}).strict();
+
+/** Zod validates untrusted API/provider payloads and strips ambiguity by rejecting unknown keys. */
 export function parsePumpHydraulicPowerInput(value: unknown): PumpHydraulicPowerInput {
-  if (!isRecord(value)) throw new Error("pumpInput must be an object.");
-  const expectedKeys = ["density", "flowRate", "head", "efficiencyPercent"];
-  if (Object.keys(value).some((key) => !expectedKeys.includes(key)) || expectedKeys.some((key) => !(key in value))) {
-    throw new Error("pumpInput must contain only density, flowRate, head, and efficiencyPercent.");
+  const parsed = pumpHydraulicPowerInputSchema.safeParse(value);
+  if (!parsed.success) {
+    const details = parsed.error.issues.slice(0, 8).map((issue) => {
+      const field = issue.path.length ? issue.path.join(".") : "pumpInput";
+      return field + ": " + issue.message;
+    });
+    throw new Error("Invalid pump calculation input: " + details.join("; "));
   }
-  const parseQuantity = <TUnit extends string>(
-    raw: unknown,
-    field: string,
-    units: readonly TUnit[]
-  ): UnitQuantity<TUnit> => {
-    if (!isRecord(raw) || Object.keys(raw).some((key) => !["value", "unit"].includes(key)) ||
-        !("value" in raw) || !("unit" in raw)) {
-      throw new Error(field + " must contain a numeric value and an explicit supported unit.");
-    }
-    const valueNumber = finiteNumber(raw.value, field + ".value");
-    if (typeof raw.unit !== "string" || !units.includes(raw.unit as TUnit)) {
-      throw new Error(field + ".unit must be one of " + units.join(", ") + ".");
-    }
-    return { value: valueNumber, unit: raw.unit as TUnit };
-  };
-
-  return {
-    density: parseQuantity(value.density, "density", ["kg/m3", "g/cm3"] as const),
-    flowRate: parseQuantity(value.flowRate, "flowRate", ["m3/s", "L/s", "m3/h"] as const),
-    head: parseQuantity(value.head, "head", ["m", "ft"] as const),
-    efficiencyPercent: finiteNumber(value.efficiencyPercent, "efficiencyPercent")
-  };
+  return parsed.data;
 }
 
 export function normalizePumpHydraulicPowerInput(rawValue: unknown): {
