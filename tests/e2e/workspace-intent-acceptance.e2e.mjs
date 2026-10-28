@@ -237,6 +237,62 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
       expect(event.output.informationStatus).toBe("CALCULATED");
     });
 
+    await test.step("Persist pump power calculation and verify digest-bound validation receipt", async () => {
+      const currentResponse = await pageA.request.get(workspacePath);
+      expect(currentResponse.status()).toBe(200);
+      const current = await currentResponse.json();
+      const runResponse = await pageA.request.patch(workspacePath, {
+        data: {
+          operation: "RUN_PUMP_HYDRAULIC_POWER",
+          expectedRevision: current.revision,
+          pumpInput: {
+            density: { value: 1000, unit: "kg/m3" },
+            flowRate: { value: 20, unit: "L/s" },
+            head: { value: 20, unit: "m" },
+            efficiencyPercent: 75,
+          },
+        },
+      });
+      expect(runResponse.status()).toBe(200);
+      const run = await runResponse.json();
+      expect(run).toMatchObject({ projectId, persisted: true, revision: current.revision + 1 });
+      expect(run.result.calculation.hydraulicPowerKw).toBeCloseTo(3.92266, 6);
+      expect(run.result.calculation.shaftPowerKw).toBeCloseTo(5.2302133333, 6);
+      const artifact = run.result.artifact;
+      expect(artifact).toMatchObject({
+        projectId,
+        capability: "ANALYSIS.PUMP_HYDRAULIC_POWER",
+        sourceRevision: current.revision,
+        workspaceRevision: run.revision,
+        executionStatus: "COMPLETED",
+        validationStatus: "VALIDATED",
+        approvalStatus: "NOT_REQUESTED",
+        verificationStatus: "NOT_VERIFIED",
+      });
+      expect(artifact.validationReceipt.result).toBe("PASS");
+      expect(artifact.validationReceipt.checks.length).toBeGreaterThanOrEqual(5);
+      expect(artifact.inputSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(artifact.outputSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(artifact.validationReceipt.inputSha256).toBe(artifact.inputSha256);
+      expect(artifact.validationReceipt.outputSha256).toBe(artifact.outputSha256);
+      const event = run.snapshot.project.events.find((candidate) => candidate.id === run.result.eventId);
+      expect(event.artifactIds).toContain(artifact.id);
+      expect(event.evidence).toContain("validation:" + artifact.validationReceipt.id);
+
+      const restoredResponse = await pageA.request.get(workspacePath);
+      expect(restoredResponse.status()).toBe(200);
+      const restored = await restoredResponse.json();
+      expect(restored.snapshot.artifacts).toEqual([
+        expect.objectContaining({
+          id: artifact.id,
+          capability: "ANALYSIS.PUMP_HYDRAULIC_POWER",
+          inputSha256: artifact.inputSha256,
+          outputSha256: artifact.outputSha256,
+          verificationStatus: "NOT_VERIFIED",
+        }),
+      ]);
+    });
+
     await test.step("Exercise engineering intent NEEDS_INPUT, validated proposal, and fail-closed result", async () => {
       const incompleteResponse = await pageA.request.post("/api/engineering/intent", {
         data: { projectId, rawIntent: "Design a shaft that transmits 5 kW at 1500 rpm." },
