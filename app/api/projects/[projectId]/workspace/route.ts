@@ -6,7 +6,7 @@ import { assessRequirementCompleteness, calculateShaftTorque, normalizeRequireme
 import { createEmptyEngineeringWorkspaceSnapshot } from "../../../../../src/workspace/snapshot";
 import type { EngineeringWorkspaceSnapshot } from "../../../../../src/workspace/types";
 import { validateEngineeringWorkspaceSnapshot } from "../../../../../src/workspace/validation";
-import { createCalculationArtifact } from "../../../../../src/artifacts/calculation-artifact";
+import { createCalculationArtifact, sha256Json } from "../../../../../src/artifacts/calculation-artifact";
 import {
   calculatePumpHydraulicPower,
   PUMP_HYDRAULIC_POWER_CAPABILITY,
@@ -17,6 +17,7 @@ import {
 
 export const runtime = "nodejs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 type RouteContext = { params: Promise<{ projectId: string }> };
 class WorkspaceApiError extends Error {
@@ -125,6 +126,47 @@ export async function PATCH(request: Request, context: RouteContext) {
     const db = createServiceRoleClient();
     const loaded = await loadOrInitializeWorkspace(db, projectId);
     if (!loaded) return jsonError("Project not found or inaccessible.", 404);
+
+    let pumpRun: ReturnType<typeof calculatePumpHydraulicPower> | undefined;
+    let pumpIdempotencyKey: string | undefined;
+    if (input.operation === "RUN_PUMP_HYDRAULIC_POWER") {
+      if (typeof input.idempotencyKey !== "string" || !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
+        return jsonError("A valid idempotencyKey is required for pump calculation requests.", 400);
+      }
+      pumpIdempotencyKey = input.idempotencyKey;
+      // Parse and calculate before replay lookup so every retry still passes the same strict input contract.
+      pumpRun = calculatePumpHydraulicPower(input.pumpInput);
+      const previousEvent = loaded.snapshot.project.events.find((event) => event.idempotencyKey === pumpIdempotencyKey);
+      if (previousEvent) {
+        if (previousEvent.action !== PUMP_HYDRAULIC_POWER_CAPABILITY) {
+          return jsonError("This idempotencyKey was already used for a different operation.", 409, { code: "IDEMPOTENCY_KEY_REUSED" });
+        }
+        const previousArtifactId = previousEvent.artifactIds?.[0];
+        const previousArtifact = loaded.snapshot.artifacts?.find((artifact) => artifact.id === previousArtifactId);
+        if (!previousArtifact) {
+          return jsonError("A previous pump calculation with this idempotencyKey is missing its artifact; no replay success was reported.", 503, { code: "IDEMPOTENCY_RECORD_INCOMPLETE" });
+        }
+        const requestedInputDigest = sha256Json(pumpRun.input);
+        if (previousArtifact.inputSha256 !== requestedInputDigest) {
+          return jsonError("This idempotencyKey was already used with different pump inputs.", 409, { code: "IDEMPOTENCY_KEY_REUSED" });
+        }
+        return NextResponse.json({
+          projectId,
+          snapshot: loaded.snapshot,
+          revision: loaded.revision,
+          storageMode: "DURABLE",
+          persisted: true,
+          result: {
+            calculation: previousArtifact.outputs,
+            artifact: previousArtifact,
+            validation: previousArtifact.validationReceipt,
+            eventId: previousEvent.id,
+            idempotentReplay: true
+          }
+        }, { headers: { "cache-control": "no-store" } });
+      }
+    }
+
     if (loaded.revision !== input.expectedRevision) {
       return NextResponse.json({
         error: "This workspace changed since it was loaded. Reload the latest revision before saving.",
@@ -180,7 +222,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         break;
       }
       case "RUN_PUMP_HYDRAULIC_POWER": {
-        const { input: pumpInput, result: calculation } = calculatePumpHydraulicPower(input.pumpInput);
+        const { input: pumpInput, result: calculation } = pumpRun ?? calculatePumpHydraulicPower(input.pumpInput);
         const validation = validatePumpHydraulicPower(pumpInput, calculation, now);
         const eventId = randomUUID();
         const artifact = createCalculationArtifact({
@@ -221,6 +263,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           input: pumpInput,
           output: calculation,
           artifactIds: [artifact.id],
+          idempotencyKey: pumpIdempotencyKey,
           evidence: validation.result === "PASS" ? ["validation:" + artifact.validationReceipt.id] : []
         });
         snapshot.project.nextAction = validation.result === "PASS"
