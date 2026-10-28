@@ -367,6 +367,24 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
           verificationStatus: "NOT_VERIFIED",
         }),
       ]);
+
+      await test.step("Mark older calculation evidence stale after a later workspace revision", async () => {
+        const changeResponse = await pageA.request.patch(workspacePath, {
+          data: {
+            operation: "UPDATE_ASSUMPTIONS",
+            expectedRevision: restored.revision,
+            assumptions: ["A later context change must not silently make older calculation evidence current."],
+          },
+        });
+        expect(changeResponse.status()).toBe(200);
+        const changed = await changeResponse.json();
+        expect(changed.revision).toBe(restored.revision + 1);
+
+        await pageA.goto("/projects/" + projectId + "/analysis");
+        await expect(pageA.getByText("STALE", { exact: true })).toBeVisible();
+        await expect(pageA.getByText(/This artifact was saved at workspace revision/)).toBeVisible();
+        await expect(pageA.getByText("NOT_VERIFIED", { exact: true })).toBeVisible();
+      });
     });
 
     await test.step("Exercise engineering intent NEEDS_INPUT, validated proposal, and fail-closed result", async () => {
