@@ -23,6 +23,7 @@ export function createEmptyEngineeringWorkspaceSnapshot(project: NewEngineeringP
       unresolvedRisks: [],
       events: []
     },
+    artifacts: [],
     taskGraph: {
       id: `task-graph-${project.id}`,
       projectId: project.id,
