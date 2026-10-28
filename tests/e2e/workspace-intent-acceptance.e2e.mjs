@@ -291,16 +291,19 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
       const currentResponse = await pageA.request.get(workspacePath);
       expect(currentResponse.status()).toBe(200);
       const current = await currentResponse.json();
+      const idempotencyKey = randomUUID();
+      const pumpInput = {
+        density: { value: 1000, unit: "kg/m3" },
+        flowRate: { value: 20, unit: "L/s" },
+        head: { value: 20, unit: "m" },
+        efficiencyPercent: 75,
+      };
       const runResponse = await pageA.request.patch(workspacePath, {
         data: {
           operation: "RUN_PUMP_HYDRAULIC_POWER",
           expectedRevision: current.revision,
-          pumpInput: {
-            density: { value: 1000, unit: "kg/m3" },
-            flowRate: { value: 20, unit: "L/s" },
-            head: { value: 20, unit: "m" },
-            efficiencyPercent: 75,
-          },
+          idempotencyKey,
+          pumpInput,
         },
       });
       expect(runResponse.status()).toBe(200);
@@ -328,6 +331,29 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
       const event = run.snapshot.project.events.find((candidate) => candidate.id === run.result.eventId);
       expect(event.artifactIds).toContain(artifact.id);
       expect(event.evidence).toContain("validation:" + artifact.validationReceipt.id);
+      expect(event.idempotencyKey).toBe(idempotencyKey);
+
+      // Repeat with the original revision, as happens when the first response was lost in transit.
+      const replayResponse = await pageA.request.patch(workspacePath, {
+        data: { operation: "RUN_PUMP_HYDRAULIC_POWER", expectedRevision: current.revision, idempotencyKey, pumpInput },
+      });
+      expect(replayResponse.status()).toBe(200);
+      const replay = await replayResponse.json();
+      expect(replay).toMatchObject({ projectId, persisted: true, revision: run.revision });
+      expect(replay.result).toMatchObject({ idempotentReplay: true, artifact: { id: artifact.id } });
+      expect(replay.snapshot.artifacts).toHaveLength(1);
+      expect(replay.snapshot.project.events).toHaveLength(run.snapshot.project.events.length);
+
+      const keyReuseResponse = await pageA.request.patch(workspacePath, {
+        data: {
+          operation: "RUN_PUMP_HYDRAULIC_POWER",
+          expectedRevision: run.revision,
+          idempotencyKey,
+          pumpInput: { ...pumpInput, flowRate: { value: 21, unit: "L/s" } },
+        },
+      });
+      expect(keyReuseResponse.status()).toBe(409);
+      expect(await keyReuseResponse.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
 
       const restoredResponse = await pageA.request.get(workspacePath);
       expect(restoredResponse.status()).toBe(200);
