@@ -372,3 +372,6 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
 .pumpPowerEvidence strong{font-size:12px;color:#cbd6e0;font-weight:700}
 .pumpPowerEvidence code{font-size:10px;color:#c5d4df;overflow-wrap:anywhere;word-break:break-word}
 @media(max-width:520px){.pumpPowerForm,.pumpPowerEvidence{grid-template-columns:1fr}.pumpPowerUnit{max-width:120px}}
+
+/* Keep validation and freshness visible as independent artifact states. */
+.projectArtifactStatus{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
