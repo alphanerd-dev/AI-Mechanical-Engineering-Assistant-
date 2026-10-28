@@ -124,7 +124,7 @@ export function calculatePumpHydraulicPower(rawInput: unknown): {
   input: PumpHydraulicPowerInput;
   result: PumpHydraulicPowerResult;
 } {
-  const { input, normalizedInputs } = { ...normalizePumpHydraulicPowerInput(rawInput), normalizedInputs: undefined } as never;
+  const { input, normalized: normalizedInputs } = normalizePumpHydraulicPowerInput(rawInput);
   return calculateNormalizedPumpPower(input, normalizedInputs);
 }
 
