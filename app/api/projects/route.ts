@@ -73,7 +73,7 @@ type ProjectRecord = {
 };
 
 const PROJECT_PUBLIC_FIELDS = "id,name,stage,status,revision,created_at,updated_at";
-const PROJECT_IDEMPOTENCY_FIELDS = PROJECT_PUBLIC_FIELDS + ",creation_payload_sha256";
+const PROJECT_IDEMPOTENCY_FIELDS = "id,name,stage,status,revision,created_at,updated_at,creation_payload_sha256" as const;
 
 function toPublicProject(project: ProjectRecord) {
   return {
