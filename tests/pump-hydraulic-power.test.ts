@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCalculationArtifact, validateCalculationArtifact } from "../src/artifacts/calculation-artifact.js";
+import { createCalculationArtifact, isCalculationArtifactStale, validateCalculationArtifact } from "../src/artifacts/calculation-artifact.js";
 import {
   calculatePumpHydraulicPower,
   normalizePumpHydraulicPowerInput,
@@ -106,5 +106,18 @@ describe("pump hydraulic and shaft power", () => {
     expect(validateCalculationArtifact({ ...artifact, outputs: { ...result, shaftPowerKw: 0 } })).toContain(
       "Calculation artifact outputs do not match outputSha256."
     );
+  });
+  it("marks a calculation stale when the workspace revision changes", () => {
+    const savedArtifact = { workspaceRevision: 5 };
+    expect(isCalculationArtifactStale(savedArtifact, 5)).toBe(false);
+    expect(isCalculationArtifactStale(savedArtifact, 6)).toBe(true);
+    expect(isCalculationArtifactStale(savedArtifact, 4)).toBe(true);
+  });
+
+  it("fails closed when the current workspace revision is invalid", () => {
+    const savedArtifact = { workspaceRevision: 5 };
+    expect(isCalculationArtifactStale(savedArtifact, 0)).toBe(true);
+    expect(isCalculationArtifactStale(savedArtifact, Number.NaN)).toBe(true);
+    expect(isCalculationArtifactStale(savedArtifact, Number.POSITIVE_INFINITY)).toBe(true);
   });
 });
