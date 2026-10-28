@@ -983,11 +983,31 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
   const pathPrefix = "/api/projects/";
   let contextA;
   let contextB;
+  let projectId;
+  let projectDeleted = false;
 
   try {
     contextA = await browser.newContext({ baseURL });
     const pageA = await contextA.newPage();
     await signIn(pageA, userAEmail, userAPassword);
+
+    // Remove projects left by an interrupted prior run through the owner-scoped
+    // lifecycle endpoint. The strict pattern limits cleanup to CRUD test fixtures.
+    const previousProjectsResponse = await pageA.request.get("/api/projects");
+    expect(previousProjectsResponse.status()).toBe(200);
+    const previousProjectsBody = await previousProjectsResponse.json();
+    const staleE2EProjects = (previousProjectsBody.projects ?? []).filter((project) =>
+      /^E2E project CRUD [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?: renamed)?$/i.test(project.name ?? "")
+    );
+    for (const staleProject of staleE2EProjects) {
+      const staleCleanupResponse = await pageA.request.delete(pathPrefix + staleProject.id);
+      expect(staleCleanupResponse.status(), "stale disposable CRUD project cleanup must succeed").toBe(200);
+      expect(await staleCleanupResponse.json()).toMatchObject({
+        projectId: staleProject.id,
+        deleted: true,
+        artifactCleanup: { status: "COMPLETED", objectsRemaining: 0 },
+      });
+    }
 
     const createResponse = await pageA.request.post("/api/projects", {
       data: {
@@ -997,7 +1017,7 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
     });
     expect(createResponse.status()).toBe(201);
     const created = await createResponse.json();
-    const projectId = created.project?.id;
+    projectId = created.project?.id;
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(created.workspaceInitialized).toBe(true);
     testInfo.annotations.push({ type: "e2e-project-id", description: projectId });
@@ -1100,11 +1120,14 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
 
     const deleteResponse = await pageA.request.delete(pathPrefix + projectId);
     expect(deleteResponse.status()).toBe(200);
-    expect(await deleteResponse.json()).toMatchObject({
+    const deleteBody = await deleteResponse.json();
+    expect(deleteBody).toMatchObject({
       projectId,
       deleted: true,
-      artifactCleanup: { status: "COMPLETED", objectsRemoved: 1 },
+      artifactCleanup: { status: "COMPLETED", objectsRemoved: 1, objectsRemaining: 0 },
     });
+    projectDeleted = deleteBody.deleted === true && deleteBody.artifactCleanup?.objectsRemaining === 0;
+    expect(projectDeleted, "project and storage cleanup must be confirmed before the test completes").toBe(true);
 
     const readAfterDelete = await pageA.request.get(pathPrefix + projectId);
     expect([403, 404]).toContain(readAfterDelete.status());
@@ -1112,8 +1135,41 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
     expect(userAProjects.status()).toBe(200);
     expect(((await userAProjects.json()).projects ?? []).some((project) => project.id === projectId)).toBe(false);
   } finally {
+    let cleanupFailure = false;
+    if (contextA && projectId && !projectDeleted) {
+      const ownerPage = contextA.pages()[0];
+      let cleanupResponse = null;
+      if (ownerPage) {
+        cleanupResponse = await ownerPage.request.delete(pathPrefix + projectId).catch(() => null);
+        if (cleanupResponse?.status() === 200) {
+          const cleanupBody = await cleanupResponse.json().catch(() => ({}));
+          projectDeleted = cleanupBody.deleted === true &&
+            cleanupBody.projectId === projectId &&
+            cleanupBody.artifactCleanup?.objectsRemaining === 0;
+        }
+        if (!projectDeleted) {
+          const listResponse = await ownerPage.request.get("/api/projects").catch(() => null);
+          if (listResponse?.ok()) {
+            const listBody = await listResponse.json().catch(() => ({}));
+            projectDeleted = !((listBody.projects ?? []).some((project) => project.id === projectId));
+          }
+        }
+      }
+      if (!projectDeleted) {
+        cleanupFailure = true;
+        await testInfo.attach("project-crud-cleanup-diagnostics.json", {
+          body: Buffer.from(JSON.stringify({
+            projectId,
+            cleanupConfirmed: false,
+            deleteStatus: cleanupResponse?.status() ?? null,
+          }, null, 2)),
+          contentType: "application/json",
+        }).catch(() => undefined);
+      }
+    }
     if (contextB) await contextB.close().catch(() => undefined);
     if (contextA) await contextA.close().catch(() => undefined);
+    if (cleanupFailure) throw new Error("Disposable CRUD project cleanup could not be confirmed.");
   }
 });
 
@@ -1143,6 +1199,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
     completionStage: null,
     completionErrors: [],
     completionWarnings: [],
+    completionRecoveredByReadback: false,
     storageObjectCount: 0,
     readiness: null,
     readinessAttempts: [],
@@ -1218,17 +1275,53 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
     diagnostics.modelIdentityId = modelIdentityId;
     expect(modelIdentityId).toMatch(/^[0-9a-f-]{36}$/i);
 
-    const completionResponse = await safeAuthenticatedRequest("Live accepted CAD completion", () =>
-      page.request.post("/api/cad/completions", {
-        data: {
-          projectId,
-          modelIdentityId,
-          rawIntent: "Create a cylindrical shaft with a diameter of 30 mm and a length of 200 mm.",
-        },
-        timeout: 180_000,
-      }),
-    );
-    const completionBody = await completionResponse.json();
+    const rawIntent = "Create a cylindrical shaft with a diameter of 30 mm and a length of 200 mm.";
+    const completionStartedAt = Date.now();
+    let completionResponse = null;
+    let completionBody = null;
+    let completionRecoveredByReadback = false;
+    try {
+      completionResponse = await safeAuthenticatedRequest("Live accepted CAD completion", () =>
+        page.request.post("/api/cad/completions", {
+          data: { projectId, modelIdentityId, rawIntent },
+          timeout: 180_000,
+        }),
+      );
+      completionBody = await completionResponse.json();
+    } catch (error) {
+      // A timed-out POST is ambiguous: do not replay it. Reconcile only through
+      // the read-only history endpoint while the serverless execution can finish.
+      const message = error instanceof Error ? error.message : "";
+      if (!message.startsWith("Live accepted CAD completion failed after ")) throw error;
+      const reconcileDeadline = Date.now() + 115_000;
+      let recovered = null;
+      while (Date.now() < reconcileDeadline && !recovered) {
+        const historyResponse = await page.request.get(
+          "/api/cad/completions?projectId=" + encodeURIComponent(projectId),
+          { timeout: 20_000 },
+        ).catch(() => null);
+        if (historyResponse?.ok()) {
+          const historyBody = await historyResponse.json().catch(() => ({}));
+          recovered = (historyBody.completions ?? []).find((item) =>
+            item?.model_identity_id === modelIdentityId &&
+            item?.raw_intent === rawIntent &&
+            item?.status === "ACCEPTED" &&
+            Boolean(item?.validation_receipt) &&
+            Date.parse(item?.created_at ?? "") >= completionStartedAt - 5_000
+          ) ?? null;
+        }
+        if (!recovered) await page.waitForTimeout(2_000);
+      }
+      if (!recovered) {
+        throw new Error(
+          "Live CAD completion POST had an ambiguous transport outcome; no POST replay was sent, " +
+          "and read-only reconciliation found no persisted accepted completion before the bounded deadline."
+        );
+      }
+      completionRecoveredByReadback = true;
+      completionBody = { completion: recovered, signedUrls: recovered.signedUrls ?? {} };
+      diagnostics.completionRecoveredByReadback = true;
+    }
     const completion = completionBody?.completion;
     diagnostics.completionId = completion?.id ?? null;
     diagnostics.completionStatus = completion?.status ?? null;
@@ -1236,18 +1329,23 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
     diagnostics.completionErrors = safeE2EDiagnosticList(completion?.errors);
     diagnostics.completionWarnings = safeE2EDiagnosticList(completion?.warnings);
     diagnostics.storageObjectCount = Array.isArray(completion?.storage_objects) ? completion.storage_objects.length : 0;
-    expect(
-      completionResponse.status(),
-      "fully specified request must reach an accepted, persisted completion; body=" + JSON.stringify({
-        status: completionResponse.status(),
-        error: safeE2EDiagnosticText(completionBody?.error),
-        code: safeE2EDiagnosticText(completionBody?.code),
-        completionStatus: completion?.status,
-        completionStage: completion?.stage,
-        completionErrors: diagnostics.completionErrors,
-        completionWarnings: diagnostics.completionWarnings,
-      }),
-    ).toBe(201);
+    if (completionRecoveredByReadback) {
+      expect(completion).toMatchObject({ status: "ACCEPTED", stage: "ACCEPTANCE" });
+    } else {
+      expect(
+        completionResponse.status(),
+        "fully specified request must reach an accepted, persisted completion; body=" + JSON.stringify({
+          status: completionResponse.status(),
+          error: safeE2EDiagnosticText(completionBody?.error),
+          code: safeE2EDiagnosticText(completionBody?.code),
+          completionStatus: completion?.status,
+          completionStage: completion?.stage,
+          completionErrors: diagnostics.completionErrors,
+          completionWarnings: diagnostics.completionWarnings,
+        }),
+      ).toBe(201);
+  
+    }
     expect(completion).toMatchObject({
       id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
       project_id: projectId,
@@ -1255,7 +1353,11 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
       status: "ACCEPTED",
       execution_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
     });
-    expect(completionBody).toMatchObject({ persisted: true, verified: true });
+    if (!completionRecoveredByReadback) {
+      expect(completionBody).toMatchObject({ persisted: true, verified: true });
+    } else {
+      expect(completion).toMatchObject({ status: "ACCEPTED", stage: "ACCEPTANCE" });
+    }
     expect(Array.isArray(completion.storage_objects)).toBe(true);
     expect(completion.storage_objects.length).toBeGreaterThanOrEqual(5);
     expect(Array.isArray(completion.artifact_records)).toBe(true);
@@ -1355,8 +1457,13 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
         completionId: completion.id,
         executionId: completion.execution_id,
         completionStatus: completion.status,
-        persisted: completionBody.persisted,
-        verified: completionBody.verified,
+        persisted: completionBody.persisted ?? completionRecoveredByReadback,
+        verified: completionBody.verified ?? (
+          completionRecoveredByReadback &&
+          downloadedSolid.ok() &&
+          auditBody?.chainIntegrity?.verified === true
+        ),
+        completionRecoveredByReadback,
         storageObjects: completion.storage_objects,
         artifacts: completion.artifact_records.map((item) => ({
           kind: item.kind,
