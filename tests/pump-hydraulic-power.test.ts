@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createCalculationArtifact, isCalculationArtifactStale, validateCalculationArtifact } from "../src/artifacts/calculation-artifact.js";
+import { createCalculationArtifact, validateCalculationArtifact } from "../src/artifacts/calculation-artifact.js";
+import { isCalculationArtifactStale } from "../src/artifacts/calculation-freshness.js";
 import {
   calculatePumpHydraulicPower,
   normalizePumpHydraulicPowerInput,
