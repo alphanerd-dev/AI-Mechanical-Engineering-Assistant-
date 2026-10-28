@@ -81,6 +81,10 @@ These are code changes in an open, draft PR; they are not yet a production relea
 
 The result-state matrix and important negative paths are tested; failure does not appear as silent success; saved work survives recoverable failures; retries cannot duplicate non-idempotent effects; CAD acceptance passes on the exact current revision in non-production; retrieved private BREP bytes match the stored digest and validation receipt. If environment configuration is still missing, report M0 CAD live acceptance as BLOCKED.
 
+### Additional M0 vertical slice — pump power calculation
+
+The feature branch also implements a project-scoped deterministic pump hydraulic/shaft-power operation, separate capability-specific validation, and a digest-bound calculation artifact persisted in the existing revision-guarded workspace snapshot. Unit/input validation, independent equation checks, tampered-output rejection and artifact digest binding are covered by Vitest; the isolated Playwright journey exercises persistence, revision lineage and result-state separation. This is an additive bounded capability, not a substitution for the original doctrine, the existing shaft/CAD workflows, or the remaining M0 release gates. Keep maturity at PILOT until current-head CI and isolated E2E evidence confirm the exact revision.
+
 ## M1 — Conversational AI, streaming and controlled engineering tools
 
 **Outcome:** users can converse with the assistant directly in the Engineering Workspace and request allowed operations without bypassing existing engineering controls.
