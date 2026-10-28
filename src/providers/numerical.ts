@@ -14,7 +14,7 @@ export class NumericalAnalysisProvider implements CapabilityProvider {
         return {capability:request.capability,provider:this.id,success:true,output:shaftTorque(powerKw,speedRpm)};
       }
       if(request.capability===PUMP_HYDRAULIC_POWER_CAPABILITY) {
-        return {capability:request.capability,provider:this.id,success:true,output:calculatePumpHydraulicPower(request.input)};
+        return {capability:request.capability,provider:this.id,success:true,output:calculatePumpHydraulicPower(request.input).result};
       }
       if(request.capability==="ANALYSIS.SHAFT_SIZE") {
         return {capability:request.capability,provider:this.id,success:true,
