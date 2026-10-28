@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isCalculationArtifactStale } from "../../../../src/artifacts/calculation-artifact";
 
 type EngineeringEvent = { id: string; timestamp: string; actor: string; action: string; input?: unknown; output?: unknown; evidence?: string[]; artifactIds?: string[] };
 type Requirement = { name: string; value?: number | string; unit?: string };
@@ -59,6 +60,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
   const demo = projectId === "demo";
 
   const lastPumpArtifact = [...artifacts].reverse().find((artifact) => artifact.capability === "ANALYSIS.PUMP_HYDRAULIC_POWER");
+  const lastPumpArtifactStale = Boolean(lastPumpArtifact) && isCalculationArtifactStale(lastPumpArtifact!, revision);
 
   const lastCalculation = (() => {
     for (let index = events.length - 1; index >= 0; index -= 1) {
@@ -207,7 +209,14 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       <button className="button" type="button" onClick={() => void runPumpCalculation()} disabled={busy || loading || !(Number(density) > 0) || !(Number(flowRate) > 0) || !(Number(head) > 0) || !(Number(efficiencyPercent) > 0) || Number(efficiencyPercent) > 100}>{busy ? "Calculating and saving…" : "Calculate power and save artifact"}</button>
     </section>
     {lastPumpArtifact && <section className="panel pumpPowerPanel">
-      <div className="projectListHeader"><div><p className="eyebrow">PERSISTED CALCULATION ARTIFACT</p><h2>Pump power result</h2></div><span className="projectState projectState-active">{lastPumpArtifact.validationStatus}</span></div>
+      <div className="projectListHeader">
+        <div><p className="eyebrow">PERSISTED CALCULATION ARTIFACT</p><h2>Pump power result</h2></div>
+        <div className="projectArtifactStatus">
+          <span className={`projectState ${lastPumpArtifact.validationStatus === "VALIDATED" ? "projectState-active" : "projectState-blocked"}`}>{lastPumpArtifact.validationStatus}</span>
+          {lastPumpArtifactStale && <span className="projectState projectState-blocked">STALE</span>}
+        </div>
+      </div>
+      {lastPumpArtifactStale && <p className="projectNotice projectNoticeWarning" role="status">This artifact was saved at workspace revision {lastPumpArtifact.workspaceRevision}, but the current workspace is revision {revision}. Its validation receipt remains historical evidence for the original inputs; rerun the calculation against the current workspace before relying on this result.</p>}
       <div className="metrics"><div className="metric"><span>Hydraulic power</span><strong>{lastPumpArtifact.outputs.hydraulicPowerKw.toFixed(4)} kW</strong></div><div className="metric"><span>Estimated shaft power</span><strong>{lastPumpArtifact.outputs.shaftPowerKw.toFixed(4)} kW</strong></div></div>
       <p className="muted">{lastPumpArtifact.outputs.hydraulicEquation} · {lastPumpArtifact.outputs.shaftEquation}</p>
       <div className="pumpPowerEvidence">
