@@ -1,7 +1,11 @@
 name: M1 Dependency Lock Refresh (temporary)
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feat/m1-streamed-engineering-chat
+    paths-ignore:
+      - package-lock.json
 
 permissions:
   contents: write
