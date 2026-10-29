@@ -332,8 +332,11 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
     transport,
     adapters: { history },
     joinStrategy: "none",
-    onError: () => {
-      setChatError("The assistant could not complete this request. Check the connection and try again; if it persists, report this message to the workspace maintainer.");
+    onError: (error) => {
+      const detail = error instanceof Error && error.message.trim()
+        ? error.message.trim().slice(0, 220)
+        : "Unknown streaming transport error.";
+      setChatError("Assistant request failed: " + detail);
     },
     onFinish: () => setChatError(undefined),
   });

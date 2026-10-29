@@ -41,6 +41,7 @@ describe("POST engineering chat project authorization", () => {
     expect(response.status).toBe(200);
     expect(mocks.authorize).toHaveBeenCalledWith("TASK.EXECUTE", undefined);
     expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText.mock.calls[0][0]).toHaveProperty("instructions");
   });
 
   it("keeps registered projects on the membership-checked authorization path", async () => {

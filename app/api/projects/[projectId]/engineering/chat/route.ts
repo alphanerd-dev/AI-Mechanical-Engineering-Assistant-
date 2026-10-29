@@ -25,6 +25,29 @@ function jsonError(error: string, status: number) {
   return NextResponse.json({ error }, { status, headers: { "cache-control": "no-store" } });
 }
 
+function logChatDiagnostic(event: string, details: Record<string, unknown> = {}) {
+  console.info("[engineering-chat-diagnostic]", JSON.stringify({
+    timestamp: new Date().toISOString(),
+    event,
+    deploymentRevision: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? "local",
+    ...details,
+  }));
+}
+
+function errorKind(error: unknown): string {
+  if (error instanceof Error) return error.name;
+  return typeof error;
+}
+
+function errorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const value = error as Record<string, unknown>;
+  for (const field of ["statusCode", "status", "httpStatus"]) {
+    if (typeof value[field] === "number") return value[field] as number;
+  }
+  return undefined;
+}
+
 function validProjectId(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -35,6 +58,7 @@ export async function POST(
 ) {
   const { projectId } = await context.params;
   const demoProject = projectId === "demo";
+  logChatDiagnostic("request_received", { projectMode: demoProject ? "demo" : "registered", projectIdValid: demoProject || validProjectId(projectId) });
   if (!demoProject && !validProjectId(projectId)) {
     return jsonError("A registered project UUID or the explicit demo sandbox is required for engineering chat.", 400);
   }
@@ -50,8 +74,10 @@ export async function POST(
   }
   if (!authorization.allowed) {
     const status = authorizationFailureStatus(authorization);
+    logChatDiagnostic("authorization_denied", { projectMode: demoProject ? "demo" : "registered", status, reason: authorization.reason });
     return jsonError(authorization.reason, status);
   }
+  logChatDiagnostic("authorization_allowed", { projectMode: demoProject ? "demo" : "registered" });
 
   let payload: unknown;
   try {
@@ -97,7 +123,8 @@ export async function POST(
       baseURL,
       apiKey: process.env.ENGINEERING_REASONING_MODEL_API_KEY?.trim() || undefined,
     });
-  } catch {
+  } catch (error) {
+    logChatDiagnostic("provider_initialization_failed", { errorKind: errorKind(error) });
     return jsonError("The server-side engineering reasoning provider could not be initialized.", 503);
   }
 
@@ -107,12 +134,19 @@ export async function POST(
   ]);
 
   try {
+    logChatDiagnostic("model_request_started", { modelName, messageCount: messages.length, timeoutMs });
     const result = streamText({
       model: provider.chatModel(modelName),
-      system: SYSTEM_PROMPT,
+      instructions: SYSTEM_PROMPT,
       messages,
       abortSignal,
       maxOutputTokens: 1200,
+      onError: ({ error }) => {
+        logChatDiagnostic("model_stream_failed", { errorKind: errorKind(error), status: errorStatus(error) });
+      },
+      onEnd: ({ text }) => {
+        logChatDiagnostic("model_response_completed", { outputCharacters: text.length });
+      },
     });
 
     return createUIMessageStreamResponse({
@@ -122,7 +156,8 @@ export async function POST(
         "x-accel-buffering": "no",
       },
     });
-  } catch {
+  } catch (error) {
+    logChatDiagnostic("model_request_start_failed", { errorKind: errorKind(error), status: errorStatus(error) });
     return jsonError("The engineering assistant could not start a model response.", 502);
   }
 }
