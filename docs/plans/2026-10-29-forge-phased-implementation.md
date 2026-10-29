@@ -104,5 +104,13 @@ The 16 current SQL migrations should be inspected as a set before adding new pro
 
 ## Release posture
 
-The current PR branch SHA `990516c39dbe9c9559a1091e495b784c61e695cc` passed Engineering Core CI and the public-only responsive-auth suite (3/3). The earlier 12/12 authenticated acceptance run on main included actual accepted CAD, but the full authenticated project/persistence workflow has not yet been repeated on this PR SHA. The real outcome-measurement baseline, streamed chat, full viewers and structured P&ID/PFD workflow remain explicit follow-up gates.
+**Acceptance decision:** the bounded M0 implementation passes its automated acceptance gates on tested application code SHA `baac18d230019f6293fe315d3dcd1ca9866fac2d`. See [implementation-plan.md](../implementation-plan.md) for the complete evidence register and the explicit baseline limitation.
 
+- Engineering Core CI: [run 40832095784](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40832095784) — success.
+- Responsive auth/public UI: [run 40832237981](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40832237981) — 3/3 passed.
+- Full authenticated workspace plus live accepted-CAD acceptance: [run 40833513080](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40833513080) — 14/14 passed. The accepted CAD test verified durable artifact readback and audit-chain readback after reconciling an ambiguous transport failure without replaying the mutating request.
+- Dedicated non-production Render worker and branch-scoped Vercel Preview token were aligned and redeployed. Production services and production secrets were not changed by this configuration repair.
+- CodeQL and ESLint passed. Codacy analysis remains **unverified** because the repository token is not configured; the workflow explicitly skipped the scan.
+- **Outcome baseline: NOT MEASURED.** The collection protocol exists, but there are no real matched-task user observations. Automated E2E latency is not a productivity baseline. No time/cost savings or ROI claims are authorized.
+
+M0 is recorded as **COMPLETE WITH LIMITATION** because its documented exit gate allows the outcome baseline to be explicitly reported as not yet measured. A real matched-task baseline remains follow-up work before any productivity/ROI claim. This does not certify all engineering outputs, general CAD interpretation, production CAD-worker readiness, or broad accessibility compliance.
