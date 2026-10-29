@@ -1,7 +1,7 @@
 const APPROVED_NON_PRODUCTION_HOSTS = new Set([
   "ai-mechanical-engineering-assistant-eta.vercel.app",
 ]);
-const LOCAL_DEVELOPMENT_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const LOCAL_DEVELOPMENT_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 /**
  * The live CAD smoke creates durable completion and artifact records.
