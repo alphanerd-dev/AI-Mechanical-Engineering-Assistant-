@@ -1,8 +1,9 @@
 import Link from "next/link";
+import EngineeringChat from "../../../../components/EngineeringChat";
 import EngineeringInteraction from "./EngineeringInteraction";
 
-export default async function EngineeringPage({params}:{params:Promise<{projectId:string}>}){
-  const {projectId}=await params;
+export default async function EngineeringPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
   return <div className="shell">
     <nav className="topbar">
       <Link href={`/projects/${projectId}`}>← Project</Link>
@@ -14,10 +15,11 @@ export default async function EngineeringPage({params}:{params:Promise<{projectI
       <div>
         <p className="eyebrow">AI-NATIVE ENGINEERING WORKSPACE</p>
         <h1>Engineering interaction</h1>
-        <p className="muted">State the task naturally. The workspace routes intent through the existing validated engineering core.</p>
+        <p className="muted">Explore the problem conversationally, then route executable work through the validated engineering core.</p>
       </div>
     </header>
 
+    <EngineeringChat projectId={projectId} />
     <EngineeringInteraction projectId={projectId} />
   </div>;
 }
