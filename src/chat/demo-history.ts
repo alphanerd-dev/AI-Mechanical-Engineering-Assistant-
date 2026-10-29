@@ -38,7 +38,7 @@ function parseMessages(value: unknown): DemoConversationMessage[] {
   });
 }
 
-/** Loads demo chat from the current browser tab; demo conversations are not project records. */
+/** Loads demo chat from browser-local storage; demo conversations are not project records. */
 export function loadDemoConversation(storage: SessionStoragePort, sessionId: string): DemoConversationMessage[] {
   const raw = storage.getItem(storageKey(sessionId));
   if (raw === null) return [];
@@ -48,7 +48,7 @@ export function loadDemoConversation(storage: SessionStoragePort, sessionId: str
   return parseMessages(value);
 }
 
-/** Saves validated demo history in sessionStorage so it survives refresh, but not browser-tab closure. */
+/** Saves validated demo history in localStorage so it survives refresh and browser restarts. */
 export function saveDemoConversation(storage: SessionStoragePort, sessionId: string, conversation: DemoConversationMessage[]): void {
   const validated = parseMessages(conversation);
   try { storage.setItem(storageKey(sessionId), JSON.stringify(validated)); }

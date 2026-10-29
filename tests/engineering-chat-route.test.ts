@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ authorize: vi.fn(), createProvider: vi.fn(), chatModel: vi.fn(), streamText: vi.fn(), toUIMessageStream: vi.fn(), createUIMessageStreamResponse: vi.fn() }));
+const mocks = vi.hoisted(() => ({ authorize: vi.fn(), createProvider: vi.fn(), chatModel: vi.fn(), streamText: vi.fn(), toUIMessageStreamResponse: vi.fn() }));
 
 vi.mock("@ai-sdk/openai-compatible", () => ({ createOpenAICompatible: mocks.createProvider }));
-vi.mock("ai", () => ({ streamText: mocks.streamText, toUIMessageStream: mocks.toUIMessageStream, createUIMessageStreamResponse: mocks.createUIMessageStreamResponse }));
+vi.mock("ai", () => ({ streamText: mocks.streamText }));
 vi.mock("../src/auth/supabase-service.js", () => ({
   authorizeSupabaseRequest: mocks.authorize,
   authorizationFailureStatus: (decision: { reason?: string }) => decision.reason === "Durable authorization audit is unavailable." ? 503 : 403,
@@ -30,9 +30,8 @@ describe("POST engineering chat project authorization", () => {
     mocks.authorize.mockResolvedValue({ allowed: true, reason: "Authorized." });
     mocks.createProvider.mockReturnValue({ chatModel: mocks.chatModel });
     mocks.chatModel.mockReturnValue("mock-model");
-    mocks.streamText.mockReturnValue({ stream: "mock-model-stream" });
-    mocks.toUIMessageStream.mockReturnValue("mock-ui-stream");
-    mocks.createUIMessageStreamResponse.mockImplementation(() => new Response("stream started", { status: 200 }));
+    mocks.streamText.mockReturnValue({ toUIMessageStreamResponse: mocks.toUIMessageStreamResponse });
+    mocks.toUIMessageStreamResponse.mockImplementation(() => new Response("stream started", { status: 200 }));
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -42,6 +41,7 @@ describe("POST engineering chat project authorization", () => {
     expect(mocks.authorize).toHaveBeenCalledWith("TASK.EXECUTE", undefined);
     expect(mocks.streamText).toHaveBeenCalledTimes(1);
     expect(mocks.streamText.mock.calls[0][0]).toHaveProperty("instructions");
+    expect(mocks.toUIMessageStreamResponse).toHaveBeenCalledWith({ headers: { "cache-control": "no-store", "x-accel-buffering": "no" } });
   });
 
   it("keeps registered projects on the membership-checked authorization path", async () => {

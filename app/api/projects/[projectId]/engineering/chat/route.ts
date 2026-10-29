@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { createUIMessageStreamResponse, streamText, toUIMessageStream } from "ai";
+import { streamText } from "ai";
 import { NextResponse } from "next/server";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../../../src/auth/supabase-service";
 import {
@@ -149,8 +149,10 @@ export async function POST(
       },
     });
 
-    return createUIMessageStreamResponse({
-      stream: toUIMessageStream({ stream: result.stream }),
+    // Use the SDK's supported response helper. It owns UI-message stream
+    // conversion and provider-error framing; do not wrap an internal text
+    // stream as though it were already a UIMessageChunk stream.
+    return result.toUIMessageStreamResponse({
       headers: {
         "cache-control": "no-store",
         "x-accel-buffering": "no",
