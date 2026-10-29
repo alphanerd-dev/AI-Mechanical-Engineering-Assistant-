@@ -34,11 +34,17 @@ export async function POST(
   context: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await context.params;
-  if (!validProjectId(projectId)) return jsonError("A registered project UUID is required for engineering chat.", 400);
+  const demoProject = projectId === "demo";
+  if (!demoProject && !validProjectId(projectId)) {
+    return jsonError("A registered project UUID or the explicit demo sandbox is required for engineering chat.", 400);
+  }
 
   let authorization;
   try {
-    authorization = await authorizeSupabaseRequest("TASK.EXECUTE", projectId);
+    // The demo sandbox is not a durable project, so use the authenticated
+    // platform role check without a project-membership lookup. Registered
+    // project IDs must always pass the normal membership authorization path.
+    authorization = await authorizeSupabaseRequest("TASK.EXECUTE", demoProject ? undefined : projectId);
   } catch {
     return jsonError("Engineering authorization is unavailable.", 503);
   }

@@ -11,6 +11,7 @@ import {
 import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/ai-sdk";
 import type { ThreadHistoryAdapter } from "@assistant-ui/react";
 import styles from "./EngineeringChat.module.css";
+import { loadDemoConversation, saveDemoConversation } from "../src/chat/demo-history.js";
 
 type StoredConversationMessage = {
   role: "engineer" | "assistant";
@@ -133,6 +134,14 @@ function createEngineeringChatHistoryAdapter(
         }
       }
 
+      if (projectId === "demo") {
+        state.conversation = loadDemoConversation(window.sessionStorage, state.sessionId);
+        state.revision = 1;
+        state.initialized = true;
+        onError(undefined);
+        return;
+      }
+
       const body = await readSession();
       if (
         body.projectId !== projectId ||
@@ -148,16 +157,24 @@ function createEngineeringChatHistoryAdapter(
       state.initialized = true;
       onError(undefined);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Durable chat history is unavailable.";
+      const message = error instanceof Error ? error.message : "Chat history is unavailable.";
       onError(message);
       throw error;
     }
   }
 
   async function saveConversation(next: StoredConversationMessage[]): Promise<void> {
-    if (!state.sessionId || !Number.isInteger(state.revision)) throw new Error("The chat session is not ready to save.");
     if (next.length > HISTORY_LIMIT) throw new Error("This chat reached its 200-message history limit. Start a new session to continue.");
+    if (!state.sessionId) throw new Error("The chat session is not ready to save.");
 
+    if (projectId === "demo") {
+      saveDemoConversation(window.sessionStorage, state.sessionId, next);
+      state.conversation = next;
+      state.revision = 1;
+      return;
+    }
+
+    if (!Number.isInteger(state.revision)) throw new Error("The chat session is not ready to save.");
     const response = await fetch(api, {
       method: "PUT",
       headers: { "content-type": "application/json", accept: "application/json" },
@@ -300,6 +317,7 @@ function createEngineeringChatHistoryAdapter(
 
 export default function EngineeringChat({ projectId }: { projectId: string }) {
   const [historyError, setHistoryError] = useState<string>();
+  const [chatError, setChatError] = useState<string>();
   const history = useMemo(
     () => createEngineeringChatHistoryAdapter(projectId, setHistoryError),
     [projectId],
@@ -314,6 +332,10 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
     transport,
     adapters: { history },
     joinStrategy: "none",
+    onError: () => {
+      setChatError("The assistant could not complete this request. Check the connection and try again; if it persists, report this message to the workspace maintainer.");
+    },
+    onFinish: () => setChatError(undefined),
   });
 
   return (
@@ -333,6 +355,11 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
         {historyError && (
           <p className={styles.error} role="alert">
             Chat history issue: {historyError}
+          </p>
+        )}
+        {chatError && (
+          <p className={styles.error} role="alert">
+            Assistant response issue: {chatError}
           </p>
         )}
 
@@ -374,7 +401,7 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
                   rows={3}
                 />
                 <div className={styles.composerBottom}>
-                  <span>Text only · Project-scoped history</span>
+                  <span>{projectId === "demo" ? "Text only · Tab-local demo history" : "Text only · Saved to project history"}</span>
                   <ComposerPrimitive.Send className={styles.sendButton}>Send ↑</ComposerPrimitive.Send>
                 </div>
               </ComposerPrimitive.Root>
