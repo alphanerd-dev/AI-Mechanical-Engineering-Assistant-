@@ -247,9 +247,13 @@ function createEngineeringChatHistoryAdapter(
             format: format.format,
             content: format.encode(item),
           };
+          const encoded = JSON.stringify(row);
+          if (encoded.length > 7_900) {
+            throw new Error("This message is too large to store in the engineering session.");
+          }
           const replacement: StoredConversationMessage = {
             role: role === "user" ? "engineer" : "assistant",
-            text: JSON.stringify(row),
+            text: encoded,
             at: new Date().toISOString(),
           };
           const next = [...state.conversation];
