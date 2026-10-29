@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assertNonProductionCadSmokeTarget } from "../src/cad/live-smoke-target.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -29,6 +30,10 @@ async function main() {
   if (baseUrl.protocol !== "https:" && !["localhost", "127.0.0.1", "::1"].includes(baseUrl.hostname)) {
     throw new Error("CAD_WORKSPACE_BASE_URL must use HTTPS except for local development.");
   }
+  // This smoke creates durable accepted CAD artifacts. Reject production before
+  // reading credentials or sending even the readiness request.
+  assertNonProductionCadSmokeTarget(baseUrl);
+
   const projectId = requiredEnv("CAD_WORKSPACE_PROJECT_ID");
   const modelIdentityId = requiredEnv("CAD_WORKSPACE_MODEL_ID");
   const cookie = requiredEnv("CAD_WORKSPACE_COOKIE");
@@ -70,7 +75,7 @@ async function main() {
     })
   });
   const completionBody = completionResponse.body;
-  check(completionResponse.response.status === 201 && isRecord(completionBody),
+  check(completionResponse.status === 201 && isRecord(completionBody),
     "CAD completion endpoint did not return HTTP 201 for a verified supported request.");
   const record = completionBody.completion;
   check(isRecord(record), "The accepted response did not include its persisted completion record.");
@@ -154,7 +159,7 @@ async function main() {
       "The missing-dimension negative-path test did not persist a NEEDS_INPUT record.");
     check(Array.isArray(negative.body.completion.artifact_records) &&
       negative.body.completion.artifact_records.length === 0,
-      "A missing-dimension request must not create generated artifacts.");
+      "A missing-dimension request must not create generated CAD artifacts.");
     console.log("PASS negative path: missing dimensions persisted as NEEDS_INPUT without generating CAD.");
   }
 
