@@ -70,4 +70,8 @@ The helper validates records and reports acceptance rate, time to accepted resul
 
 ## M0 closure status
 
-The codebase has fixture-based tests for the summary helper, but fixture values are not real trial observations. M0 remains open until the responsive-auth/workspace acceptance gates and a real, documented baseline trial are complete, or the milestone decision explicitly records why a required gate is blocked.
+The bounded responsive-auth, authenticated workspace/persistence/ownership, and live accepted-CAD acceptance gates passed on application code SHA `baac18d230019f6293fe315d3dcd1ca9866fac2d`; see [the canonical implementation plan](implementation-plan.md) and [the phased release record](plans/2026-10-29-forge-phased-implementation.md).
+
+**Outcome baseline: NOT MEASURED.** No real matched-task user observations have been collected. The milestone is recorded as **COMPLETE WITH LIMITATION** only because the documented M0 exit gate permits an explicit “not yet measured” status. This is not a claim of improved productivity, time saved, cost saved or ROI. Complete the matched trial before making those claims.
+
+The fixture-based calculation test is not a real trial. Do not substitute CI duration, synthetic test timing, or the CAD acceptance run's runtime for the engineer-active time and accepted-outcome measurements described above.
