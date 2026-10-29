@@ -75,7 +75,7 @@ async function main() {
     })
   });
   const completionBody = completionResponse.body;
-  check(completionResponse.status === 201 && isRecord(completionBody),
+  check(completionResponse.response.status === 201 && isRecord(completionBody),
     "CAD completion endpoint did not return HTTP 201 for a verified supported request.");
   const record = completionBody.completion;
   check(isRecord(record), "The accepted response did not include its persisted completion record.");
