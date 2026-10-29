@@ -403,6 +403,7 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
       <div>
         <p className="eyebrow">ENGINEERING INTERACTION</p>
         <h2>From engineering intent to a checked result</h2>
+        <p className="muted">This panel runs registered deterministic engineering tasks; it is not the conversational assistant. For conceptual questions or first-pass analytic calculations with equations and units, use the Streaming Engineering Assistant above. If no supported workflow matches, this task runner may request a registered completion unit or a clearer design objective.</p>
       </div>
       <span className="pill">{busy ? "RUNNING" : error ? "REQUEST FAILED" : lastDecision?.status ?? "READY"}</span>
     </div>
