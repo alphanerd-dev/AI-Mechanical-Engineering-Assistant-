@@ -30,20 +30,29 @@ The source-of-truth baseline reviewed for this plan is [main commit 3579fcdc64c2
 | Design source | Forge v11.2 ZIP and audited HTML SHA-256 match docs/design/forge-v11.2/README.md; supplied captures include 21 desktop and 9 mobile screens. | Visual reference confirmed. The prototype and screenshot capture are not production backend or capability evidence. |
 | Streaming AI | No assistant-ui or Vercel AI SDK package and no dedicated assistant streaming route at the baseline. Current structured reasoning/intent transport exists. | M1 is still planned; preserve existing adapter semantics and test parity before adding the stream. |
 | Viewers | No complete connected Three.js CAD viewer, VTK.js FEA viewer or structured persistent P&ID/PFD editor is evidenced by the reviewed source. | These remain planned integrations; label fixtures and unavailable capabilities honestly. |
-| Outcome baseline | Fixture-based tests cover the summary helper; the measurement protocol is now documented in [outcome-baseline-collection.md](outcome-baseline-collection.md). | A real, representative measured baseline is still missing; do not claim measured time or cost savings. |
+| Outcome baseline | Collection protocol and explicit status are recorded in [outcome-baseline-collection.md](outcome-baseline-collection.md). | **NOT MEASURED**; no measured time/cost savings or ROI claims. Collect matched real trials before making such claims. |
 
-### Remaining M0 blockers
+### M0 exit record — 29 October 2026
 
-1. **Broader authenticated UI acceptance:** the new public-only sign-in/sign-up and workspace tests passed on the PR SHA, but no credentials were submitted in those tests. Run the full authenticated project/persistence/ownership journey against the exact revision where the configured redirect origin, Vercel protection bypass and isolated E2E Supabase environment can be preserved. The earlier 12/12 authenticated suite passed on main, not on this PR SHA.
-2. **Full viewport/reflow acceptance:** the responsive auth regression is now passing at the 390×844 Playwright reference viewport. Repeat broader project workspace checks on desktop and mobile; the earlier hosted-agent run had a shorter actual visual viewport than its configured screen height, so full-height browser-chrome behavior remains inconclusive.
-3. **Measured outcome baseline:** follow [the collection protocol](outcome-baseline-collection.md) to collect matched, representative non-production trial data for accepted-outcome time, engineer-active review/correction time, retries/recovery, evidence completeness and available cost components. The existing fixture-based calculation test is not that measurement.
-4. **Truthful release record:** after full authenticated acceptance and a measured/explicitly unknown outcome baseline, update the milestone decision with evidence for the exact release candidate. Keep production secrets and test data isolated; route rendering, CI and provider readiness are not general engineering verification.
+**Decision: COMPLETE WITH LIMITATION — outcome baseline explicitly NOT MEASURED.** This follows the M0 exit gate's explicit “collected or reported as not yet measured” condition. No productivity, time-saved, cost-saved or ROI claim is made. A real matched-trial baseline remains follow-up work before making those claims.
+
+**Tested application code revision:** `baac18d230019f6293fe315d3dcd1ca9866fac2d`.
+
+- **Engineering Core CI:** [run 40832095784](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40832095784) passed: unit tests, Python worker tests, remote CAD worker smoke, build123d/OCCT validation, generated CAD intent-to-verified-artifact path, open FEA worker checks and production build.
+- **Responsive auth/public UI:** [run 40832237981](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40832237981), 3/3 passed: sign-in layout, sign-up layout, and keyboard/mobile workspace navigation.
+- **Authenticated workspace and live CAD:** [run 40833513080](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40833513080), 14/14 passed on the tested application revision. Coverage includes sign-in/out, durable workspace writes and session restore, cross-user isolation, recoverable provider/persistence failures, project owner/revision guards, needs-input audit correlation, accepted CAD artifact persistence/readback, independent BREP validation, durable audit-chain readback, cleanup and an axe WCAG AA scan.
+- **Ambiguous transport recovery:** the accepted-CAD POST had a transport failure; the test did not replay the mutation. It reconciled through the read-only completion history, then verified BREP readback and audit-chain readback returned HTTP 200. The test passed.
+- **Preview runtime correction:** the feature preview was missing its branch-scoped `CAD_WORKER_API_TOKEN`. A new 256-bit token was applied only to the dedicated non-production Render worker and this Vercel Preview branch, then both services were redeployed and the 14/14 acceptance rerun passed. Production secrets and production services were not changed.
+- **Static analysis:** CodeQL and ESLint passed. Codacy's workflow completed with its analysis step skipped because `CODACY_PROJECT_TOKEN` is not configured; Codacy is **unverified**, not passed.
+- **Outcome baseline:** **NOT MEASURED**. The collection protocol is in [outcome-baseline-collection.md](outcome-baseline-collection.md). Fixture values and automated test duration are not real engineering productivity observations.
+
+The exit decision is limited to the bounded M0 acceptance scope. It does not certify all mechanical engineering outputs, general CAD interpretation, production CAD-worker readiness, broad accessibility certification, or measurable user productivity improvement.
 
 ## Milestone overview
 
 | ID | Milestone | Priority/status | Depends on |
 |---|---|---|---|
-| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance | **Implementation mostly merged; final UI/keyboard acceptance and measured outcome baseline remain open** | Existing API/result contracts |
+| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance | **COMPLETE WITH LIMITATION — live/auth acceptance passed; outcome baseline explicitly NOT MEASURED** | Existing API/result contracts |
 | M1 | Secure streamed AI conversation and controlled engineering tools | **PLANNED** | Existing auth, session persistence and model transport |
 | M2 | Shared artifact/viewer registry and interactive CAD visualization | **PLANNED** | Artifact/access contract; bounded live CAD acceptance remains a regression gate |
 | M3 | FEA mesh and result-field visualization | **PLANNED** | M2 artifact/viewer contract and supported solver-output path |
