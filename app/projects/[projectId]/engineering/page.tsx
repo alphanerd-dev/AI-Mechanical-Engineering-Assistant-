@@ -20,6 +20,10 @@ export default async function EngineeringPage({ params }: { params: Promise<{ pr
     </header>
 
     <EngineeringChat projectId={projectId} />
-    <EngineeringInteraction projectId={projectId} />
+    {projectId === "demo" ? (
+      <p className="muted">Demo sandbox: conversational assistant only. Deterministic tasks and durable project history require a registered project.</p>
+    ) : (
+      <EngineeringInteraction projectId={projectId} />
+    )}
   </div>;
 }
