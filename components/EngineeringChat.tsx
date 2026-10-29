@@ -34,6 +34,17 @@ function responseError(body: unknown, fallback: string): string {
   return fallback;
 }
 
+function getSupportedRole(message: unknown): "user" | "assistant" {
+  if (!message || typeof message !== "object" || Array.isArray(message)) {
+    throw new Error("Only user and assistant messages can be persisted.");
+  }
+  const role = (message as Record<string, unknown>).role;
+  if (role !== "user" && role !== "assistant") {
+    throw new Error("Only user and assistant messages can be persisted.");
+  }
+  return role;
+}
+
 function createSessionId(): string {
   if (typeof crypto === "undefined") {
     throw new Error("Secure browser randomness is unavailable; no chat session was created.");
@@ -202,10 +213,7 @@ function createEngineeringChatHistoryAdapter(
       async append(item) {
         await persistMutation(async () => {
           await initialize();
-          const role = item.message.role;
-          if (role !== "user" && role !== "assistant") {
-            throw new Error("Only user and assistant text turns can be persisted.");
-          }
+          const role = getSupportedRole(item.message);
           const row = {
             id: format.getId(item.message),
             parent_id: item.parentId,
@@ -239,8 +247,7 @@ function createEngineeringChatHistoryAdapter(
               return false;
             }
           });
-          const role = item.message.role;
-          if (role !== "user" && role !== "assistant") throw new Error("Unsupported message role.");
+          const role = getSupportedRole(item.message);
           const row = {
             id,
             parent_id: item.parentId,
