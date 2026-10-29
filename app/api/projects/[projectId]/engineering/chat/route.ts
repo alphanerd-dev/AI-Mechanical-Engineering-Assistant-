@@ -147,25 +147,68 @@ export async function POST(
   ]);
 
   try {
-    logChatDiagnostic("model_request_started", { modelName, messageCount: messages.length, timeoutMs });
+    const apiKeyConfigured = Boolean(process.env.ENGINEERING_REASONING_MODEL_API_KEY?.trim());
+    let firstChunkLogged = false;
+    logChatDiagnostic("model_request_started", {
+      modelName,
+      messageCount: messages.length,
+      timeoutMs,
+      apiKeyConfigured,
+      endpointHost: new URL(baseURL).host,
+    });
     const result = streamText({
       model: provider.chatModel(modelName),
       instructions: SYSTEM_PROMPT,
       messages,
       abortSignal,
-      maxOutputTokens: 1200,
-      onError: ({ error }) => {
-        logChatDiagnostic("model_stream_failed", { errorKind: errorKind(error), status: errorStatus(error) });
+      // Bound model startup and total work so a provider stall becomes a
+      // visible error instead of a blank, indefinite chat turn.
+      timeout: {
+        totalMs: timeoutMs,
+        firstChunkMs: Math.min(15_000, timeoutMs),
+        chunkMs: Math.min(15_000, timeoutMs),
       },
-      onEnd: ({ text }) => {
-        logChatDiagnostic("model_response_completed", { outputCharacters: text.length });
+      maxRetries: 0,
+      maxOutputTokens: 1200,
+      onChunk: ({ chunk }) => {
+        if (firstChunkLogged) return;
+        firstChunkLogged = true;
+        logChatDiagnostic("model_first_chunk_received", { chunkType: chunk.type });
+      },
+      onError: ({ error }) => {
+        logChatDiagnostic("model_stream_failed", {
+          errorKind: errorKind(error),
+          status: errorStatus(error),
+          message: error instanceof Error ? error.message.slice(0, 220) : "non-error stream failure",
+        });
+      },
+      onAbort: ({ reason }) => {
+        logChatDiagnostic("model_stream_aborted", {
+          reasonKind: errorKind(reason),
+          status: errorStatus(reason),
+          message: reason instanceof Error ? reason.message.slice(0, 160) : undefined,
+        });
+      },
+      onEnd: ({ text, finishReason }) => {
+        logChatDiagnostic("model_response_completed", {
+          outputCharacters: text.length,
+          finishReason,
+        });
       },
     });
 
     // Use the SDK's supported response helper. It owns UI-message stream
-    // conversion and provider-error framing; do not wrap an internal text
-    // stream as though it were already a UIMessageChunk stream.
+    // conversion and records serialization/stream errors without exposing
+    // prompts, generated content, or API credentials in logs.
     return result.toUIMessageStreamResponse({
+      onError: (error) => {
+        logChatDiagnostic("ui_message_stream_failed", {
+          errorKind: errorKind(error),
+          status: errorStatus(error),
+          message: error instanceof Error ? error.message.slice(0, 220) : "non-error UI stream failure",
+        });
+        return "The engineering assistant could not complete this response. Check model configuration and retry.";
+      },
       headers: {
         "cache-control": "no-store",
         "x-accel-buffering": "no",
