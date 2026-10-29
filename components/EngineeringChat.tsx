@@ -8,7 +8,8 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
 } from "@assistant-ui/react";
-import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/ai-sdk";
+import { useChatRuntime } from "@assistant-ui/ai-sdk";
+import { DefaultChatTransport } from "ai";
 import type { ThreadHistoryAdapter } from "@assistant-ui/react";
 import styles from "./EngineeringChat.module.css";
 import { loadDemoConversation, saveDemoConversation } from "../src/chat/demo-history.js";
@@ -119,23 +120,23 @@ function createEngineeringChatHistoryAdapter(
       const key = "engineering-chat-session:" + projectId;
       let savedId: string | null;
       try {
-        savedId = window.sessionStorage.getItem(key);
+        savedId = window.localStorage.getItem(key);
       } catch {
-        throw new Error("Browser session storage is blocked; durable chat identity cannot be retained.");
+        throw new Error("Browser local storage is blocked; durable chat identity cannot be retained.");
       }
 
       state.sessionId = savedId || createSessionId();
       if (!savedId) {
         try {
-          window.sessionStorage.setItem(key, state.sessionId);
+          window.localStorage.setItem(key, state.sessionId);
         } catch {
           state.sessionId = undefined;
-          throw new Error("Browser session storage is blocked; no chat session was created.");
+          throw new Error("Browser local storage is blocked; no chat session was created.");
         }
       }
 
       if (projectId === "demo") {
-        state.conversation = loadDemoConversation(window.sessionStorage, state.sessionId);
+        state.conversation = loadDemoConversation(window.localStorage, state.sessionId);
         state.revision = 1;
         state.initialized = true;
         onError(undefined);
@@ -168,7 +169,7 @@ function createEngineeringChatHistoryAdapter(
     if (!state.sessionId) throw new Error("The chat session is not ready to save.");
 
     if (projectId === "demo") {
-      saveDemoConversation(window.sessionStorage, state.sessionId, next);
+      saveDemoConversation(window.localStorage, state.sessionId, next);
       state.conversation = next;
       state.revision = 1;
       return;
@@ -323,7 +324,7 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
     [projectId],
   );
   const transport = useMemo(
-    () => new AssistantChatTransport({
+    () => new DefaultChatTransport({
       api: "/api/projects/" + encodeURIComponent(projectId) + "/engineering/chat",
     }),
     [projectId],
@@ -404,7 +405,7 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
                   rows={3}
                 />
                 <div className={styles.composerBottom}>
-                  <span>{projectId === "demo" ? "Text only · Tab-local demo history" : "Text only · Saved to project history"}</span>
+                  <span>{projectId === "demo" ? "Text only · Local demo history" : "Text only · Saved to project history"}</span>
                   <ComposerPrimitive.Send className={styles.sendButton}>Send ↑</ComposerPrimitive.Send>
                 </div>
               </ComposerPrimitive.Root>

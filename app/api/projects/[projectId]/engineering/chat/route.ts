@@ -91,6 +91,12 @@ export async function POST(
   const body = payload as Record<string, unknown>;
   // The client is not allowed to supply the model, provider, system prompt, or tools.
   if ("system" in body || "tools" in body || "model" in body || "provider" in body) {
+    logChatDiagnostic("request_rejected_client_controlled_fields", {
+      systemProvided: "system" in body,
+      toolsProvided: "tools" in body,
+      modelProvided: "model" in body,
+      providerProvided: "provider" in body,
+    });
     return jsonError("Provider configuration, system instructions, and tools are server-controlled.", 400);
   }
 
@@ -98,12 +104,19 @@ export async function POST(
   try {
     messages = parseEngineeringChatMessages(body.messages);
   } catch (error) {
+    logChatDiagnostic("request_rejected_invalid_messages", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
     return jsonError(error instanceof Error ? error.message : "Invalid chat messages.", 400);
   }
 
   const endpoint = process.env.ENGINEERING_REASONING_MODEL_URL?.trim();
   const modelName = process.env.ENGINEERING_REASONING_MODEL_NAME?.trim();
   if (!endpoint || !modelName) {
+    logChatDiagnostic("model_configuration_missing", {
+      endpointConfigured: Boolean(endpoint),
+      modelConfigured: Boolean(modelName),
+    });
     return jsonError("Streaming chat is not configured. Set the server-side engineering reasoning model endpoint and model name.", 503);
   }
 

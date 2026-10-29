@@ -4,7 +4,7 @@ export type DemoConversationMessage = {
   at?: string;
 };
 
-type SessionStoragePort = Pick<Storage, "getItem" | "setItem">;
+type BrowserStoragePort = Pick<Storage, "getItem" | "setItem">;
 
 const HISTORY_LIMIT = 200;
 const MESSAGE_LIMIT = 7_900;
@@ -39,7 +39,7 @@ function parseMessages(value: unknown): DemoConversationMessage[] {
 }
 
 /** Loads demo chat from browser-local storage; demo conversations are not project records. */
-export function loadDemoConversation(storage: SessionStoragePort, sessionId: string): DemoConversationMessage[] {
+export function loadDemoConversation(storage: BrowserStoragePort, sessionId: string): DemoConversationMessage[] {
   const raw = storage.getItem(storageKey(sessionId));
   if (raw === null) return [];
   let value: unknown;
@@ -49,7 +49,7 @@ export function loadDemoConversation(storage: SessionStoragePort, sessionId: str
 }
 
 /** Saves validated demo history in localStorage so it survives refresh and browser restarts. */
-export function saveDemoConversation(storage: SessionStoragePort, sessionId: string, conversation: DemoConversationMessage[]): void {
+export function saveDemoConversation(storage: BrowserStoragePort, sessionId: string, conversation: DemoConversationMessage[]): void {
   const validated = parseMessages(conversation);
   try { storage.setItem(storageKey(sessionId), JSON.stringify(validated)); }
   catch { throw new Error("Demo chat could not be saved in this browser tab. Check browser storage and available space, then retry."); }
