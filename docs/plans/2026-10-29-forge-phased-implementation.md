@@ -51,11 +51,12 @@ Inspected and reconciled:
 
 ## Phase B — Full-stack foundation and responsive auth correction
 
-**Status: IN PROGRESS — first targeted implementation slice**
+**Status: FIRST TARGETED SLICE IMPLEMENTED AND VERIFIED on PR SHA `990516c39dbe9c9559a1091e495b784c61e695cc`; Phase B overall remains IN PROGRESS**
 
 - Preserve the existing Next.js, strict TypeScript, CSS token system, Supabase server-side boundaries and migration history.
-- Fix the verified mobile auth defect by scoping a vertical authForm layout to sign-in/sign-up, adding labelled-control spacing, 44px control targets, consistent control widths, and retaining visible keyboard focus.
-- Add Playwright regression coverage for login and signup at the 390×844 design viewport. The tests must assert form stacking, label/input geometry, touch target size, keyboard order/focus and no horizontal overflow.
+- **Implemented:** scoped vertical `authForm` layout for sign-in/sign-up, labelled-control spacing, 44px minimum control targets, consistent control widths and keyboard focus treatment.
+- **Verified:** Playwright run [40826543823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40826543823) passed 3/3 tests (login form, signup form, public workspace keyboard/mobile navigation), 0 failed/flaky/skipped. Sanitized report and desktop/mobile screenshots are in [artifact 12877091461](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40826543823/artifacts/12877091461).
+- **Exact-SHA engineering CI:** [run 40826383138](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40826383138) succeeded on this SHA: `npm ci`, `npm test`, Python worker tests, build123d/OCCT tests, authenticated CAD worker smoke and end-to-end intent-to-verified artifact checks, FEA worker checks, bounded execution image build, and `npm run build`. ESLint, CodeQL and Codacy also passed. The Supabase Preview check was skipped by workflow policy and is not counted as a pass.
 - Never submit auth forms or use test accounts against the production host in the read-only browser check. The E2E regression must run on a dedicated non-production deployment.
 - Keep branch-specific secrets and E2E database settings isolated; do not create Firebase resources or change production settings.
 
@@ -103,5 +104,5 @@ The 16 current SQL migrations should be inspected as a set before adding new pro
 
 ## Release posture
 
-The baseline main revision has passing repository checks and a 12/12 isolated authenticated acceptance run, including actual accepted CAD. That does not make the entire product complete. The new branch's responsive-auth tests and documentation changes must pass on their exact SHA. The real outcome-measurement baseline, streamed chat, full viewers and structured P&ID/PFD workflow remain explicit follow-up gates.
+The current PR branch SHA `990516c39dbe9c9559a1091e495b784c61e695cc` passed Engineering Core CI and the public-only responsive-auth suite (3/3). The earlier 12/12 authenticated acceptance run on main included actual accepted CAD, but the full authenticated project/persistence workflow has not yet been repeated on this PR SHA. The real outcome-measurement baseline, streamed chat, full viewers and structured P&ID/PFD workflow remain explicit follow-up gates.
 
