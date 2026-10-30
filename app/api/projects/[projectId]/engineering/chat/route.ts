@@ -48,6 +48,20 @@ function errorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+function userSafeStreamError(error: unknown): string {
+  const status = errorStatus(error);
+  if (status === 503 || status === 502 || status === 504) {
+    return "Gemini is temporarily unavailable (HTTP " + status + "). The server retried the request; please try again shortly.";
+  }
+  if (status === 429) {
+    return "Gemini rate limits or quota were reached (HTTP 429). Wait briefly before trying again.";
+  }
+  if (status === 401 || status === 403) {
+    return "Gemini rejected the server API credentials or permissions (HTTP " + status + ").";
+  }
+  return "The engineering assistant could not complete this response. Please retry.";
+}
+
 function validProjectId(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -161,24 +175,29 @@ export async function POST(
       instructions: SYSTEM_PROMPT,
       messages,
       abortSignal,
-      // Bound model startup and total work so a provider stall becomes a
-      // visible error instead of a blank, indefinite chat turn.
+      // Gemini documents 503/429 as transient service failures and recommends
+      // exponential backoff. Retry both request failures and provider errors
+      // delivered after the UI stream has started.
       timeout: {
         totalMs: timeoutMs,
         firstChunkMs: Math.min(15_000, timeoutMs),
         chunkMs: Math.min(15_000, timeoutMs),
       },
-      maxRetries: 0,
+      maxRetries: 2,
+      streamRetries: 2,
       maxOutputTokens: 1200,
       onChunk: ({ chunk }) => {
-        if (firstChunkLogged) return;
+        if (firstChunkLogged || (chunk.type !== "text-delta" && chunk.type !== "reasoning-delta")) return;
         firstChunkLogged = true;
-        logChatDiagnostic("model_first_chunk_received", { chunkType: chunk.type });
+        logChatDiagnostic("model_first_content_chunk_received", { chunkType: chunk.type });
       },
       onError: ({ error }) => {
+        const status = errorStatus(error);
+        const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
         logChatDiagnostic("model_stream_failed", {
           errorKind: errorKind(error),
-          status: errorStatus(error),
+          status,
+          retryable: record.isRetryable === true,
           message: error instanceof Error ? error.message.slice(0, 220) : "non-error stream failure",
         });
       },
@@ -207,7 +226,7 @@ export async function POST(
           status: errorStatus(error),
           message: error instanceof Error ? error.message.slice(0, 220) : "non-error UI stream failure",
         });
-        return "The engineering assistant could not complete this response. Check model configuration and retry.";
+        return userSafeStreamError(error);
       },
       headers: {
         "cache-control": "no-store",

@@ -41,6 +41,7 @@ describe("POST engineering chat project authorization", () => {
     expect(mocks.authorize).toHaveBeenCalledWith("TASK.EXECUTE", undefined);
     expect(mocks.streamText).toHaveBeenCalledTimes(1);
     expect(mocks.streamText.mock.calls[0][0]).toHaveProperty("instructions");
+    expect(mocks.streamText.mock.calls[0][0]).toMatchObject({ maxRetries: 2, streamRetries: 2 });
     expect(mocks.toUIMessageStreamResponse).toHaveBeenCalledWith(expect.objectContaining({ headers: { "cache-control": "no-store", "x-accel-buffering": "no" }, onError: expect.any(Function) }));
   });
 
