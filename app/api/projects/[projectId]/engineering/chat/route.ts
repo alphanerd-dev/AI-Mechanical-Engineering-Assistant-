@@ -10,11 +10,13 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const DEFAULT_MODEL_NAME = "gemini-3.8-flash";
-// Live preview traces show first content often arrives at 40-45s on cold
-// multi-turn paths. Keep total under the Vercel function maxDuration of 60s.
-const DEFAULT_FIRST_CHUNK_MS = 50_000;
-const DEFAULT_CHUNK_MS = 20_000;
+// Fastest current Gemini for interactive chat. Override with
+// ENGINEERING_REASONING_MODEL_NAME when a larger model is required.
+const DEFAULT_MODEL_NAME = "gemini-3.5-flash-lite";
+// Flash-Lite first tokens are typically a few seconds; keep generous
+// headroom under the 60s function maxDuration for cold starts.
+const DEFAULT_FIRST_CHUNK_MS = 25_000;
+const DEFAULT_CHUNK_MS = 15_000;
 const SYSTEM_PROMPT = `You are the conversational assistant inside an engineering workspace.
 
 Help engineers understand mechanical and related engineering concepts, frame problems, identify missing inputs, compare options, and solve ordinary analytic engineering calculations directly when the supplied data is sufficient. Be technically careful: show the governing equation, substitutions, consistent units, numerical result, and a brief plausibility check. State assumptions explicitly. When a result is underdetermined, calculate what can be known and identify the exact missing inputs instead of guessing.
@@ -56,7 +58,7 @@ function userSafeStreamError(error: unknown): string {
   const status = errorStatus(error);
   const kind = errorKind(error);
   if (kind === "TimeoutError" || kind === "AbortError") {
-    return "The Gemini request timed out before response content arrived. The first-token budget was increased; please try again.";
+    return "The Gemini request timed out before response content arrived. Please try again.";
   }
   if (status === 503 || status === 502 || status === 504) {
     return "Gemini is temporarily unavailable (HTTP " + status + "). The server retried transient failures; please try again shortly.";
