@@ -12,8 +12,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Accept only text-only user/assistant turns. Client messages never define
- * system instructions, tools, model names, provider configuration, or files.
+ * Accept only user/assistant turns and extract text content for the model.
+ * Non-text parts (metadata, tool stubs, etc. that assistant-ui may attach to
+ * history) are ignored. Client messages never define system instructions,
+ * tools, model names, provider configuration, or files for execution.
  */
 export function parseEngineeringChatMessages(value: unknown): EngineeringChatMessage[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > MAX_MESSAGES) {
@@ -26,16 +28,18 @@ export function parseEngineeringChatMessages(value: unknown): EngineeringChatMes
       throw new Error(`messages[${index}] has an unsupported role.`);
     }
     if (!Array.isArray(message.parts) || message.parts.length === 0 || message.parts.length > 16) {
-      throw new Error(`messages[${index}] must contain text parts only.`);
+      throw new Error(`messages[${index}] must contain between 1 and 16 content parts.`);
     }
 
-    const text = message.parts.map((part) => {
-      if (!isRecord(part) || part.type !== "text" || typeof part.text !== "string") {
-        throw new Error(`messages[${index}] contains an unsupported content part.`);
+    const textParts: string[] = [];
+    for (const part of message.parts) {
+      if (isRecord(part) && part.type === "text" && typeof part.text === "string") {
+        textParts.push(part.text);
       }
-      return part.text;
-    }).join("\n");
+      // Non-text parts are ignored (history adapters may attach metadata).
+    }
 
+    const text = textParts.join("\n");
     if (!text.trim() || text.length > MAX_MESSAGE_CHARACTERS) {
       throw new Error(`messages[${index}] text must contain 1-6000 characters.`);
     }
