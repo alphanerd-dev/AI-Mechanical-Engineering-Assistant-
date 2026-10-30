@@ -17,6 +17,8 @@ jobs:
         run: node --check scripts/azure-execution-queue-e2e.mjs
       - name: Validate workspace acceptance E2E spec syntax
         run: node --check tests/e2e/workspace-intent-acceptance.e2e.mjs
+      - name: Validate responsive auth E2E spec syntax
+        run: node --check tests/e2e/auth-responsive-layout.e2e.mjs
       - run: npm ci
       - run: npm test
       - name: Generate architecture dependency graph

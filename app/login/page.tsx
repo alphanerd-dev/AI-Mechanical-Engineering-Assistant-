@@ -29,7 +29,7 @@ export default async function LoginPage({
       {registered === "1" && <p className="projectNoticeText" role="status">Registration submitted. Check your inbox and confirm your email before signing in if confirmation is enabled.</p>}
       {confirmed === "1" && <p className="projectNoticeText" role="status">Email confirmed. You can now sign in with your account.</p>}
       {error && <p className="projectError" role="alert">{authErrors[error] ?? "Sign-in could not be completed. Please try again."}</p>}
-      <form className="panel" method="post" action="/api/auth/login">
+      <form className="panel authForm" method="post" action="/api/auth/login">
         <label>
           Email
           <input name="email" type="email" autoComplete="email" required />

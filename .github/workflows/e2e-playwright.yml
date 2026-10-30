@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       suite:
-        description: Run the public unauthenticated UI smoke or the full authenticated acceptance suite
+        description: Run read-only public workspace and auth-form UI smoke, or the full authenticated acceptance suite
         required: true
         type: choice
         options:
@@ -70,6 +70,8 @@ jobs:
 
           node <<'NODE'
           const url = new URL(process.env.E2E_BASE_URL);
+          const suite = process.env.E2E_SUITE || "full";
+          if (!["full", "public-ui-smoke"].includes(suite)) throw new Error("Unsupported E2E suite.");
           if (url.protocol !== "https:") throw new Error("E2E_BASE_URL must use HTTPS.");
           if (url.username || url.password || url.search || url.hash) {
             throw new Error("E2E_BASE_URL must not include credentials, a query, or a fragment.");
@@ -82,8 +84,8 @@ jobs:
           if (canonical.protocol !== "https:" || canonical.username || canonical.password || canonical.search || canonical.hash) {
             throw new Error("E2E_CANONICAL_BASE_URL must be a clean HTTPS URL.");
           }
-          if (url.origin !== canonical.origin) {
-            throw new Error("E2E_BASE_URL origin must match E2E_CANONICAL_BASE_URL to preserve host-scoped session cookies through authentication redirects.");
+          if (url.origin !== canonical.origin && suite !== "public-ui-smoke") {
+            throw new Error("Authenticated E2E_BASE_URL origin must match E2E_CANONICAL_BASE_URL to preserve host-scoped session cookies through authentication redirects.");
           }
           const allowedHosts = (process.env.E2E_ALLOWED_HOSTS || "")
             .split(",")
@@ -96,8 +98,6 @@ jobs:
             throw new Error("E2E target host is not in the exact E2E_ALLOWED_HOSTS allowlist.");
           }
 
-          const suite = process.env.E2E_SUITE || "full";
-          if (!["full", "public-ui-smoke"].includes(suite)) throw new Error("Unsupported E2E suite.");
           if (suite === "public-ui-smoke" && process.env.E2E_RUN_ACCEPTED_CAD_SMOKE === "true") {
             throw new Error("Public UI smoke cannot opt into CAD execution.");
           }
@@ -148,7 +148,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$E2E_SUITE" == "public-ui-smoke" ]]; then
-            npm run test:e2e -- tests/e2e/public-workspace-smoke.e2e.mjs
+            npm run test:e2e -- tests/e2e/public-workspace-smoke.e2e.mjs tests/e2e/auth-responsive-layout.e2e.mjs
           else
             npm run test:e2e
           fi
