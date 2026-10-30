@@ -60,7 +60,7 @@ describe("POST engineering chat provider and project authorization", () => {
       model: "mock-model",
       maxRetries: 2,
       streamRetries: 1,
-      timeout: { totalMs: 52000, firstChunkMs: 18000, chunkMs: 15000 },
+      timeout: { totalMs: 52000, firstChunkMs: 40000, chunkMs: 20000 },
     });
     expect(mocks.toUIMessageStreamResponse).toHaveBeenCalledWith(expect.objectContaining({
       headers: { "cache-control": "no-store", "x-accel-buffering": "no" },

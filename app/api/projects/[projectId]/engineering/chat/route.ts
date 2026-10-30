@@ -11,6 +11,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const DEFAULT_MODEL_NAME = "gemini-3.8-flash";
+// First-chunk budget must be large enough for cold Gemini starts on the
+// preview path. Keep total under the Vercel function maxDuration of 60s.
+const DEFAULT_FIRST_CHUNK_MS = 40_000;
+const DEFAULT_CHUNK_MS = 20_000;
 const SYSTEM_PROMPT = `You are the conversational assistant inside an engineering workspace.
 
 Help engineers understand mechanical and related engineering concepts, frame problems, identify missing inputs, compare options, and solve ordinary analytic engineering calculations directly when the supplied data is sufficient. Be technically careful: show the governing equation, substitutions, consistent units, numerical result, and a brief plausibility check. State assumptions explicitly. When a result is underdetermined, calculate what can be known and identify the exact missing inputs instead of guessing.
@@ -52,7 +56,7 @@ function userSafeStreamError(error: unknown): string {
   const status = errorStatus(error);
   const kind = errorKind(error);
   if (kind === "TimeoutError" || kind === "AbortError") {
-    return "The Gemini request timed out before response content arrived. The request was bounded and retried where supported; please try again.";
+    return "The Gemini request timed out before response content arrived. The first-token budget was increased; please try again.";
   }
   if (status === 503 || status === 502 || status === 504) {
     return "Gemini is temporarily unavailable (HTTP " + status + "). The server retried transient failures; please try again shortly.";
@@ -152,6 +156,9 @@ export async function POST(
     return jsonError("The native Gemini provider could not be initialized.", 503);
   }
 
+  const firstChunkMs = Math.min(DEFAULT_FIRST_CHUNK_MS, timeoutMs);
+  const chunkMs = Math.min(DEFAULT_CHUNK_MS, timeoutMs);
+
   const abortSignal = AbortSignal.any([
     request.signal,
     AbortSignal.timeout(timeoutMs),
@@ -164,7 +171,8 @@ export async function POST(
       modelName,
       messageCount: messages.length,
       timeoutMs,
-      firstChunkTimeoutMs: Math.min(18_000, timeoutMs),
+      firstChunkTimeoutMs: firstChunkMs,
+      chunkTimeoutMs: chunkMs,
       maxRetries: 2,
       streamRetries: 1,
       apiKeyConfigured: true,
@@ -177,8 +185,8 @@ export async function POST(
       abortSignal,
       timeout: {
         totalMs: timeoutMs,
-        firstChunkMs: Math.min(18_000, timeoutMs),
-        chunkMs: Math.min(15_000, timeoutMs),
+        firstChunkMs,
+        chunkMs,
       },
       // Bound both request-level and in-stream recovery. The shared abort
       // signal caps the complete operation, including any retry attempts.
