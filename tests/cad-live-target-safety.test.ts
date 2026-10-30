@@ -7,6 +7,7 @@ describe("CAD live-smoke target safety", () => {
     "https://ai-mechanical-engineering-assistant-alphanerd-labs.vercel.app",
     "https://ai-mechanical-engineering-assistant-git-main-alphanerd-labs.vercel.app",
     "https://ai-mechanical-engineering-assistant-3lto4c0xa-alphanerd-labs.vercel.app",
+    "https://ai-mechanical-engineering-assistant-eta.vercel.app",
     "https://unknown-production.example.com",
     "https://ai-mechanical-engineering-assistant-m0-preview-2l0m7buag-alphanerd-labs.vercel.app",
   ])("rejects unapproved write target %s before network access", (value) => {
@@ -14,9 +15,9 @@ describe("CAD live-smoke target safety", () => {
       .toThrow(/Refusing to run.*unapproved host/i);
   });
 
-  it("allows only the explicitly approved isolated preview domain", () => {
+  it("allows only the exact branch-scoped M0 preview with its isolated CAD worker configuration", () => {
     expect(() => assertNonProductionCadSmokeTarget(
-      new URL("https://ai-mechanical-engineering-assistant-eta.vercel.app"),
+      new URL("https://ai-mechanical-engineering-assistant-m-git-bd1610-alphanerd-labs.vercel.app"),
     )).not.toThrow();
   });
 
