@@ -20,11 +20,16 @@ import { POST } from "../app/api/projects/[projectId]/engineering/chat/route.js"
 const REGISTERED_PROJECT = "20000000-0000-4000-8000-000000000001";
 
 function request(projectId: string) {
-  return new Request(\`https://workspace.example/api/projects/\${projectId}/engineering/chat\`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ messages: [{ role: "user", parts: [{ type: "text", text: "Reply with exactly: GEMINI_STREAM_OK" }] }] }),
-  });
+  return new Request(
+    "https://workspace.example/api/projects/" + projectId + "/engineering/chat",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        messages: [{ role: "user", parts: [{ type: "text", text: "Reply with exactly: GEMINI_STREAM_OK" }] }],
+      }),
+    },
+  );
 }
 
 describe("POST engineering chat provider and project authorization", () => {
@@ -42,7 +47,7 @@ describe("POST engineering chat provider and project authorization", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("uses the native Google provider and the existing server-side API key without requiring a base URL", async () => {
+  it("uses the native Google provider and existing server-side API key without requiring a base URL", async () => {
     const response = await POST(request("demo"), { params: Promise.resolve({ projectId: "demo" }) });
     expect(response.status).toBe(200);
     expect(mocks.authorize).toHaveBeenCalledWith("TASK.EXECUTE", undefined);
