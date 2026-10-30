@@ -19,7 +19,7 @@ import { POST } from "../app/api/projects/[projectId]/engineering/chat/route.js"
 
 const REGISTERED_PROJECT = "20000000-0000-4000-8000-000000000001";
 
-function request(projectId: string) {
+function request(projectId: string, extraFields: Record<string, unknown> = {}) {
   return new Request(
     "https://workspace.example/api/projects/" + projectId + "/engineering/chat",
     {
@@ -27,6 +27,7 @@ function request(projectId: string) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         messages: [{ role: "user", parts: [{ type: "text", text: "Reply with exactly: GEMINI_STREAM_OK" }] }],
+        ...extraFields,
       }),
     },
   );
@@ -65,6 +66,16 @@ describe("POST engineering chat provider and project authorization", () => {
       headers: { "cache-control": "no-store", "x-accel-buffering": "no" },
       onError: expect.any(Function),
     }));
+  });
+
+  it("rejects every client-controlled provider setting before contacting Gemini", async () => {
+    const context = { params: Promise.resolve({ projectId: "demo" }) };
+    for (const field of ["system", "tools", "model", "provider"]) {
+      const response = await POST(request("demo", { [field]: "client-controlled" }), context);
+      expect(response.status, field).toBe(400);
+    }
+    expect(mocks.createGoogle).not.toHaveBeenCalled();
+    expect(mocks.streamText).not.toHaveBeenCalled();
   });
 
   it("returns a configuration error when the API key is absent", async () => {
