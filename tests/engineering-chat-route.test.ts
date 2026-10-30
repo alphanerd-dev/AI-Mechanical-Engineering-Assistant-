@@ -39,7 +39,7 @@ describe("POST engineering chat provider and project authorization", () => {
     vi.stubEnv("ENGINEERING_REASONING_MODEL_URL", "");
     vi.stubEnv("ENGINEERING_REASONING_MODEL_NAME", "test-model");
     vi.stubEnv("ENGINEERING_REASONING_MODEL_API_KEY", "test-gemini-key");
-    vi.stubEnv("ENGINEERING_REASONING_MODEL_TIMEOUT_MS", "52000");
+    vi.stubEnv("ENGINEERING_REASONING_MODEL_TIMEOUT_MS", "58000");
     mocks.authorize.mockResolvedValue({ allowed: true, reason: "Authorized." });
     mocks.createGoogle.mockReturnValue(mocks.googleModel);
     mocks.googleModel.mockReturnValue("mock-model");
@@ -60,7 +60,7 @@ describe("POST engineering chat provider and project authorization", () => {
       model: "mock-model",
       maxRetries: 2,
       streamRetries: 1,
-      timeout: { totalMs: 52000, firstChunkMs: 40000, chunkMs: 20000 },
+      timeout: { totalMs: 58000, firstChunkMs: 50000, chunkMs: 20000 },
     });
     expect(mocks.toUIMessageStreamResponse).toHaveBeenCalledWith(expect.objectContaining({
       headers: { "cache-control": "no-store", "x-accel-buffering": "no" },

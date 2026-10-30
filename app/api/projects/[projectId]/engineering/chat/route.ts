@@ -11,9 +11,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const DEFAULT_MODEL_NAME = "gemini-3.8-flash";
-// First-chunk budget must be large enough for cold Gemini starts on the
-// preview path. Keep total under the Vercel function maxDuration of 60s.
-const DEFAULT_FIRST_CHUNK_MS = 40_000;
+// Live preview traces show first content often arrives at 40-45s on cold
+// multi-turn paths. Keep total under the Vercel function maxDuration of 60s.
+const DEFAULT_FIRST_CHUNK_MS = 50_000;
 const DEFAULT_CHUNK_MS = 20_000;
 const SYSTEM_PROMPT = `You are the conversational assistant inside an engineering workspace.
 

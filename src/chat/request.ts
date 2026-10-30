@@ -82,10 +82,10 @@ export function resolveOpenAICompatibleBaseURL(endpoint: string): string {
 
 /**
  * Total request budget for the engineering chat model call.
- * Default is 55s so Gemini has room under the Vercel function maxDuration of 60s.
+ * Default is 58s so Gemini has room under the Vercel function maxDuration of 60s.
  */
 export function resolveEngineeringChatTimeout(value: string | undefined): number {
-  if (value === undefined || value.trim() === "") return 55_000;
+  if (value === undefined || value.trim() === "") return 58_000;
   const timeout = Number(value);
   if (!Number.isInteger(timeout) || timeout < 1_000 || timeout > 58_000) {
     throw new Error("ENGINEERING_REASONING_MODEL_TIMEOUT_MS must be an integer from 1000 to 58000.");

@@ -86,7 +86,7 @@ describe("provider endpoint configuration", () => {
   });
 
   it("uses a bounded default timeout and rejects invalid timeout configuration", () => {
-    expect(resolveEngineeringChatTimeout(undefined)).toBe(55_000);
+    expect(resolveEngineeringChatTimeout(undefined)).toBe(58_000);
     expect(resolveEngineeringChatTimeout("55000")).toBe(55_000);
     expect(() => resolveEngineeringChatTimeout("50")).toThrow(/1000 to 58000/);
     expect(() => resolveEngineeringChatTimeout("59000")).toThrow(/1000 to 58000/);
