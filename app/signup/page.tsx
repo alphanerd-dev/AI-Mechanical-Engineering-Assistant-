@@ -16,7 +16,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
       <h1>Create your account</h1>
       <p className="muted">Register to start your own engineering workspace. Your account receives standard engineer access—not administrator privileges.</p>
     </div></header>
-    <form className="panel" method="post" action="/api/auth/signup">
+    <form className="panel authForm" method="post" action="/api/auth/signup">
       <label>Email<input name="email" type="email" autoComplete="email" required /></label>
       <label>Password<input name="password" type="password" autoComplete="new-password" minLength={10} required /><small className="muted">At least 10 characters.</small></label>
       <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength={10} required /></label>

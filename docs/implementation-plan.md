@@ -1,6 +1,6 @@
 # Implementation Plan and Milestones
 
-**Updated:** 27 October 2026  
+**Updated:** 29 October 2026  
 **Status:** Active plan; implementation and live readiness claims require evidence on the exact revision.
 
 This is the single source of truth for upcoming work, priorities, dependencies and exit gates. See the [Product Brief](product-brief.md) for the agreed experience and [Engineering Capabilities](engineering-capabilities.md) for the distinction between existing provider contracts and supported live capabilities.
@@ -15,75 +15,77 @@ The current product decision is to implement assistant-ui + Vercel AI SDK for a 
 
 ## 1. Current baseline, known gaps and blockers
 
-The current main branch head is the documentation-only merge [76425a0](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/76425a096d52c87741222645a65d616ff773460a). The source code baseline reviewed before that documentation-only merge is [5da2823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/5da2823ff7792cb23e9ae36b193cd627f2d4d7ba).
+The source-of-truth baseline reviewed for this plan is [main commit 3579fcdc64c20745e5490177d31e1eb1d67e6e9b](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/3579fcdc64c20745e5490177d31e1eb1d67e6e9b). The implementation continuation and phase checklist are documented in [docs/plans/2026-10-29-forge-phased-implementation.md](plans/2026-10-29-forge-phased-implementation.md).
 
-| Area | Evidence / finding | Consequence |
+### Current baseline evidence
+
+| Area | Verified state | Consequence |
 |---|---|---|
-| Existing source CI | [Core CI](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39644040159), ESLint, CodeQL and Codacy passed for the reviewed code revision. | Good repository-level baseline; does not prove live provider connectivity or general engineering correctness. |
-| Live CAD acceptance | [Run 39634636058](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) stopped during preflight because CAD_WORKSPACE_BASE_URL was absent. Authenticated testing did not run. | Blocked/unverified, not a CAD algorithm failure and not a live pass. |
-| CAD application pipeline | Bounded cylindrical intent, build123d worker, OCCT BREP validation, project-scoped persisted records and evidence contracts exist. | Re-run authenticated non-production acceptance on the exact current revision before claiming live readiness. |
-| FEA | Gmsh/CalculiX and PyMechanical provider contracts/pilots exist. | Runtime availability and current artifact/field pipeline must be verified; execution integrity is not a safety verdict. |
-| Conversational AI | A project-scoped persisted engineering conversation and structured reasoning workbench exist. The model transport is configured for structured proposals/intent interpretation. | The selected assistant-ui streaming chat integration is not yet implemented. |
-| Dependencies and chat route | The inspected package.json does not include assistant-ui or Vercel AI SDK; no dedicated streaming chat route was found. | Add and pin compatible versions only in the feature PR; check current official integration guidance before choosing versions. |
-| Viewers | The inspected source contains CAD status/history/metadata surfaces but no complete interactive CAD or VTK-based FEA viewer; no P&ID renderer was identified. | Treat these as new features. Do not represent provider or artifact metadata as a rendered visualization. |
-| Cost baseline | No reviewed task-level cost/quality baseline selected a default hosted model. | Compare current model prices and representative engineering tasks before choosing the default. |
+| Source/build stack | Next.js App Router, React, TypeScript; package scripts provide npm test, npm run build and npm run test:e2e. | Preserve the existing repo and pinned dependency choices; do not regenerate another app. |
+| Auth and persistence | Supabase SSR/client integration, auth routes, protected project APIs, workspace state and 16 SQL migrations are present. Main-SHA check runs and the isolated authenticated Playwright suite passed. | Re-test the exact feature revision; recent public browser inspection did not submit credentials, so it does not prove a successful interactive sign-in. |
+| M0 decision/persistence | Pump-power deterministic pilot, explicit result states, revision-bound evidence, idempotency and server-only workspace mutations are merged on main. | Keep as implemented/pilot. It is not engineering approval or broad capability coverage. |
+| CAD acceptance | Isolated authenticated E2E run [40774982422](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40774982422) passed 12/12, including accepted cylindrical CAD, artifact readback, OCCT receipt/digest and audit-chain correlation, plus cleanup. | Reuse this test; do not infer arbitrary CAD support from the bounded cylinder pilot. |
+| Live public UI | Browser Use rendered / and /login; BrowserAct checked the public landing/login pages and found 7/7 links working. | Good public route baseline only. Production credentials were not entered and no production data was mutated. |
+| Auth responsive layout | The PR branch scopes a vertical `authForm` layout to login/signup. Public-only Playwright run [40826543823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40826543823) passed 3/3 tests (sign-in, sign-up, public workspace keyboard/mobile navigation), with sanitized evidence [artifact 12877091461](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40826543823/artifacts/12877091461). | The targeted form-layout defect is fixed and regression-tested on SHA `990516c39dbe9c9559a1091e495b784c61e695cc`. Full authenticated workspace journeys are distinct from this public-only run. |
+| Design source | Forge v11.2 ZIP and audited HTML SHA-256 match docs/design/forge-v11.2/README.md; supplied captures include 21 desktop and 9 mobile screens. | Visual reference confirmed. The prototype and screenshot capture are not production backend or capability evidence. |
+| Streaming AI | No assistant-ui or Vercel AI SDK package and no dedicated assistant streaming route at the baseline. Current structured reasoning/intent transport exists. | M1 is still planned; preserve existing adapter semantics and test parity before adding the stream. |
+| Viewers | No complete connected Three.js CAD viewer, VTK.js FEA viewer or structured persistent P&ID/PFD editor is evidenced by the reviewed source. | These remain planned integrations; label fixtures and unavailable capabilities honestly. |
+| Outcome baseline | Collection protocol and explicit status are recorded in [outcome-baseline-collection.md](outcome-baseline-collection.md). | **NOT MEASURED**; no measured time/cost savings or ROI claims. Collect matched real trials before making such claims. |
 
-The above observations are revision-specific. Recheck exact SHA, build, CI, runtime and workflow evidence before promoting a release.
+### M0 exit record — 29 October 2026
+
+**Decision: COMPLETE WITH LIMITATION — outcome baseline explicitly NOT MEASURED.** This follows the M0 exit gate's explicit “collected or reported as not yet measured” condition. No productivity, time-saved, cost-saved or ROI claim is made. A real matched-trial baseline remains follow-up work before making those claims.
+
+**Tested application code revision:** `baac18d230019f6293fe315d3dcd1ca9866fac2d`.
+
+- **Engineering Core CI:** [run 40832095784](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40832095784) passed: unit tests, Python worker tests, remote CAD worker smoke, build123d/OCCT validation, generated CAD intent-to-verified-artifact path, open FEA worker checks and production build.
+- **Responsive auth/public UI:** [run 40832237981](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40832237981), 3/3 passed: sign-in layout, sign-up layout, and keyboard/mobile workspace navigation.
+- **Authenticated workspace and live CAD:** [run 40833513080](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40833513080), 14/14 passed on the tested application revision. Coverage includes sign-in/out, durable workspace writes and session restore, cross-user isolation, recoverable provider/persistence failures, project owner/revision guards, needs-input audit correlation, accepted CAD artifact persistence/readback, independent BREP validation, durable audit-chain readback, cleanup and an axe WCAG AA scan.
+- **Ambiguous transport recovery:** the accepted-CAD POST had a transport failure; the test did not replay the mutation. It reconciled through the read-only completion history, then verified BREP readback and audit-chain readback returned HTTP 200. The test passed.
+- **Preview runtime correction:** the feature preview was missing its branch-scoped `CAD_WORKER_API_TOKEN`. A new 256-bit token was applied only to the dedicated non-production Render worker and this Vercel Preview branch, then both services were redeployed and the 14/14 acceptance rerun passed. Production secrets and production services were not changed.
+- **Static analysis:** CodeQL and ESLint passed. Codacy's workflow completed with its analysis step skipped because `CODACY_PROJECT_TOKEN` is not configured; Codacy is **unverified**, not passed.
+- **Outcome baseline:** **NOT MEASURED**. The collection protocol is in [outcome-baseline-collection.md](outcome-baseline-collection.md). Fixture values and automated test duration are not real engineering productivity observations.
+
+The exit decision is limited to the bounded M0 acceptance scope. It does not certify all mechanical engineering outputs, general CAD interpretation, production CAD-worker readiness, broad accessibility certification, or measurable user productivity improvement.
 
 ## Milestone overview
 
 | ID | Milestone | Priority/status | Depends on |
 |---|---|---|---|
-| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance setup | **IN PROGRESS — PR #121; exit gate not passed** | Existing API/result contracts |
-| M1 | Secure streamed AI conversation and controlled engineering tools | **PLANNED after M0 acceptance design** | Existing auth, session persistence, model transport |
-| M2 | Shared artifact/viewer registry and interactive CAD visualization | **PLANNED** | Artifact/access contract; M0 CAD acceptance remains a release gate |
-| M3 | FEA mesh and result-field visualization | **PLANNED** | M2 artifact/viewer contract; a supported solver-output path |
+| M0 | Trustworthy decisions, failure recovery, outcome baseline and live CAD acceptance | **COMPLETE WITH LIMITATION — live/auth acceptance passed; outcome baseline explicitly NOT MEASURED** | Existing API/result contracts |
+| M1 | Secure streamed AI conversation and controlled engineering tools | **PLANNED** | Existing auth, session persistence and model transport |
+| M2 | Shared artifact/viewer registry and interactive CAD visualization | **PLANNED** | Artifact/access contract; bounded live CAD acceptance remains a regression gate |
+| M3 | FEA mesh and result-field visualization | **PLANNED** | M2 artifact/viewer contract and supported solver-output path |
 | M4 | Typed P&ID/PFD model and viewer | **PLANNED** | Shared artifact/version/access contract |
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | **DEFERRED until need and value are measured** | M0–M4 evidence and a specific user need |
 
-Milestones describe ordered outcomes; they are not proof that their capabilities are already delivered. Small UI and design-contract changes can be reviewed together where dependency is clear, but each exit gate must remain independently auditable.
+## Phase A — Inspect and plan
 
-## Current branch implementation evidence — PR #121
-
-The feature branch adds the following M0/design-contract work on top of the 22 October main baseline:
-
-- Status-aware engineering decision presentation that keeps proposal, execution, validation, verification, human approval, failure and freshness separate.
-- Intent transport-failure guidance that retains the draft and warns that the server may have received the request; it does not automatically replay an operation.
-- A shared responsive workspace shell and source-backed project context. Planned routes remain labelled as planned rather than exposed as working links.
-- A project create flow that makes the user review the entered problem before the single create request, and warns/guards against blindly repeating a request whose outcome is unconfirmed.
-- Design handoff source files, semantic CSS/JSON tokens, component and UX contracts, wireframes, screen inventory, original implementation prompt, and capture QA note under `docs/design/forge-v11.2/`.
-
-These are code changes in an open, draft PR; they are not yet a production release. Check the exact head SHA in the PR before relying on CI results. The PR's previous green run is not a substitute for checks on a later commit.
-
-### Remaining M0 blockers
-
-1. **Original Vercel integration:** The original project's automatic previews fail before build events because its linked Supabase Marketplace resource `supabase-cerise-school` is suspended and points to a paused Supabase project. A separate protected Vercel recovery project has a READY deployment of app source SHA `4196cbe794f478743672b51c1b6adbd4f94deba1`; the last feature-branch commits after it only add E2E harness support. Do not change original production settings or protection to resolve this.
-2. **Authenticated persistence E2E:** Four PR-triggered checks passed for head `0d65ba82fbde93c994be37c201e2884cda4615b7`. Playwright run [40586963344](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40586963344) failed at the shared project-list startup with `Durable authorization audit is unavailable`. The recovery project Preview lacks its dedicated E2E `SUPABASE_SERVICE_ROLE_KEY`. Add it directly in Vercel as a sensitive Preview-only variable using the key for E2E project `mpbrlegwrrrfpeumtqhi`; never use the production project or put the key in `NEXT_PUBLIC_`.
-3. **Live CAD acceptance:** The recovery Preview has the non-secret isolated worker URL and `CAD_ARTIFACT_ROOT`, but still needs `CAD_WORKER_API_TOKEN` matching `WORKER_API_TOKEN` on the dedicated `ai-mechanical-cad-worker-issue79-preview` Render service. Keep the token server-side and Preview-only. Then rerun authenticated project/persistence/ownership E2E with the accepted-CAD option enabled and review artifact, digest, validator, audit-chain and cleanup evidence.
-4. **Visual/keyboard acceptance and final gate:** The protected UI can be served and the Forge workspace title/sections return HTTP 200, but the complete authenticated desktop/mobile/keyboard acceptance has not passed because the persistence gate blocks the user journeys. After secret configuration, rerun the full acceptance, capture current screenshots, check accessibility and inspect evidence. M0 exit remains open; PR #121 stays draft.
+**Status: COMPLETE.** The canonical phase, architecture decision, repo map, maturity baseline and remaining acceptance gaps are in [docs/plans/2026-10-29-forge-phased-implementation.md](plans/2026-10-29-forge-phased-implementation.md). Its authority and backend-preservation decision is recorded in [ADR-0014](architecture/adr-0014-product-brief-precedence-and-repository-preservation.md).
 
 ## M0 — Trustworthy decision surfaces, recovery and outcome measurement
 
-**Outcome:** every currently supported workflow gives a truthful, recoverable engineering decision, and its current-revision runtime status can be verified without confusing a blocked environment with a failed algorithm.
+**Outcome:** every currently supported workflow gives a truthful, recoverable engineering decision, and its current-revision runtime status can be verified without confusing an unavailable environment with a failed algorithm.
 
 ### Work
 
-1. Map each existing result state to a clear UI/API outcome: PROPOSED, NEEDS_INPUT, UNSUPPORTED, EXECUTED, VALIDATED, VERIFIED, WAITING_APPROVAL, FAILED, and other states only where defined by the current contract.
-2. Render values and units, assumptions, validation/evidence status, provenance, blockers, limitations, approvals and next action only when the source response provides them. Never infer verification from HTTP 200 or a single boolean with a weaker contract.
-3. Preserve drafts and trusted project context after transport, authorization, provider, validation or persistence failures. Make recovery explicit. Do not blindly replay a mutating CAD request or create duplicate jobs, artifacts or evidence.
-4. Complete component/API/Playwright coverage for missing inputs, unsupported intent, validation failure, approval-required states, timeout, failed persistence, authorization denials and safe recovery.
-5. Instrument representative tasks: time to accepted outcome, measured engineering-active time including review/correction, stage latency, tool calls, retries/recovery, evidence completeness and available cost components. Mark unmeasured values unknown.
-6. In parallel with the UI work, resolve the CAD live-acceptance environment configuration. The protected environment requires CAD_WORKSPACE_BASE_URL, CAD_WORKSPACE_PROJECT_ID, CAD_WORKSPACE_MODEL_ID and a short-lived CAD_WORKSPACE_COOKIE secret. Use only a dedicated non-production project/account; never print or commit the cookie.
-7. Verify deployed app and worker/source image revisions, worker health, auth, private storage, immutable image digests, required migrations and the durable-execution feature flag before enabling relevant paths. Do not infer that migrations were applied from a skipped reconciliation job.
-8. Preserve the current CAD acceptance chain: typed cylindrical intent → deterministic build123d source → isolated worker → artifact registration → independent OCCT BREP validation → receipt bound to exact BREP bytes and trusted project/model/run lineage.
+1. Keep proposal, missing-input, unsupported, executing/executed, validation, verification, approval, blocked, stale and failure states separate in source-backed UI/API responses.
+2. Render values and units, assumptions, validation/evidence status, provenance, revision, blockers and next action only when supplied by trusted service responses.
+3. Preserve drafts and trusted project context after transport, authorization, provider, validation or persistence failures; do not blindly replay a mutating operation.
+4. Maintain negative-path tests for missing inputs, unsupported intent, validation failure, approval, timeout, persistence failure, authorization denial and safe retry.
+5. Complete responsive login/sign-up correction and add keyboard/focus regression coverage at the supplied 390px reference.
+6. Establish a real observed baseline for accepted-outcome time, engineer-active review/correction, stage latency, retries/recovery, evidence completeness and available cost. Mark absent measurements unknown.
+7. Verify exact deployed app/worker revisions, trusted runtime readiness, private storage, digests, required migrations and feature flags before enabling a path.
+8. Preserve CAD acceptance: typed cylindrical intent → deterministic build123d source → isolated worker → artifact registration → independent OCCT BREP validation → receipt bound to exact bytes and trusted project/model/run lineage.
+9. Update status and evidence links for the exact commit; keep unmeasured values and untested release behavior explicitly unknown.
 
 ### Exit gate
 
-The result-state matrix and important negative paths are tested; failure does not appear as silent success; saved work survives recoverable failures; retries cannot duplicate non-idempotent effects; CAD acceptance passes on the exact current revision in non-production; retrieved private BREP bytes match the stored digest and validation receipt. If environment configuration is still missing, report M0 CAD live acceptance as BLOCKED.
+The result-state matrix and important negative paths are tested; failures do not appear as silent success; saved work survives recoverable failures; retries cannot duplicate non-idempotent effects; accepted CAD passes on the exact release revision in non-production; retrieved private BREP bytes match the stored digest and validation receipt; desktop/mobile/keyboard auth and workspace acceptance pass; and a real outcome baseline is collected or explicitly reported as not yet measured. If a required runtime configuration is missing, report the specific capability as BLOCKED rather than passing the gate.
 
 ### Additional M0 vertical slice — pump power calculation
 
-The feature branch also implements a project-scoped deterministic pump hydraulic/shaft-power operation, separate capability-specific validation, and a digest-bound calculation artifact persisted in the existing revision-guarded workspace snapshot. Unit/input validation, independent equation checks, tampered-output rejection and artifact digest binding are covered by Vitest; the isolated Playwright journey exercises persistence, revision lineage and result-state separation. This is an additive bounded capability, not a substitution for the original doctrine, the existing shaft/CAD workflows, or the remaining M0 release gates. Keep maturity at PILOT until current-head CI and isolated E2E evidence confirm the exact revision.
+The main branch implements a project-scoped deterministic pump hydraulic/shaft-power operation, capability-specific validation and a digest-bound calculation artifact persisted in the revision-guarded workspace snapshot. Unit/input validation, independent equation checks, tampered-output rejection and artifact digest binding are covered by Vitest; the isolated Playwright journey exercises persistence, revision lineage and result-state separation. This is an additive bounded PILOT—not a substitute for the original doctrine or for remaining M0 gates.
 
 ## M1 — Conversational AI, streaming and controlled engineering tools
 
