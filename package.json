@@ -33,6 +33,7 @@
     "react-dom": "^19.2.0",
     "@supabase/supabase-js": "2.117.3",
     "zod": "4.6.7",
+    "@ai-sdk/google": "^4.0.107",
     "@ai-sdk/openai-compatible": "^3.0.80",
     "@ai-sdk/react": "^4.0.0",
     "@assistant-ui/ai-sdk": "^0.0.15",
