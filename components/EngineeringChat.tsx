@@ -150,8 +150,9 @@ function createEngineeringChatHistoryAdapter(
     }
   }
 
-  async function initialize(): Promise<void> {
-    if (state.initialized) return;
+  let initializationPromise: Promise<void> | undefined;
+
+  async function initializeOnce(): Promise<void> {
     try {
       if (typeof window === "undefined") throw new Error("Chat history can only be initialized in the browser.");
       const key = "engineering-chat-session:" + projectId;
@@ -229,6 +230,23 @@ function createEngineeringChatHistoryAdapter(
       onError(message);
       throw error;
     }
+  }
+
+  function initialize(): Promise<void> {
+    if (state.initialized) return Promise.resolve();
+
+    // Multiple runtime consumers can request history initialization while the
+    // active remote thread is being resolved. Share the in-flight restore so
+    // transient storage failures do not trigger duplicate reads or session creation.
+    if (!initializationPromise) {
+      initializationPromise = Promise.resolve()
+        .then(initializeOnce)
+        .finally(() => {
+          initializationPromise = undefined;
+        });
+    }
+
+    return initializationPromise;
   }
 
   async function saveConversation(next: StoredConversationMessage[]): Promise<void> {
