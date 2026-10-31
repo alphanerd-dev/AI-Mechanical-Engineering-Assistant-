@@ -741,13 +741,13 @@ test("existing session restore outage preserves identity and does not start a re
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
   const diagnostics = { injectedFailures: 0, pageErrors: [], unexpectedServerErrors: [] };
-  let expectedRestoreSessionId: string | undefined;
+  let expectedRestoreSessionId;
 
   page.on("pageerror", (error) => diagnostics.pageErrors.push(String(error.message).slice(0, 500)));
   page.on("response", (response) => {
     if (response.status() >= 500) {
       let pathname = "/";
-      let responseSessionId: string | null = null;
+      let responseSessionId = null;
       try {
         const responseUrl = new URL(response.url());
         pathname = responseUrl.pathname;
