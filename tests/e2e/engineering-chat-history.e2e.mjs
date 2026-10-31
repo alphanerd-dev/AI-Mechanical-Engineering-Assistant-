@@ -68,6 +68,12 @@ test("streamed engineering chat restores after refresh and recovers a missing br
     await expect(userMessage).toBeVisible({ timeout: 30_000 });
     await expect(assistantMessage).toBeVisible({ timeout: 90_000 });
     const sessionKey = "engineering-chat-session:" + projectId;
+    // The streaming bubble can render before the async history adapter finishes its
+    // initial session lookup/create and writes the ID to localStorage.
+    await expect.poll(
+      () => page.evaluate((key) => window.localStorage.getItem(key), sessionKey),
+      { timeout: 30_000, message: "chat history adapter should finish initializing its durable session" },
+    ).toMatch(/^engineering-chat-/);
     const originalSessionId = await page.evaluate((key) => window.localStorage.getItem(key), sessionKey);
     expect(originalSessionId).toMatch(/^engineering-chat-/);
 
