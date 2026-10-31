@@ -181,11 +181,13 @@ function createEngineeringChatHistoryAdapter(
 
       let body: SessionResponse | undefined;
       let expectedSessionId: string | undefined;
-      const isSavedChatId = typeof savedId === "string" && savedId.startsWith("engineering-chat-");
-      if (isSavedChatId) {
-        state.sessionId = savedId;
-        expectedSessionId = savedId;
-        body = await readSession(savedId);
+      const savedChatId = typeof savedId === "string" && savedId.startsWith("engineering-chat-")
+        ? savedId
+        : undefined;
+      if (savedChatId) {
+        state.sessionId = savedChatId;
+        expectedSessionId = savedChatId;
+        body = await readSession(savedChatId);
       }
 
       // Recover server-side if the browser identity was cleared, blocked, or stale.
@@ -199,7 +201,7 @@ function createEngineeringChatHistoryAdapter(
       }
 
       if (!body) {
-        const newSessionId = isSavedChatId && savedId ? savedId : createSessionId();
+        const newSessionId = savedChatId ?? createSessionId();
         state.sessionId = newSessionId;
         expectedSessionId = newSessionId;
         body = await createSession(newSessionId);
