@@ -74,6 +74,33 @@ describe("InMemoryEngineeringIntentSessionStore", () => {
     expect(await store.get("session-a", "project-2")).toBeUndefined();
   });
 
+  it("finds the most recently updated chat session without returning task sessions or another project's history", async () => {
+    const store = new InMemoryEngineeringIntentSessionStore();
+    const olderChat = createEmptySession("engineering-chat-older", "project-1");
+    olderChat.interpretation = interpretation;
+    olderChat.updatedAt = "2026-10-31T10:00:00.000Z";
+    const newerChat = createEmptySession("engineering-chat-newer", "project-1");
+    newerChat.interpretation = interpretation;
+    newerChat.updatedAt = "2026-10-31T11:00:00.000Z";
+    const newerTask = createEmptySession("intent-session-task", "project-1");
+    newerTask.interpretation = interpretation;
+    newerTask.updatedAt = "2026-10-31T12:00:00.000Z";
+    const otherProjectChat = createEmptySession("engineering-chat-other-project", "project-2");
+    otherProjectChat.interpretation = interpretation;
+    otherProjectChat.updatedAt = "2026-10-31T13:00:00.000Z";
+
+    await store.save(olderChat);
+    await store.save(newerChat);
+    await store.save(newerTask);
+    await store.save(otherProjectChat);
+
+    expect(await store.getLatestChatSession("project-1")).toMatchObject({
+      sessionId: "engineering-chat-newer",
+      projectId: "project-1",
+    });
+    expect(await store.getLatestChatSession("project-3")).toBeUndefined();
+  });
+
   it("rejects invalid session identity", async () => {
     const store = new InMemoryEngineeringIntentSessionStore();
     await expect(store.save({

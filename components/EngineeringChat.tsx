@@ -86,8 +86,8 @@ function createEngineeringChatHistoryAdapter(
   let queue: Promise<void> = Promise.resolve();
   const api = "/api/engineering/intent";
 
-  async function readSession(): Promise<SessionResponse> {
-    const query = new URLSearchParams({ projectId, sessionId: state.sessionId! });
+  async function readSession(sessionId: string): Promise<SessionResponse | undefined> {
+    const query = new URLSearchParams({ projectId, sessionId });
     const response = await fetch(api + "?" + query.toString(), {
       method: "GET",
       headers: { accept: "application/json" },
@@ -95,24 +95,57 @@ function createEngineeringChatHistoryAdapter(
     });
     const body: unknown = await response.json().catch(() => ({}));
 
-    if (response.status === 404) {
-      const created = await fetch(api, {
-        method: "PUT",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({
-          projectId,
-          sessionId: state.sessionId,
-          expectedRevision: null,
-          conversation: [],
-        }),
-      });
-      const createdBody: unknown = await created.json().catch(() => ({}));
-      if (!created.ok) throw new Error(responseError(createdBody, "Could not initialize durable chat history."));
-      return createdBody as SessionResponse;
-    }
-
+    if (response.status === 404) return undefined;
     if (!response.ok) throw new Error(responseError(body, "Could not restore durable chat history."));
     return body as SessionResponse;
+  }
+
+  async function readLatestChatSession(): Promise<SessionResponse | undefined> {
+    const query = new URLSearchParams({ projectId, latest: "chat" });
+    const response = await fetch(api + "?" + query.toString(), {
+      method: "GET",
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+    const body: unknown = await response.json().catch(() => ({}));
+
+    if (response.status === 404) return undefined;
+    if (!response.ok) throw new Error(responseError(body, "Could not discover the latest saved engineering chat."));
+    return body as SessionResponse;
+  }
+
+  async function createSession(sessionId: string): Promise<SessionResponse> {
+    const response = await fetch(api, {
+      method: "PUT",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        projectId,
+        sessionId,
+        expectedRevision: null,
+        conversation: [],
+      }),
+    });
+    const body: unknown = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(responseError(body, "Could not initialize durable chat history."));
+    return body as SessionResponse;
+  }
+
+  function assertSessionResponse(body: unknown, expectedSessionId?: string): asserts body is SessionResponse {
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new Error("The saved engineering chat session has an unsupported shape.");
+    }
+    const session = body as Partial<SessionResponse>;
+    if (
+      session.projectId !== projectId ||
+      typeof session.sessionId !== "string" ||
+      !session.sessionId.startsWith("engineering-chat-") ||
+      (expectedSessionId !== undefined && session.sessionId !== expectedSessionId) ||
+      !Number.isInteger(session.snapshotRevision) ||
+      (session.snapshotRevision ?? 0) < 1 ||
+      !Array.isArray(session.conversation)
+    ) {
+      throw new Error("The saved engineering chat session has an unsupported shape.");
+    }
   }
 
   async function initialize(): Promise<void> {
@@ -120,43 +153,70 @@ function createEngineeringChatHistoryAdapter(
     try {
       if (typeof window === "undefined") throw new Error("Chat history can only be initialized in the browser.");
       const key = "engineering-chat-session:" + projectId;
-      let savedId: string | null;
+      let savedId: string | null = null;
       try {
         savedId = window.localStorage.getItem(key);
       } catch {
-        throw new Error("Browser local storage is blocked; durable chat identity cannot be retained.");
-      }
-
-      state.sessionId = savedId || createSessionId();
-      if (!savedId) {
-        try {
-          window.localStorage.setItem(key, state.sessionId);
-        } catch {
-          state.sessionId = undefined;
-          throw new Error("Browser local storage is blocked; no chat session was created.");
-        }
+        // Registered project history is server-backed. Local storage is only a fast
+        // identity hint; the server can recover the latest chat session if it is blocked.
       }
 
       if (projectId === "demo") {
-        state.conversation = loadDemoConversation(window.localStorage, state.sessionId);
+        const demoSessionId = savedId || createSessionId();
+        state.sessionId = demoSessionId;
+        if (!savedId) {
+          try {
+            window.localStorage.setItem(key, demoSessionId);
+          } catch {
+            state.sessionId = undefined;
+            throw new Error("Browser local storage is blocked; local demo history cannot be retained.");
+          }
+        }
+        state.conversation = loadDemoConversation(window.localStorage, demoSessionId);
         state.revision = 1;
         state.initialized = true;
         onError(undefined);
         return;
       }
 
-      const body = await readSession();
-      if (
-        body.projectId !== projectId ||
-        body.sessionId !== state.sessionId ||
-        !Number.isInteger(body.snapshotRevision) ||
-        body.snapshotRevision < 1 ||
-        !Array.isArray(body.conversation)
-      ) {
-        throw new Error("The saved engineering chat session has an unsupported shape.");
+      let body: SessionResponse | undefined;
+      let expectedSessionId: string | undefined;
+      const isSavedChatId = typeof savedId === "string" && savedId.startsWith("engineering-chat-");
+      if (isSavedChatId) {
+        state.sessionId = savedId;
+        expectedSessionId = savedId;
+        body = await readSession(savedId);
       }
+
+      // Recover server-side if the browser identity was cleared, blocked, or stale.
+      // The API only returns sessions with the engineering-chat- prefix, never task sessions.
+      if (!body) {
+        expectedSessionId = undefined;
+        body = await readLatestChatSession();
+        if (body && typeof body.sessionId === "string") {
+          state.sessionId = body.sessionId;
+        }
+      }
+
+      if (!body) {
+        state.sessionId = isSavedChatId && savedId ? savedId : createSessionId();
+        expectedSessionId = state.sessionId;
+        body = await createSession(state.sessionId);
+      }
+
+      assertSessionResponse(body, expectedSessionId);
+      state.sessionId = body.sessionId;
       state.revision = body.snapshotRevision;
       state.conversation = body.conversation;
+
+      // Keep the fast path when storage is available; failure is recoverable via
+      // readLatestChatSession on the next page load.
+      try {
+        window.localStorage.setItem(key, state.sessionId);
+      } catch {
+        // Intentionally non-fatal for registered projects.
+      }
+
       state.initialized = true;
       onError(undefined);
     } catch (error) {
