@@ -2,7 +2,9 @@ import type { EngineeringIntentDecision, EngineeringIntentInterpretation } from 
 
 export const ENGINEERING_INTENT_SESSION_SCHEMA_VERSION = 1 as const;
 export const MAX_CONVERSATION_MESSAGES = 200;
-export const MAX_MESSAGE_TEXT_LENGTH = 8000;
+/** Max characters for one conversation message text field.
+ * Chat history stores assistant-ui format-encoded JSON here; keep headroom above plain intent text. */
+export const MAX_MESSAGE_TEXT_LENGTH = 64_000;
 
 export type ConversationRole = "engineer" | "assistant";
 
@@ -36,9 +38,12 @@ export class EngineeringIntentSessionConflictError extends Error {
 
 export interface EngineeringIntentSessionStore {
   get(sessionId: string, projectId: string): Promise<EngineeringIntentSession | undefined>;
+  getLatestChatSession(projectId: string): Promise<EngineeringIntentSession | undefined>;
   save(session: EngineeringIntentSession, options?: SessionSaveOptions): Promise<void>;
   delete(sessionId: string, projectId: string): Promise<void>;
 }
+
+const ENGINEERING_CHAT_SESSION_ID_PREFIX = "engineering-chat-";
 
 export class EngineeringIntentSessionPersistenceError extends Error {
   constructor(operation: "read" | "write" | "delete") {
@@ -186,6 +191,9 @@ type QueryResult = { data: unknown; error: unknown | null };
 interface SupabaseQueryBuilder extends PromiseLike<MutationResult> {
   select(columns: string): SupabaseQueryBuilder;
   eq(column: string, value: unknown): SupabaseQueryBuilder;
+  like(column: string, pattern: string): SupabaseQueryBuilder;
+  order(column: string, options?: { ascending?: boolean }): SupabaseQueryBuilder;
+  limit(count: number): SupabaseQueryBuilder;
   maybeSingle(): PromiseLike<QueryResult>;
   upsert(values: Record<string, unknown>, options: { onConflict: string }): SupabaseQueryBuilder;
   insert(values: Record<string, unknown>): SupabaseQueryBuilder;
@@ -282,6 +290,33 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
     }
   }
 
+  async getLatestChatSession(projectId: string): Promise<EngineeringIntentSession | undefined> {
+    let result: QueryResult;
+    try {
+      result = await this.table()
+        .select("project_id,session_id,interpretation,conversation,schema_version,snapshot_revision,updated_at")
+        .eq("project_id", projectId)
+        .like("session_id", `${ENGINEERING_CHAT_SESSION_ID_PREFIX}%`)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    } catch {
+      throw new EngineeringIntentSessionPersistenceError("read");
+    }
+    if (result.error) throw new EngineeringIntentSessionPersistenceError("read");
+    if (result.data === null || result.data === undefined) return undefined;
+
+    const row = result.data as Partial<SessionRow>;
+    if (typeof row.session_id !== "string" || !row.session_id.startsWith(ENGINEERING_CHAT_SESSION_ID_PREFIX)) {
+      throw new Error("Stored engineering chat session is invalid.");
+    }
+    try {
+      return rowToSession(row, row.session_id, projectId);
+    } catch {
+      throw new Error("Stored engineering chat session is invalid.");
+    }
+  }
+
   async save(
     session: EngineeringIntentSession,
     options?: SessionSaveOptions,
@@ -373,6 +408,16 @@ export class InMemoryEngineeringIntentSessionStore implements EngineeringIntentS
   async get(sessionId: string, projectId: string): Promise<EngineeringIntentSession | undefined> {
     const session = this.sessions.get(this.key(sessionId, projectId));
     return session ? cloneSession(session) : undefined;
+  }
+
+  async getLatestChatSession(projectId: string): Promise<EngineeringIntentSession | undefined> {
+    const latest = [...this.sessions.values()]
+      .filter((session) =>
+        session.projectId === projectId &&
+        session.sessionId.startsWith(ENGINEERING_CHAT_SESSION_ID_PREFIX)
+      )
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
+    return latest ? cloneSession(latest) : undefined;
   }
 
   async save(

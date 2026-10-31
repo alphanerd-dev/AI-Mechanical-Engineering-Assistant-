@@ -741,13 +741,21 @@ test("existing session restore outage preserves identity and does not start a re
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
   const diagnostics = { injectedFailures: 0, pageErrors: [], unexpectedServerErrors: [] };
+  let expectedRestoreSessionId;
 
   page.on("pageerror", (error) => diagnostics.pageErrors.push(String(error.message).slice(0, 500)));
   page.on("response", (response) => {
     if (response.status() >= 500) {
       let pathname = "/";
-      try { pathname = new URL(response.url()).pathname; } catch {}
-      const expectedInjectedFailure = pathname === "/api/engineering/intent" && response.request().method() === "GET";
+      let responseSessionId = null;
+      try {
+        const responseUrl = new URL(response.url());
+        pathname = responseUrl.pathname;
+        responseSessionId = responseUrl.searchParams.get("sessionId");
+      } catch {}
+      const expectedInjectedFailure = pathname === "/api/engineering/intent"
+        && response.request().method() === "GET"
+        && responseSessionId === expectedRestoreSessionId;
       if (!expectedInjectedFailure) diagnostics.unexpectedServerErrors.push({ status: response.status(), pathname });
     }
   });
@@ -772,9 +780,15 @@ test("existing session restore outage preserves identity and does not start a re
     const sessionKey = "engineering-intent-session:" + projectId;
     const originalSessionId = await page.evaluate((key) => sessionStorage.getItem(key), sessionKey);
     expect(originalSessionId, "initial session identity must be persisted").toBeTruthy();
+    expectedRestoreSessionId = originalSessionId ?? undefined;
 
+    // The page also mounts conversational chat, which uses this same API route.
+    // Inject the outage only for the Engineering Intent workspace session.
     await page.route("**/api/engineering/intent**", async (route) => {
-      if (route.request().method() === "GET") {
+      const requestUrl = new URL(route.request().url());
+      const isWorkspaceSessionRestore = route.request().method() === "GET"
+        && requestUrl.searchParams.get("sessionId") === originalSessionId;
+      if (isWorkspaceSessionRestore) {
         diagnostics.injectedFailures += 1;
         await route.fulfill({
           status: 503,
