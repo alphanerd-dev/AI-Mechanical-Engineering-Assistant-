@@ -2,7 +2,9 @@ import type { EngineeringIntentDecision, EngineeringIntentInterpretation } from 
 
 export const ENGINEERING_INTENT_SESSION_SCHEMA_VERSION = 1 as const;
 export const MAX_CONVERSATION_MESSAGES = 200;
-export const MAX_MESSAGE_TEXT_LENGTH = 8000;
+/** Max characters for one conversation message text field.
+ * Chat history stores assistant-ui format-encoded JSON here; keep headroom above plain intent text. */
+export const MAX_MESSAGE_TEXT_LENGTH = 64_000;
 
 export type ConversationRole = "engineer" | "assistant";
 
