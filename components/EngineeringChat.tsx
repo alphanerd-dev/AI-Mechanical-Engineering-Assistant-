@@ -208,27 +208,6 @@ function createEngineeringChatHistoryAdapter(
     return run;
   }
 
-  function encodeRow(
-    format: {
-      getId: (message: unknown) => string;
-      format: string;
-      encode: (item: unknown) => unknown;
-    },
-    item: { message: unknown; parentId: string | null },
-  ): string {
-    const row = {
-      id: format.getId(item.message),
-      parent_id: item.parentId,
-      format: format.format,
-      content: format.encode(item),
-    };
-    const encoded = JSON.stringify(row);
-    if (encoded.length > MAX_ENCODED_MESSAGE_CHARS) {
-      throw new Error("This message is too large to store in the engineering session.");
-    }
-    return encoded;
-  }
-
   return {
     scopeId: projectId,
     async load() {
@@ -264,7 +243,16 @@ function createEngineeringChatHistoryAdapter(
         await persistMutation(async () => {
           await initialize();
           const role = getSupportedRole(item.message);
-          const encoded = encodeRow(format, item);
+          const row = {
+            id: format.getId(item.message),
+            parent_id: item.parentId,
+            format: format.format,
+            content: format.encode(item),
+          };
+          const encoded = JSON.stringify(row);
+          if (encoded.length > MAX_ENCODED_MESSAGE_CHARS) {
+            throw new Error("This message is too large to store in the engineering session.");
+          }
           const next = [...state.conversation, {
             role: role === "user" ? "engineer" as const : "assistant" as const,
             text: encoded,
@@ -291,7 +279,16 @@ function createEngineeringChatHistoryAdapter(
             }
           });
           const role = getSupportedRole(item.message);
-          const encoded = encodeRow(format, item);
+          const row = {
+            id,
+            parent_id: item.parentId,
+            format: format.format,
+            content: format.encode(item),
+          };
+          const encoded = JSON.stringify(row);
+          if (encoded.length > MAX_ENCODED_MESSAGE_CHARS) {
+            throw new Error("This message is too large to store in the engineering session.");
+          }
           const replacement: StoredConversationMessage = {
             role: role === "user" ? "engineer" : "assistant",
             text: encoded,
