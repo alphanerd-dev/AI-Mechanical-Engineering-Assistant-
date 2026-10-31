@@ -62,10 +62,11 @@ test("streamed engineering chat restores after refresh and recovers a missing br
     await composer.fill(prompt);
     await page.getByRole("button", { name: "Send ↑" }).click();
 
-    const userBubble = page.locator(".userMessage .userBubble").filter({ hasText: prompt });
-    const assistantBubble = page.locator(".assistantMessage .assistantBubble").last();
-    await expect(userBubble).toBeVisible({ timeout: 30_000 });
-    await expect(assistantBubble).toContainText("CHAT_HISTORY_E2E", { timeout: 90_000 });
+    const chatPanel = page.locator('section[aria-labelledby="engineering-assistant-title"]');
+    const userMessage = chatPanel.getByText(prompt, { exact: true });
+    const assistantMessage = chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true });
+    await expect(userMessage).toBeVisible({ timeout: 30_000 });
+    await expect(assistantMessage).toBeVisible({ timeout: 90_000 });
     const sessionKey = "engineering-chat-session:" + projectId;
     const originalSessionId = await page.evaluate((key) => window.localStorage.getItem(key), sessionKey);
     expect(originalSessionId).toMatch(/^engineering-chat-/);
@@ -88,8 +89,8 @@ test("streamed engineering chat restores after refresh and recovers a missing br
 
     // First prove ordinary reload restores from the saved browser identity.
     await page.reload();
-    await expect(userBubble).toBeVisible({ timeout: 30_000 });
-    await expect(assistantBubble).toContainText("CHAT_HISTORY_E2E", { timeout: 30_000 });
+    await expect(userMessage).toBeVisible({ timeout: 30_000 });
+    await expect(assistantMessage).toBeVisible({ timeout: 30_000 });
 
     // A stale browser identity must fall back to the newest saved chat, not create an empty thread.
     const staleSessionId = "engineering-chat-stale-" + suffix;
@@ -98,9 +99,9 @@ test("streamed engineering chat restores after refresh and recovers a missing br
       value: staleSessionId,
     });
     await page.reload();
-    await expect(page.locator(".userMessage .userBubble").filter({ hasText: prompt })).toBeVisible({ timeout: 30_000 });
-    let restoredAssistant = page.locator(".assistantMessage .assistantBubble").last();
-    await expect(restoredAssistant).toContainText("CHAT_HISTORY_E2E", { timeout: 30_000 });
+    await expect(userMessage).toBeVisible({ timeout: 30_000 });
+    let restoredAssistant = chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true });
+    await expect(restoredAssistant).toBeVisible({ timeout: 30_000 });
 
     let recoveredSessionId = await page.evaluate((key) => window.localStorage.getItem(key), sessionKey);
     expect(recoveredSessionId, "a stale browser identity should be replaced with the saved server session").toBe(originalSessionId);
@@ -108,9 +109,9 @@ test("streamed engineering chat restores after refresh and recovers a missing br
     // Storage eviction is also recoverable; the session ID is rehydrated from the server.
     await page.evaluate((key) => window.localStorage.removeItem(key), sessionKey);
     await page.reload();
-    await expect(page.locator(".userMessage .userBubble").filter({ hasText: prompt })).toBeVisible({ timeout: 30_000 });
-    restoredAssistant = page.locator(".assistantMessage .assistantBubble").last();
-    await expect(restoredAssistant).toContainText("CHAT_HISTORY_E2E", { timeout: 30_000 });
+    await expect(userMessage).toBeVisible({ timeout: 30_000 });
+    restoredAssistant = chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true });
+    await expect(restoredAssistant).toBeVisible({ timeout: 30_000 });
 
     recoveredSessionId = await page.evaluate((key) => window.localStorage.getItem(key), sessionKey);
     expect(recoveredSessionId, "latest server-side chat lookup should restore the browser session key").toBe(originalSessionId);
