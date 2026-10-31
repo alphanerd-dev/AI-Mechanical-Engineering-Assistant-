@@ -1,18 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   AssistantRuntimeProvider,
   AuiIf,
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/ai-sdk";
 import { DefaultChatTransport } from "ai";
 import type { ThreadHistoryAdapter } from "@assistant-ui/react";
 import styles from "./EngineeringChat.module.css";
 import { loadDemoConversation, saveDemoConversation } from "../src/chat/demo-history.js";
+import { createProjectThreadListAdapter } from "../src/chat/project-thread-list.js";
 
 type StoredConversationMessage = {
   role: "engineer" | "assistant";
@@ -405,17 +407,31 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
     }),
     [projectId],
   );
-  const runtime = useChatRuntime({
-    transport,
-    adapters: { history },
-    joinStrategy: "none",
-    onError: (error) => {
-      const detail = error instanceof Error && error.message.trim()
-        ? error.message.trim().slice(0, 220)
-        : "Unknown streaming transport error.";
-      setChatError("Assistant request failed: " + detail);
-    },
-    onFinish: () => setChatError(undefined),
+  // assistant-ui only hydrates external history after the active thread has a
+  // remote ID. This workspace has one durable conversation per project.
+  const threadListAdapter = useMemo(
+    () => createProjectThreadListAdapter(projectId),
+    [projectId],
+  );
+  const runtimeHook = useCallback(function useProjectChatRuntime() {
+    return useChatRuntime({
+      transport,
+      scopeId: projectId,
+      adapters: { history },
+      joinStrategy: "none",
+      onError: (error) => {
+        const detail = error instanceof Error && error.message.trim()
+          ? error.message.trim().slice(0, 220)
+          : "Unknown streaming transport error.";
+        setChatError("Assistant request failed: " + detail);
+      },
+      onFinish: () => setChatError(undefined),
+    });
+  }, [history, projectId, transport]);
+  const runtime = useRemoteThreadListRuntime({
+    runtimeHook,
+    adapter: threadListAdapter,
+    threadId: projectId,
   });
 
   return (
