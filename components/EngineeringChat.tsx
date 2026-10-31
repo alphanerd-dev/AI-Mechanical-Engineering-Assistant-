@@ -28,6 +28,8 @@ type SessionResponse = {
 };
 
 const HISTORY_LIMIT = 200;
+/** Keep under server MAX_MESSAGE_TEXT_LENGTH (64_000) with margin. */
+const MAX_ENCODED_MESSAGE_CHARS = 60_000;
 
 function responseError(body: unknown, fallback: string): string {
   if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
@@ -206,6 +208,27 @@ function createEngineeringChatHistoryAdapter(
     return run;
   }
 
+  function encodeRow(
+    format: {
+      getId: (message: unknown) => string;
+      format: string;
+      encode: (item: unknown) => unknown;
+    },
+    item: { message: unknown; parentId: string | null },
+  ): string {
+    const row = {
+      id: format.getId(item.message),
+      parent_id: item.parentId,
+      format: format.format,
+      content: format.encode(item),
+    };
+    const encoded = JSON.stringify(row);
+    if (encoded.length > MAX_ENCODED_MESSAGE_CHARS) {
+      throw new Error("This message is too large to store in the engineering session.");
+    }
+    return encoded;
+  }
+
   return {
     scopeId: projectId,
     async load() {
@@ -215,31 +238,33 @@ function createEngineeringChatHistoryAdapter(
     withFormat: (format) => ({
       async load() {
         await initialize();
-        try {
-          return {
-            messages: state.conversation.map((entry) => {
-              const row = JSON.parse(entry.text) as Parameters<typeof format.decode>[0];
-              return format.decode(row);
-            }),
-          };
-        } catch {
+        const messages = [];
+        let skipped = 0;
+        for (const entry of state.conversation) {
+          try {
+            const row = JSON.parse(entry.text) as Parameters<typeof format.decode>[0];
+            messages.push(format.decode(row));
+          } catch {
+            skipped += 1;
+          }
+        }
+        if (skipped > 0 && messages.length === 0) {
           const message = "Saved chat history could not be decoded; it was not overwritten.";
           onError(message);
           throw new Error(message);
         }
+        if (skipped > 0) {
+          onError(`Restored ${messages.length} message(s); skipped ${skipped} unreadable entr${skipped === 1 ? "y" : "ies"}.`);
+        } else {
+          onError(undefined);
+        }
+        return { messages };
       },
       async append(item) {
         await persistMutation(async () => {
           await initialize();
           const role = getSupportedRole(item.message);
-          const row = {
-            id: format.getId(item.message),
-            parent_id: item.parentId,
-            format: format.format,
-            content: format.encode(item),
-          };
-          const encoded = JSON.stringify(row);
-          if (encoded.length > 7_900) throw new Error("This message is too large to store in the engineering session.");
+          const encoded = encodeRow(format, item);
           const next = [...state.conversation, {
             role: role === "user" ? "engineer" as const : "assistant" as const,
             text: encoded,
@@ -266,16 +291,7 @@ function createEngineeringChatHistoryAdapter(
             }
           });
           const role = getSupportedRole(item.message);
-          const row = {
-            id,
-            parent_id: item.parentId,
-            format: format.format,
-            content: format.encode(item),
-          };
-          const encoded = JSON.stringify(row);
-          if (encoded.length > 7_900) {
-            throw new Error("This message is too large to store in the engineering session.");
-          }
+          const encoded = encodeRow(format, item);
           const replacement: StoredConversationMessage = {
             role: role === "user" ? "engineer" : "assistant",
             text: encoded,
@@ -405,7 +421,11 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
                   rows={3}
                 />
                 <div className={styles.composerBottom}>
-                  <span>{projectId === "demo" ? "Text only · Local demo history" : "Text only · Saved to project history"}</span>
+                  <span>
+                    {projectId === "demo"
+                      ? "Text only · Local demo history"
+                      : "Text only · Project history (survives refresh)"}
+                  </span>
                   <ComposerPrimitive.Send className={styles.sendButton}>Send ↑</ComposerPrimitive.Send>
                 </div>
               </ComposerPrimitive.Root>
