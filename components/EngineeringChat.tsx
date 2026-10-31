@@ -199,9 +199,10 @@ function createEngineeringChatHistoryAdapter(
       }
 
       if (!body) {
-        state.sessionId = isSavedChatId && savedId ? savedId : createSessionId();
-        expectedSessionId = state.sessionId;
-        body = await createSession(state.sessionId);
+        const newSessionId = isSavedChatId && savedId ? savedId : createSessionId();
+        state.sessionId = newSessionId;
+        expectedSessionId = newSessionId;
+        body = await createSession(newSessionId);
       }
 
       assertSessionResponse(body, expectedSessionId);
