@@ -8,6 +8,8 @@ import {
   resolveEngineeringChatTimeout,
 } from "../../../../../../src/chat/request";
 import { validateShaftDesignWorkspaceState } from "../../../../../../src/workspace/shaft-design-state";
+import { validateEngineeringWorkspaceSnapshot } from "../../../../../../src/workspace/validation";
+import type { EngineeringWorkspaceSnapshot } from "../../../../../../src/workspace/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -39,10 +41,18 @@ async function loadPersistedShaftDesignContext(projectId: string, demoProject: b
     .maybeSingle();
   if (error) throw new Error("The persisted engineering design state could not be loaded.");
   if (!data) return { available: false, stale: false };
-  const snapshot = data.snapshot as { shaftDesign?: unknown; artifacts?: Array<{ id?: string }> };
+  const snapshot = data.snapshot as EngineeringWorkspaceSnapshot;
+  try {
+    validateEngineeringWorkspaceSnapshot(snapshot);
+  } catch {
+    throw new Error("The persisted engineering workspace failed schema or artifact validation.");
+  }
+  if (snapshot.project.id !== projectId || snapshot.revision !== Number(data.revision)) {
+    throw new Error("The persisted engineering workspace identity or revision is inconsistent.");
+  }
   if (!snapshot.shaftDesign) return { available: false, stale: false, workspaceRevision: Number(data.revision) };
   const validationErrors = validateShaftDesignWorkspaceState(snapshot.shaftDesign);
-  const state = snapshot.shaftDesign as Record<string, unknown>;
+  const state = snapshot.shaftDesign as unknown as Record<string, unknown>;
   const artifactId = typeof state.artifactId === "string" ? state.artifactId : "";
   const hasArtifact = (snapshot.artifacts ?? []).some((artifact) => artifact.id === artifactId);
   if (validationErrors.length || !hasArtifact) {
@@ -60,7 +70,11 @@ async function loadPersistedShaftDesignContext(projectId: string, demoProject: b
 
 function systemInstructionsWithDesignState(context: PersistedShaftDesignContext): string {
   const stateBlock = context.available
-    ? JSON.stringify(context.state)
+    ? JSON.stringify(context.state).replace(/[<>&]/g, (character) => {
+        if (character === "<") return "\\u003c";
+        if (character === ">") return "\\u003e";
+        return "\\u0026";
+      })
     : "No durable shaft design state has been saved for this project.";
   const freshness = context.stale
     ? "The saved shaft design is STALE relative to the current project workspace revision. Treat it as historical context only until recalculated."
