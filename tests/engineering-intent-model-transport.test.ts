@@ -9,7 +9,7 @@ const modelOutput={
   {name:"powerKw",value:5,unit:"kW",source:"USER",sourceText:"5 kW"},
   {name:"speedRpm",value:1500,unit:"rpm",source:"USER",sourceText:"1500 rpm"}
  ],
- missingInputs:["bending moment","allowable shear stress","proposed shaft diameter"],
+ missingInputs:["bearing span","gear position","gear pitch diameter","gear pressure angle","material grade","yield strength Sy","ultimate tensile strength Sut","design factor"],
  requestedCapabilities:["ENGINEERING.COMPLETE_SHAFT"],confidence:"HIGH",ambiguity:"MEDIUM",assumptions:[]
 };
 function request():ModelIntentGenerationRequest{return {rawIntent,context:{projectId:"project-1",projectStage:"DESIGN",knownInputs:{material:"steel",powerKw:5,nested:{secret:"drop"}},recentArtifacts:["artifact-secret"]},instructions:"Return JSON only."};}
@@ -47,7 +47,7 @@ describe("OpenAI-compatible engineering intent transport",()=>{
  it("uses validated model interpretation when configured",async()=>{
   const interpreter=createEngineeringIntentInterpreterFromEnvironment({ENGINEERING_INTENT_MODEL_URL:"https://models.example/v1/chat/completions",ENGINEERING_INTENT_MODEL_NAME:"intent-model",ENGINEERING_INTENT_MODEL_API_KEY:"server-token"},async()=>responseFor(modelOutput));
   const output=await interpreter.interpret(rawIntent,{projectId:"project-1"});
-  expect(output.interpretationSource).toBe("MODEL");expect(output.extractedInputs).toMatchObject({powerKw:5,speedRpm:1500});expect(output.missingInputs).toContain("bending moment");
+  expect(output.interpretationSource).toBe("MODEL");expect(output.extractedInputs).toMatchObject({powerKw:5,speedRpm:1500});expect(output.missingInputs).toContain("bearing span");
  });
  it("falls back to deterministic interpretation on transport or provenance failures",async()=>{
   const unavailable=createEngineeringIntentInterpreterFromEnvironment({ENGINEERING_INTENT_MODEL_URL:"https://models.example/v1/chat/completions",ENGINEERING_INTENT_MODEL_NAME:"intent-model"},async()=>{throw new Error("network down");});
