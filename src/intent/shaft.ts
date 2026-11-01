@@ -133,7 +133,7 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
       pitchDiameterMm !== undefined || pressureAngleDeg !== undefined || materialGrade !== undefined ||
       yieldStrengthMpa !== undefined || ultimateTensileStrengthMpa !== undefined || designFactor !== undefined;
     const hasLegacyModeSignal = !hasGeometryInputs && (bendingMomentNm !== undefined ||
-      allowableShearStressMpa !== undefined || proposedDiameterMm !== undefined || candidateDiameterMm !== undefined);
+      allowableShearStressMpa !== undefined || proposedDiameterMm !== undefined);
     const hasCompleteLegacyInputs = hasLegacyModeSignal && bendingMomentNm !== undefined &&
       allowableShearStressMpa !== undefined && (proposedDiameterMm !== undefined || candidateDiameterMm !== undefined);
     const missingInputs: string[] = [];
