@@ -32,8 +32,11 @@ export class ShaftEngineeringCompletionUnit implements EngineeringCompletionUnit
 
   getRequiredInputs(inputs:Record<string,number|string>){
     const usesGeometryBasedSizing =
-      typeof inputs.bearingSpanMm==="number" &&
-      typeof inputs.pitchDiameterMm==="number";
+      typeof inputs.bearingSpanMm==="number" ||
+      typeof inputs.pitchDiameterMm==="number" ||
+      typeof inputs.pressureAngleDeg==="number" ||
+      typeof inputs.materialGrade==="string" ||
+      typeof inputs.yieldStrengthMpa==="number";
     return usesGeometryBasedSizing ? STATIC_REQUIRED_INPUTS : LEGACY_REQUIRED_INPUTS;
   }
 
