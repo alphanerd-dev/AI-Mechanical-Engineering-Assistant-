@@ -63,7 +63,7 @@ describe("engineering chat request validation", () => {
       parts: [{ type: "text", text: "Turn " + index }],
     })));
     expect(history.originalMessageCount).toBe(41);
-    expect(history.messages).toHaveLength(40);
+    expect(history.messages).toHaveLength(39);
     expect(history.droppedMessageCount).toBeGreaterThanOrEqual(1);
     expect(history.messages.at(-1)).toEqual({ role: "user", content: "Turn 40" });
     expect(history.messages[0]?.role).toBe("user");
@@ -76,12 +76,12 @@ describe("engineering chat request validation", () => {
       { role: "assistant", parts: [{ type: "text", text: long }] },
       { role: "user", parts: [{ type: "text", text: "Change material to AISI 4140. " + long }] },
       { role: "assistant", parts: [{ type: "text", text: long }] },
-      { role: "user", parts: [{ type: "text", text: "Correct power to 15 kW." }] },
+      { role: "user", parts: [{ type: "text", text: "Correct power to 15 kW. " + "E".repeat(5_000) }] },
     ]);
     expect(history.retainedCharacterCount).toBeLessThanOrEqual(24_000);
     expect(history.droppedMessageCount).toBeGreaterThan(0);
     expect(history.messages[0]?.role).toBe("user");
-    expect(history.messages.at(-1)).toEqual({ role: "user", content: "Correct power to 15 kW." });
+    expect(history.messages.at(-1)?.content).toBe("Correct power to 15 kW. " + "E".repeat(5_000));
   });
 
   it("trims an oversized older assistant response but preserves the latest user request", () => {
