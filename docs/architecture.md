@@ -54,7 +54,9 @@ Model output is untrusted. It cannot supply trusted project ownership, provider 
 
 ## Engineering execution boundary
 
-The Engineering Core requests typed capabilities such as shaft torque, bounded cylindrical CAD or static structural analysis, not arbitrary vendor commands.
+The Engineering Core requests typed capabilities such as shaft torque, the pilot solid-shaft static-yield calculation, bounded cylindrical CAD or static structural analysis, not arbitrary vendor commands.
+
+The pilot shaft calculation is implemented as a deterministic TypeScript capability and is persisted through the existing optimistic-revision project workspace. Its versioned state binds exact inputs and results with SHA-256 digests, a validation receipt and an artifact ID. Chat loads this state read-only after project authorization and checks the digest, deterministic recomputation and artifact link; chat does not run or mutate the calculation. The capability remains preliminary static yield only.
 
 Provider adapters translate typed requests into provider calls. They do not decide engineering verification or bypass policy. Runtime availability comes from trusted deployment configuration and readiness checks, not user input or untrusted model output.
 
