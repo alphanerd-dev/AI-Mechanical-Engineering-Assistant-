@@ -47,7 +47,7 @@ describe("OpenAI-compatible engineering intent transport",()=>{
   expect(instructions).toContain("gearPositionFromLeftMm");
   expect(instructions).toContain("pitchDiameterMm");
   expect(instructions).toContain("pressureAngleDeg");
-  expect(instructions).toContain("derive bending moment");
+  expect(instructions).toContain("derives bending moment");
   expect(instructions).toContain("Do not map shock/impact service factors");
   expect(instructions).toContain("Never emit torqueNm");
   expect(instructions).toContain("requestedCriterion=ASME_ELLIPTIC");
