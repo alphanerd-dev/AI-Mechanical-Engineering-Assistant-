@@ -43,6 +43,10 @@ export interface ShaftStaticDesignResult {
   torsionalShearStressMpa: number;
   vonMisesStressMpa: number;
   achievedYieldFactorOfSafety: number;
+  principalStress1Mpa: number;
+  principalStress2Mpa: number;
+  maximumShearStressMpa: number;
+  criterion: "ASME_ELLIPTIC_STATIC_YIELD" | "VON_MISES_STATIC_YIELD";
   passesStaticYield: boolean;
   equations: {
     torque: string;
@@ -125,7 +129,19 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
     // Conservative critical-surface combination: axial and bending magnitudes add.
     const combinedNormalStressMpa = axialStressMpa + bendingStressMpa;
     const vonMisesStressMpa = Math.hypot(combinedNormalStressMpa, Math.sqrt(3) * torsionalShearStressMpa);
-    return { axialStressMpa, bendingStressMpa, combinedNormalStressMpa, torsionalShearStressMpa, vonMisesStressMpa };
+    const principalRadiusMpa = Math.hypot(combinedNormalStressMpa / 2, torsionalShearStressMpa);
+    const principalStress1Mpa = combinedNormalStressMpa / 2 + principalRadiusMpa;
+    const principalStress2Mpa = combinedNormalStressMpa / 2 - principalRadiusMpa;
+    return {
+      axialStressMpa,
+      bendingStressMpa,
+      combinedNormalStressMpa,
+      torsionalShearStressMpa,
+      vonMisesStressMpa,
+      principalStress1Mpa,
+      principalStress2Mpa,
+      maximumShearStressMpa: principalRadiusMpa
+    };
   };
 
   // Bracket a feasible diameter and use bisection; axial stress scales with d^-2.
@@ -164,7 +180,8 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
     preferredDiameterMm, candidateDiameterMm, candidateStress.axialStressMpa,
     candidateStress.bendingStressMpa, candidateStress.combinedNormalStressMpa,
     candidateStress.torsionalShearStressMpa, candidateStress.vonMisesStressMpa,
-    achievedYieldFactorOfSafety
+    candidateStress.principalStress1Mpa, candidateStress.principalStress2Mpa,
+    candidateStress.maximumShearStressMpa, achievedYieldFactorOfSafety
   ];
   if (finiteResults.some((value) => !Number.isFinite(value))) {
     throw new Error("The shaft design calculation produced a non-finite result.");
@@ -194,6 +211,12 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
     torsionalShearStressMpa: candidateStress.torsionalShearStressMpa,
     vonMisesStressMpa: candidateStress.vonMisesStressMpa,
     achievedYieldFactorOfSafety,
+    principalStress1Mpa: candidateStress.principalStress1Mpa,
+    principalStress2Mpa: candidateStress.principalStress2Mpa,
+    maximumShearStressMpa: candidateStress.maximumShearStressMpa,
+    criterion: Math.abs(input.axialLoadN) <= 1e-12
+      ? "ASME_ELLIPTIC_STATIC_YIELD"
+      : "VON_MISES_STATIC_YIELD",
     passesStaticYield: candidateDiameterMm >= minimumDiameterMm &&
       candidateStress.vonMisesStressMpa <= allowableVonMisesStressMpa * (1 + 1e-10),
     equations: {
@@ -212,6 +235,9 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
       "Axial and bending normal-stress magnitudes are conservatively added at the critical surface because the axial load direction is not resolved.",
       "Kb and Kts are user-supplied static stress multipliers; they are not fatigue factors and are not inferred from keyway geometry.",
       "The design factor is applied to material yield strength for a von Mises static-yield check.",
+      Math.abs(input.axialLoadN) <= 1e-12
+        ? "With axial force neglected, this equivalent-stress sizing equation is the ASME elliptic static-yield criterion for the stated solid circular shaft model."
+        : "Because axial force is included, the generalized von Mises stress-space check is used rather than the no-axial ASME elliptic rearrangement.",
       "Sut is recorded as material context but is not used by this static-yield criterion; fatigue assessment requires a separate method.",
       "The preferred diameter is selected from this calculation module’s configured preliminary size series, not a complete standards-based shaft, fit or bearing selection."
     ],
