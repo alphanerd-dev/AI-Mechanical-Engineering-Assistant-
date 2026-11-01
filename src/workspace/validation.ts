@@ -28,10 +28,10 @@ export function validateEngineeringWorkspaceSnapshot(snapshot:EngineeringWorkspa
       if(artifactIds.has(artifact.id)) throw new Error("Calculation artifact IDs must be unique within the workspace.");
       artifactIds.add(artifact.id);
     }
-    if(snapshot.shaftDesign && !artifactIds.has(snapshot.shaftDesign.artifactId))
-      throw new Error("Current shaft design state must reference an artifact in the workspace registry.");
   }
   if(snapshot.shaftDesign!==undefined){
+    if(!snapshot.artifacts || !snapshot.artifacts.some((artifact) => artifact.id === snapshot.shaftDesign!.artifactId))
+      throw new Error("Current shaft design state must reference an artifact in the workspace registry.");
     const shaftErrors=validateShaftDesignWorkspaceState(snapshot.shaftDesign);
     if(shaftErrors.length) throw new Error(shaftErrors.join(" "));
     if(snapshot.shaftDesign.workspaceRevision>snapshot.revision)
