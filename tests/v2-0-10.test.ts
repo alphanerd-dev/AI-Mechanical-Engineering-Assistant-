@@ -99,7 +99,7 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
     expect(result.success).toBe(true);
     const report = result.output as unknown as ShaftCompletionTestReport;
     expect(report.status).toBe("WAITING_APPROVAL");
-    expect(report.validation.passed).toBe(true);
+    expect(report.validation?.passed).toBe(true);
     expect(report.decisionMetrics).toEqual(expect.arrayContaining([
       { key: "torqueNm", value: expect.any(Number), unit: "N·m" },
       { key: "tangentialForceN", value: expect.any(Number), unit: "N" },
