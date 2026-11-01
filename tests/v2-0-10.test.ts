@@ -7,6 +7,24 @@ import { SHAFT_STATIC_DESIGN_CAPABILITY, type ShaftStaticDesignResult } from "..
 import { EngineeringVerificationProvider } from "../src/providers/engineering-verification.js";
 import { AuthenticatedIdentity } from "../src/auth/types.js";
 
+type ShaftCompletionTestReport = {
+  status: string;
+  missingInputs: string[];
+  nextAction: string;
+  validation: { passed: boolean } | null;
+  decisionMetrics: Array<{ key: string; value: number | string; unit: string }>;
+  artifacts: Array<{
+    kind: string;
+    validationStatus: string;
+    informationStatus: string;
+    parameters: { output: ShaftStaticDesignResult };
+  }>;
+  evidence: unknown[];
+  approvalRequired: boolean;
+  approvalGranted: boolean;
+  lineage: { evidenceIds: string[] };
+};
+
 function setup() {
   const registry = new CapabilityRegistry();
   registry.registerCatalog([
@@ -65,7 +83,7 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
       input: { projectId: "P-10", powerKw: 12, speedRpm: 1450 }
     });
     expect(result.success).toBe(true);
-    const output = result.output as any;
+    const output = result.output as unknown as ShaftCompletionTestReport;
     expect(output.status).toBe("BLOCKED");
     expect(output.missingInputs[0]).toBe("bearing span");
     expect(output.nextAction).toContain("Bending moment is calculated from the gear forces and bearing geometry");
@@ -79,7 +97,7 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
       input: completeInput("P-10A")
     });
     expect(result.success).toBe(true);
-    const report = result.output as any;
+    const report = result.output as unknown as ShaftCompletionTestReport;
     expect(report.status).toBe("WAITING_APPROVAL");
     expect(report.validation.passed).toBe(true);
     expect(report.decisionMetrics).toEqual(expect.arrayContaining([
@@ -117,7 +135,7 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
       }
     });
     expect(result.success).toBe(true);
-    const report = result.output as any;
+    const report = result.output as unknown as ShaftCompletionTestReport;
     expect(report.status).toBe("WAITING_APPROVAL");
     const calculation = report.artifacts[0].parameters.output as ShaftStaticDesignResult;
     expect(calculation.bendingMomentLocationMm).toBe(200);
@@ -137,7 +155,7 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
       }
     });
     expect(result.success).toBe(true);
-    const report = result.output as any;
+    const report = result.output as unknown as ShaftCompletionTestReport;
     expect(report.status).toBe("WAITING_APPROVAL");
     expect(report.approvalGranted).toBe(false);
     expect(report.evidence).toHaveLength(0);
@@ -151,7 +169,7 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
       input: completeInput("P-10D", 10)
     });
     expect(result.success).toBe(false);
-    const report = result.output as any;
+    const report = result.output as unknown as ShaftCompletionTestReport;
     expect(report.status).toBe("FAILED");
     expect(report.validation.passed).toBe(false);
     expect(report.lineage.evidenceIds).toHaveLength(0);
