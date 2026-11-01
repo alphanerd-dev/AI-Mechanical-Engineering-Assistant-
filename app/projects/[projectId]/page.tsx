@@ -13,7 +13,6 @@ import {
   Clock3,
   DraftingCompass,
   FileText,
-  FolderKanban,
   MessageSquare,
   ShieldCheck,
 } from "lucide-react";
