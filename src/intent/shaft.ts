@@ -132,12 +132,18 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
     const hasGeometryInputs = bearingSpanMm !== undefined || gearPositionFromLeftMm !== undefined ||
       pitchDiameterMm !== undefined || pressureAngleDeg !== undefined || materialGrade !== undefined ||
       yieldStrengthMpa !== undefined || ultimateTensileStrengthMpa !== undefined || designFactor !== undefined;
-    const hasCompleteLegacyInputs = !hasGeometryInputs && bendingMomentNm !== undefined &&
-      allowableShearStressMpa !== undefined && proposedDiameterMm !== undefined;
+    const hasLegacyModeSignal = !hasGeometryInputs && (bendingMomentNm !== undefined ||
+      allowableShearStressMpa !== undefined || proposedDiameterMm !== undefined || candidateDiameterMm !== undefined);
+    const hasCompleteLegacyInputs = hasLegacyModeSignal && bendingMomentNm !== undefined &&
+      allowableShearStressMpa !== undefined && (proposedDiameterMm !== undefined || candidateDiameterMm !== undefined);
     const missingInputs: string[] = [];
     if (powerKw === undefined) missingInputs.push("transmitted power");
     if (speedRpm === undefined) missingInputs.push("shaft speed");
-    if (!hasCompleteLegacyInputs) {
+    if (hasLegacyModeSignal) {
+      if (bendingMomentNm === undefined) missingInputs.push("bending moment");
+      if (allowableShearStressMpa === undefined) missingInputs.push("allowable shear stress");
+      if (proposedDiameterMm === undefined && candidateDiameterMm === undefined) missingInputs.push("proposed shaft diameter");
+    } else if (!hasCompleteLegacyInputs) {
       if (bearingSpanMm === undefined) missingInputs.push("bearing span");
       if (gearPositionFromLeftMm === undefined) missingInputs.push("gear position or a statement that the gear is at midspan");
       if (pitchDiameterMm === undefined) missingInputs.push("gear pitch diameter");
