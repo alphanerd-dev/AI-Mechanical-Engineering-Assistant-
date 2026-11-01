@@ -19,3 +19,44 @@
 @media(max-width:720px){.panel{min-height:0;margin:0;border-radius:14px}.header{min-height:60px;padding:.7rem .85rem}.headerMark{width:31px;height:31px}.status{padding:.32rem .5rem;font-size:.6rem}.viewport{padding:1rem .8rem .25rem;gap:1.2rem}.emptyState{padding:1rem 0}.suggestionGrid{grid-template-columns:1fr;gap:.5rem;margin-top:.55rem}.suggestion{min-height:62px;padding:.65rem .75rem}.assistantMessage{grid-template-columns:27px minmax(0,1fr);gap:.58rem}.assistantAvatar{width:26px;height:26px;border-radius:8px;font-size:11px}.assistantBubble,.userBubble{font-size:.88rem}.userBubble{max-width:92%;padding:.68rem .82rem}.footer{padding:.65rem 0 .45rem}.composer{padding:.72rem .78rem .62rem;border-radius:14px}.composerHint small{max-width:245px}.markdown :global(pre){padding:.75rem;font-size:.74rem}.markdown :global(.katex-display){text-align:left}}
 @media(max-width:420px){.headerText h2{font-size:.88rem}.headerText p{max-width:175px;font-size:.64rem}.status{max-width:92px;overflow:hidden;text-overflow:ellipsis}.emptyDescription{font-size:.82rem}.composerHint{max-width:calc(100% - 48px)}}
 @media(prefers-reduced-motion:reduce){.suggestion,.actionButton,.sendButton,.stopButton,.composer{transition:none}.viewport{scroll-behavior:auto}}
+
+
+/* Streamdown renders semantic data attributes and Tailwind-style line wrappers.
+   Keep these styles local because the application uses CSS modules, not Tailwind. */
+.markdown :global([data-streamdown="strong"]) {
+  color: #f1f6f8;
+  font-weight: 760;
+}
+
+.markdown :global([data-streamdown="em"]) {
+  color: #e5eef1;
+  font-style: italic;
+}
+
+.markdown :global(pre code > span) {
+  display: block;
+  min-height: 1.62em;
+  white-space: pre;
+}
+
+.markdown :global(pre code > span::before) {
+  content: counter(line);
+  counter-increment: line;
+  display: inline-block;
+  width: 1.5rem;
+  margin-right: 1rem;
+  color: var(--chat-subtle);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  text-align: right;
+  user-select: none;
+}
+
+.markdown :global(pre code) {
+  counter-reset: line;
+}
+
+.markdown :global(pre code > span > span) {
+  color: var(--sdm-c, inherit);
+  background-color: var(--sdm-tbg, transparent);
+}

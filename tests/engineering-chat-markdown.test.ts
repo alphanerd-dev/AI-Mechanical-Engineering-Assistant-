@@ -19,6 +19,12 @@ describe("engineering chat Markdown math normalization", () => {
     expect(normalizeMathDelimiters(source)).toContain(String.raw`$$P_h = \frac{\Delta p Q}{600}$$`);
   });
 
+  it("preserves display-math delimiters through currency escaping", () => {
+    const source = String.raw`\[P_h = \frac{\Delta p \cdot Q}{600}\]`;
+    const normalized = preprocessEngineeringMath(source);
+    expect(normalized).toContain(String.raw`$$P_h = \frac{\Delta p \cdot Q}{600}$$`);
+  });
+
   it("keeps a single-dollar currency amount out of inline math", () => {
     expect(preprocessEngineeringMath("The replacement seal costs $5."))
       .toContain(String.raw`costs \$5.`);

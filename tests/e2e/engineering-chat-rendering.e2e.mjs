@@ -104,32 +104,29 @@ test("engineering chat renders streamed Markdown, equations, code, tables and cu
   // intentionally not part of the browser test contract.
   const markdown = chatPanel;
   await expect(markdown.getByRole("heading", { name: "Pump shaft power", level: 1 })).toBeVisible();
-  const renderDiagnostics = await markdown.evaluate((root) => {
-    const target = "torque multiplied by angular speed";
-    const paragraph = Array.from(root.querySelectorAll("p")).find((item) => item.textContent?.includes(target));
-    return {
-      paragraphHtml: paragraph?.innerHTML ?? null,
-      paragraphText: paragraph?.textContent ?? null,
-      inlineNodes: paragraph ? Array.from(paragraph.querySelectorAll("strong, b, em, span"))
-        .map((node) => ({ tag: node.tagName, text: node.textContent, weight: getComputedStyle(node).fontWeight, style: getComputedStyle(node).fontStyle })) : [],
-      codeBlocks: Array.from(root.querySelectorAll("pre")).map((pre) => {
-        const codeNode = pre.querySelector("code") ?? pre;
-        return {
-          textContent: codeNode.textContent,
-          innerText: codeNode.innerText,
-          html: codeNode.innerHTML,
-          preWhiteSpace: getComputedStyle(pre).whiteSpace,
-          codeWhiteSpace: getComputedStyle(codeNode).whiteSpace,
-          codeDisplay: getComputedStyle(codeNode).display,
-        };
-      }),
-    };
-  });
+  const renderDiagnostics = await markdown.evaluate((root) => ({
+    renderedText: root.innerText,
+    katexNodes: Array.from(root.querySelectorAll(".katex")).map((node) => ({
+      display: node.classList.contains("katex-display"),
+      text: node.textContent,
+      parentTag: node.parentElement?.tagName ?? null,
+      parentClass: node.parentElement?.className ?? null,
+    })),
+    strongWeight: getComputedStyle(root.querySelector('[data-streamdown="strong"]')).fontWeight,
+    codeLines: Array.from(root.querySelectorAll("pre code > span")).map((line) => ({
+      display: getComputedStyle(line).display,
+      text: line.textContent,
+    })),
+    codeText: root.querySelector("pre code")?.innerText ?? null,
+  }));
   console.log("CHAT_RENDER_DIAGNOSTICS " + JSON.stringify(renderDiagnostics));
   await expect(markdown).toContainText("torque multiplied by angular speed");
+  await expect(markdown.locator('[data-streamdown="strong"]')).toHaveCSS("font-weight", "760");
   await expect(markdown.locator(".katex-display")).toHaveCount(1);
   expect(await markdown.locator(".katex").count()).toBeGreaterThanOrEqual(2);
-  await expect(markdown.locator("pre code")).toContainText("power_kw = torque_nm * omega_rad_s / 1000");
+  await expect(markdown.locator("pre code > span")).toHaveCount(2);
+  const renderedCodeText = await markdown.locator("pre code").evaluate((node) => node.innerText);
+  expect(renderedCodeText).toContain("power_kw = torque_nm * omega_rad_s / 1000\nprint(power_kw)");
   await expect(markdown.locator("table")).toContainText("Angular speed");
   await expect(markdown).toContainText("The replacement seal costs $1,250.00.");
   await expect(markdown.getByRole("button", { name: "hydraulic power reference" })).toBeVisible();
