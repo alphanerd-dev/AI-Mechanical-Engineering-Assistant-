@@ -99,6 +99,7 @@ function buildCompletionReport(
   const requirements = requirementSpecs.map(([id, name, value, unit]) =>
     makeRequirement(id, name, value, unit)
   );
+  const asmeRequested = assumptionNotes.some((note) => /ASME elliptic/i.test(note));
   const validation: EngineeringValidationSummary = {
     passed: result.passesStaticYield && !asmeRequested,
     reasons: asmeRequested
@@ -122,7 +123,6 @@ function buildCompletionReport(
     requirementIds: requirements.map((item) => item.id),
     createdAt: now
   };
-  const asmeRequested = assumptionNotes.some((note) => /ASME elliptic/i.test(note));
   const project: ProjectState = {
     id: projectId,
     name: "Shaft static-yield analysis",
