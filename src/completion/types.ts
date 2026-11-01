@@ -65,6 +65,7 @@ export type ShaftEngineeringCompletionReport=EngineeringCompletionReport<ShaftEn
 export interface EngineeringCompletionUnitRequest{
   projectId:string;
   inputs:Record<string,number|string>;
+  assumptions?:string[];
   approval?:EngineeringApprovalRequest;
 }
 
@@ -72,5 +73,6 @@ export interface EngineeringCompletionUnit{
   id:string;
   capability:string;
   requiredInputs:{key:string;label:string}[];
+  getRequiredInputs?(inputs:Record<string,number|string>):{key:string;label:string}[];
   execute(request:EngineeringCompletionUnitRequest,router:import("../capabilities/router.js").CapabilityRouter):Promise<EngineeringCompletionReport>;
 }
