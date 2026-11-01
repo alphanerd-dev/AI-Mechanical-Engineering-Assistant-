@@ -1,6 +1,7 @@
 import {describe,it,expect} from "vitest";
 import {OpenAICompatibleEngineeringIntentGenerator,createConfiguredEngineeringIntentGenerator} from "../src/intent/http-model-generator.js";
 import {createEngineeringIntentInterpreterFromEnvironment} from "../src/intent/runtime-interpreter.js";
+import {buildModelIntentInstructions} from "../src/intent/model-adapter.js";
 import type {ModelIntentGenerationRequest} from "../src/intent/model-adapter.js";
 const rawIntent="Design a shaft that transmits 5 kW at 1500 rpm.";
 const modelOutput={
@@ -39,6 +40,16 @@ describe("OpenAI-compatible engineering intent transport",()=>{
   await expect(malformed.generate(request())).rejects.toMatchObject({name:"EngineeringIntentTransportError",code:"INTENT_MODEL_INVALID_JSON"});
   const oversized=new OpenAICompatibleEngineeringIntentGenerator({endpoint:"https://models.example/chat/completions",model:"m",fetchImpl:async()=>new Response("x".repeat(1_000_001),{status:200})});
   await expect(oversized.generate(request())).rejects.toMatchObject({name:"EngineeringIntentTransportError",code:"INTENT_MODEL_INVALID_RESPONSE"});
+ });
+ it("instructs model intent extraction to derive geometry inputs and never request bending moment",()=>{
+  const instructions=buildModelIntentInstructions();
+  expect(instructions).toContain("bearingSpanMm");
+  expect(instructions).toContain("gearPositionFromLeftMm");
+  expect(instructions).toContain("pitchDiameterMm");
+  expect(instructions).toContain("pressureAngleDeg");
+  expect(instructions).toContain("derive bending moment");
+  expect(instructions).toContain("Do not map shock/impact service factors");
+  expect(instructions).toContain("Never emit torqueNm");
  });
  it("uses deterministic interpretation when no model is configured",async()=>{
   const output=await createEngineeringIntentInterpreterFromEnvironment({}).interpret(rawIntent,{projectId:"project-1"});
