@@ -93,6 +93,16 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
       numberAfter(/\b(?:candidate|proposed|selected)\s+(?:shaft\s+)?diameter\s*(?:of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
       contextNumber(context, ["candidateDiameterMm", "proposedDiameterMm", "diameter"]);
 
+    // Compatibility extraction for the earlier explicit-M / allowable-shear workflow.
+    const bendingMomentNm =
+      numberAfter(/\\b(?:bending\\s+moment|bending)\\s*(?:is|of|=|:)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:N(?:·|\\.)?\\s*m|Nm)\\b/i, text) ??
+      contextNumber(context, ["bendingMomentNm", "bending moment"]);
+    const allowableShearStressMpa =
+      numberAfter(/\\ballowable\\s+shear(?:\\s+stress)?\\s*(?:is|of|=|:)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*MPa\\b/i, text) ??
+      contextNumber(context, ["allowableShearStressMpa", "allowable shear stress"]);
+    const proposedDiameterMm =
+      numberAfter(/\\bproposed\\s+(?:shaft\\s+)?diameter\\s*(?:is|of|=|:)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*mm\\b/i, text) ??
+      contextNumber(context, ["proposedDiameterMm", "proposed shaft diameter"]);
     const requestedCriterion = /ASME.{0,40}\belliptic\b|\belliptic\b.{0,40}ASME/i.test(text)
       ? "ASME_ELLIPTIC"
       : undefined;
@@ -113,20 +123,27 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
       ...(bendingStressFactorKb !== undefined ? { bendingStressFactorKb } : {}),
       ...(torsionalStressFactorKts !== undefined ? { torsionalStressFactorKts } : {}),
       ...(candidateDiameterMm !== undefined ? { candidateDiameterMm } : {}),
+      ...(bendingMomentNm !== undefined ? { bendingMomentNm } : {}),
+      ...(allowableShearStressMpa !== undefined ? { allowableShearStressMpa } : {}),
+      ...(proposedDiameterMm !== undefined ? { proposedDiameterMm } : {}),
       ...(requestedCriterion ? { requestedCriterion } : {})
     };
 
+    const hasCompleteLegacyInputs = bendingMomentNm !== undefined &&
+      allowableShearStressMpa !== undefined && proposedDiameterMm !== undefined;
     const missingInputs: string[] = [];
     if (powerKw === undefined) missingInputs.push("transmitted power");
     if (speedRpm === undefined) missingInputs.push("shaft speed");
-    if (bearingSpanMm === undefined) missingInputs.push("bearing span");
-    if (gearPositionFromLeftMm === undefined) missingInputs.push("gear position or a statement that the gear is at midspan");
-    if (pitchDiameterMm === undefined) missingInputs.push("gear pitch diameter");
-    if (pressureAngleDeg === undefined) missingInputs.push("gear pressure angle");
-    if (!materialGrade) missingInputs.push("material grade");
-    if (yieldStrengthMpa === undefined) missingInputs.push("material yield strength Sy");
-    if (ultimateTensileStrengthMpa === undefined) missingInputs.push("material ultimate tensile strength Sut");
-    if (designFactor === undefined) missingInputs.push("design factor");
+    if (!hasCompleteLegacyInputs) {
+      if (bearingSpanMm === undefined) missingInputs.push("bearing span");
+      if (gearPositionFromLeftMm === undefined) missingInputs.push("gear position or a statement that the gear is at midspan");
+      if (pitchDiameterMm === undefined) missingInputs.push("gear pitch diameter");
+      if (pressureAngleDeg === undefined) missingInputs.push("gear pressure angle");
+      if (!materialGrade) missingInputs.push("material grade");
+      if (yieldStrengthMpa === undefined) missingInputs.push("material yield strength Sy");
+      if (ultimateTensileStrengthMpa === undefined) missingInputs.push("material ultimate tensile strength Sut");
+      if (designFactor === undefined) missingInputs.push("design factor");
+    }
 
     const assumptions: string[] = [];
     if (explicitAxialLoadN === undefined && !isAxialLoadNeglected(text) &&
@@ -145,7 +162,8 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
     const contextKeys = [
       "powerKw", "speedRpm", "bearingSpanMm", "gearPositionFromLeftMm", "pitchDiameterMm",
       "pressureAngleDeg", "materialGrade", "yieldStrengthMpa", "ultimateTensileStrengthMpa",
-      "designFactor", "axialLoadN", "bendingStressFactorKb", "torsionalStressFactorKts", "candidateDiameterMm"
+      "designFactor", "axialLoadN", "bendingStressFactorKb", "torsionalStressFactorKts", "candidateDiameterMm",
+      "bendingMomentNm", "allowableShearStressMpa", "proposedDiameterMm"
     ];
     const contextUsed = contextKeys.filter((key) => {
       const value = extractedInputs[key];
