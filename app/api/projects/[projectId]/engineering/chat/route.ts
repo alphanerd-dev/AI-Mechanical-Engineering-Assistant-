@@ -165,12 +165,14 @@ export async function POST(
   }
   logChatDiagnostic("authorization_allowed", { projectMode: demoProject ? "demo" : "registered" });
 
-  let persistedDesignContext: PersistedShaftDesignContext;
+  // Saved shaft state enriches chat context, but it must never become a
+  // prerequisite for the conversational assistant. If the workspace is
+  // unavailable or fails integrity checks, continue with no persisted state.
+  let persistedDesignContext: PersistedShaftDesignContext = { available: false, stale: false };
   try {
     persistedDesignContext = await loadPersistedShaftDesignContext(projectId, demoProject);
   } catch (error) {
     logChatDiagnostic("persisted_design_state_unavailable", { errorKind: errorKind(error) });
-    return jsonError("The project's persisted design state could not be integrity-checked. Reload the workspace before continuing.", 503);
   }
 
   let payload: unknown;
