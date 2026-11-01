@@ -1,75 +1,79 @@
 # Engineering Capabilities and Provider Maturity
 
-**Purpose:** Describe what exists in the repository without confusing a contract, prototype or catalog entry with a reachable, accepted production capability. The capability catalog in source remains authoritative for individual IDs and declared maturity; this document summarizes current boundaries and notable exclusions.
+**Purpose:** Describe what exists in source and in the tested workflows without confusing a contract, prototype, catalog entry, successful build or reachable provider with a production-ready engineering capability. The source capability catalog remains authoritative for individual IDs and declared maturity.
 
 ## Maturity vocabulary
 
-- **EXPERIMENTAL:** contract or early implementation; not yet a supported production promise.
+- **EXPERIMENTAL:** contract or early implementation; not a supported production promise.
 - **PILOT:** bounded path exists but still requires capability-specific acceptance, runtime configuration or evidence before wider promotion.
 - **VERIFIED:** only the narrowly defined capability whose acceptance/evidence gate has passed. Never infer this status from an overall provider or project label.
 - **BLOCKED / DEPRECATED:** do not execute while blocked or deprecated.
-- **Provider availability:** installation, authentication, license, endpoint reachability, pinned runtime, permissions and resource limits must be checked separately from catalog status.
+- **Provider availability:** installation, authentication, license, endpoint reachability, pinned runtime, permissions and resource limits are checked separately from catalog status.
 
-## Core workflow and workspace
+## Workspace, identity and conversation
 
-The repository has a Next.js/React/TypeScript workspace, Supabase authentication and project-scoped persistence, optimistic revision checks, a provider-neutral capability catalog/router, structured project conversation sessions, task/workflow contracts, authorization and audit boundaries.
+The repository has a Next.js/React/TypeScript workspace, Supabase authentication, protected project APIs, project/workspace persistence, optimistic revision checks, a provider-neutral capability catalog/router, structured project conversation sessions, task/workflow contracts, authorization and audit boundaries.
 
-The current engineering-intent route can use a deterministic interpreter and has an optional server-side model-backed interpretation transport. A separate reasoning workbench creates structured task/framework proposals through a configurable structured-output model transport. These are not yet the selected assistant-ui streaming chat experience. See the [reasoning-model provider stack](reasoning-model-provider-stack.md) for the new chat direction.
+The conversational assistant is implemented with assistant-ui and Vercel AI SDK. It streams from an authenticated project route using the official Google/Gemini provider. The client uses Streamdown for Markdown and code, a math plugin and KaTeX for engineering equations. Project identity scopes the remote conversation thread and the existing project conversation/session APIs supply history.
 
-The workspace must expose truth about missing inputs, execution, validation, evidence and approval. A task graph, an agent or a model must not bypass the core capability, risk, project and approval rules.
+The UI supports Markdown headings, emphasis, links, code blocks, tables, currency-safe text and inline/display equations. It includes edit, copy, regenerate and stop-generation controls. The authenticated browser acceptance test exercises the streamed UI path using a controlled mocked response.
+
+**Important boundary:** chat is conversational. It may explain concepts, compare options, identify missing inputs and work through ordinary analytic calculations in its response. It does not execute CAD/FEA, shell/Python, privileged engineering tools, project mutations or formal validations. The separate Engineering Core interaction panel is the explicit route to registered deterministic workflows. The LLM's words are not an evidence or validation record.
+
+The current route defaults to `gemini-3.5-flash-lite`; a valid server-side API key is required for real model responses. A mocked browser stream does not prove live provider credentials, model quality, quota, latency or cost.
 
 ## Deterministic calculations and constraints
 
 Existing capability families include shaft torque, preliminary solid-shaft sizing, unit conversion and dimensional checks, numerical/symbolic solving, bounded optimization, constraint evaluation/solving, cross-validation and tolerance workflows.
 
-The shaft torque relation is T = P / ω, where ω = 2πn/60. Preliminary shaft sizing is only an initial calculation under its declared loading and material assumptions. It does not replace complete shaft analysis of fatigue, stress concentrations, deflection, critical speed, bearings, keys, tolerances or applicable standards.
+The shaft torque relation is T = P / omega, where omega = 2 pi n / 60. Preliminary shaft sizing is only an initial calculation under its declared loading and material assumptions. It does not replace complete shaft analysis of fatigue, stress concentrations, deflection, critical speed, bearings, keys, tolerances or applicable standards.
 
 The constraint foundation supports bounded explicit inputs; a solved system is not a safety verdict. An incomplete search or reached sample limit must not be presented as an exhaustive optimum. Units, domains, missing inputs and assumptions remain explicit.
 
 ## Pump hydraulic and shaft power — PILOT
 
-The current M0 feature branch adds a deterministic pump-power calculator using explicit fluid density, volume flow rate, total dynamic head, and pump efficiency. Supported units are kg/m³ or g/cm³; m³/s, L/s or m³/h; and metres or feet. The service converts to SI, applies P_h = rho * g * Q * H and P_shaft = P_h / eta, and records assumptions and normalized inputs.
+The source includes a deterministic pump-power calculator using explicit fluid density, volume flow rate, total dynamic head and pump efficiency. Supported units include kg/m3 or g/cm3; m3/s, L/s or m3/h; and metres or feet. The service converts to SI, applies P_h = rho * g * Q * H and P_shaft = P_h / eta, and records assumptions and normalized inputs.
 
-A separate capability-specific validator independently recomputes unit conversions and the governing relations. The resulting calculation artifact carries SHA-256 digests for canonical input/output JSON, a versioned validation receipt bound to those digests, execution status, validation status, approval status, verification status, source/workspace revisions, and limitations. The protected project-workspace route persists the artifact through its existing optimistic revision check; the event links to the artifact.
+A separate capability-specific validator independently recomputes unit conversions and governing relations. The calculation artifact carries SHA-256 digests for canonical input/output JSON and a versioned validation receipt bound to those digests, execution status, validation status, approval/verification state, source/workspace revisions and limitations. The protected project-workspace route persists the artifact through its optimistic revision contract.
 
-**Maturity is PILOT, not general pump-selection or design verification.** A passing receipt establishes only that the declared inputs, conversions and equations are internally consistent under the documented assumptions. It does not establish a correct duty point, system curve, NPSH margin, cavitation adequacy, pump selection, motor/drive sizing, or field performance. It does not mark the result approved or VERIFIED. Automated unit, invalid-input, tamper-detection and digest-binding tests exist in the feature branch; treat the integration as unverified until current-commit CI and isolated authenticated E2E acceptance pass.
+**Maturity is PILOT, not general pump selection or design verification.** A passing receipt establishes only that the declared inputs, conversions and equations are internally consistent under the documented assumptions. It does not establish a correct duty point, system curve, NPSH margin, cavitation adequacy, pump selection, motor/drive sizing or field performance. It does not imply approval or VERIFIED status.
 
 ## CAD and geometry
 
-The reference CAD completion path is intentionally bounded to explicitly dimensioned cylindrical parts such as shafts/cylinders:
+The accepted reference CAD path is intentionally bounded to explicitly dimensioned cylindrical parts such as shafts/cylinders:
 
-Supported lifecycle: typed intent → deterministic build123d generation → isolated worker → artifact registration → independent OCCT BREP validation → validation receipt and evidence bound to exact artifact bytes and project/model/execution lineage.
+typed intent -> deterministic build123d generation -> isolated remote worker -> artifact registration -> independent OCCT BREP validation -> validation receipt/evidence bound to exact artifact bytes and project/model/execution lineage.
 
-The current CAD workspace provides model identities, completion submission/history, readiness checks, artifact references, evidence status and decision/recovery messaging. It is not yet a complete interactive browser CAD viewer.
+The remote worker independently checks an allowlisted deterministic source template and constructs the supported cylinder; it does not execute arbitrary caller-supplied Python. Readiness, request/size/time limits, digests and private artifact persistence are separate gates.
 
-The wider catalog includes CAD generation, geometry validation, geometry diff/comparison, wall-thickness and DFM checks, candidate ranking and STEP export adapters. Their existence does not imply a complete general-purpose CAD pipeline or automatic validation of every export format. A BREP receipt validates the exact BREP bytes covered by that receipt; STEP/STL/3MF derivatives need appropriate independent checks before they can be described as validated.
+The wider catalog includes CAD generation, geometry validation, geometry diff/comparison, wall-thickness and DFM checks, candidate ranking and STEP export adapters. Their existence does not imply a complete general-purpose CAD pipeline or automatic validation of every export format. A BREP receipt validates only the exact BREP bytes covered by that receipt; STEP/STL/3MF derivatives need applicable independent checks.
 
-The correction loop is bounded and always separates execution from independent geometry validation. Invalid geometry creates a controlled retry opportunity, not a successful engineering outcome. See the [verified CAD workspace contract](v2-1-6-cad-verified-workspace.md) and [CAD correction loop](cad-correction-loop.md).
+There is no complete interactive browser CAD viewer in the current chat increment. See [Verified CAD Workspace](v2-1-6-cad-verified-workspace.md) and [CAD Correction Loop](cad-correction-loop.md).
 
 ## FEA and simulation
 
-The repository declares provider-neutral mesh generation with Gmsh (documented pilot version 4.15.2) and static structural analysis with CalculiX (documented pilot version 2.20) plus Ansys PyMechanical adapter/worker contracts. The documented reference case uses linear first-order tetrahedra.
+The repository includes a reference open structural-analysis path using Gmsh 4.15.2, C3D4 tetrahedral mesh generation and CalculiX 2.20. The deterministic benchmark is `cantilever_box`; the worker does not accept arbitrary generated solver decks in this reference version. It normalizes solver completion, mesh counts, maximum displacement, von Mises stress, reaction forces and artifact hashes.
 
-The current pilot's execution-integrity checks can establish items such as process completion, a non-empty mesh and finite requested outputs. They do not independently establish adequate mesh convergence, correct geometry/material/loads/supports/contacts, physical-model adequacy or structural safety. General CAD-to-mesh ingestion and arbitrary solver-deck generation remain gated work.
+Execution-integrity checks can establish process completion, a non-empty mesh and finite outputs. They do not independently establish mesh convergence, correct geometry/material/loads/supports/contacts, physical-model adequacy or structural safety. There is no complete connected browser FEA field viewer yet. See [Open FEA execution](fea-engine-v1.18.md).
 
-Other catalog entries cover OpenModelica simulations, parameter sweeps and sensitivity, multibody dynamics and solver comparisons. Treat them as experimental/pilot until the specific runtime and benchmark evidence for the requested capability have been checked. See [Open FEA execution](fea-engine-v1.18.md).
+Other catalog entries cover OpenModelica simulations, parameter sweeps and sensitivity, multibody dynamics and solver comparisons. Treat them as experimental/pilot until the specific runtime and benchmark evidence for the requested capability has been checked.
 
-## Research and verification
+## Research and reasoning
 
-Research providers can retrieve source-backed findings, but neither source authority nor model confidence automatically makes a claim VERIFIED. Keep source IDs, source identity, publication/version context and the verification method.
+The structured reasoning workbench produces advisory, schema-validated task/framework proposals through a separate server-side model transport. It does not execute capabilities, certify engineering results, mutate task state or approve work.
 
-Applicable methods include source inspection, independent calculation, manufacturer confirmation and explicit human review. Engineering memory and requirement verification must accept only the evidence status allowed by their contracts. A missing source or unperformed check stays visible.
+Research providers can retrieve source-backed findings, but source authority or model confidence does not automatically make a claim VERIFIED. Keep source IDs, source identity, publication/version context and verification method. Missing sources and unperformed checks remain visible.
 
 ## Physical perception / point clouds
 
-The repository documents a bounded point-cloud inspection/registration foundation and Open3D prototype. Input formats, unit normalization, coordinate frames, file/point limits, source digests and explicit registration thresholds are part of the contract.
+The repository includes an isolated one-shot Open3D worker prototype for PLY, PCD and XYZ inspection and ICP registration. Units and coordinate-frame IDs are explicit; input path, file size, point count, request size, iteration count and source digests are bounded.
 
-A numeric ICP result is a registration candidate, not dimensional conformity, completeness or design approval. Authenticated upload/persistence, known-transform/noise/outlier benchmarks, secure artifact storage and human review are separate promotion gates. Do not call the feature production-ready based on a prototype or a pending change.
+The prototype is not wired to a public authenticated upload endpoint, a project artifact registry or production routing. A numeric ICP result is a registration candidate, not dimensional conformity, completeness or design approval. Authenticated upload/persistence, known-transform/noise/outlier benchmarks, secure artifact storage and human review are separate promotion gates.
 
 ## Other catalog families
 
-The catalog also contains pilot/experimental interfaces for robotics asset conversion/validation, manufacturing-process and inspection checks, digital-thread relationships and PLM item/revision/change-impact tasks. Before execution in a deployment, verify each provider's runtime, configuration, source/license review, isolation, test fixtures, independent validation, evidence and rollback.
+The catalog also contains pilot/experimental interfaces for robotics asset conversion/validation, manufacturing-process and inspection checks, digital-thread relationships and PLM item/revision/change-impact tasks. Verify each provider's runtime, configuration, source/license review, isolation, fixtures, independent validation, evidence and rollback before execution in any deployment.
 
 ## Cross-cutting acceptance requirements
 
-Before expanding a capability's user-facing scope, define supported input/output schemas, physical assumptions and units, limits, a trusted known-answer or reference case, negative paths, time/resource limits, project authorization, artifact/evidence provenance, runtime version, operator/reviewer requirements and rollback. Measure real outcomes before claiming accuracy improvements, safety, productivity or cost savings.
+Before expanding a capability's user-facing scope, define supported schemas, physical assumptions and units, limits, trusted reference cases, negative paths, time/resource bounds, project authorization, artifact/evidence provenance, runtime version, reviewer requirements and rollback. Measure real outcomes before claiming accuracy improvement, safety, productivity or cost savings.
