@@ -13,6 +13,19 @@ export interface ShaftEngineeringCompletionRequest{
   projectId:string;
   powerKw?:number;
   speedRpm?:number;
+  bearingSpanMm?:number;
+  gearPositionFromLeftMm?:number;
+  pitchDiameterMm?:number;
+  pressureAngleDeg?:number;
+  materialGrade?:string;
+  yieldStrengthMpa?:number;
+  ultimateTensileStrengthMpa?:number;
+  designFactor?:number;
+  axialLoadN?:number;
+  bendingStressFactorKb?:number;
+  torsionalStressFactorKts?:number;
+  candidateDiameterMm?:number;
+  /** Legacy explicit inputs remain available to the v2.0.10 compatibility path. */
   bendingMomentNm?:number;
   allowableShearStressMpa?:number;
   proposedDiameterMm?:number;

@@ -1,6 +1,15 @@
 import {describe,expect,it} from "vitest";
 import {createV2_0_15Router} from "../src/benchmarks/v2-0-15.js";
 
+type IntentDecisionTestOutput = {
+  decision: {
+    metrics: Array<{ key: string; value: number | string; unit: string }>;
+    status: string;
+    evidenceIds: string[];
+  };
+  nextQuestion?: string;
+};
+
 describe("V2.0.19 domain-neutral engineering decision contract",()=>{
   it("emits generic metrics instead of shaft-specific decision fields",async()=>{
     const {router}=createV2_0_15Router();
@@ -13,7 +22,7 @@ describe("V2.0.19 domain-neutral engineering decision contract",()=>{
       }
     });
     expect(result.success).toBe(true);
-    const output=result.output as any;
+    const output=result.output as unknown as IntentDecisionTestOutput;
     expect(output.decision.metrics).toEqual(expect.arrayContaining([
       {key:"torqueNm",value:expect.closeTo(31.8333333333,10),unit:"N·m"},
       {key:"minimumDiameterMm",value:expect.any(Number),unit:"mm"},
@@ -34,10 +43,11 @@ describe("V2.0.19 domain-neutral engineering decision contract",()=>{
         rawIntent:"Design a shaft that transmits 5 kW at 1500 rpm."
       }
     });
-    const decision=(result.output as any).decision;
+    const output=result.output as unknown as IntentDecisionTestOutput;
+    const decision=output.decision;
     expect(decision.status).toBe("NEEDS_INPUT");
     expect(decision.metrics).toEqual([]);
     expect(Array.isArray(decision.evidenceIds)).toBe(true);
-    expect(decision.nextQuestion).toBe("bending moment");
+    expect(output.nextQuestion).toBe("bearing span");
   });
 });
