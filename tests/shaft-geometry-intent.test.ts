@@ -107,8 +107,8 @@ describe("geometry-derived shaft design from natural-language intent", () => {
     expect(result.success).toBe(true);
     const output = result.output as any;
     expect(output.status).toBe("NEEDS_INPUT");
-    expect(output.nextQuestion).toBe("gear position relative to the left bearing");
-    expect(output.interpretation.missingInputs).toEqual(["gear position relative to the left bearing"]);
+    expect(output.nextQuestion).toBe("gear position from the left bearing");
+    expect(output.interpretation.missingInputs).toEqual(["gear position from the left bearing"]);
     expect(output.decision.validationPassed).toBe(false);
     expect(output.decision.evidenceIds).toEqual([]);
   });
