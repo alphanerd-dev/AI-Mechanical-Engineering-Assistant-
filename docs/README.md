@@ -1,40 +1,53 @@
 # Documentation Guide
 
-Use the current product and operational contracts below. Historical release-by-release notes that duplicated these contracts have been removed from the working documentation; Git history retains the prior documents.
+This index points to the current product and operational contracts. It also distinguishes those contracts from historical decision records, dated acceptance reports and design-source artifacts.
 
 ## Canonical product and delivery documents
 
-- [Product brief](product-brief.md) — agreed user experience, model stack, visualization scope, trust boundaries and exclusions.
-- [Implementation plan and milestones](implementation-plan.md) — single source of truth for next work, acceptance gates, blockers and status.
-- [Architecture and trust boundaries](architecture.md) — module responsibilities, authorization, deterministic execution and validation.
-- [Engineering capabilities and maturity](engineering-capabilities.md) — current capability families, providers and evidence limitations.
-- [Product doctrine](product-doctrine.md) — product promise, decision-state rules, outcome economics and feature acceptance gate.
-- [Outcome baseline](outcome-baseline.md) — methodology for measuring useful accepted outcomes and engineering effort.
+- [Product brief](product-brief.md) — current experience, target users, chat/task separation and product scope.
+- [Implementation plan and milestones](implementation-plan.md) — current status, next priorities, dependencies and exit gates.
+- [Architecture and trust boundaries](architecture.md) — system layers, authorization, model boundaries, execution, validation and evidence.
+- [Engineering capabilities and maturity](engineering-capabilities.md) — what is implemented, pilot, experimental or still unavailable.
+- [Product doctrine](product-doctrine.md) — product promise, result states and feature acceptance rules.
+- [Outcome baseline](outcome-baseline.md) — methodology for measuring accepted outcomes; do not infer savings from tests or fixtures.
 
-## Engineering and runtime references
+## Application, chat and acceptance
 
-- [Verified CAD workspace](v2-1-6-cad-verified-workspace.md) — bounded cylindrical CAD flow, private artifact storage, OCCT receipt binding, readiness and live acceptance.
-- [CAD correction loop](cad-correction-loop.md) — bounded correction/retry policy and independent geometry validation.
-- [Open FEA execution](fea-engine-v1.18.md) — Gmsh/CalculiX pilot boundary and solver limitations.
-- [Persistent project workspace](v2-2-persistent-project-workspace.md) — Supabase project/workspace APIs, optimistic concurrency and project isolation.
-- [Physical perception foundation](v2-2-physical-perception.md) — point-cloud provenance and registration prototype; not production perception approval.
-- [Artifacts and evidence](artifacts-and-evidence.md) — evidence and information-status conventions.
-- [Execution layer](execution-layer.md) — durable execution and idempotency contract.
-- [Worker security](worker-security.md) — isolation, allowlists, limits and artifact handling.
-- [Playwright and live acceptance](playwright-e2e.md) — safe non-production setup and current acceptance evidence.
-- [Azure execution-worker deployment](deployment/azure-container-apps-execution-worker.md) — worker deployment runbook.
-- [Durable execution E2E record](plans/2026-10-17-durable-execution-e2e-validation.md) — historical evidence from the dedicated E2E database.
+- [Next.js Engineering Workspace](nextjs-workspace.md) — routes, UI composition, dependency boundaries and development commands.
+- [Conversational AI and model/provider stack](reasoning-model-provider-stack.md) — Gemini streamed chat and the distinct structured-reasoning transport.
+- [Playwright and live acceptance](playwright-e2e.md) — protected non-production browser testing and evidence interpretation.
+- [Engineering intent model transport](engineering-intent-model-transport.md) — structured intent interpretation contract.
+- [Reasoning-framework architecture](engineering-reasoning-frameworks-architecture.md) — task/framework proposals and their trust boundary.
+- [Reasoning hardening acceptance](reasoning-model-hardening-acceptance.md) — separate live provider acceptance for structured proposals.
+
+## Engineering capabilities and runtime references
+
+- [Verified CAD workspace](v2-1-6-cad-verified-workspace.md) — bounded cylinder/shaft flow, worker, artifact storage and OCCT receipt.
+- [CAD correction loop](cad-correction-loop.md) — bounded correction and independent geometry validation.
+- [Open FEA execution](fea-engine-v1.18.md) — Gmsh/CalculiX cantilever benchmark and solver limitations.
+- [Persistent project workspace](v2-2-persistent-project-workspace.md) — Supabase project/workspace APIs, optimistic concurrency and isolation.
+- [Physical perception foundation](v2-2-physical-perception.md) — isolated Open3D inspection/registration prototype; not a production scan-upload feature.
+- [Execution layer](execution-layer.md) — durable job submission, leases, retries and worker contract.
+- [Artifacts and evidence](artifacts-and-evidence.md) — provenance, evidence and information-status conventions.
+- [Worker security](worker-security.md) — worker isolation, limits, allowlists and artifact handling.
+- [Azure execution-worker deployment](deployment/azure-container-apps-execution-worker.md) — separate worker deployment runbook.
+
+## Provider and research references
+
+- [Engineering ecosystem inventory](engineering-ecosystem-inventory.md) and [candidate registry](architecture/engineering-ecosystem-registry.md) — research candidates, not approved or deployed integrations.
+- [Provider promotion and benchmark gates](architecture/2026-10-14-provider-promotion-and-benchmark-gates.md) — licensing, benchmark, isolation and evidence criteria.
 - [Production migration reconciliation](architecture/2026-10-17-production-migration-ledger-reconciliation.md) — controlled migration-history reconciliation procedure.
 
-## AI, providers and research
+## Historical records and design-source files
 
-- [Reasoning-model provider stack](reasoning-model-provider-stack.md) — selected chat UI/SDK/endpoint direction and model-cost gates.
-- [Intent-model transport](engineering-intent-model-transport.md) — existing bounded model-backed intent interpretation and its separate configuration.
-- [Reasoning-framework architecture](engineering-reasoning-frameworks-architecture.md) — task/framework proposals and their trust boundary.
-- [Reasoning hardening acceptance](reasoning-model-hardening-acceptance.md) — proposal provenance and live-provider acceptance limitations.
-- [Provider promotion and benchmark gates](architecture/2026-10-14-provider-promotion-and-benchmark-gates.md) — licensing, isolation, benchmark and evidence requirements.
-- [Engineering ecosystem inventory](engineering-ecosystem-inventory.md) and [candidate registry](architecture/engineering-ecosystem-registry.md) — research backlog, not installed or approved integrations.
+Documents under `docs/architecture/adr-*`, `docs/plans/`, dated architecture records and `docs/design/forge-v11.2/` preserve the decision, design or implementation state at the time they were written. They are not automatically current product-status documents. Do not rewrite a historical ADR or acceptance record to make it appear that a later implementation existed at the time.
 
-## Documentation rule
+Use the canonical documents above for current status. When a capability, dependency, route, runtime, milestone or acceptance gate changes, update the relevant canonical contract and this index if the navigation changes.
 
-Update the product brief when the intended experience or selected technology changes. Update the implementation plan when priority, sequence, status or exit criteria change. Keep provider-specific operational detail in a focused runbook only when it is needed to deploy, secure, test or maintain that provider. Do not add a dated milestone document when its durable contract belongs in one of the current references above.
+## Documentation rules
+
+1. Describe the current source and tested behavior, not intended or catalog-only capabilities.
+2. Separate implementation presence, isolated test success, live provider readiness and production readiness.
+3. Pin claims about acceptance to the tested commit, test path and environment.
+4. Do not publish secrets, cookies, service-role keys, signed URLs or private test data.
+5. Keep historical records intact; move current status into canonical docs rather than appending contradictory snapshots.

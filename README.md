@@ -1,52 +1,105 @@
 # AI Mechanical Engineering Assistant
 
-A provider-neutral Engineering Workspace and Engineering Core, starting with Mechanical Engineering. The product turns engineering intent into usable, validated and traceable engineering outcomes—not plausible answers or files without proof.
+A provider-backed Engineering Workspace and Engineering Core, starting with Mechanical Engineering. The project is designed to help engineers move from a problem statement to a usable, traceable result while keeping engineering execution, validation, evidence and approval under explicit control.
 
-**Core rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
+**Product rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
 
-## Main-branch baseline — 22 October 2026
+## Current repository state
 
-- Main is at [76425a0](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/76425a096d52c87741222645a65d616ff773460a), a documentation-only merge. The reviewed application-code baseline is [5da2823](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/commit/5da2823ff7792cb23e9ae36b193cd627f2d4d7ba).
-- Core CI, ESLint, CodeQL and Codacy passed on the reviewed code revision. These checks do not prove live provider readiness or broad engineering correctness.
-- The latest reviewed live CAD acceptance run was [blocked during environment preflight](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/39634636058) because CAD_WORKSPACE_BASE_URL was missing. Authenticated testing did not run; current-revision live CAD readiness is **not verified**.
-- Existing source includes project/workspace persistence, provider-neutral routing, deterministic calculations, bounded cylindrical CAD/build123d, OCCT BREP validation, evidence/provenance contracts and reference/pilot numerical/FEA workflows.
-- The selected assistant-ui + Vercel AI SDK streamed chat stack and interactive CAD/FEA/P&ID viewers are **planned**, not already integrated. Provider catalog entries do not mean their runtimes are deployed or accepted.
+The repository currently contains:
 
-These are revision-specific observations; re-check exact source, deployed app/worker revisions and current workflow evidence before release.
+- A Next.js App Router, React and TypeScript application with a Forge workspace shell, authenticated project routes, project-scoped persistence and Supabase SSR integration.
+- A first-class streamed engineering conversation built with assistant-ui and Vercel AI SDK. The chat supports project-scoped history, incremental response streaming, Markdown, code blocks, tables, links, currency-safe text and inline/display LaTeX rendering.
+- A separate Engineering Core interaction panel for registered deterministic workflows. It is deliberately distinct from conversational chat.
+- Server-side Gemini chat integration through the official AI SDK Google provider. The default chat model is `gemini-3.5-flash-lite`; the server-side model name can be overridden. The browser cannot choose the provider, model, tools or system instructions.
+- Existing structured reasoning and intent-interpretation paths, with their own request and validation contracts.
+- Deterministic engineering calculations and bounded capability routing, including shaft/pump calculation paths and constraint/units foundations.
+- A narrowly scoped cylindrical CAD path using deterministic build123d generation, an isolated remote worker and independent OpenCascade BREP validation.
+- Reference/pilot FEA execution using Gmsh and CalculiX, a separate Python numerical worker and a durable execution-worker foundation.
+- An isolated Open3D point-cloud inspection/registration prototype. It is not connected to a public scan-upload workflow or production perception path.
 
-## Current feature branch — 27 October 2026
+This is an engineering platform foundation, not a claim of universal engineering autonomy or certification.
 
-The active implementation is tracked in [PR #121](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/121) and is not merged to `main`.
+## Chat and engineering task boundaries
 
-Implemented in that branch:
-- A shared responsive Forge shell with route-aware workspace/project navigation, keyboard workspace search, mobile navigation and an authorized project-name label when project data loads.
-- A review-before-create project flow. The review is derived only from submitted inputs; it does not invent an AI brief, technical assumptions, artifacts or approval.
-- Explicit presentation for engineering proposal, execution, validation, verification, approval, failure and stale states.
-- Draft-preserving recovery guidance when an intent request's final outcome is uncertain, plus a project-creation retry guard that requires checking the project list and explicit acknowledgement before retrying.
-- The v11.2 design tokens, UX/component contracts, screen inventory, implementation prompt and source QA capture report under `docs/design/forge-v11.2/`.
+The conversational assistant can explain concepts, discuss options, identify missing information and work through ordinary analytic calculations in its response. It does **not** execute CAD, FEA, shell/Python code, project mutations or privileged engineering tools. It cannot mark a result validated, verified or approved.
 
-Still blocked or not claimed:
-- The original Vercel project’s automatic previews still fail before build events because its linked Supabase Marketplace resource `supabase-cerise-school` is suspended and points to a paused Supabase project. A separate protected recovery project now serves the Forge app; its latest recovery deployment is READY, but it is not a replacement for the original project’s integration.
-- Four PR-triggered CI/security checks passed for branch head `0d65ba82fbde93c994be37c201e2884cda4615b7`. The authenticated Playwright run [40586963344](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/40586963344) failed at the shared project-list setup with “Durable authorization audit is unavailable.” The recovery Preview still needs the dedicated E2E Supabase `SUPABASE_SERVICE_ROLE_KEY` configured as a sensitive Preview-only variable.
-- The isolated CAD worker URL and ephemeral artifact root are configured for the recovery Preview, but authenticated intent-to-verified-artifact acceptance has not run; the matching `CAD_WORKER_API_TOKEN` is still missing from Vercel Preview. Do not use production keys, data or cookies. Current visual/keyboard acceptance is not green while the shared persistence setup is blocked.
-- M0's exit gate remains open. PR #121 stays draft. M1 streaming chat and M2–M4 CAD/FEA/P&ID viewers remain separate roadmap milestones.
+For registered deterministic operations, use the separate Engineering Core panel. Those workflows retain server-side authorization, typed requests, bounded execution, capability-specific validation and evidence contracts. A successful chat response is not a validated engineering result.
 
-## Start here
+The chat renderer uses assistant-ui, Vercel AI SDK, Streamdown, the Streamdown code plugin, the Streamdown math plugin and KaTeX. A small preprocessing adapter normalizes engineering LaTeX, promotes standalone display equations to proper blocks, preserves fenced code and protects currency values.
 
-- [Product brief](docs/product-brief.md) — current product requirements and selected tools.
-- [Implementation plan and milestones](docs/implementation-plan.md) — single source of truth for work priority and acceptance gates.
-- [Documentation guide](docs/README.md) — canonical documents and focused runbooks.
-- [Architecture and trust boundaries](docs/architecture.md) — system responsibilities and security boundaries.
-- [Engineering capabilities and maturity](docs/engineering-capabilities.md) — implemented foundation versus pilot/experimental scope.
-- [Product doctrine](docs/product-doctrine.md) — product promise, acceptance states and outcome economics.
+## Architecture and trust model
 
-Operational starting points: [verified CAD workspace](docs/v2-1-6-cad-verified-workspace.md), [Playwright/live acceptance](docs/playwright-e2e.md), [worker security](docs/worker-security.md), [provider promotion/benchmarks](docs/architecture/2026-10-14-provider-promotion-and-benchmark-gates.md) and [production migration reconciliation](docs/architecture/2026-10-17-production-migration-ledger-reconciliation.md).
+The control plane is the Next.js application and authenticated API. Supabase provides authentication, project/workspace persistence and private storage where configured. The Engineering Core owns typed capability contracts, deterministic providers, task state and validation policy. Long-running or untrusted computation belongs in separately controlled workers.
 
-## Development and trust boundaries
+The model is an assistant, not the engineering authority. It must not invent trusted evidence IDs, provider identity, validation receipts or approval decisions. CAD/solver execution and artifact validation remain separate from conversational generation.
 
-- Use a feature branch and pull request; do not push directly to main.
-- Run npm ci, the relevant tests, npm run build, lint and architecture checks.
-- Run live acceptance only against a dedicated non-production environment and database.
-- Keep all provider credentials and service-role keys server-side. Never commit cookies or populated secrets.
-- Long-running CAD/solver work belongs in bounded isolated workers, not the Next.js request process.
-- Report a result as verified only when the capability-specific independent validator passed and retained evidence is bound to the exact artifact bytes and source/runtime lineage.
+## Technology
+
+| Layer | Current implementation |
+|---|---|
+| Web application | Next.js 16 App Router, React 19, TypeScript |
+| Identity and persistence | Supabase SSR/client integration and project-scoped APIs |
+| Conversational UI | assistant-ui |
+| Streaming | Vercel AI SDK |
+| Chat model provider | Official AI SDK Google/Gemini provider |
+| Markdown and mathematics | Streamdown, code/math plugins and KaTeX |
+| Unit/integration tests | Vitest |
+| Browser acceptance | Playwright |
+| CAD reference path | build123d, isolated remote CAD worker and OpenCascade validation |
+| FEA reference path | Gmsh and CalculiX worker |
+| Physical perception prototype | Open3D worker |
+
+Pinned versions and runnable commands are defined in `package.json` and `package-lock.json`. Environment variable names and safe placeholders are defined in `.env.example`.
+
+## Getting started
+
+Requirements: Node.js `^22.12.0` or `^24.0.0`, npm, and a configured Supabase project for authenticated features.
+
+1. Clone the repository and install the locked dependencies with `npm ci`.
+2. Copy `.env.example` to `.env.local`.
+3. Configure the Supabase URL and publishable key. Add the server-side model key to enable real streamed chat. Add worker variables only when the matching worker is deployed and ready.
+4. Start the application with `npm run dev`.
+
+Useful commands:
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start the local Next.js app |
+| `npm test` | Run Vitest |
+| `npm run build` | Run the Webpack Next.js production build and TypeScript check |
+| `npm run architecture:graph -- --strict` | Enforce the repository dependency-layer rules |
+| `npm run test:e2e` | Run Playwright locally after installing its pinned helpers and browser |
+
+Do not put service-role keys, provider secrets, worker bearer tokens or user session cookies in client variables or committed files. The public Supabase publishable key is not a substitute for server-side authorization.
+
+## Verification and deployment
+
+CI runs the repository's unit tests, Python worker tests, architecture checks, CAD/OCCT and FEA worker checks, security scans and production build. The dedicated Playwright workflow uses the protected `e2e-staging` GitHub Environment and disposable non-production accounts. See [the browser acceptance runbook](docs/playwright-e2e.md).
+
+A browser test using a mocked streamed response verifies the UI and renderer; it does not prove live Gemini credentials, model quality, CAD execution or production worker readiness. Verify the exact deployed application and worker revisions before enabling a capability in production.
+
+The intended production web application is hosted on Vercel at [ai-mechanical-engineering-assistant.vercel.app](https://ai-mechanical-engineering-assistant.vercel.app). CAD, FEA and other worker runtimes are separate deployments and must be configured and health-checked independently.
+
+## Documentation
+
+Start with:
+
+- [Product brief](docs/product-brief.md) — current user experience and product scope.
+- [Architecture and trust boundaries](docs/architecture.md) — control plane, chat, core, workers and evidence.
+- [Engineering capabilities and maturity](docs/engineering-capabilities.md) — implemented, pilot and experimental capabilities.
+- [Implementation plan](docs/implementation-plan.md) — current milestone status, next priorities and exit gates.
+- [Documentation guide](docs/README.md) — canonical docs and historical records.
+- [Model/provider stack](docs/reasoning-model-provider-stack.md) — current chat provider and separate structured-reasoning transport.
+- [Playwright runbook](docs/playwright-e2e.md) — safe authenticated browser testing.
+- [Worker security](docs/worker-security.md) — isolation and artifact controls.
+
+## Development rules
+
+- Work on a feature branch and use a pull request.
+- Preserve the existing architecture and authorization boundaries; do not regenerate the application or add an orchestration framework without an evidenced need.
+- Keep secrets server-side and use isolated non-production data for acceptance tests.
+- Do not execute generated CAD/solver code inside a Next.js request process.
+- Do not report an engineering result as verified unless its capability-specific validator passed and the retained evidence is bound to the exact artifact bytes and source/runtime lineage.
+- Mark unavailable, unsupported, unmeasured and untested behavior explicitly.
+

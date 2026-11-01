@@ -1,66 +1,69 @@
 # Conversational AI and Model Provider Stack
 
-**Decision reviewed:** 22 October 2026  
-**Status:** Selected stack; repository integration remains planned work.
+**Reviewed:** 1 November 2026  
+**Status:** Streamed chat is implemented. Structured reasoning remains a separate model-backed proposal path.
 
-## Decision
+## Current implementation: streamed engineering chat
 
-Implement the conversational AI experience using:
+The current project chat uses:
 
-- **assistant-ui** for the chat interface and client-side conversation UX.
-- **Vercel AI SDK** for model integration, streaming and typed tool calls.
-- **A configurable OpenAI-compatible hosted endpoint** for initial model access.
-- **Next.js server routes** as the authenticated boundary.
-- **Supabase** for existing project authorization, workspace context and conversation persistence.
-- **The existing Engineering Core** for capability routing, deterministic execution, validation, evidence and approvals.
+- **assistant-ui** for the conversation UI and thread controls.
+- **Vercel AI SDK** for streaming and the UI-message stream contract.
+- **Official AI SDK Google provider** for Gemini.
+- **Streamdown** with the code plugin and math plugin, plus **KaTeX** for equation rendering.
+- **Next.js server route** as the authenticated project and model boundary.
+- **Existing Supabase/project conversation machinery** for project-scoped persistence and history.
 
-The selected provider is an OpenAI-compatible endpoint, not Vercel AI Gateway. The hosted model has not been chosen yet; lowest practical API cost is the priority, subject to benchmarked tool correctness, engineering-task quality, latency and reliability.
+The server route is `app/api/projects/[projectId]/engineering/chat/route.ts`. It authenticates the actor against the demo role or registered project membership, validates the project ID and message schema, rejects client-supplied provider/model/system/tool fields, and uses a server-controlled system instruction and provider configuration.
 
-The SDK and UI library are integration components. They do not replace authorization, domain policy, deterministic execution or independent validation.
+The current default chat model is `gemini-3.5-flash-lite`. Override it only through the server-side `ENGINEERING_REASONING_MODEL_NAME` setting. The chat route requires the server-side `ENGINEERING_REASONING_MODEL_API_KEY`; it does not accept a key or arbitrary endpoint from the browser. `ENGINEERING_REASONING_MODEL_TIMEOUT_MS` controls the bounded request timeout. The route caps output tokens and bounds provider retries, stream retries and execution time.
 
-## Existing transport is not streaming chat
+The chat is conversational. It may explain concepts, compare options, identify missing inputs and perform ordinary analytic calculations in the response. It currently exposes no privileged engineering tools and does not execute CAD/FEA, Python/shell, project mutations or formal validation. Use the separate Engineering Core interaction panel for registered deterministic workflows.
 
-The repository currently has a server-side structured reasoning transport configured through the ENGINEERING_REASONING_MODEL_* variables and a separate optional intent-interpreter transport configured through the ENGINEERING_INTENT_MODEL_* variables. The existing reasoning transport requests a structured proposal; the intent transport returns structured interpretation. Neither is equivalent to a complete streaming conversational API.
+## Separate structured-reasoning transport
 
-During implementation, define a canonical server-side configuration contract and a tested adapter for any legacy configuration names. Avoid creating conflicting model selections for chat, intent interpretation and structured proposal work where the same endpoint can safely serve those needs. Preserve existing contracts until migration tests demonstrate parity.
+The project also contains a structured reasoning workbench for task/framework proposals. Its generator is host-owned and uses a separate configurable HTTP transport in `src/reasoning-frameworks/openai-compatible-generator.ts`. It uses the server-side `ENGINEERING_REASONING_MODEL_URL`, `ENGINEERING_REASONING_MODEL_NAME`, `ENGINEERING_REASONING_MODEL_API_KEY` and timeout settings.
 
-Never accept an endpoint, credential or privileged model-selection override from an ordinary browser request. Production endpoints must use HTTPS and a deployment-owned allowlist. Reject endpoint configurations that could access unintended internal services. Credentials must not use NEXT_PUBLIC_ names or appear in client bundles, logs, prompts, evidence artifacts or error responses.
+That path sends typed task/framework inputs and validates the model's advisory JSON proposal through the existing Engineering Core. The model cannot execute a capability, certify a result, mutate task state, approve an operation or invent trusted evidence references.
+
+Do not conflate this structured proposal endpoint with the streamed Gemini chat provider. They have different request/response contracts and acceptance tests, even where they share environment variable names for model/key selection.
 
 ## Model-selection and cost policy
 
-1. Compare current provider pricing for input, output, cached tokens and any other billed features relevant to candidates.
-2. Build a fixed task set that includes normal conversation, ambiguous requests, missing dimensions/material/load inputs, tool-call selection, structured output, refusal/unsupported work, timeout recovery and concise result explanation.
-3. Score task correctness and required-input behavior before comparing cost; exclude candidates that fabricate evidence, validation or approval state.
-4. Track measured tokens and latency when returned reliably, plus failures, retries and tool-call success. Do not invent cost numbers when provider usage/pricing data is unavailable.
-5. Choose the least expensive model meeting the predeclared quality, latency and reliability thresholds. Re-run the benchmark after changing the default model.
-6. Bound message history, output tokens, request duration, retries and per-user/project usage. Keep deterministic calculation and CAD/FEA execution outside the model.
+The current default is an implementation default, not a claim that a comparative provider benchmark has selected the globally optimal model.
 
-## Controlled tool boundary
+Before changing the default or adding another provider:
 
-The model can request a typed, allowlisted capability, but the server independently authenticates the user, checks project membership and role, validates the tool schema and applies capability risk/approval policy.
+1. Compare current input/output/cached-token pricing for candidate models.
+2. Use a fixed task set covering normal conversation, ambiguous requests, missing mechanical inputs, calculation explanation, unsupported requests, timeouts and recovery.
+3. Score technical correctness, units, assumption handling, refusal/unsupported behavior and latency before comparing cost.
+4. Exclude any model that fabricates provider execution, artifact IDs, validation, evidence or approval.
+5. Measure token usage, retries, first-token latency, completion latency and error rate where the provider returns reliable data.
+6. Choose the lowest-cost candidate that meets predeclared quality and reliability thresholds; retain the benchmark and rerun after changing the default.
 
-Tool output should be returned to the conversation as structured, source-linked results. The model cannot invent an artifact ID, trusted provider identity, validation receipt, evidence ID or approval decision. Mutating calls need idempotency and safe retry semantics. Untrusted model output remains a proposal until the existing engineering service accepts it.
+The outcome metric is cost per accepted engineering outcome, not the cheapest individual response. Do not claim productivity or cost savings without matched real-task measurement.
 
-Never expose unrestricted Python, shell, SQL, filesystem, network or arbitrary provider URLs as chat tools. CAD and solver runtimes remain in bounded isolated workers.
+## Security and operational rules
 
-## Streaming and conversation requirements
-
-- Secure streamed text and typed tool-call lifecycle; explicit loading, cancellation and error state.
-- Project-scoped history restored through authorized server APIs and existing revision/conflict protection.
-- Bounded context: use authorized project facts and artifact references, not an indiscriminate dump of project records or raw storage URLs.
-- Reliable persistence and recovery after aborted streams, provider timeouts, invalid responses and conflicting revisions.
-- No duplicate execution when a tool call, client request or network response is retried.
-- Explicit states for NEEDS_INPUT, UNSUPPORTED, BLOCKED, FAILED, EXECUTED, VALIDATED, VERIFIED and WAITING_APPROVAL wherever those states are returned by the engineering API.
-- Usage/latency telemetry with secret and sensitive-content redaction.
+- Keep provider keys and endpoint configuration server-side.
+- Do not accept browser-controlled model/provider/system prompt/tool declarations.
+- Require authentication and project authorization before project chat requests.
+- Bound message count/size, output tokens, request duration and retries.
+- Redact credentials and avoid logging raw chat content unnecessarily.
+- Treat model output and user-provided text as untrusted.
+- Keep deterministic calculations, CAD/FEA execution, validation and artifact persistence in their existing controlled service boundaries.
+- Do not expose unrestricted Python, shell, SQL, filesystem, network access or arbitrary provider URLs as chat tools.
 
 ## Acceptance distinction
 
-The existing Live Reasoning Model Acceptance workflow tests a bounded structured proposal path and its provider provenance. It is not proof that streamed chat, assistant-ui, tool execution, long conversations or chat recovery work.
+The chat renderer's Playwright acceptance uses an intercepted/mock streamed response to verify client-side Markdown/math/code rendering, project scoping and desktop/mobile behavior. It does not validate live Gemini credentials, answer quality, live model latency/cost or chat-driven tool execution.
 
-Add dedicated tests for streaming, endpoint/model compatibility, client abort, limits, authorization, tool allowlisting, duplicate requests, evidence spoofing, conversation persistence and model-cost measurement. The live provider acceptance workflow must test only its documented contract; do not claim production readiness from ordinary unit tests.
+The structured reasoning live-acceptance workflow tests its own proposal/provenance contract. It is not a substitute for chat rendering acceptance. See [Playwright and Live Acceptance](playwright-e2e.md).
 
 ## References
 
 - [Vercel AI SDK documentation](https://ai-sdk.dev/docs)
-- [AI SDK OpenAI-compatible providers](https://ai-sdk.dev/providers/openai-compatible-providers)
+- [AI SDK Google provider](https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai)
 - [assistant-ui AI SDK integration](https://www.assistant-ui.com/docs/integrations/frameworks/ai-sdk)
+- [Streamdown](https://streamdown.ai)
+- [KaTeX](https://katex.org)
