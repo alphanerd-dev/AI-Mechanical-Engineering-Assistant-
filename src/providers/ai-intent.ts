@@ -122,9 +122,13 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
       },
     });
 
-    const resolvedMissing = contextDecision.success
+    const contextResolvedMissing = contextDecision.success
       ? ((contextDecision.output as { missingInputs: string[] }).missingInputs)
       : contextMissing;
+    const resolvedMissing = [...new Set([
+      ...(interpretation.missingInputs ?? []),
+      ...contextResolvedMissing
+    ])];
 
     const experienceResult = await this.router.execute({
       capability: "ENGINEERING.ASSESS_EXPERIENCE",
