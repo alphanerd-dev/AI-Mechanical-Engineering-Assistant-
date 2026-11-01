@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseEngineeringChatHistory,
   parseEngineeringChatMessages,
   resolveEngineeringChatTimeout,
   resolveOpenAICompatibleBaseURL,
@@ -50,15 +51,48 @@ describe("engineering chat request validation", () => {
     expect(() => parseEngineeringChatMessages(messages)).toThrow();
   });
 
-  it("rejects oversized conversations and excessive message counts", () => {
+  it("rejects an oversized newest user message rather than silently changing the request", () => {
     expect(() => parseEngineeringChatMessages([
       { role: "user", parts: [{ type: "text", text: "x".repeat(6_001) }] },
-    ])).toThrow(/1-6000/);
+    ])).toThrow(/latest user message exceeds the 6000-character limit/);
+  });
 
-    expect(() => parseEngineeringChatMessages(Array.from({ length: 41 }, () => ({
-      role: "user",
-      parts: [{ type: "text", text: "Question" }],
-    })))).toThrow(/1 and 40/);
+  it("keeps only the most recent 40 messages when older history is present", () => {
+    const history = parseEngineeringChatHistory(Array.from({ length: 41 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      parts: [{ type: "text", text: "Turn " + index }],
+    })));
+    expect(history.originalMessageCount).toBe(41);
+    expect(history.messages).toHaveLength(40);
+    expect(history.droppedMessageCount).toBeGreaterThanOrEqual(1);
+    expect(history.messages.at(-1)).toEqual({ role: "user", content: "Turn 40" });
+    expect(history.messages[0]?.role).toBe("user");
+  });
+
+  it("compacts the oldest complete turns when total history exceeds the 24000-character budget", () => {
+    const long = "x".repeat(5_000);
+    const history = parseEngineeringChatHistory([
+      { role: "user", parts: [{ type: "text", text: "Original design brief " + long }] },
+      { role: "assistant", parts: [{ type: "text", text: long }] },
+      { role: "user", parts: [{ type: "text", text: "Change material to AISI 4140. " + long }] },
+      { role: "assistant", parts: [{ type: "text", text: long }] },
+      { role: "user", parts: [{ type: "text", text: "Correct power to 15 kW." }] },
+    ]);
+    expect(history.retainedCharacterCount).toBeLessThanOrEqual(24_000);
+    expect(history.droppedMessageCount).toBeGreaterThan(0);
+    expect(history.messages[0]?.role).toBe("user");
+    expect(history.messages.at(-1)).toEqual({ role: "user", content: "Correct power to 15 kW." });
+  });
+
+  it("trims an oversized older assistant response but preserves the latest user request", () => {
+    const history = parseEngineeringChatHistory([
+      { role: "user", parts: [{ type: "text", text: "Earlier question." }] },
+      { role: "assistant", parts: [{ type: "text", text: "A".repeat(8_000) }] },
+      { role: "user", parts: [{ type: "text", text: "Now calculate the shaft from its geometry." }] },
+    ]);
+    expect(history.messages[1]?.content.length).toBeLessThanOrEqual(6_000);
+    expect(history.messages[1]?.content).toContain("Earlier portion");
+    expect(history.messages.at(-1)?.content).toBe("Now calculate the shaft from its geometry.");
   });
 });
 
