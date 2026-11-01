@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isCalculationArtifactStale } from "../../../../src/artifacts/calculation-freshness";
+import type { ShaftDesignWorkspaceState } from "../../../../src/workspace/shaft-design-state";
 
 type EngineeringEvent = { id: string; timestamp: string; actor: string; action: string; input?: unknown; output?: unknown; evidence?: string[]; artifactIds?: string[] };
 type Requirement = { name: string; value?: number | string; unit?: string };
@@ -15,7 +16,7 @@ type PumpArtifact = {
   inputSha256: string; outputSha256: string;
   validationReceipt: { id: string; result: "PASS" | "FAIL" | "INCOMPLETE"; validatorId: string; validatorVersion: string; checks: string[]; warnings: string[]; inputSha256: string; outputSha256: string; validatedAt: string };
 };
-type Snapshot = { revision: number; project: { requirements: Requirement[]; events: EngineeringEvent[]; nextAction?: string }; artifacts?: PumpArtifact[] };
+type Snapshot = { revision: number; project: { requirements: Requirement[]; events: EngineeringEvent[]; nextAction?: string }; artifacts?: PumpArtifact[]; shaftDesign?: ShaftDesignWorkspaceState };
 type Calculation = { powerKw: number; speedRpm: number; angularVelocityRadPerSecond: number; torqueNm: number; formula: string; informationStatus: "CALCULATED" };
 type PumpCalculation = { hydraulicPowerW: number; hydraulicPowerKw: number; shaftPowerW: number; shaftPowerKw: number; hydraulicEquation: string; shaftEquation: string; assumptions: string[]; informationStatus: "CALCULATED" };
 type ApiBody = { snapshot?: Snapshot; revision?: number; result?: { calculation?: Calculation | PumpCalculation; eventId?: string; artifact?: PumpArtifact; validation?: { result: "PASS" | "FAIL" | "INCOMPLETE"; warnings: string[] } }; error?: string };
@@ -51,6 +52,22 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
   const [headUnit, setHeadUnit] = useState("m");
   const [efficiencyPercent, setEfficiencyPercent] = useState("");
   const [pumpIdempotencyKey, setPumpIdempotencyKey] = useState("");
+  const [shaftDesignIdempotencyKey, setShaftDesignIdempotencyKey] = useState("");
+  const [shaftDesign, setShaftDesign] = useState<ShaftDesignWorkspaceState>();
+  const [shaftDesignForm, setShaftDesignForm] = useState({
+    bearingSpanMm: "",
+    gearPositionFromLeftMm: "",
+    pitchDiameterMm: "",
+    pressureAngleDeg: "",
+    axialLoadN: "",
+    materialGrade: "",
+    yieldStrengthMpa: "",
+    ultimateTensileStrengthMpa: "",
+    designFactor: "",
+    bendingStressFactorKb: "",
+    torsionalStressFactorKts: "",
+    candidateDiameterMm: ""
+  });
   const [powerKw, setPowerKw] = useState("");
   const [speedRpm, setSpeedRpm] = useState("");
   const [loading, setLoading] = useState(true);
@@ -87,7 +104,29 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
           setRequirements(body.snapshot.project.requirements ?? []);
           setEvents(body.snapshot.project.events ?? []);
           setArtifacts(body.snapshot.artifacts ?? []);
-          setPowerKw(seededNumber(body.snapshot.project.requirements ?? [], /power|input rating/i, "kw"));
+          setShaftDesign(body.snapshot.shaftDesign);
+          if (body.snapshot.shaftDesign) {
+            const saved = body.snapshot.shaftDesign.input;
+            setPowerKw(String(saved.powerKw));
+            setSpeedRpm(String(saved.speedRpm));
+            setShaftDesignForm({
+              bearingSpanMm: String(saved.bearingSpanMm),
+              gearPositionFromLeftMm: String(saved.gearPositionFromLeftMm),
+              pitchDiameterMm: String(saved.pitchDiameterMm),
+              pressureAngleDeg: String(saved.pressureAngleDeg),
+              axialLoadN: String(saved.axialLoadN),
+              materialGrade: saved.materialGrade,
+              yieldStrengthMpa: String(saved.yieldStrengthMpa),
+              ultimateTensileStrengthMpa: String(saved.ultimateTensileStrengthMpa),
+              designFactor: String(saved.designFactor),
+              bendingStressFactorKb: String(saved.bendingStressFactorKb),
+              torsionalStressFactorKts: String(saved.torsionalStressFactorKts),
+              candidateDiameterMm: saved.candidateDiameterMm === undefined ? "" : String(saved.candidateDiameterMm)
+            });
+          } else {
+            setPowerKw(seededNumber(body.snapshot.project.requirements ?? [], /power|input rating/i, "kw"));
+            setSpeedRpm(seededNumber(body.snapshot.project.requirements ?? [], /speed|rotation|rpm/i, "rpm"));
+          }
           setSpeedRpm(seededNumber(body.snapshot.project.requirements ?? [], /speed|rotation|rpm/i, "rpm"));
           setError("");
         })
@@ -121,6 +160,73 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Calculation failed.");
     } finally { setBusy(false); }
+  }
+
+  function updateShaftDesignField(field: keyof typeof shaftDesignForm, value: string) {
+    setShaftDesignForm((current) => ({ ...current, [field]: value }));
+    setShaftDesignIdempotencyKey("");
+  }
+
+  async function runShaftDesign() {
+    if (busy || demo) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const numericFields = {
+        powerKw: Number(powerKw),
+        speedRpm: Number(speedRpm),
+        bearingSpanMm: Number(shaftDesignForm.bearingSpanMm),
+        gearPositionFromLeftMm: Number(shaftDesignForm.gearPositionFromLeftMm),
+        pitchDiameterMm: Number(shaftDesignForm.pitchDiameterMm),
+        pressureAngleDeg: Number(shaftDesignForm.pressureAngleDeg),
+        axialLoadN: Number(shaftDesignForm.axialLoadN),
+        yieldStrengthMpa: Number(shaftDesignForm.yieldStrengthMpa),
+        ultimateTensileStrengthMpa: Number(shaftDesignForm.ultimateTensileStrengthMpa),
+        designFactor: Number(shaftDesignForm.designFactor),
+        bendingStressFactorKb: Number(shaftDesignForm.bendingStressFactorKb),
+        torsionalStressFactorKts: Number(shaftDesignForm.torsionalStressFactorKts)
+      };
+      if (!Object.values(numericFields).every(Number.isFinite) || !shaftDesignForm.materialGrade.trim()) {
+        throw new Error("Complete every shaft input with a valid number and a material grade. Axial load may be zero.");
+      }
+      const candidate = shaftDesignForm.candidateDiameterMm.trim()
+        ? Number(shaftDesignForm.candidateDiameterMm)
+        : undefined;
+      if (candidate !== undefined && (!Number.isFinite(candidate) || candidate <= 0)) {
+        throw new Error("Candidate diameter must be a positive number when supplied.");
+      }
+      const shaftInput = {
+        ...numericFields,
+        materialGrade: shaftDesignForm.materialGrade.trim(),
+        ...(candidate === undefined ? {} : { candidateDiameterMm: candidate })
+      };
+      const idempotencyKey = shaftDesignIdempotencyKey || globalThis.crypto.randomUUID();
+      setShaftDesignIdempotencyKey(idempotencyKey);
+      const response = await fetch("/api/projects/" + encodeURIComponent(projectId) + "/workspace", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          operation: "ANALYSIS.SHAFT_STATIC_DESIGN",
+          expectedRevision: revision,
+          idempotencyKey,
+          shaftInput
+        })
+      });
+      const body = await readBody(response);
+      if (!body.snapshot?.shaftDesign) throw new Error("The deterministic shaft design state was not persisted.");
+      setRevision(body.revision ?? body.snapshot.revision);
+      setRequirements(body.snapshot.project.requirements ?? []);
+      setEvents(body.snapshot.project.events ?? []);
+      setArtifacts(body.snapshot.artifacts ?? []);
+      setShaftDesign(body.snapshot.shaftDesign);
+      setShaftDesignIdempotencyKey("");
+      setNotice(body.snapshot.shaftDesign.result.passesStaticYield
+        ? "Static-yield calculation saved. This is a capability-validated preliminary check, not fatigue verification, independent engineering verification or design approval."
+        : "The calculation and failure finding were saved. The candidate diameter does not meet the stated static-yield design-factor criterion.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Shaft design calculation failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function runPumpCalculation() {
@@ -181,6 +287,68 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       <div className="calculationFormula"><code>T = P / ω</code><code>ω = 2πn / 60</code><span>Units: P in W · n in rpm · T in N·m</span></div>
       <button className="button" type="button" onClick={() => void runCalculation()} disabled={busy || loading || !(Number(powerKw) > 0) || !(Number(speedRpm) > 0)}>{busy ? "Calculating and saving…" : "Calculate torque and save evidence"}</button>
     </section>
+    <section className="panel shaftDesignPanel">
+      <p className="eyebrow">DETERMINISTIC ENGINEERING WORKFLOW · PILOT</p>
+      <h2>Solid shaft static-yield design</h2>
+      <p className="muted">Single gear load, simply supported shaft, axial force, bending and torsion. Inputs are saved with a revision-bound calculation artifact. This is not a complete shaft design or an ASME compliance assessment.</p>
+      <div className="projectFormRow">
+        <label className="projectField">Bearing span (mm)<input type="number" min="0.001" step="any" value={shaftDesignForm.bearingSpanMm} onChange={(event) => updateShaftDesignField("bearingSpanMm", event.target.value)} disabled={busy || loading} placeholder="e.g. 400" /></label>
+        <label className="projectField">Gear position from left bearing (mm)<input type="number" min="0.001" step="any" value={shaftDesignForm.gearPositionFromLeftMm} onChange={(event) => updateShaftDesignField("gearPositionFromLeftMm", event.target.value)} disabled={busy || loading} placeholder="e.g. 150" /></label>
+        <label className="projectField">Gear pitch diameter (mm)<input type="number" min="0.001" step="any" value={shaftDesignForm.pitchDiameterMm} onChange={(event) => updateShaftDesignField("pitchDiameterMm", event.target.value)} disabled={busy || loading} placeholder="e.g. 180" /></label>
+        <label className="projectField">Pressure angle (degrees)<input type="number" min="0.001" max="89.999" step="any" value={shaftDesignForm.pressureAngleDeg} onChange={(event) => updateShaftDesignField("pressureAngleDeg", event.target.value)} disabled={busy || loading} placeholder="e.g. 20" /></label>
+        <label className="projectField">Axial load (N)<input type="number" step="any" value={shaftDesignForm.axialLoadN} onChange={(event) => updateShaftDesignField("axialLoadN", event.target.value)} disabled={busy || loading} placeholder="Use 0 when absent" /></label>
+        <label className="projectField">Material grade / condition<input type="text" maxLength={100} value={shaftDesignForm.materialGrade} onChange={(event) => updateShaftDesignField("materialGrade", event.target.value)} disabled={busy || loading} placeholder="e.g. AISI 4140" /></label>
+        <label className="projectField">Yield strength Sy (MPa)<input type="number" min="0.001" step="any" value={shaftDesignForm.yieldStrengthMpa} onChange={(event) => updateShaftDesignField("yieldStrengthMpa", event.target.value)} disabled={busy || loading} placeholder="e.g. 415" /></label>
+        <label className="projectField">Ultimate strength Sut (MPa)<input type="number" min="0.001" step="any" value={shaftDesignForm.ultimateTensileStrengthMpa} onChange={(event) => updateShaftDesignField("ultimateTensileStrengthMpa", event.target.value)} disabled={busy || loading} placeholder="e.g. 655" /></label>
+        <label className="projectField">Design factor nd<input type="number" min="1" step="any" value={shaftDesignForm.designFactor} onChange={(event) => updateShaftDesignField("designFactor", event.target.value)} disabled={busy || loading} placeholder="e.g. 3" /></label>
+        <label className="projectField">Bending stress multiplier Kb<input type="number" min="1" step="any" value={shaftDesignForm.bendingStressFactorKb} onChange={(event) => updateShaftDesignField("bendingStressFactorKb", event.target.value)} disabled={busy || loading} placeholder="e.g. 2" /></label>
+        <label className="projectField">Torsional stress multiplier Kts<input type="number" min="1" step="any" value={shaftDesignForm.torsionalStressFactorKts} onChange={(event) => updateShaftDesignField("torsionalStressFactorKts", event.target.value)} disabled={busy || loading} placeholder="e.g. 1.6" /></label>
+        <label className="projectField">Candidate diameter (mm, optional)<input type="number" min="0.001" step="any" value={shaftDesignForm.candidateDiameterMm} onChange={(event) => updateShaftDesignField("candidateDiameterMm", event.target.value)} disabled={busy || loading} placeholder="Defaults to preferred size" /></label>
+      </div>
+      <div className="calculationFormula">
+        <code>sigma_VM = sqrt((sigma_a + sigma_b)^2 + 3 tau^2)</code>
+        <code>sigma_VM &lt;= Sy / nd</code>
+        <span>Power and speed are taken from the rotational shaft torque inputs above. Kb and Kts are explicit static stress multipliers, not fatigue factors.</span>
+      </div>
+      <button className="button" type="button" onClick={() => void runShaftDesign()} disabled={busy || loading || !(Number(powerKw) > 0) || !(Number(speedRpm) > 0)}>
+        {busy ? "Calculating and saving…" : "Run static shaft design and persist state"}
+      </button>
+    </section>
+    {shaftDesign && <section className="panel shaftDesignPanel">
+      <div className="projectListHeader">
+        <div><p className="eyebrow">VERSIONED SHAFT DESIGN STATE · REVISION {shaftDesign.designRevision}</p><h2>Current Design State</h2></div>
+        <div className="projectArtifactStatus">
+          <span className={shaftDesign.result.passesStaticYield ? "projectState projectState-active" : "projectState projectState-blocked"}>{shaftDesign.result.passesStaticYield ? "STATIC YIELD PASS" : "STATIC YIELD FAIL"}</span>
+          {shaftDesign.workspaceRevision !== revision && <span className="projectState projectState-blocked">STALE</span>}
+        </div>
+      </div>
+      <div className="metrics">
+        <div className="metric"><span>Torque</span><strong>{shaftDesign.result.torqueNm.toFixed(3)} N·m</strong></div>
+        <div className="metric"><span>Resultant gear force</span><strong>{shaftDesign.result.resultantTransverseForceN.toFixed(2)} N</strong></div>
+        <div className="metric"><span>Maximum bending</span><strong>{shaftDesign.result.maximumBendingMomentNm.toFixed(3)} N·m</strong></div>
+        <div className="metric"><span>Minimum / preferred diameter</span><strong>{shaftDesign.result.minimumDiameterMm.toFixed(3)} / {shaftDesign.result.preferredDiameterMm} mm</strong></div>
+        <div className="metric"><span>Von Mises stress</span><strong>{shaftDesign.result.vonMisesStressMpa.toFixed(2)} MPa</strong></div>
+        <div className="metric"><span>Achieved yield factor</span><strong>{shaftDesign.result.achievedYieldFactorOfSafety.toFixed(3)}</strong></div>
+      </div>
+      <div className="pumpPowerEvidence">
+        <div><span>Power / speed</span><strong>{shaftDesign.input.powerKw} kW / {shaftDesign.input.speedRpm} rpm</strong></div>
+        <div><span>Geometry</span><strong>{shaftDesign.input.bearingSpanMm} mm span · gear at {shaftDesign.input.gearPositionFromLeftMm} mm · dp {shaftDesign.input.pitchDiameterMm} mm</strong></div>
+        <div><span>Gear forces</span><strong>Ft {shaftDesign.result.tangentialForceN.toFixed(2)} N · Fr {shaftDesign.result.radialForceN.toFixed(2)} N</strong></div>
+        <div><span>Support reactions</span><strong>Left {shaftDesign.result.leftBearingReactionN.toFixed(2)} N · Right {shaftDesign.result.rightBearingReactionN.toFixed(2)} N</strong></div>
+        <div><span>Material / strengths</span><strong>{shaftDesign.input.materialGrade} · Sy {shaftDesign.input.yieldStrengthMpa} MPa · Sut {shaftDesign.input.ultimateTensileStrengthMpa} MPa</strong></div>
+        <div><span>Design factor / stress multipliers</span><strong>nd {shaftDesign.input.designFactor} · Kb {shaftDesign.input.bendingStressFactorKb} · Kts {shaftDesign.input.torsionalStressFactorKts}</strong></div>
+        <div><span>Stress components</span><strong>Axial {shaftDesign.result.axialStressMpa.toFixed(2)} MPa · bending {shaftDesign.result.bendingStressMpa.toFixed(2)} MPa · torsion {shaftDesign.result.torsionalShearStressMpa.toFixed(2)} MPa</strong></div>
+        <div><span>Candidate diameter</span><strong>{shaftDesign.result.candidateDiameterMm} mm</strong></div>
+        <div><span>Artifact ID</span><code>{shaftDesign.artifactId}</code></div>
+        <div><span>Workspace source / saved revision</span><strong>{shaftDesign.sourceWorkspaceRevision} / {shaftDesign.workspaceRevision}</strong></div>
+        <div><span>Input SHA-256</span><code>{shaftDesign.inputSha256}</code></div>
+        <div><span>Result SHA-256</span><code>{shaftDesign.resultSha256}</code></div>
+      </div>
+      {shaftDesign.workspaceRevision !== revision && <p className="projectNotice projectNoticeWarning" role="status">This saved design was calculated at workspace revision {shaftDesign.workspaceRevision}; the current workspace is revision {revision}. Treat the result as historical until rerun against the current revision.</p>}
+      <ul className="workspaceSimpleList">{shaftDesign.result.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul>
+      <ul className="workspaceSimpleList">{shaftDesign.result.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul>
+      <p className="projectNotice projectNoticeWarning">A passing result only validates this stated static-yield model. It is not fatigue verification, independent engineering verification, human approval, or design release.</p>
+    </section>}
     {lastCalculation && <section className="panel">
       <div className="projectListHeader"><div><p className="eyebrow">LATEST RESULT</p><h2>Torque calculation</h2></div><span className="projectState projectState-active">CALCULATED</span></div>
       <div className="metrics"><div className="metric"><span>Power</span><strong>{lastCalculation.calculation.powerKw} kW</strong></div><div className="metric"><span>Speed</span><strong>{lastCalculation.calculation.speedRpm} rpm</strong></div><div className="metric"><span>Angular velocity</span><strong>{lastCalculation.calculation.angularVelocityRadPerSecond} rad/s</strong></div><div className="metric"><span>Torque</span><strong>{lastCalculation.calculation.torqueNm} N·m</strong></div></div>
