@@ -107,7 +107,7 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
       text
     ) ?? contextNumber(context, ["candidateDiameterMm", "proposedDiameterMm", "proposed shaft diameter"]);
     const bendingMomentNm = numberAfter(
-      /bending moment\s*(?:of|is|=)?\s*([0-9]+(?:\.[0-9]+)?)\s*N(?:·|\.)?\s*m\b/i,
+      /(?:bending moment|bending)\s*(?:of|is|=)?\s*([0-9]+(?:\.[0-9]+)?)\s*N(?:·|\.)?\s*m\b/i,
       text
     ) ?? contextNumber(context, ["bendingMomentNm", "bending moment"]);
     const allowableShearStressMpa = numberAfter(
@@ -150,7 +150,7 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
       { value: powerKw, label: "power" },
       { value: speedRpm, label: "speed" },
       { value: bearingSpanMm, label: "bearing span" },
-      { value: gearPositionFromLeftMm, label: "gear position relative to the left bearing" },
+      { value: gearPositionFromLeftMm, label: "gear position from the left bearing" },
       { value: pitchDiameterMm, label: "gear pitch diameter" },
       { value: pressureAngleDeg, label: "gear pressure angle" },
       { value: materialGrade, label: "material grade" },
