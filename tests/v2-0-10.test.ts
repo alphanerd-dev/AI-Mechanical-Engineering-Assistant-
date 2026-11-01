@@ -105,6 +105,25 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
     expect(report.nextAction).toContain("not an ASME elliptic result");
   });
 
+  it("prefers supplied bearing/gear geometry over conflicting legacy explicit-moment values", async () => {
+    const result = await setup().execute({
+      capability: "ENGINEERING.COMPLETE_SHAFT",
+      risk: "HIGH",
+      input: {
+        ...completeInput("P-10-GEOMETRY-WINS"),
+        bendingMomentNm: 1,
+        allowableShearStressMpa: 5,
+        proposedDiameterMm: 10
+      }
+    });
+    expect(result.success).toBe(true);
+    const report = result.output as any;
+    expect(report.status).toBe("WAITING_APPROVAL");
+    const calculation = report.artifacts[0].parameters.output as ShaftStaticDesignResult;
+    expect(calculation.bendingMomentLocationMm).toBe(200);
+    expect(calculation.maximumBendingMomentNm).toBeGreaterThan(1);
+    expect(calculation.input.candidateDiameterMm).toBeUndefined();
+  });
   it("does not convert a supplied approval object into a human approval or verified evidence", async () => {
     const result = await setup().execute({
       capability: "ENGINEERING.COMPLETE_SHAFT",
