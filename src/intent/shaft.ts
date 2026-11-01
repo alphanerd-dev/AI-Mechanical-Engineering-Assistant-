@@ -129,7 +129,10 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
       ...(requestedCriterion ? { requestedCriterion } : {})
     };
 
-    const hasCompleteLegacyInputs = bendingMomentNm !== undefined &&
+    const hasGeometryInputs = bearingSpanMm !== undefined || gearPositionFromLeftMm !== undefined ||
+      pitchDiameterMm !== undefined || pressureAngleDeg !== undefined || materialGrade !== undefined ||
+      yieldStrengthMpa !== undefined || ultimateTensileStrengthMpa !== undefined || designFactor !== undefined;
+    const hasCompleteLegacyInputs = !hasGeometryInputs && bendingMomentNm !== undefined &&
       allowableShearStressMpa !== undefined && proposedDiameterMm !== undefined;
     const missingInputs: string[] = [];
     if (powerKw === undefined) missingInputs.push("transmitted power");
