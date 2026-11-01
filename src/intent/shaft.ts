@@ -95,13 +95,13 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
 
     // Compatibility extraction for the earlier explicit-M / allowable-shear workflow.
     const bendingMomentNm =
-      numberAfter(/\\b(?:bending\\s+moment|bending)\\s*(?:is|of|=|:)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:N(?:·|\\.)?\\s*m|Nm)\\b/i, text) ??
+      numberAfter(/\b(?:bending\s+moment|bending)\s*(?:is|of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:N(?:·|\.)?\s*m|Nm)\b/i, text) ??
       contextNumber(context, ["bendingMomentNm", "bending moment"]);
     const allowableShearStressMpa =
-      numberAfter(/\\ballowable\\s+shear(?:\\s+stress)?\\s*(?:is|of|=|:)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*MPa\\b/i, text) ??
+      numberAfter(/\ballowable\s+shear(?:\s+stress)?\s*(?:is|of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*MPa\b/i, text) ??
       contextNumber(context, ["allowableShearStressMpa", "allowable shear stress"]);
     const proposedDiameterMm =
-      numberAfter(/\\bproposed\\s+(?:shaft\\s+)?diameter\\s*(?:is|of|=|:)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*mm\\b/i, text) ??
+      numberAfter(/\bproposed\s+(?:shaft\s+)?diameter\s*(?:is|of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
       contextNumber(context, ["proposedDiameterMm", "proposed shaft diameter"]);
     const requestedCriterion = /ASME.{0,40}\belliptic\b|\belliptic\b.{0,40}ASME/i.test(text)
       ? "ASME_ELLIPTIC"
