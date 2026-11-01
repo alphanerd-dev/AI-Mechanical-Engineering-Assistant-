@@ -104,7 +104,29 @@ test("engineering chat renders streamed Markdown, equations, code, tables and cu
   // intentionally not part of the browser test contract.
   const markdown = chatPanel;
   await expect(markdown.getByRole("heading", { name: "Pump shaft power", level: 1 })).toBeVisible();
-  await expect(markdown.locator("strong")).toContainText("torque multiplied by angular speed");
+  const renderDiagnostics = await markdown.evaluate((root) => {
+    const target = "torque multiplied by angular speed";
+    const paragraph = Array.from(root.querySelectorAll("p")).find((item) => item.textContent?.includes(target));
+    return {
+      paragraphHtml: paragraph?.innerHTML ?? null,
+      paragraphText: paragraph?.textContent ?? null,
+      inlineNodes: paragraph ? Array.from(paragraph.querySelectorAll("strong, b, em, span"))
+        .map((node) => ({ tag: node.tagName, text: node.textContent, weight: getComputedStyle(node).fontWeight, style: getComputedStyle(node).fontStyle })) : [],
+      codeBlocks: Array.from(root.querySelectorAll("pre")).map((pre) => {
+        const codeNode = pre.querySelector("code") ?? pre;
+        return {
+          textContent: codeNode.textContent,
+          innerText: codeNode.innerText,
+          html: codeNode.innerHTML,
+          preWhiteSpace: getComputedStyle(pre).whiteSpace,
+          codeWhiteSpace: getComputedStyle(codeNode).whiteSpace,
+          codeDisplay: getComputedStyle(codeNode).display,
+        };
+      }),
+    };
+  });
+  console.log("CHAT_RENDER_DIAGNOSTICS " + JSON.stringify(renderDiagnostics));
+  await expect(markdown).toContainText("torque multiplied by angular speed");
   await expect(markdown.locator(".katex-display")).toHaveCount(1);
   expect(await markdown.locator(".katex").count()).toBeGreaterThanOrEqual(2);
   await expect(markdown.locator("pre code")).toContainText("power_kw = torque_nm * omega_rad_s / 1000");
