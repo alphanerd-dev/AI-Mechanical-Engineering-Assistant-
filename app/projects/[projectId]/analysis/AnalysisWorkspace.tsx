@@ -54,6 +54,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
   const [pumpIdempotencyKey, setPumpIdempotencyKey] = useState("");
   const [shaftDesignIdempotencyKey, setShaftDesignIdempotencyKey] = useState("");
   const [shaftDesign, setShaftDesign] = useState<ShaftDesignWorkspaceState>();
+  const [shaftDesignDirty, setShaftDesignDirty] = useState(false);
   const [shaftDesignForm, setShaftDesignForm] = useState({
     bearingSpanMm: "",
     gearPositionFromLeftMm: "",
@@ -127,7 +128,6 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
             setPowerKw(seededNumber(body.snapshot.project.requirements ?? [], /power|input rating/i, "kw"));
             setSpeedRpm(seededNumber(body.snapshot.project.requirements ?? [], /speed|rotation|rpm/i, "rpm"));
           }
-          setSpeedRpm(seededNumber(body.snapshot.project.requirements ?? [], /speed|rotation|rpm/i, "rpm"));
           setError("");
         })
         .catch((caught: unknown) => { if (active) setError(caught instanceof Error ? caught.message : "The analysis workspace could not be loaded."); })
@@ -164,6 +164,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
 
   function updateShaftDesignField(field: keyof typeof shaftDesignForm, value: string) {
     setShaftDesignForm((current) => ({ ...current, [field]: value }));
+    setShaftDesignDirty(true);
     setShaftDesignIdempotencyKey("");
   }
 
@@ -218,6 +219,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       setEvents(body.snapshot.project.events ?? []);
       setArtifacts(body.snapshot.artifacts ?? []);
       setShaftDesign(body.snapshot.shaftDesign);
+      setShaftDesignDirty(false);
       setShaftDesignIdempotencyKey("");
       setNotice(body.snapshot.shaftDesign.result.passesStaticYield
         ? "Static-yield calculation saved. This is a capability-validated preliminary check, not fatigue verification, independent engineering verification or design approval."
@@ -281,8 +283,8 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       <p className="eyebrow">DETERMINISTIC CALCULATION</p><h2>Rotational shaft torque</h2>
       <p className="muted">The calculation is deterministic and persisted to the project timeline. It does not size a shaft or certify its safety.</p>
       <div className="projectFormRow">
-        <label className="projectField">Transmitted power (kW)<input type="number" min="0.000001" max="1000000" step="any" value={powerKw} onChange={(event) => setPowerKw(event.target.value)} disabled={busy || loading} placeholder="Enter power in kW" /></label>
-        <label className="projectField">Rotational speed (rpm)<input type="number" min="0.000001" max="10000000" step="any" value={speedRpm} onChange={(event) => setSpeedRpm(event.target.value)} disabled={busy || loading} placeholder="Enter speed in rpm" /></label>
+        <label className="projectField">Transmitted power (kW)<input type="number" min="0.000001" max="1000000" step="any" value={powerKw} onChange={(event) => { setPowerKw(event.target.value); setShaftDesignDirty(true); setShaftDesignIdempotencyKey(""); }} disabled={busy || loading} placeholder="Enter power in kW" /></label>
+        <label className="projectField">Rotational speed (rpm)<input type="number" min="0.000001" max="10000000" step="any" value={speedRpm} onChange={(event) => { setSpeedRpm(event.target.value); setShaftDesignDirty(true); setShaftDesignIdempotencyKey(""); }} disabled={busy || loading} placeholder="Enter speed in rpm" /></label>
       </div>
       <div className="calculationFormula"><code>T = P / ω</code><code>ω = 2πn / 60</code><span>Units: P in W · n in rpm · T in N·m</span></div>
       <button className="button" type="button" onClick={() => void runCalculation()} disabled={busy || loading || !(Number(powerKw) > 0) || !(Number(speedRpm) > 0)}>{busy ? "Calculating and saving…" : "Calculate torque and save evidence"}</button>
@@ -319,6 +321,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
         <div><p className="eyebrow">VERSIONED SHAFT DESIGN STATE · REVISION {shaftDesign.designRevision}</p><h2>Current Design State</h2></div>
         <div className="projectArtifactStatus">
           <span className={shaftDesign.result.passesStaticYield ? "projectState projectState-active" : "projectState projectState-blocked"}>{shaftDesign.result.passesStaticYield ? "STATIC YIELD PASS" : "STATIC YIELD FAIL"}</span>
+          {shaftDesignDirty && <span className="projectState projectState-blocked">UNSAVED DRAFT</span>}
           {shaftDesign.workspaceRevision !== revision && <span className="projectState projectState-blocked">STALE</span>}
         </div>
       </div>
@@ -332,18 +335,19 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       </div>
       <div className="pumpPowerEvidence">
         <div><span>Power / speed</span><strong>{shaftDesign.input.powerKw} kW / {shaftDesign.input.speedRpm} rpm</strong></div>
-        <div><span>Geometry</span><strong>{shaftDesign.input.bearingSpanMm} mm span · gear at {shaftDesign.input.gearPositionFromLeftMm} mm · dp {shaftDesign.input.pitchDiameterMm} mm</strong></div>
-        <div><span>Gear forces</span><strong>Ft {shaftDesign.result.tangentialForceN.toFixed(2)} N · Fr {shaftDesign.result.radialForceN.toFixed(2)} N</strong></div>
+        <div><span>Geometry</span><strong>{shaftDesign.input.bearingSpanMm} mm span · a {shaftDesign.input.gearPositionFromLeftMm} mm · b {(shaftDesign.input.bearingSpanMm - shaftDesign.input.gearPositionFromLeftMm).toFixed(2)} mm · dp {shaftDesign.input.pitchDiameterMm} mm</strong></div>
+        <div><span>Gear forces</span><strong>Ft {shaftDesign.result.tangentialForceN.toFixed(2)} N · Fr {shaftDesign.result.radialForceN.toFixed(2)} N · Fa {shaftDesign.input.axialLoadN.toFixed(2)} N</strong></div>
         <div><span>Support reactions</span><strong>Left {shaftDesign.result.leftBearingReactionN.toFixed(2)} N · Right {shaftDesign.result.rightBearingReactionN.toFixed(2)} N</strong></div>
         <div><span>Material / strengths</span><strong>{shaftDesign.input.materialGrade} · Sy {shaftDesign.input.yieldStrengthMpa} MPa · Sut {shaftDesign.input.ultimateTensileStrengthMpa} MPa</strong></div>
         <div><span>Design factor / stress multipliers</span><strong>nd {shaftDesign.input.designFactor} · Kb {shaftDesign.input.bendingStressFactorKb} · Kts {shaftDesign.input.torsionalStressFactorKts}</strong></div>
         <div><span>Stress components</span><strong>Axial {shaftDesign.result.axialStressMpa.toFixed(2)} MPa · bending {shaftDesign.result.bendingStressMpa.toFixed(2)} MPa · torsion {shaftDesign.result.torsionalShearStressMpa.toFixed(2)} MPa</strong></div>
-        <div><span>Candidate diameter</span><strong>{shaftDesign.result.candidateDiameterMm} mm</strong></div>
+        <div><span>Candidate diameter / bending location</span><strong>{shaftDesign.result.candidateDiameterMm} mm / x = {shaftDesign.result.bendingMomentLocationMm} mm</strong></div>
         <div><span>Artifact ID</span><code>{shaftDesign.artifactId}</code></div>
         <div><span>Workspace source / saved revision</span><strong>{shaftDesign.sourceWorkspaceRevision} / {shaftDesign.workspaceRevision}</strong></div>
         <div><span>Input SHA-256</span><code>{shaftDesign.inputSha256}</code></div>
         <div><span>Result SHA-256</span><code>{shaftDesign.resultSha256}</code></div>
       </div>
+      {shaftDesignDirty && <p className="projectNotice projectNoticeWarning" role="status">The form contains unsaved input changes. The results below still describe the last persisted design revision; run the calculation again to update them.</p>}
       {shaftDesign.workspaceRevision !== revision && <p className="projectNotice projectNoticeWarning" role="status">This saved design was calculated at workspace revision {shaftDesign.workspaceRevision}; the current workspace is revision {revision}. Treat the result as historical until rerun against the current revision.</p>}
       <ul className="workspaceSimpleList">{shaftDesign.result.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul>
       <ul className="workspaceSimpleList">{shaftDesign.result.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul>
