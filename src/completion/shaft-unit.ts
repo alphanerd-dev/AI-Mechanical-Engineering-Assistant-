@@ -100,10 +100,12 @@ function buildCompletionReport(
     makeRequirement(id, name, value, unit)
   );
   const validation: EngineeringValidationSummary = {
-    passed: result.passesStaticYield,
-    reasons: result.passesStaticYield
-      ? ["The candidate diameter satisfies the implemented von Mises static-yield inequality."]
-      : ["The candidate diameter does not satisfy the implemented von Mises static-yield inequality."]
+    passed: result.passesStaticYield && !asmeRequested,
+    reasons: asmeRequested
+      ? ["The preliminary von Mises static-yield calculation completed, but the requested ASME elliptic criterion is not implemented and was not validated."]
+      : result.passesStaticYield
+        ? ["The candidate diameter satisfies the implemented von Mises static-yield inequality."]
+        : ["The candidate diameter does not satisfy the implemented von Mises static-yield inequality."]
   };
   const artifact: EngineeringArtifact = {
     id: artifactId,
@@ -114,7 +116,7 @@ function buildCompletionReport(
     version: result.version,
     units: "SI",
     parameters: { capability: SHAFT_STATIC_DESIGN_CAPABILITY, input: result.input, output: result },
-    validationStatus: result.passesStaticYield ? "PASS" : "FAIL",
+    validationStatus: asmeRequested ? "UNVALIDATED" : result.passesStaticYield ? "PASS" : "FAIL",
     informationStatus: "CALCULATED",
     evidenceIds: [],
     requirementIds: requirements.map((item) => item.id),
@@ -125,7 +127,7 @@ function buildCompletionReport(
     id: projectId,
     name: "Shaft static-yield analysis",
     stage: "ENGINEERING_ANALYSIS",
-    status: result.passesStaticYield ? "ACTIVE" : "BLOCKED",
+    status: result.passesStaticYield && !asmeRequested ? "ACTIVE" : "BLOCKED",
     requirements,
     assumptions: [...result.assumptions, ...assumptionNotes],
     openQuestions: [],
@@ -140,11 +142,11 @@ function buildCompletionReport(
       artifactIds: [artifactId],
       evidence: []
     }],
-    nextAction: result.passesStaticYield
-      ? "Review this preliminary von Mises static-yield calculation. " +
-        (asmeRequested ? "The requested ASME elliptic criterion was not evaluated. " : "") +
-        "This is not fatigue verification, independent verification or design release."
-      : "Increase or revise the candidate diameter and rerun the calculation. Do not accept the failing candidate."
+    nextAction: asmeRequested
+      ? "The requested ASME elliptic criterion was not evaluated. The von Mises result is preliminary only; do not treat the design as validated or approved."
+      : result.passesStaticYield
+        ? "Review this preliminary von Mises static-yield calculation. This is not fatigue verification, independent verification or design release."
+        : "Increase or revise the candidate diameter and rerun the calculation. Do not accept the failing candidate."
   };
   const taskGraph: EngineeringTaskGraph = {
     id: "TG-" + randomUUID(),
@@ -166,7 +168,7 @@ function buildCompletionReport(
 
   return {
     projectId,
-    status: result.passesStaticYield ? "WAITING_APPROVAL" : "FAILED",
+    status: result.passesStaticYield && !asmeRequested ? "WAITING_APPROVAL" : "FAILED",
     completionUnit: "ENGINEERING.COMPLETE_SHAFT",
     decisionMetrics: [
       { key: "torqueNm", value: result.torqueNm, unit: "N·m" },
