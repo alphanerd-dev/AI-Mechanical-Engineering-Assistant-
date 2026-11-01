@@ -207,6 +207,7 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
     assumptions: [
       "The shaft is modelled as a simply supported solid circular beam with one gear load at the stated location.",
       "The gear applies tangential and radial forces derived from the transmitted torque, pitch diameter and pressure angle.",
+      "The full transmitted torque is assumed to act at the critical section; the shaft torque diagram and torque-transfer locations are not resolved.",
       "The maximum transverse resultant is treated as a single equivalent point load for the bending-moment magnitude.",
       "Axial and bending normal-stress magnitudes are conservatively added at the critical surface because the axial load direction is not resolved.",
       "Kb and Kts are user-supplied static stress multipliers; they are not fatigue factors and are not inferred from keyway geometry.",
@@ -217,7 +218,7 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
     limitations: [
       "This is preliminary static-yield sizing, not a complete shaft design or an ASME code compliance calculation.",
       "Fatigue under rotating bending, notch sensitivity, actual keyway geometry, key shear/crushing, deflection, slope, critical speed, bearing life, fits, tolerances and stress-gradient effects are not evaluated.",
-      "Gear axial thrust, helical-gear geometry, multiple loads, shaft self-weight, overhung loads, bearing stiffness and detailed load directions require a more complete model."
+      "The axial load is not apportioned to a thrust-bearing arrangement; bearing axial reactions, helical-gear thrust derivation, multiple loads, shaft self-weight, overhung loads, bearing stiffness and detailed load directions require a more complete model."
     ]
   };
 }
