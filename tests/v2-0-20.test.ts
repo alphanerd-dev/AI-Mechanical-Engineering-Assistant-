@@ -20,12 +20,8 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
     const unit=registry.resolve("ENGINEERING.COMPLETE_SHAFT");
     expect(unit).toBeDefined();
     expect(unit?.capability).toBe("ENGINEERING.COMPLETE_SHAFT");
-    expect(unit?.requiredInputs.map(item=>item.label)).toEqual([
-      "transmitted power","shaft speed","bearing span",
-      "gear position from the left bearing (or an explicit midpoint)",
-      "gear pitch diameter","gear pressure angle","material grade",
-      "material yield strength Sy","material ultimate tensile strength Sut","design factor"
-    ]);
+    // The unit performs conditional legacy-vs-geometry validation itself.
+    expect(unit?.requiredInputs.map(item=>item.label)).toEqual(["transmitted power", "shaft speed"]);
   });
 
   it("rejects duplicate completion-unit registration",()=>{
