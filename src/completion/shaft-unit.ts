@@ -210,18 +210,29 @@ export class ShaftEngineeringCompletionUnit implements EngineeringCompletionUnit
   ): Promise<EngineeringCompletionReport> {
     const source = request.inputs;
     const legacyKeys = ["bendingMomentNm", "allowableShearStressMpa", "proposedDiameterMm"] as const;
+    const hasAnyLegacyInput = legacyKeys.some((key) => source[key] !== undefined);
     const hasCompleteLegacyInputs = legacyKeys.every((key) => isFiniteNumber(source[key]));
-    if (hasCompleteLegacyInputs) {
-      const legacyRequest: ShaftEngineeringCompletionRequest = {
-        projectId: request.projectId,
-        powerKw: source.powerKw as number,
-        speedRpm: source.speedRpm as number,
-        bendingMomentNm: source.bendingMomentNm as number,
-        allowableShearStressMpa: source.allowableShearStressMpa as number,
-        proposedDiameterMm: source.proposedDiameterMm as number,
-        ...(request.approval ? { approval: request.approval } : {})
-      };
-      return completeShaftEngineeringUnit(legacyRequest, router);
+    if (hasAnyLegacyInput) {
+      const legacyMissing = [
+        ...(!isFiniteNumber(source.powerKw) ? ["power"] : []),
+        ...(!isFiniteNumber(source.speedRpm) ? ["speed"] : []),
+        ...(!isFiniteNumber(source.bendingMomentNm) ? ["bending moment"] : []),
+        ...(!isFiniteNumber(source.allowableShearStressMpa) ? ["allowable shear stress"] : []),
+        ...(!isFiniteNumber(source.proposedDiameterMm) ? ["proposed shaft diameter"] : [])
+      ];
+      if (legacyMissing.length > 0) return missingInputsReport(request.projectId, legacyMissing);
+      if (hasCompleteLegacyInputs) {
+        const legacyRequest: ShaftEngineeringCompletionRequest = {
+          projectId: request.projectId,
+          powerKw: source.powerKw as number,
+          speedRpm: source.speedRpm as number,
+          bendingMomentNm: source.bendingMomentNm as number,
+          allowableShearStressMpa: source.allowableShearStressMpa as number,
+          proposedDiameterMm: source.proposedDiameterMm as number,
+          ...(request.approval ? { approval: request.approval } : {})
+        };
+        return completeShaftEngineeringUnit(legacyRequest, router);
+      }
     }
 
     const missing = SHAFT_REQUIRED_GEOMETRY_INPUTS
