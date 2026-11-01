@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       suite:
-        description: Run public workspace, engineering chat rendering and auth-form UI smoke, or the full authenticated acceptance suite
+        description: Run public workspace, authenticated engineering chat rendering and auth-form UI smoke, or the full authenticated acceptance suite
         required: true
         type: choice
         options:
@@ -51,8 +51,8 @@ jobs:
       E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
       E2E_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.suite != 'public-ui-smoke' && vars.E2E_SUPABASE_PUBLISHABLE_KEY || '' }}
       PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.PRODUCTION_SUPABASE_PROJECT_REF }}
-      E2E_USER_A_EMAIL: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_A_EMAIL || '' }}
-      E2E_USER_A_PASSWORD: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_A_PASSWORD || '' }}
+      E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
+      E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
       E2E_USER_B_EMAIL: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_B_EMAIL || '' }}
       E2E_USER_B_PASSWORD: ${{ inputs.suite != 'public-ui-smoke' && secrets.E2E_USER_B_PASSWORD || '' }}
     steps:
@@ -114,10 +114,13 @@ jobs:
             throw new Error("Refusing to run: the E2E Supabase project reference equals the production project reference.");
           }
 
-          const requiredSecrets = ["VERCEL_AUTOMATION_BYPASS_SECRET"];
+          const requiredSecrets = [
+            "VERCEL_AUTOMATION_BYPASS_SECRET",
+            "E2E_USER_A_EMAIL",
+            "E2E_USER_A_PASSWORD",
+          ];
           if (suite === "full") requiredSecrets.push(
             "E2E_SUPABASE_PUBLISHABLE_KEY",
-            "E2E_USER_A_EMAIL", "E2E_USER_A_PASSWORD",
             "E2E_USER_B_EMAIL", "E2E_USER_B_PASSWORD"
           );
           for (const key of requiredSecrets) {

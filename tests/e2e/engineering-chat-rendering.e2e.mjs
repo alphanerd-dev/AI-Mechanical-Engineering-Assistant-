@@ -1,5 +1,22 @@
 import { test, expect } from "@playwright/test";
 
+async function signIn(page, email, password) {
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
+  await expect(page.getByText("Loading projects…")).toHaveCount(0);
+  await expect(page.getByText("Engineering role required")).toHaveCount(0);
+  await expect(page.locator(".projectError[role=\"alert\"]")).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Account" }).getByRole("button", { name: "Sign out" })
+  ).toBeVisible();
+}
+
 const markdownResponse = [
   "# Pump shaft power",
   "",
@@ -42,6 +59,11 @@ function uiMessageStream(text) {
 
 test("engineering chat renders streamed Markdown, equations, code, tables and currency on desktop and mobile", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  const userEmail = process.env.E2E_USER_A_EMAIL;
+  const userPassword = process.env.E2E_USER_A_PASSWORD;
+  expect(userEmail, "E2E_USER_A_EMAIL must be provided by the isolated E2E environment").toBeTruthy();
+  expect(userPassword, "E2E_USER_A_PASSWORD must be provided by the isolated E2E environment").toBeTruthy();
+  await signIn(page, userEmail, userPassword);
   let interceptedRequests = 0;
   await page.route("**/api/projects/demo/engineering/chat", async (route) => {
     if (route.request().method() !== "POST") {
