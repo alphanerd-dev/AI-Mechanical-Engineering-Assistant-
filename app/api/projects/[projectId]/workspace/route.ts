@@ -7,6 +7,8 @@ import { createEmptyEngineeringWorkspaceSnapshot } from "../../../../../src/work
 import type { EngineeringWorkspaceSnapshot } from "../../../../../src/workspace/types";
 import { validateEngineeringWorkspaceSnapshot } from "../../../../../src/workspace/validation";
 import { createCalculationArtifact, sha256Json } from "../../../../../src/artifacts/calculation-artifact";
+import { calculateShaftStaticDesign, SHAFT_STATIC_DESIGN_CAPABILITY, SHAFT_STATIC_DESIGN_VALIDATOR_VERSION, SHAFT_STATIC_DESIGN_VERSION, type ShaftStaticDesignInput } from "../../../../../src/engineering/shaft-static-design";
+import { createShaftDesignWorkspaceState } from "../../../../../src/workspace/shaft-design-state";
 import {
   calculatePumpHydraulicPower,
   PUMP_HYDRAULIC_POWER_CAPABILITY,
@@ -129,6 +131,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     let pumpRun: ReturnType<typeof calculatePumpHydraulicPower> | undefined;
     let pumpIdempotencyKey: string | undefined;
+    let shaftDesignRun: ReturnType<typeof calculateShaftStaticDesign> | undefined;
+    let shaftDesignIdempotencyKey: string | undefined;
     if (input.operation === "RUN_PUMP_HYDRAULIC_POWER") {
       if (typeof input.idempotencyKey !== "string" || !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
         return jsonError("A valid idempotencyKey is required for pump calculation requests.", 400);
@@ -149,6 +153,51 @@ export async function PATCH(request: Request, context: RouteContext) {
         const requestedInputDigest = sha256Json(pumpRun.input);
         if (previousArtifact.inputSha256 !== requestedInputDigest) {
           return jsonError("This idempotencyKey was already used with different pump inputs.", 409, { code: "IDEMPOTENCY_KEY_REUSED" });
+        }
+        return NextResponse.json({
+          projectId,
+          snapshot: loaded.snapshot,
+          revision: loaded.revision,
+          storageMode: "DURABLE",
+          persisted: true,
+          result: {
+            calculation: previousArtifact.outputs,
+            artifact: previousArtifact,
+            validation: previousArtifact.validationReceipt,
+            eventId: previousEvent.id,
+            idempotentReplay: true
+          }
+        }, { headers: { "cache-control": "no-store" } });
+      }
+    }
+
+    if (input.operation === SHAFT_STATIC_DESIGN_CAPABILITY) {
+      if (typeof input.idempotencyKey !== "string" || !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
+        return jsonError("A valid idempotencyKey is required for shaft design calculations.", 400);
+      }
+      if (!input.shaftInput || typeof input.shaftInput !== "object" || Array.isArray(input.shaftInput)) {
+        return jsonError("shaftInput must be a structured object containing the complete shaft design inputs.", 400);
+      }
+      shaftDesignIdempotencyKey = input.idempotencyKey;
+      const rawShaftInput = input.shaftInput as Record<string, unknown>;
+      const normalizedShaftInput = {
+        ...rawShaftInput,
+        materialGrade: typeof rawShaftInput.materialGrade === "string" ? rawShaftInput.materialGrade.trim() : rawShaftInput.materialGrade
+      } as unknown as ShaftStaticDesignInput;
+      // Calculate and validate before replay lookup; a repeated key must describe the exact same input.
+      shaftDesignRun = calculateShaftStaticDesign(normalizedShaftInput);
+      const previousEvent = loaded.snapshot.project.events.find((event) => event.idempotencyKey === shaftDesignIdempotencyKey);
+      if (previousEvent) {
+        if (previousEvent.action !== SHAFT_STATIC_DESIGN_CAPABILITY) {
+          return jsonError("This idempotencyKey was already used for a different operation.", 409, { code: "IDEMPOTENCY_KEY_REUSED" });
+        }
+        const previousArtifactId = previousEvent.artifactIds?.[0];
+        const previousArtifact = loaded.snapshot.artifacts?.find((artifact) => artifact.id === previousArtifactId);
+        if (!previousArtifact) {
+          return jsonError("A previous shaft calculation with this idempotencyKey is missing its artifact; no replay success was reported.", 503, { code: "IDEMPOTENCY_RECORD_INCOMPLETE" });
+        }
+        if (previousArtifact.inputSha256 !== sha256Json(shaftDesignRun.input)) {
+          return jsonError("This idempotencyKey was already used with different shaft design inputs.", 409, { code: "IDEMPOTENCY_KEY_REUSED" });
         }
         return NextResponse.json({
           projectId,
@@ -219,6 +268,75 @@ export async function PATCH(request: Request, context: RouteContext) {
         });
         snapshot.project.nextAction = "Review assumptions, loading arrangement, material and allowable stress before shaft sizing.";
         operationResult = { calculation, eventId };
+        break;
+      }
+      case SHAFT_STATIC_DESIGN_CAPABILITY: {
+        const calculation = shaftDesignRun ?? calculateShaftStaticDesign(input.shaftInput as ShaftStaticDesignInput);
+        const validationResult = calculation.passesStaticYield ? "PASS" : "FAIL";
+        const eventId = randomUUID();
+        const artifact = createCalculationArtifact({
+          id: randomUUID(),
+          projectId,
+          name: "Preliminary static shaft design — " + calculation.input.materialGrade,
+          capability: SHAFT_STATIC_DESIGN_CAPABILITY,
+          sourceRevision: loaded.revision,
+          workspaceRevision: loaded.revision + 1,
+          createdBy: authorization.subject,
+          createdAt: now,
+          providerId: "deterministic.shaft-static-design",
+          providerVersion: SHAFT_STATIC_DESIGN_VERSION,
+          inputs: calculation.input as unknown as Record<string, unknown>,
+          outputs: calculation as unknown as Record<string, unknown>,
+          executionStatus: "COMPLETED",
+          validation: {
+            id: randomUUID(),
+            result: validationResult,
+            validatorId: "deterministic.shaft-static-yield",
+            validatorVersion: SHAFT_STATIC_DESIGN_VALIDATOR_VERSION,
+            checks: [
+              "Input domains and bearing/gear geometry are valid.",
+              "Torque, gear forces, support reactions and maximum bending moment are finite.",
+              "Combined axial, bending and torsional von Mises stress is finite.",
+              validationResult === "PASS"
+                ? "Candidate diameter satisfies the stated static-yield design-factor criterion."
+                : "Candidate diameter does not satisfy the stated static-yield design-factor criterion."
+            ],
+            warnings: calculation.limitations,
+            validatedAt: now
+          },
+          approvalRequired: true,
+          approvalStatus: "WAITING_APPROVAL",
+          verificationStatus: "NOT_VERIFIED",
+          limitations: calculation.limitations
+        });
+        snapshot.artifacts ??= [];
+        snapshot.artifacts.push(artifact);
+        snapshot.shaftDesign = createShaftDesignWorkspaceState({
+          designRevision: (snapshot.shaftDesign?.designRevision ?? 0) + 1,
+          sourceWorkspaceRevision: loaded.revision,
+          workspaceRevision: loaded.revision + 1,
+          updatedAt: now,
+          updatedBy: authorization.subject,
+          idempotencyKey: shaftDesignIdempotencyKey!,
+          artifactId: artifact.id,
+          shaftInput: calculation.input,
+          result: calculation
+        });
+        snapshot.project.events.push({
+          id: eventId,
+          timestamp: now,
+          actor: authorization.subject,
+          action: SHAFT_STATIC_DESIGN_CAPABILITY,
+          input: calculation.input,
+          output: calculation,
+          artifactIds: [artifact.id],
+          idempotencyKey: shaftDesignIdempotencyKey,
+          evidence: ["validation:" + artifact.validationReceipt.id]
+        });
+        snapshot.project.nextAction = validationResult === "PASS"
+          ? "Review the static-yield result and complete fatigue, key/keyway, deflection, critical-speed, bearing and detailed design checks before release."
+          : "Increase or revise the candidate diameter and rerun the static-yield calculation. Do not treat this failed candidate as acceptable.";
+        operationResult = { calculation, artifact, validation: artifact.validationReceipt, eventId };
         break;
       }
       case "RUN_PUMP_HYDRAULIC_POWER": {
