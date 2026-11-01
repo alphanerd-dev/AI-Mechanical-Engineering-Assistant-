@@ -15,6 +15,26 @@ import { EngineeringVerificationProvider } from "../src/providers/engineering-ve
 import { AIEngineeringIntentProvider } from "../src/providers/ai-intent.js";
 import { DeterministicShaftIntentInterpreter } from "../src/intent/shaft.js";
 
+type EngineeringIntentTestOutput = {
+  status: "NEEDS_INPUT" | "WAITING_APPROVAL" | "COMPLETE" | "FAILED";
+  nextQuestion?: string;
+  interpretation: {
+    missingInputs: string[];
+    extractedInputs: Record<string, number | string>;
+  };
+  decision: {
+    validationPassed: boolean;
+    evidenceIds: string[];
+  };
+  completion?: {
+    validation: { passed: boolean; criterion: string };
+    decisionMetrics: Array<{ key: string; value: number | string; unit?: string }>;
+    evidence: unknown[];
+    artifacts: unknown[];
+    nextAction: string;
+  };
+};
+
 const screenshotPrompt = [
   "Design a solid circular shaft to transmit 12 kW at 1450 rpm.",
   "The shaft is simply supported between two bearings 400 mm apart, with a spur gear mounted at the midpoint.",
@@ -56,7 +76,7 @@ describe("geometry-derived shaft design from natural-language intent", () => {
     });
 
     expect(result.success).toBe(true);
-    const output = result.output as any;
+    const output = result.output as EngineeringIntentTestOutput;
     expect(output.status).toBe("WAITING_APPROVAL");
     expect(output.nextQuestion).toBeUndefined();
     expect(output.interpretation.missingInputs).toEqual([]);
@@ -78,7 +98,8 @@ describe("geometry-derived shaft design from natural-language intent", () => {
     expect(output.interpretation.extractedInputs).not.toHaveProperty("candidateDiameterMm");
     expect(output.interpretation.extractedInputs).not.toHaveProperty("bendingMomentNm");
 
-    const report = output.completion;
+    expect(output.completion).toBeDefined();
+    const report = output.completion!;
     expect(report.validation.passed).toBe(true);
     expect(report.validation.criterion).toBe("ASME_ELLIPTIC_STATIC_YIELD");
     expect(report.decisionMetrics).toEqual(expect.arrayContaining([
@@ -105,7 +126,7 @@ describe("geometry-derived shaft design from natural-language intent", () => {
     });
 
     expect(result.success).toBe(true);
-    const output = result.output as any;
+    const output = result.output as EngineeringIntentTestOutput;
     expect(output.status).toBe("NEEDS_INPUT");
     expect(output.nextQuestion).toBe("gear position from the left bearing");
     expect(output.interpretation.missingInputs).toEqual(["gear position from the left bearing"]);
@@ -119,9 +140,10 @@ describe("geometry-derived shaft design from natural-language intent", () => {
       risk: "HIGH",
       input: { projectId: "shaft-geometry-no-candidate", rawIntent: screenshotPrompt }
     });
-    const output = result.output as any;
+    const output = result.output as EngineeringIntentTestOutput;
     expect(output.interpretation.extractedInputs).not.toHaveProperty("candidateDiameterMm");
-    expect(output.completion.decisionMetrics).toEqual(expect.arrayContaining([
+    expect(output.completion).toBeDefined();
+    expect(output.completion!.decisionMetrics).toEqual(expect.arrayContaining([
       { key: "candidateDiameterMm", value: 22, unit: "mm" }
     ]));
   });
