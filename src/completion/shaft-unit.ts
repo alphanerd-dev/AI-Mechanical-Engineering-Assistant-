@@ -212,7 +212,11 @@ export class ShaftEngineeringCompletionUnit implements EngineeringCompletionUnit
   ): Promise<EngineeringCompletionReport> {
     const source = request.inputs;
     const legacyKeys = ["bendingMomentNm", "allowableShearStressMpa", "proposedDiameterMm"] as const;
-    const hasAnyLegacyInput = legacyKeys.some((key) => source[key] !== undefined);
+    const hasGeometryInputs = [
+      "bearingSpanMm", "gearPositionFromLeftMm", "pitchDiameterMm", "pressureAngleDeg",
+      "materialGrade", "yieldStrengthMpa", "ultimateTensileStrengthMpa", "designFactor"
+    ].some((key) => source[key] !== undefined);
+    const hasAnyLegacyInput = !hasGeometryInputs && legacyKeys.some((key) => source[key] !== undefined);
     const hasCompleteLegacyInputs = legacyKeys.every((key) => isFiniteNumber(source[key]));
     if (hasAnyLegacyInput) {
       const legacyMissing = [
