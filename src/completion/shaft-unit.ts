@@ -243,14 +243,18 @@ export class ShaftEngineeringCompletionUnit implements EngineeringCompletionUnit
       }
     }
 
-    const missing = SHAFT_REQUIRED_GEOMETRY_INPUTS
+    const missing = [
+      ...(!isFiniteNumber(source.powerKw) ? ["transmitted power"] : []),
+      ...(!isFiniteNumber(source.speedRpm) ? ["shaft speed"] : []),
+      ...SHAFT_REQUIRED_GEOMETRY_INPUTS
       .filter(({ key }) => {
         const value = source[key];
         return key === "materialGrade"
           ? typeof value !== "string" || !value.trim()
           : !isFiniteNumber(value);
       })
-      .map(({ label }) => label);
+      .map(({ label }) => label)
+    ];
     if (missing.length > 0) return missingInputsReport(request.projectId, missing);
 
     const input: ShaftStaticDesignInput = {
