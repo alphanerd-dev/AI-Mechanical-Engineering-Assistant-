@@ -40,6 +40,13 @@ Diameter sizing uses a bracketed bisection solve of the von Mises static-yield i
 
 **Scope and limitations:** this is a preliminary static-yield model, not a complete shaft design or ASME code compliance determination. The model assumes a solid circular shaft, simple supports and one gear load. Axial and bending stress magnitudes are conservatively added at the critical surface because axial-load direction is not resolved. `Kb` and `Kts` are explicit user-supplied static stress multipliers; they are not fatigue factors. `Sut` is recorded but is not used in the static-yield criterion. Fatigue under rotating bending, key/keyway shear and crushing, notch sensitivity, deflection, slope, critical speed, bearing life, fits, tolerances, multiple/overhung loads, helical-gear thrust derivation and human design approval remain outside the pilot. A passing validator result is not independent engineering verification or release approval.
 
+## Geometry-based Engineering Core shaft completion — PILOT
+
+The Engineering Core intent workflow no longer asks the user to enter a bending moment when a simply supported shaft and gear geometry are available. The deterministic intent interpreter extracts power, speed, bearing span, gear position (including an explicitly stated midpoint), pitch diameter, pressure angle, material grade, Sy, Sut and design factor. The completion unit routes the structured inputs to ANALYSIS.SHAFT_STATIC_DESIGN, which derives torque, gear forces, bearing reactions and maximum bending moment before calculating the minimum/preferred diameter and static-yield stress results.
+
+An omitted axial load is treated as 0 N only for this explicitly preliminary spur-gear model and is recorded as an assumption; a prompt that explicitly says to neglect axial forces is recorded as such. Missing Kb/Kts default to 1.0 and are stated as assumptions. Shock/service factors are not silently mapped to these static stress multipliers.
+
+**Important criterion boundary:** when the request asks for ASME elliptic criteria, the current completion response explicitly states that the implemented pilot is a von Mises static-yield check and does not claim ASME elliptic compliance. Results are marked CALCULATED and require engineering review; this intent completion path does not manufacture VERIFIED evidence or human approval.
 ## Pump hydraulic and shaft power — PILOT
 
 The source includes a deterministic pump-power calculator using explicit fluid density, volume flow rate, total dynamic head and pump efficiency. Supported units include kg/m3 or g/cm3; m3/s, L/s or m3/h; and metres or feet. The service converts to SI, applies P_h = rho * g * Q * H and P_shaft = P_h / eta, and records assumptions and normalized inputs.
