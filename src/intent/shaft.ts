@@ -102,6 +102,9 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
     const candidateDiameterMm = numberAfter(
       /(?:proposed|candidate|selected|shaft)\s+diameter(?:\s+(?:of|is|=))?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i,
       text
+    ) ?? numberAfter(
+      /(?:propos(?:e|ed|ing)|candidate|selected)\s+(?:a\s+)?([0-9]+(?:\.[0-9]+)?)\s*mm\s+diameter\b/i,
+      text
     ) ?? contextNumber(context, ["candidateDiameterMm", "proposedDiameterMm", "proposed shaft diameter"]);
     const bendingMomentNm = numberAfter(
       /bending moment\s*(?:of|is|=)?\s*([0-9]+(?:\.[0-9]+)?)\s*N(?:·|\.)?\s*m\b/i,
