@@ -38,6 +38,6 @@ describe("V2.0.19 domain-neutral engineering decision contract",()=>{
     expect(decision.status).toBe("NEEDS_INPUT");
     expect(decision.metrics).toEqual([]);
     expect(Array.isArray(decision.evidenceIds)).toBe(true);
-    expect(decision.nextQuestion).toBe("bending moment");
+    expect(decision.nextQuestion).toBe("bearing span");
   });
 });
