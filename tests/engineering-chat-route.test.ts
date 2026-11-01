@@ -89,7 +89,7 @@ describe("POST engineering chat provider and project authorization", () => {
       { role: "assistant", parts: [{ type: "text", text: "Earlier calculation " + "B".repeat(5_400) }] },
       { role: "user", parts: [{ type: "text", text: "Corrected design input " + "C".repeat(5_400) }] },
       { role: "assistant", parts: [{ type: "text", text: "Earlier response " + "D".repeat(5_400) }] },
-      { role: "user", parts: [{ type: "text", text: "Now derive bending moment from the gear geometry." }] }
+      { role: "user", parts: [{ type: "text", text: "Now derive bending moment from the gear geometry. " + "E".repeat(5_400) }] }
     ];
     const response = await POST(request("demo", { messages }), {
       params: Promise.resolve({ projectId: "demo" })
@@ -98,7 +98,7 @@ describe("POST engineering chat provider and project authorization", () => {
     const modelRequest = mocks.streamText.mock.calls[0][0];
     expect(modelRequest.messages.at(-1)).toEqual({
       role: "user",
-      content: "Now derive bending moment from the gear geometry."
+      content: "Now derive bending moment from the gear geometry. " + "E".repeat(5_400)
     });
     expect(modelRequest.messages.reduce((sum: number, message: { content: string }) => sum + message.content.length, 0))
       .toBeLessThanOrEqual(24_000);
