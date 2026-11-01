@@ -267,7 +267,9 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
         decision,
         nextQuestion: completion.missingInputs[0],
         decisionSummary: status === "WAITING_APPROVAL"
-          ? "The engineering completion unit passed deterministic validation and produced evidence. Explicit authorized approval is now required."
+          ? evidenceIds.length > 0
+            ? "The engineering completion unit passed deterministic validation and produced evidence. Explicit authorized approval is now required."
+            : "The preliminary engineering calculation passed its stated numerical check. It is not independently verified and requires engineering review before design release."
           : status === "COMPLETE"
             ? "The engineering completion unit is complete and verified."
             : status === "FAILED"
