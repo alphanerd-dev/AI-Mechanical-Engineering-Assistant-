@@ -36,6 +36,7 @@ function titleFromPath(pathname: string): string {
     analysis: "Analysis",
     cad: "CAD workspace",
     validation: "Validation and evidence",
+    execution: "Run review",
     demo: "Project overview",
   };
   if (titles[segment]) return titles[segment];
@@ -52,19 +53,19 @@ export function getWorkspaceNavigation(pathnameInput: string | null | undefined)
   const projectPrefix = "/projects/" + assistantProjectId;
 
   const globalItems: WorkspaceNavItem[] = [
-    { id: "overview", label: "Overview", href: "/", icon: "⌂", description: "Workspace and recent projects" },
-    { id: "projects", label: "Projects", href: "/#projects", icon: "▦", description: "Browse and create projects" },
-    { id: "assistant", label: "AI assistant", href: projectPrefix + "/engineering", icon: "✳", description: projectId ? "Project-scoped conversation" : "Open the illustrative demo assistant" },
+    { id: "overview", label: "Overview", href: "/", icon: "layout-dashboard", description: "Workspace and recent projects" },
+    { id: "projects", label: "Projects", href: "/#projects", icon: "folder-kanban", description: "Browse and create projects" },
+    { id: "assistant", label: "AI assistant", href: projectPrefix + "/engineering", icon: "bot", description: projectId ? "Project-scoped conversation" : "Open the illustrative demo assistant" },
   ];
 
   const projectItems: WorkspaceNavItem[] = projectId ? [
-    { id: "project-overview", label: "Project overview", href: projectPrefix, icon: "◫", description: "Status, decisions and open questions" },
-    { id: "requirements", label: "Requirements", href: projectPrefix + "/requirements", icon: "≡", description: "Scope, assumptions and verification" },
-    { id: "reasoning", label: "Reasoning workbench", href: projectPrefix + "/reasoning", icon: "∴", description: "Structured problem reasoning" },
-    { id: "analysis", label: "Analysis", href: projectPrefix + "/analysis", icon: "∑", description: "Deterministic calculations and runs" },
-    { id: "cad", label: "CAD", href: projectPrefix + "/cad", icon: "◇", description: "Geometry and validation state" },
-    { id: "validation", label: "Validation", href: projectPrefix + "/validation", icon: "✓", description: "Readiness gates and evidence" },
-    { id: "research", label: "Research", href: projectPrefix + "/research", icon: "⌕", description: "Source-backed technical research" },
+    { id: "project-overview", label: "Project overview", href: projectPrefix, icon: "panels-top-left", description: "Status, decisions and open questions" },
+    { id: "requirements", label: "Requirements", href: projectPrefix + "/requirements", icon: "clipboard-list", description: "Scope, assumptions and verification" },
+    { id: "reasoning", label: "Reasoning workbench", href: projectPrefix + "/reasoning", icon: "brain-circuit", description: "Structured problem reasoning" },
+    { id: "analysis", label: "Analysis", href: projectPrefix + "/analysis", icon: "calculator", description: "Deterministic calculations and runs" },
+    { id: "cad", label: "CAD", href: projectPrefix + "/cad", icon: "drafting-compass", description: "Geometry and validation state" },
+    { id: "validation", label: "Validation", href: projectPrefix + "/validation", icon: "shield-check", description: "Readiness gates and evidence" },
+    { id: "research", label: "Research", href: projectPrefix + "/research", icon: "search", description: "Source-backed technical research" },
   ] : [];
 
   return {
@@ -83,5 +84,10 @@ export function isWorkspaceItemActive(pathname: string, item: WorkspaceNavItem, 
   if (item.id === "overview") return pathname === "/";
   if (item.id === "projects") return pathname === "/" && hash === "#projects";
   if (item.href === "/") return pathname === "/";
-  return pathname === item.href;
+  if (pathname === item.href) return true;
+  // A section remains active on its real nested destinations (for example, analysis/execution).
+  if (item.id !== "assistant" && item.id !== "projects" && item.id !== "overview") {
+    return pathname.startsWith(item.href + "/");
+  }
+  return false;
 }

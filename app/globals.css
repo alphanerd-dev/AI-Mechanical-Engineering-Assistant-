@@ -484,3 +484,80 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
   margin: 0;
 }
 .authForm > .muted { margin: 0; }
+
+
+/* Engineering OS v11.2 shell refinement: token-backed surfaces and icon rhythm. */
+.workspaceSidebar {
+  background: var(--color-surface, #0e1a25);
+  border-right-color: var(--color-border, #2a3b49);
+}
+.workspaceBrandMark {
+  display: grid;
+  place-items: center;
+  background: var(--color-accent, #42c8b4);
+  color: #07191b;
+}
+.workspaceNavLink {
+  min-height: 44px;
+  border-radius: var(--radius-sm, 6px);
+}
+.workspaceNavLink[aria-current="page"] {
+  background: color-mix(in srgb, var(--color-accent, #42c8b4) 11%, var(--color-surface-raised, #142330));
+  border-color: color-mix(in srgb, var(--color-accent, #42c8b4) 30%, transparent);
+  color: var(--color-text, #edf4f7);
+}
+.workspaceNavIcon {
+  flex: 0 0 21px;
+  color: var(--color-text-subtle, #7f94a4);
+}
+.workspaceNavLink[aria-current="page"] .workspaceNavIcon {
+  color: var(--color-accent, #42c8b4);
+}
+.workspaceTopbar {
+  background: color-mix(in srgb, var(--color-bg, #08111a) 94%, transparent);
+  border-bottom-color: var(--color-border, #2a3b49);
+}
+.workspaceBreadcrumb a {
+  color: var(--color-text-subtle, #7f94a4);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+.workspaceBreadcrumb a:hover {
+  color: var(--color-accent-hover, #68d8c7);
+}
+.workspaceBreadcrumb svg {
+  flex: none;
+  color: var(--color-text-subtle, #7f94a4);
+}
+.workspaceBreadcrumb strong {
+  max-width: min(34vw, 260px);
+}
+.workspaceSearchButton {
+  min-height: 40px;
+  border-color: var(--color-border, #2a3b49);
+  background: var(--color-surface, #0e1a25);
+}
+.workspaceSearchButton:focus-visible,
+.workspaceSidebarToggle:focus-visible,
+.workspaceBottomNav a:focus-visible {
+  outline: 2px solid var(--color-accent, #42c8b4);
+  outline-offset: 2px;
+}
+.workspaceBottomNav a {
+  min-height: 48px;
+}
+.workspaceBottomNav a svg {
+  color: var(--color-text-subtle, #7f94a4);
+}
+.workspaceBottomNav a[aria-current="page"] svg {
+  color: var(--color-accent, #42c8b4);
+}
+@media (max-width: 560px) {
+  .workspaceBreadcrumb a:first-child,
+  .workspaceBreadcrumb svg:first-of-type {
+    display: none;
+  }
+  .workspaceBreadcrumb strong {
+    max-width: 30vw;
+  }
+}

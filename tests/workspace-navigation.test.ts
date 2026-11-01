@@ -33,6 +33,13 @@ describe("workspace navigation", () => {
     expect(isWorkspaceItemActive("/", projects, "#projects")).toBe(true);
   });
 
+  it("keeps the analysis section active for its nested execution route", () => {
+    const state = getWorkspaceNavigation("/projects/project-123/analysis/execution");
+    const analysis = state.projectItems.find((item) => item.id === "analysis")!;
+    expect(state.pageTitle).toBe("Run review");
+    expect(isWorkspaceItemActive(state.pathname, analysis)).toBe(true);
+  });
+
   it("labels the demo project rather than presenting it as persisted user data", () => {
     const state = getWorkspaceNavigation("/projects/demo");
     expect(state.projectLabel).toBe("Demo sandbox");

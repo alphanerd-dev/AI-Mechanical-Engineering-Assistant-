@@ -4,7 +4,38 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthNavigation from "./AuthNavigation";
+import {
+  Bot,
+  BrainCircuit,
+  Calculator,
+  ChevronRight,
+  ClipboardList,
+  DraftingCompass,
+  FolderKanban,
+  Home,
+  LayoutDashboard,
+  Menu,
+  MessageSquare,
+  PanelsTopLeft,
+  Search,
+  ShieldCheck,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
 import { getWorkspaceNavigation, isWorkspaceItemActive, type WorkspaceNavItem } from "../src/ui/workspace-navigation";
+
+const workspaceIcons: Record<string, LucideIcon> = {
+  "layout-dashboard": LayoutDashboard,
+  "folder-kanban": FolderKanban,
+  bot: Bot,
+  "panels-top-left": PanelsTopLeft,
+  "clipboard-list": ClipboardList,
+  "brain-circuit": BrainCircuit,
+  calculator: Calculator,
+  "drafting-compass": DraftingCompass,
+  "shield-check": ShieldCheck,
+  search: Search,
+};
 
 export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() || "/";
@@ -117,6 +148,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
   function renderLink(item: WorkspaceNavItem, context = "global") {
     const active = isWorkspaceItemActive(pathname, item, hash);
+    const ItemIcon = workspaceIcons[item.icon] ?? Search;
     return <Link
       key={item.id}
       href={item.href}
@@ -125,7 +157,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       onClick={() => setSidebarOpen(false)}
       title={item.description}
     >
-      <span className="workspaceNavIcon" aria-hidden="true">{item.icon}</span>
+      <span className="workspaceNavIcon" aria-hidden="true"><ItemIcon size={17} strokeWidth={1.8} /></span>
       <span>{item.label}</span>
       {context === "global" && item.id === "assistant" && !navigation.projectId && <span className="workspaceNavSubtext">Demo</span>}
     </Link>;
@@ -158,7 +190,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       }
     }}>
       <Link href="/" className="workspaceBrand" onClick={() => setSidebarOpen(false)} aria-label="Forge workspace home">
-        <span className="workspaceBrandMark" aria-hidden="true">F</span>
+        <span className="workspaceBrandMark" aria-hidden="true"><Workflow size={18} strokeWidth={2.2} /></span>
         <span><span className="workspaceBrandName">FORGE</span><span className="workspaceBrandSubtitle">ENGINEERING OS</span></span>
       </Link>
 
@@ -195,16 +227,26 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     <div className="workspaceMain">
       <header className="workspaceTopbar">
         <div className="workspaceTopbarLeft">
-          <button ref={sidebarToggleRef} type="button" className="workspaceSidebarToggle" aria-label="Open workspace navigation" aria-controls="workspace-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>☰</button>
+          <button ref={sidebarToggleRef} type="button" className="workspaceSidebarToggle" aria-label="Open workspace navigation" aria-controls="workspace-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}><Menu size={18} /></button>
           <Link href="/" className="workspaceMobileBrand">FORGE <span>ENGINEERING OS</span></Link>
-          <nav className="workspaceBreadcrumb" aria-label="Current page">
-            <span>WORKSPACE</span><span aria-hidden="true">/</span><strong>{navigation.pageTitle}</strong>
+          <nav className="workspaceBreadcrumb" aria-label="Breadcrumb">
+            {navigation.projectId ? <>
+              <Link href="/">Workspace</Link>
+              <ChevronRight size={13} aria-hidden="true" />
+              <Link href={overviewHref} title={currentProjectLabel}>{currentProjectLabel}</Link>
+              <ChevronRight size={13} aria-hidden="true" />
+              <strong aria-current="page">{navigation.pageTitle}</strong>
+            </> : <>
+              <Link href="/">Workspace</Link>
+              <ChevronRight size={13} aria-hidden="true" />
+              <strong aria-current="page">{navigation.pageTitle}</strong>
+            </>}
           </nav>
         </div>
         <div className="workspaceTopbarRight">
           <span className="workspaceContextBadge"><span className="workspaceContextDot" aria-hidden="true" />{navigation.projectId ? <>PROJECT · <span className="workspaceCurrentProjectName" title={currentProjectLabel}>{currentProjectLabel}</span></> : "WORKSPACE"}</span>
           <button type="button" className="workspaceSearchButton" onClick={openSearch} aria-label="Search workspace" aria-haspopup="dialog" aria-expanded={searchOpen}>
-            <span aria-hidden="true">⌕</span><span className="workspaceSearchLabel">Search workspace</span><kbd>Ctrl K</kbd>
+            <Search size={15} aria-hidden="true" /><span className="workspaceSearchLabel">Search workspace</span><kbd>Ctrl K</kbd>
           </button>
           <div className="workspaceAccount"><AuthNavigation /></div>
         </div>
@@ -213,10 +255,10 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       <main className="workspacePageArea">{children}</main>
 
       <nav className="workspaceBottomNav" aria-label="Quick navigation">
-        <Link href={overviewHref} aria-current={pathname === overviewHref ? "page" : undefined}><span aria-hidden="true">⌂</span>Overview</Link>
-        <Link href={assistantHref} aria-current={pathname === assistantHref ? "page" : undefined}><span aria-hidden="true">✳</span>Chat</Link>
-        <Link href={cadHref} aria-current={pathname === cadHref ? "page" : undefined}><span aria-hidden="true">◇</span>CAD</Link>
-        <Link href={requirementsHref} aria-current={pathname === requirementsHref ? "page" : undefined}><span aria-hidden="true">≡</span>Requirements</Link>
+        <Link href={overviewHref} aria-current={pathname === overviewHref ? "page" : undefined}><Home size={17} aria-hidden="true" />Overview</Link>
+        <Link href={assistantHref} aria-current={pathname === assistantHref ? "page" : undefined}><MessageSquare size={17} aria-hidden="true" />Chat</Link>
+        <Link href={cadHref} aria-current={pathname === cadHref || pathname.startsWith(cadHref + "/") ? "page" : undefined}><DraftingCompass size={17} aria-hidden="true" />CAD</Link>
+        <Link href={requirementsHref} aria-current={pathname === requirementsHref || pathname.startsWith(requirementsHref + "/") ? "page" : undefined}><ClipboardList size={17} aria-hidden="true" />Requirements</Link>
       </nav>
     </div>
 
