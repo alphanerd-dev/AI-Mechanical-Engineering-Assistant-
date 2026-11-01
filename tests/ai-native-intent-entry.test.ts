@@ -13,6 +13,25 @@ import {AIEngineeringIntentProvider} from "../src/providers/ai-intent.js";
 import {DeterministicShaftIntentInterpreter} from "../src/intent/shaft.js";
 import {NumericalAnalysisProvider} from "../src/providers/numerical.js";
 
+type IntentTestOutput = {
+  status: string;
+  nextQuestion?: string;
+  decisionSummary?: string;
+  interpretation: {
+    extractedInputs: Record<string, unknown>;
+    contextUsed: string[];
+  };
+  completion?: {
+    validation?: { passed: boolean } | null;
+    evidence?: unknown[];
+    artifacts?: Array<{ informationStatus: string; validationStatus: string }>;
+    nextAction?: string;
+  };
+  decision: {
+    metrics: Array<{ key: string; value: number | string; unit: string }>;
+  };
+};
+
 function router(){
   const registry=new CapabilityRegistry();
   registry.registerCatalog(V2_0_10_CAPABILITIES);
@@ -40,7 +59,7 @@ describe("AI-native engineering intent entry",()=>{
       }
     });
     expect(result.success).toBe(false);
-    const output=result.output as any;
+    const output=result.output as unknown as IntentTestOutput;
     expect(output.interpretation.extractedInputs).toMatchObject({
       projectId:"ai-intent-shaft-geometry",
       powerKw:12,
@@ -57,17 +76,18 @@ describe("AI-native engineering intent entry",()=>{
     });
     expect(output.interpretation.extractedInputs).not.toHaveProperty("bendingMomentNm");
     expect(output.status).toBe("FAILED");
-    expect(output.completion.validation.passed).toBe(false);
-    expect(output.completion.evidence).toHaveLength(0);
-    expect(output.completion.artifacts[0].informationStatus).toBe("CALCULATED");
-    expect(output.completion.artifacts[0].validationStatus).toBe("UNVALIDATED");
+    const completion = output.completion!;
+    expect(completion.validation?.passed).toBe(false);
+    expect(completion.evidence).toHaveLength(0);
+    expect(completion.artifacts?.[0]?.informationStatus).toBe("CALCULATED");
+    expect(completion.artifacts?.[0]?.validationStatus).toBe("UNVALIDATED");
     expect(output.decision.metrics).toEqual(expect.arrayContaining([
       {key:"torqueNm",value:expect.any(Number),unit:"N·m"},
       {key:"maximumBendingMomentNm",value:expect.any(Number),unit:"N·m"},
       {key:"minimumDiameterMm",value:expect.any(Number),unit:"mm"},
       {key:"achievedYieldFactorOfSafety",value:expect.any(Number),unit:"—"}
     ]));
-    expect(output.completion.nextAction).toContain("ASME elliptic criterion was not evaluated");
+    expect(completion.nextAction).toContain("ASME elliptic criterion was not evaluated");
   });
   it("uses known geometry and material context instead of asking for values already available",async()=>{
     const result=await router().execute({
@@ -95,10 +115,10 @@ describe("AI-native engineering intent entry",()=>{
       }
     });
     expect(result.success).toBe(true);
-    const output=result.output as any;
+    const output=result.output as unknown as IntentTestOutput;
     expect(output.status).toBe("WAITING_APPROVAL");
     expect(output.decisionSummary).toContain("not independently verified");
-    expect(output.completion.evidence).toHaveLength(0);
+    expect(output.completion?.evidence).toHaveLength(0);
     expect(output.interpretation.contextUsed).toEqual(expect.arrayContaining([
       "powerKw","speedRpm","bearingSpanMm","gearPositionFromLeftMm","pitchDiameterMm",
       "pressureAngleDeg","materialGrade","yieldStrengthMpa","ultimateTensileStrengthMpa","designFactor"
@@ -114,7 +134,7 @@ describe("AI-native engineering intent entry",()=>{
       }
     });
     expect(result.success).toBe(true);
-    const output=result.output as any;
+    const output=result.output as unknown as IntentTestOutput;
     expect(output.status).toBe("NEEDS_INPUT");
     expect(output.nextQuestion).toBe("bearing span");
     expect(output.completion).toBeUndefined();
@@ -130,7 +150,7 @@ describe("AI-native engineering intent entry",()=>{
       }
     });
     expect(result.success).toBe(false);
-    const output=result.output as any;
+    const output=result.output as unknown as IntentTestOutput;
     expect(output.status).toBe("FAILED");
     expect(output.completion.evidence).toHaveLength(0);
   });
