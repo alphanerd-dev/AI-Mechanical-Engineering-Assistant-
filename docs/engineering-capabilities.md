@@ -30,6 +30,16 @@ The shaft torque relation is T = P / omega, where omega = 2 pi n / 60. Prelimina
 
 The constraint foundation supports bounded explicit inputs; a solved system is not a safety verdict. An incomplete search or reached sample limit must not be presented as an exhaustive optimum. Units, domains, missing inputs and assumptions remain explicit.
 
+## Solid shaft static-yield design — PILOT
+
+Capability: `ANALYSIS.SHAFT_STATIC_DESIGN`.
+
+The pilot accepts explicit power, speed, bearing span, gear position, pitch diameter, pressure angle, axial force, material grade, `Sy`, `Sut`, design factor, bending stress multiplier `Kb`, torsional stress multiplier `Kts`, and an optional candidate diameter. It calculates transmitted torque, tangential/radial gear forces, resultant transverse load, support reactions and maximum bending moment for a simply supported shaft with one gear load.
+
+Diameter sizing uses a bracketed bisection solve of the von Mises static-yield inequality. Axial stress is included (`d^-2`); bending and torsional stresses use the declared static multipliers (`d^-3`). The exact input and output are bound to SHA-256 digests, a deterministic validation receipt, an idempotency key and a versioned design revision in the existing project workspace. Loading chat retrieves this saved state as read-only context and checks its hashes, deterministic recomputation and artifact link.
+
+**Scope and limitations:** this is a preliminary static-yield model, not a complete shaft design or ASME code compliance determination. The model assumes a solid circular shaft, simple supports and one gear load. Axial and bending stress magnitudes are conservatively added at the critical surface because axial-load direction is not resolved. `Kb` and `Kts` are explicit user-supplied static stress multipliers; they are not fatigue factors. `Sut` is recorded but is not used in the static-yield criterion. Fatigue under rotating bending, key/keyway shear and crushing, notch sensitivity, deflection, slope, critical speed, bearing life, fits, tolerances, multiple/overhung loads, helical-gear thrust derivation and human design approval remain outside the pilot. A passing validator result is not independent engineering verification or release approval.
+
 ## Pump hydraulic and shaft power — PILOT
 
 The source includes a deterministic pump-power calculator using explicit fluid density, volume flow rate, total dynamic head and pump efficiency. Supported units include kg/m3 or g/cm3; m3/s, L/s or m3/h; and metres or feet. The service converts to SI, applies P_h = rho * g * Q * H and P_shaft = P_h / eta, and records assumptions and normalized inputs.

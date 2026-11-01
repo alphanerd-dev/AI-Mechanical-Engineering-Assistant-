@@ -19,7 +19,7 @@ Preserve the existing Next.js/React/TypeScript control plane, Supabase project/w
 | Identity and persistence | Supabase SSR/client integration, server auth routes, protected project APIs, project/workspace persistence and conversation/session history. | Do not treat a browser session or public key as project authorization. |
 | Conversational chat | assistant-ui + Vercel AI SDK; streamed project chat route; project-scoped history; Gemini provider; Markdown/code/math rendering; edit/copy/regenerate/stop controls. | Conversational answers do not execute CAD/FEA, privileged tools, project mutations or formal validation. |
 | Engineering task interaction | Separate Engineering Core panel for existing registered deterministic workflows and decision states. | It is not an LLM tool-call executor. A capability must be explicitly implemented and validated before it is exposed. |
-| Deterministic calculations | Shaft and pump-power calculation paths, unit-aware handling, input checks and evidence/validation contracts. | Bounded calculation capabilities; not complete machine design or approval. |
+| Deterministic calculations | Shaft torque, pump-power and a new solid-shaft static-yield pilot with explicit gear geometry, axial force, deterministic diameter solve, revisioned state, digests and validation receipt. | The shaft pilot is preliminary static yield only; it is not fatigue, complete shaft design, ASME compliance or design approval. |
 | CAD | Explicit cylindrical/shaft generation using deterministic build123d code, separate remote worker, artifact registration and independent OCCT BREP checks. | Do not infer general CAD/assembly support or automatic validation of every exported format. |
 | FEA | Reference Gmsh/CalculiX cantilever benchmark worker and related adapter contracts. | Pilot/reference scope; no general FEA mesh/result viewer or broad structural certification. |
 | Physical perception | Isolated Open3D inspection/ICP registration prototype. | No public scan upload, persistent artifact registry integration or production perception claim. |
@@ -56,6 +56,12 @@ The isolated authenticated Playwright run [41298598698](https://github.com/alpha
 - Chat responses do not invoke deterministic engineering tools or CAD/FEA workers. The Engineering Core interaction panel remains separate.
 - Live model-provider behavior, production credential availability, model-quality benchmarking, cost per accepted answer and production latency must be measured independently.
 - Chat is not a general-purpose engineering agent and must not claim formal validation, evidence persistence or approval from its text response.
+
+## Shaft-design reliability improvement — PILOT
+
+The shaft-design reliability work adds a deterministic static-yield calculation, a regression fixture for the corrected multi-turn 15 kW shaft case, a versioned state stored in the existing project workspace, idempotent calculation persistence, and a read-only server-loaded design-state context for chat. The Analysis workspace exposes the typed input form and displays the saved state, artifact lineage, stress results and limitations. Unsaved form edits and stale workspace revisions are explicitly labelled.
+
+Acceptance still requires CI on the exact pull-request SHA, authenticated preview testing with a disposable project, persistence/reload and idempotent-replay checks, and deployment verification. The capability remains PILOT until those gates pass. Chat remains conversational and cannot execute or persist the shaft calculation itself.
 
 ## Next milestones
 

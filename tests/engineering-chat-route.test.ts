@@ -6,10 +6,20 @@ const mocks = vi.hoisted(() => ({
   googleModel: vi.fn(),
   streamText: vi.fn(),
   toUIMessageStreamResponse: vi.fn(),
+  createServiceRoleClient: vi.fn(),
+  workspaceQuery: {
+    select: vi.fn(),
+    eq: vi.fn(),
+    maybeSingle: vi.fn()
+  }
 }));
 
 vi.mock("@ai-sdk/google", () => ({ createGoogle: mocks.createGoogle }));
 vi.mock("ai", () => ({ streamText: mocks.streamText }));
+vi.mock("server-only", () => ({}));
+vi.mock("../lib/supabase/service.js", () => ({
+  createServiceRoleClient: mocks.createServiceRoleClient
+}));
 vi.mock("../src/auth/supabase-service.js", () => ({
   authorizeSupabaseRequest: mocks.authorize,
   authorizationFailureStatus: (decision: { reason?: string }) => decision.reason === "Durable authorization audit is unavailable." ? 503 : 403,
@@ -41,6 +51,10 @@ describe("POST engineering chat provider and project authorization", () => {
     vi.stubEnv("ENGINEERING_REASONING_MODEL_API_KEY", "test-gemini-key");
     vi.stubEnv("ENGINEERING_REASONING_MODEL_TIMEOUT_MS", "58000");
     mocks.authorize.mockResolvedValue({ allowed: true, reason: "Authorized." });
+    mocks.workspaceQuery.select.mockReturnThis();
+    mocks.workspaceQuery.eq.mockReturnThis();
+    mocks.workspaceQuery.maybeSingle.mockResolvedValue({ data: null, error: null });
+    mocks.createServiceRoleClient.mockReturnValue({ from: vi.fn(() => mocks.workspaceQuery) });
     mocks.createGoogle.mockReturnValue(mocks.googleModel);
     mocks.googleModel.mockReturnValue("mock-model");
     mocks.streamText.mockReturnValue({ toUIMessageStreamResponse: mocks.toUIMessageStreamResponse });
@@ -56,6 +70,7 @@ describe("POST engineering chat provider and project authorization", () => {
     expect(mocks.googleModel).toHaveBeenCalledWith("test-model");
     expect(mocks.streamText).toHaveBeenCalledTimes(1);
     expect(mocks.streamText.mock.calls[0][0]).toHaveProperty("instructions");
+    expect(mocks.streamText.mock.calls[0][0].instructions).toContain("No durable shaft design state has been saved for this project.");
     expect(mocks.streamText.mock.calls[0][0]).toMatchObject({
       model: "mock-model",
       maxRetries: 2,
