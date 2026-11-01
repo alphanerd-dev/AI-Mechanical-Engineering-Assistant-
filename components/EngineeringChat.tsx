@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import {
+  ActionBarPrimitive,
   AssistantRuntimeProvider,
   AuiIf,
   ComposerPrimitive,
@@ -9,6 +10,12 @@ import {
   ThreadPrimitive,
   useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
+import {
+  StreamdownTextPrimitive,
+  normalizeMathDelimiters,
+} from "@assistant-ui/react-streamdown";
+import { code } from "@streamdown/code";
+import { math } from "@streamdown/math";
 import { useChatRuntime } from "@assistant-ui/ai-sdk";
 import { DefaultChatTransport } from "ai";
 import type { ThreadHistoryAdapter } from "@assistant-ui/react";
@@ -412,6 +419,35 @@ function createEngineeringChatHistoryAdapter(
   };
 }
 
+const CHAT_MARKDOWN_PLUGINS = { code, math };
+const CHAT_MARKDOWN_REPAIR = {
+  links: true,
+  images: true,
+  linkMode: "protocol" as const,
+  bold: true,
+  italic: true,
+  boldItalic: true,
+  inlineCode: true,
+  strikethrough: true,
+  katex: true,
+  setextHeadings: true,
+  singleTilde: true,
+};
+
+function AssistantMarkdown() {
+  return (
+    <StreamdownTextPrimitive
+      plugins={CHAT_MARKDOWN_PLUGINS}
+      preprocess={normalizeMathDelimiters}
+      remend={CHAT_MARKDOWN_REPAIR}
+      controls={false}
+      shikiTheme={["github-light", "github-dark"]}
+      containerClassName={styles.markdown}
+      defer
+    />
+  );
+}
+
 export default function EngineeringChat({ projectId }: { projectId: string }) {
   const [historyError, setHistoryError] = useState<string>();
   const [chatError, setChatError] = useState<string>();
@@ -456,14 +492,17 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
     <AssistantRuntimeProvider runtime={runtime}>
       <section className={styles.panel} aria-labelledby="engineering-assistant-title">
         <header className={styles.header}>
-          <div>
-            <p className={styles.kicker}>STREAMING ENGINEERING ASSISTANT</p>
-            <h2 id="engineering-assistant-title">Explore the problem before you execute</h2>
-            <p className={styles.description}>
-              Ask questions, compare approaches, and identify missing inputs. Validated calculations and CAD operations still run through the engineering core below.
-            </p>
+          <div className={styles.headerIdentity}>
+            <span className={styles.headerMark} aria-hidden="true">F</span>
+            <div className={styles.headerText}>
+              <h2 id="engineering-assistant-title">Engineering Assistant</h2>
+              <p>Think through the problem. Validate before execution.</p>
+            </div>
           </div>
-          <span className={styles.status}>CONVERSATIONAL</span>
+          <span className={styles.status}>
+            <span className={styles.statusDot} aria-hidden="true" />
+            Conversation
+          </span>
         </header>
 
         {historyError && (
@@ -482,8 +521,29 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
             <AuiIf condition={(state) => state.thread.isEmpty}>
               <div className={styles.emptyState}>
                 <span className={styles.emptyMark} aria-hidden="true">F</span>
-                <h3>What are you trying to solve?</h3>
-                <p>Describe the mechanism, system, failure, or design trade-off. The assistant will help frame the problem without pretending it has run a simulation.</p>
+                <p className={styles.emptyEyebrow}>ENGINEERING, WITH CLARITY</p>
+                <h3>What are we solving today?</h3>
+                <p className={styles.emptyDescription}>
+                  Explore mechanical systems, troubleshoot failures, work through equations, and compare design decisions.
+                </p>
+                <div className={styles.suggestionGrid}>
+                  <ThreadPrimitive.Suggestion prompt="Explain how a hydraulic excavator system works, from the pump to the actuators." send className={styles.suggestion}>
+                    <strong>Understand a system</strong>
+                    <span>Trace how a machine or mechanism works</span>
+                  </ThreadPrimitive.Suggestion>
+                  <ThreadPrimitive.Suggestion prompt="Build a systematic troubleshooting procedure for an excavator with low hydraulic power." send className={styles.suggestion}>
+                    <strong>Troubleshoot a failure</strong>
+                    <span>Work from symptoms to diagnostic checks</span>
+                  </ThreadPrimitive.Suggestion>
+                  <ThreadPrimitive.Suggestion prompt="Derive the pump shaft power equation and explain each variable with SI units." send className={styles.suggestion}>
+                    <strong>Work through an equation</strong>
+                    <span>Understand derivations, units, and assumptions</span>
+                  </ThreadPrimitive.Suggestion>
+                  <ThreadPrimitive.Suggestion prompt="Compare two mechanical design options using performance, reliability, manufacturability, and cost." send className={styles.suggestion}>
+                    <strong>Compare design options</strong>
+                    <span>Make trade-offs explicit and traceable</span>
+                  </ThreadPrimitive.Suggestion>
+                </div>
               </div>
             </AuiIf>
 
@@ -492,15 +552,29 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
                 if (message.role === "user") {
                   return (
                     <MessagePrimitive.Root className={styles.userMessage}>
-                      <span className={styles.messageLabel}>YOU</span>
                       <div className={styles.userBubble}><MessagePrimitive.Parts /></div>
+                      <ActionBarPrimitive.Root className={styles.userActions} hideWhenRunning autohide="not-last">
+                        <ActionBarPrimitive.Edit className={styles.actionButton}>Edit</ActionBarPrimitive.Edit>
+                      </ActionBarPrimitive.Root>
                     </MessagePrimitive.Root>
                   );
                 }
                 return (
                   <MessagePrimitive.Root className={styles.assistantMessage}>
-                    <span className={styles.messageLabel}>ENGINEERING ASSISTANT</span>
-                    <div className={styles.assistantBubble}><MessagePrimitive.Parts /></div>
+                    <div className={styles.assistantAvatar} aria-hidden="true">F</div>
+                    <div className={styles.assistantContent}>
+                      <div className={styles.assistantIdentity}>
+                        <strong>Forge</strong>
+                        <span>Engineering assistant</span>
+                      </div>
+                      <div className={styles.assistantBubble}>
+                        <MessagePrimitive.Parts components={{ Text: AssistantMarkdown }} />
+                      </div>
+                      <ActionBarPrimitive.Root className={styles.assistantActions} hideWhenRunning autohide="not-last">
+                        <ActionBarPrimitive.Copy className={styles.actionButton} copiedDuration={1800}>Copy</ActionBarPrimitive.Copy>
+                        <ActionBarPrimitive.Reload className={styles.actionButton}>Regenerate</ActionBarPrimitive.Reload>
+                      </ActionBarPrimitive.Root>
+                    </div>
                   </MessagePrimitive.Root>
                 );
               }}
@@ -510,17 +584,27 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
               <ComposerPrimitive.Root className={styles.composer}>
                 <ComposerPrimitive.Input
                   className={styles.input}
-                  placeholder="Ask about a mechanical system, calculation, failure, or design decision…"
+                  placeholder="Message the Engineering Assistant…"
                   aria-label="Message the engineering assistant"
-                  rows={3}
+                  rows={1}
+                  submitMode="enter"
+                  unstable_insertNewlineOnTouchEnter
                 />
                 <div className={styles.composerBottom}>
-                  <span>
-                    {projectId === "demo"
-                      ? "Text only · Local demo history"
-                      : "Text only · Project history (survives refresh)"}
+                  <span className={styles.composerHint}>
+                    <span>{projectId === "demo" ? "Demo chat · Local browser history" : "Project chat · History saved automatically"}</span>
+                    <small>Engineering guidance only · Verify before acting</small>
                   </span>
-                  <ComposerPrimitive.Send className={styles.sendButton}>Send ↑</ComposerPrimitive.Send>
+                  <AuiIf condition={(state) => state.composer.canCancel}>
+                    <ComposerPrimitive.Cancel className={styles.stopButton} aria-label="Stop generating">
+                      <span aria-hidden="true">■</span> Stop
+                    </ComposerPrimitive.Cancel>
+                  </AuiIf>
+                  <AuiIf condition={(state) => !state.composer.canCancel}>
+                    <ComposerPrimitive.Send className={styles.sendButton} aria-label="Send message">
+                      <span aria-hidden="true">↑</span>
+                    </ComposerPrimitive.Send>
+                  </AuiIf>
                 </div>
               </ComposerPrimitive.Root>
             </ThreadPrimitive.ViewportFooter>
