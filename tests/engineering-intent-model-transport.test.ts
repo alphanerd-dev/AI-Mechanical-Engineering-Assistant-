@@ -50,6 +50,7 @@ describe("OpenAI-compatible engineering intent transport",()=>{
   expect(instructions).toContain("derive bending moment");
   expect(instructions).toContain("Do not map shock/impact service factors");
   expect(instructions).toContain("Never emit torqueNm");
+  expect(instructions).toContain("requestedCriterion=ASME_ELLIPTIC");
   expect(instructions).toContain("all three: bendingMomentNm, allowableShearStressMpa and proposedDiameterMm");
  });
  it("uses deterministic interpretation when no model is configured",async()=>{
