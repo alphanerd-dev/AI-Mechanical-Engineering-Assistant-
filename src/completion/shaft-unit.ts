@@ -32,7 +32,7 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function missingInputsReport(projectId: string, missingInputs: string[]): EngineeringCompletionReport {
+function missingInputsReport(projectId: string, missingInputs: string[], legacyInputs = false): EngineeringCompletionReport {
   const project: ProjectState = {
     id: projectId,
     name: "Shaft static-yield analysis",
@@ -64,7 +64,9 @@ function missingInputsReport(projectId: string, missingInputs: string[]): Engine
     approvalRequired: true,
     approvalGranted: false,
     missingInputs,
-    nextAction: "Provide the missing shaft geometry and material inputs. Bending moment is calculated from the gear forces and bearing geometry; it is not a required user-entered value.",
+    nextAction: legacyInputs
+      ? "Provide the missing legacy shaft-sizing inputs: explicit bending moment, allowable shear stress and proposed diameter."
+      : "Provide the missing shaft geometry and material inputs. Bending moment is calculated from the gear forces and bearing geometry; it is not a required user-entered value.",
     lineage: { requirementIds: [], artifactIds: [], evidenceIds: [] }
   };
 }
@@ -220,7 +222,7 @@ export class ShaftEngineeringCompletionUnit implements EngineeringCompletionUnit
         ...(!isFiniteNumber(source.allowableShearStressMpa) ? ["allowable shear stress"] : []),
         ...(!isFiniteNumber(source.proposedDiameterMm) ? ["proposed shaft diameter"] : [])
       ];
-      if (legacyMissing.length > 0) return missingInputsReport(request.projectId, legacyMissing);
+      if (legacyMissing.length > 0) return missingInputsReport(request.projectId, legacyMissing, true);
       if (hasCompleteLegacyInputs) {
         const legacyRequest: ShaftEngineeringCompletionRequest = {
           projectId: request.projectId,
