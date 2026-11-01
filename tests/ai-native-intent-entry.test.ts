@@ -101,13 +101,13 @@ describe("AI-native engineering intent entry",()=>{
       "pressureAngleDeg","materialGrade","yieldStrengthMpa","ultimateTensileStrengthMpa","designFactor"
     ]));
   });
-  it("asks for the first material input rather than inventing it",async()=>{
+  it("asks for the first missing geometry input rather than inventing it",async()=>{
     const result=await router().execute({
       capability:"ENGINEERING.ENTER_FROM_INTENT",
       risk:"HIGH",
       input:{
         projectId:"ai-intent-missing-1",
-        rawIntent:"Design a shaft that transmits 5 kW at 1500 rpm. The span between the bearings is 400 mm. A gear at midpoint has pitch diameter 180 mm and pressure angle 20 degrees. AISI 1020 steel with Sy 350 MPa and Sut 420 MPa. Design factor 2.5; candidate diameter 10 mm."
+        rawIntent:"Design a shaft that transmits 5 kW at 1500 rpm and check a candidate diameter of 10 mm."
       }
     });
     expect(result.success).toBe(true);
