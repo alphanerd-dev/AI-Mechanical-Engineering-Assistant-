@@ -72,7 +72,8 @@ export function validateShaftDesignWorkspaceState(value: unknown): string[] {
     if (sha256Json(state.result) !== state.resultSha256) errors.push("Persisted shaft design result does not match resultSha256.");
     const recomputed = calculateShaftStaticDesign(state.input as ShaftStaticDesignInput);
     if (sha256Json(recomputed) !== state.resultSha256) errors.push("Persisted shaft design result does not match deterministic recomputation.");
-    if (state.result.input && sha256Json(state.result.input) !== state.inputSha256) errors.push("Shaft design result input does not match the persisted design input.");
+    const result = state.result as ShaftStaticDesignResult;
+    if (result.input && sha256Json(result.input) !== state.inputSha256) errors.push("Shaft design result input does not match the persisted design input.");
     if (Number(state.sourceWorkspaceRevision) >= Number(state.workspaceRevision)) errors.push("sourceWorkspaceRevision must be earlier than workspaceRevision.");
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Shaft design state could not be verified.");
