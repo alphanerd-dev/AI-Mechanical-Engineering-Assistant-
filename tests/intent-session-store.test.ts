@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { EngineeringIntentInterpretation } from "../src/intent/types.js";
 import {
   ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
@@ -26,6 +26,8 @@ type Row = {
   schema_version?: number;
   snapshot_revision?: number;
   conversation?: unknown;
+  chat_title?: string;
+  message_count?: number;
   updated_at: string;
 };
 
@@ -155,6 +157,83 @@ describe("engineering intent session stores", () => {
     expect(stored?.interpretation.extractedInputs.powerKw).toBe(5);
     await store.delete("session-1", "project-1");
     expect(await store.get("session-1", "project-1")).toBeUndefined();
+  });
+
+  it("lists only a project's chat sessions newest first and returns defensive copies", async () => {
+    const store = new InMemoryEngineeringIntentSessionStore();
+    const makeSession = (sessionId: string, projectId: string, updatedAt: string) => ({
+      sessionId,
+      projectId,
+      schemaVersion: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+      snapshotRevision: 1,
+      conversation: [{ role: "engineer" as const, text: sessionId }],
+      interpretation,
+      updatedAt,
+    });
+    await store.save(makeSession("engineering-chat-old", "project-1", "2026-10-30T10:00:00.000Z"));
+    await store.save(makeSession("engineering-chat-new", "project-1", "2026-10-31T10:00:00.000Z"));
+    await store.save(makeSession("engineering-chat-other-project", "project-2", "2026-11-01T10:00:00.000Z"));
+    await store.save(makeSession("task-session", "project-1", "2026-11-02T10:00:00.000Z"));
+
+    const listed = await store.listChatSessions("project-1");
+    expect(listed.map(session => session.sessionId)).toEqual([
+      "engineering-chat-new",
+      "engineering-chat-old",
+    ]);
+    listed[0].title = "mutated copy";
+    expect((await store.listChatSessions("project-1"))[0].title).toBe("engineering-chat-new");
+    expect(await store.listChatSessions("project-1", 1)).toHaveLength(1);
+  });
+
+  it("lists Supabase chat sessions using project scope, prefix and bounded recency", async () => {
+    const row = {
+      project_id: "project-1",
+      session_id: "engineering-chat-session-1",
+      interpretation,
+      conversation: [{ role: "engineer", text: "Design a pump bracket" }],
+      chat_title: "Design a pump bracket",
+      message_count: 1,
+      schema_version: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+      snapshot_revision: 3,
+      updated_at: "2026-10-31T10:00:00.000Z",
+    };
+    const query = {
+      select: () => query,
+      eq: () => query,
+      like: () => query,
+      order: () => query,
+      limit: vi.fn(() => query),
+      then: (resolve: (value: { data: typeof row[]; error: null }) => unknown) =>
+        Promise.resolve({ data: [row], error: null }).then(resolve),
+    };
+    const client = { from: vi.fn(() => query) };
+    const store = new SupabaseEngineeringIntentSessionStore(client as never);
+
+    const listed = await store.listChatSessions("project-1", 500);
+    expect(listed.map(session => session.sessionId)).toEqual(["engineering-chat-session-1"]);
+    expect(client.from).toHaveBeenCalledWith("engineering_intent_sessions");
+    expect(query.limit).toHaveBeenCalledWith(100);
+  });
+
+  it("persists title and visible-message count as lightweight chat-list metadata", async () => {
+    const { client, rows } = createSharedDatabase();
+    const store = new SupabaseEngineeringIntentSessionStore(client as never);
+    await store.save({
+      sessionId: "engineering-chat-title-metadata",
+      projectId: "project-1",
+      schemaVersion: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
+      snapshotRevision: 1,
+      conversation: [
+        { role: "engineer", text: "Design a guarded belt drive" },
+        { role: "assistant", text: "Start with the power and speed." },
+      ],
+      interpretation,
+      updatedAt: "2026-10-31T10:00:00.000Z",
+    }, { createOnly: true });
+
+    const row = rows.get("project-1::engineering-chat-title-metadata");
+    expect(row?.chat_title).toBe("Design a guarded belt drive");
+    expect(row?.message_count).toBe(2);
   });
 
   it("shares a session between independent store instances", async () => {

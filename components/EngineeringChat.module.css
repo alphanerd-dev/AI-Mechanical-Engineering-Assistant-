@@ -60,3 +60,265 @@
   color: var(--sdm-c, inherit);
   background-color: var(--sdm-tbg, transparent);
 }
+
+/* Project chat history rail. Each rail item selects one durable session; it never executes engineering work. */
+.chatWorkspace {
+  display: grid;
+  grid-template-columns: 242px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.historySidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 10px;
+  overflow: hidden;
+  color: #dce7eb;
+  background: #0b151e;
+  border: 1px solid #263b47;
+  border-radius: 14px;
+}
+.historyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.historyTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #dce7eb;
+  font-size: 11px;
+  font-weight: 760;
+}
+.historyTitle svg { color: #83a0ad; }
+.newConversationButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 8px;
+  color: #071c1a;
+  background: #42c8b4;
+  border: 1px solid #42c8b4;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.newConversationButton:hover:not(:disabled) { background: #69dacb; border-color: #69dacb; }
+.newConversationButton:disabled { opacity: .5; cursor: not-allowed; }
+.newConversationButton:focus-visible, .historyItem:focus-visible, .mobileHistoryBar button:focus-visible { outline: 2px solid #69dacb; outline-offset: 2px; }
+.historySearch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 35px;
+  padding: 0 9px;
+  color: #718b98;
+  background: #101f29;
+  border: 1px solid #2a414d;
+  border-radius: 7px;
+}
+.historySearch:focus-within { border-color: #4b877f; box-shadow: 0 0 0 2px #42c8b417; }
+.historySearch input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 0;
+  color: #e8f0f4;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 10px;
+}
+.historySearch input::placeholder { color: #718793; }
+.historySectionLabel {
+  padding: 3px 4px 0;
+  color: #647e8a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.historyList {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #334b58 transparent;
+}
+.historyItem {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  min-height: 54px;
+  padding: 7px 7px;
+  color: #c7d5db;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.historyItem:hover { background: #12232e; border-color: #29414e; }
+.historyItemActive {
+  color: #f1f6f8;
+  background: #142a32;
+  border-color: #31565b;
+}
+.historyItemIcon {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  color: #84a2ae;
+  background: #152631;
+  border: 1px solid #2b434f;
+  border-radius: 7px;
+}
+.historyItemActive .historyItemIcon {
+  color: #42c8b4;
+  background: #16332f;
+  border-color: #315d56;
+}
+.historyItemText { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.historyItemText strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 10px;
+  font-weight: 680;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.historyItemText small {
+  overflow: hidden;
+  color: #718895;
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.historyItemActiveMark { display: grid; place-items: center; color: #71d9c9; }
+.historyLoading, .historyEmpty, .historyError {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 10px 6px;
+  color: #8198a3;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.historyError { color: #ffc1c1; }
+.historyFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 7px 3px;
+  border-top: 1px solid #263b47;
+}
+.historyFooter span { color: #b1c1c8; font-size: 9px; font-weight: 700; }
+.historyFooter small { color: #6f8793; font-size: 9px; line-height: 1.5; }
+.chatMain { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.mobileHistoryBar { display: none; }
+.chatLoadingState {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 180px;
+  color: #9aabb5;
+  font-size: 12px;
+}
+.spin { animation: chatHistorySpin 1s linear infinite; }
+@keyframes chatHistorySpin { to { transform: rotate(360deg); } }
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 900px) {
+  .chatWorkspace { grid-template-columns: 218px minmax(0, 1fr); gap: 8px; }
+  .historySidebar { padding: 10px 8px; }
+}
+@media (max-width: 720px) {
+  .chatWorkspace { display: flex; flex-direction: column; gap: 7px; }
+  .mobileHistoryBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    min-height: 35px;
+  }
+  .mobileHistoryBar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 5px 9px;
+    color: #c8d7dc;
+    background: #12222c;
+    border: 1px solid #2b414d;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .mobileHistoryBar > span {
+    overflow: hidden;
+    color: #9db0b9;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .historySidebar {
+    display: none;
+    flex: 0 0 auto;
+    max-height: 36svh;
+    min-height: 0;
+    padding: 10px;
+  }
+  .historySidebarOpen { display: flex; }
+  .historyList { max-height: 190px; }
+  .chatMain { flex: 1 1 auto; }
+}
+@media (max-width: 420px) {
+  .historyHeader { gap: 5px; }
+  .historyTitle { font-size: 10px; }
+  .newConversationButton { min-height: 31px; padding-inline: 7px; }
+  .historyItem { min-height: 50px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+  .historyItem, .newConversationButton { transition: none; }
+}

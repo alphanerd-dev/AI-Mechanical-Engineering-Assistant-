@@ -71,6 +71,7 @@ export async function GET(request: Request) {
   let sessionId: string | undefined;
   let projectId: string | undefined;
   const latest = url.searchParams.get("latest");
+  const list = url.searchParams.get("list");
   try {
     sessionId = parseSessionId(url.searchParams.get("sessionId"));
     projectId = parseProjectId(url.searchParams.get("projectId"));
@@ -81,11 +82,17 @@ export async function GET(request: Request) {
   if (latest !== null && latest !== "chat") {
     return jsonError("latest must be chat when provided.", 400);
   }
+  if (list !== null && list !== "chat") {
+    return jsonError("list must be chat when provided.", 400);
+  }
+  if (list === "chat" && (latest !== null || sessionId)) {
+    return jsonError("Provide list=chat without sessionId or latest.", 400);
+  }
   if (latest === "chat" && sessionId) {
     return jsonError("Provide either sessionId or latest=chat, not both.", 400);
   }
   if (!projectId) return jsonError("projectId is required.", 400);
-  if (!sessionId && latest !== "chat") return jsonError("sessionId is required.", 400);
+  if (!sessionId && latest !== "chat" && list !== "chat") return jsonError("sessionId is required.", 400);
 
   let authorization;
   try {
@@ -97,6 +104,14 @@ export async function GET(request: Request) {
 
   try {
     const store = await createSessionStore();
+    if (list === "chat") {
+      const sessions = await store.listChatSessions(projectId, 50);
+      return NextResponse.json({
+        projectId,
+        sessions,
+        limit: 50,
+      }, { headers: { "cache-control": "no-store" } });
+    }
     const session = latest === "chat"
       ? await store.getLatestChatSession(projectId)
       : await store.get(sessionId!, projectId);

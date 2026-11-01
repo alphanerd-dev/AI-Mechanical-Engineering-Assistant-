@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadDemoConversation, saveDemoConversation, type DemoConversationMessage } from "../src/chat/demo-history.js";
+import { listDemoConversationIds, loadDemoConversation, rememberDemoConversationId, saveDemoConversation, type DemoConversationMessage } from "../src/chat/demo-history.js";
 
 function createStorage() {
   const values = new Map<string, string>();
@@ -23,6 +23,22 @@ describe("demo chat browser-session history", () => {
     storage.setItem("engineering-chat-history:demo:" + SESSION, "{broken json");
     expect(() => loadDemoConversation(storage, SESSION)).toThrow(/unreadable/);
     expect(storage.getItem("engineering-chat-history:demo:" + SESSION)).toBe("{broken json");
+  });
+  it("keeps a bounded, newest-first index of independent demo conversations", () => {
+    const storage = createStorage();
+    rememberDemoConversationId(storage, "engineering-chat-first");
+    rememberDemoConversationId(storage, "engineering-chat-second");
+    rememberDemoConversationId(storage, "engineering-chat-first");
+    expect(listDemoConversationIds(storage)).toEqual([
+      "engineering-chat-first",
+      "engineering-chat-second",
+    ]);
+  });
+  it("does not overwrite a corrupt demo conversation index", () => {
+    const storage = createStorage();
+    storage.setItem("engineering-chat-index:demo", "not-json");
+    expect(() => rememberDemoConversationId(storage, "engineering-chat-new")).toThrow(/unreadable/);
+    expect(storage.getItem("engineering-chat-index:demo")).toBe("not-json");
   });
   it("rejects transcripts beyond the supported history limit", () => {
     const storage = createStorage();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -8,7 +8,6 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-  useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
 import { StreamdownTextPrimitive } from "@assistant-ui/react-streamdown";
 import { preprocessEngineeringMath } from "../src/chat/engineering-markdown.js";
@@ -16,10 +15,11 @@ import { code } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
 import { useChatRuntime } from "@assistant-ui/ai-sdk";
 import { DefaultChatTransport } from "ai";
+import { Check, History, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Search, Workflow } from "lucide-react";
 import type { ThreadHistoryAdapter } from "@assistant-ui/react";
 import styles from "./EngineeringChat.module.css";
-import { loadDemoConversation, saveDemoConversation } from "../src/chat/demo-history.js";
-import { createProjectThreadListAdapter } from "../src/chat/project-thread-list.js";
+import { listDemoConversationIds, loadDemoConversation, rememberDemoConversationId, saveDemoConversation } from "../src/chat/demo-history.js";
+import { summarizeEngineeringChatSession } from "../src/chat/session-summary.js";
 
 type StoredConversationMessage = {
   role: "engineer" | "assistant";
@@ -82,13 +82,14 @@ function createSessionId(): string {
 function createEngineeringChatHistoryAdapter(
   projectId: string,
   onError: (message: string | undefined) => void,
+  selectedSessionId?: string,
 ): ThreadHistoryAdapter {
   const state: {
     sessionId?: string;
     revision?: number;
     conversation: StoredConversationMessage[];
     initialized: boolean;
-  } = { conversation: [], initialized: false };
+  } = { sessionId: selectedSessionId, conversation: [], initialized: false };
 
   let queue: Promise<void> = Promise.resolve();
   const api = "/api/engineering/intent";
@@ -170,7 +171,7 @@ function createEngineeringChatHistoryAdapter(
       }
 
       if (projectId === "demo") {
-        const demoSessionId = savedId || createSessionId();
+        const demoSessionId = selectedSessionId || savedId || createSessionId();
         state.sessionId = demoSessionId;
         if (!savedId) {
           try {
@@ -189,9 +190,9 @@ function createEngineeringChatHistoryAdapter(
 
       let body: SessionResponse | undefined;
       let expectedSessionId: string | undefined;
-      const savedChatId = typeof savedId === "string" && savedId.startsWith("engineering-chat-")
+      const savedChatId = selectedSessionId ?? (typeof savedId === "string" && savedId.startsWith("engineering-chat-")
         ? savedId
-        : undefined;
+        : undefined);
       if (savedChatId) {
         state.sessionId = savedChatId;
         expectedSessionId = savedChatId;
@@ -200,12 +201,16 @@ function createEngineeringChatHistoryAdapter(
 
       // Recover server-side if the browser identity was cleared, blocked, or stale.
       // The API only returns sessions with the engineering-chat- prefix, never task sessions.
-      if (!body) {
+      if (!body && !selectedSessionId) {
         expectedSessionId = undefined;
         body = await readLatestChatSession();
         if (body && typeof body.sessionId === "string") {
           state.sessionId = body.sessionId;
         }
+      }
+
+      if (!body && selectedSessionId) {
+        throw new Error("The selected conversation could not be restored. Refresh the chat list and select it again.");
       }
 
       if (!body) {
@@ -297,7 +302,7 @@ function createEngineeringChatHistoryAdapter(
   }
 
   return {
-    scopeId: projectId,
+    scopeId: selectedSessionId ? `${projectId}:${selectedSessionId}` : projectId,
     async load() {
       return { headId: null, messages: [] };
     },
@@ -449,12 +454,103 @@ function AssistantMarkdown() {
   );
 }
 
-export default function EngineeringChat({ projectId }: { projectId: string }) {
+type ChatSessionSummary = {
+  sessionId: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+};
+
+type ChatSessionListResponse = {
+  projectId: string;
+  sessions: ChatSessionSummary[];
+};
+
+function readSelectedChatId(projectId: string): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return window.localStorage.getItem(`engineering-chat-active-session:${projectId}`)
+      ?? window.localStorage.getItem(`engineering-chat-session:${projectId}`)
+      ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function rememberSelectedChatId(projectId: string, sessionId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(`engineering-chat-active-session:${projectId}`, sessionId);
+    if (projectId === "demo") window.localStorage.setItem("engineering-chat-session:demo", sessionId);
+  } catch {
+    // Registered project chats remain available through the server list if browser storage is disabled.
+  }
+}
+
+async function fetchProjectChatSessions(projectId: string): Promise<ChatSessionSummary[]> {
+  const query = new URLSearchParams({ projectId, list: "chat" });
+  const response = await fetch("/api/engineering/intent?" + query.toString(), {
+    method: "GET",
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+  const body = await response.json().catch(() => ({})) as Partial<ChatSessionListResponse> & { error?: string };
+  if (!response.ok || body.projectId !== projectId || !Array.isArray(body.sessions)) {
+    throw new Error(body.error || "Saved project conversations could not be loaded.");
+  }
+  return body.sessions.filter(session =>
+    session && typeof session.sessionId === "string" &&
+    typeof session.title === "string" &&
+    typeof session.updatedAt === "string" &&
+    Number.isInteger(session.messageCount),
+  );
+}
+
+async function createProjectChatSession(projectId: string): Promise<ChatSessionSummary> {
+  const sessionId = createSessionId();
+  const response = await fetch("/api/engineering/intent", {
+    method: "PUT",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ projectId, sessionId, expectedRevision: null, conversation: [] }),
+  });
+  const body: unknown = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(responseError(body, "A new project conversation could not be created."));
+  if (!body || typeof body !== "object" || !((body as Record<string, unknown>).sessionId === sessionId) ||
+    (body as Record<string, unknown>).projectId !== projectId) {
+    throw new Error("The server did not confirm the new conversation identity.");
+  }
+  return {
+    sessionId,
+    title: "New conversation",
+    updatedAt: new Date().toISOString(),
+    messageCount: 0,
+  };
+}
+
+function formatSessionDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Date unavailable";
+  const now = new Date();
+  const sameDay = parsed.toDateString() === now.toDateString();
+  return sameDay
+    ? parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : parsed.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function EngineeringChatThread({
+  projectId,
+  sessionId,
+  onConversationSaved,
+}: {
+  projectId: string;
+  sessionId: string;
+  onConversationSaved: () => void;
+}) {
   const [historyError, setHistoryError] = useState<string>();
   const [chatError, setChatError] = useState<string>();
   const history = useMemo(
-    () => createEngineeringChatHistoryAdapter(projectId, setHistoryError),
-    [projectId],
+    () => createEngineeringChatHistoryAdapter(projectId, setHistoryError, sessionId),
+    [projectId, sessionId],
   );
   const transport = useMemo(
     () => new DefaultChatTransport({
@@ -462,31 +558,21 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
     }),
     [projectId],
   );
-  // assistant-ui only hydrates external history after the active thread has a
-  // remote ID. This workspace has one durable conversation per project.
-  const threadListAdapter = useMemo(
-    () => createProjectThreadListAdapter(projectId),
-    [projectId],
-  );
-  const runtimeHook = useCallback(function useProjectChatRuntime() {
-    return useChatRuntime({
-      transport,
-      scopeId: projectId,
-      adapters: { history },
-      joinStrategy: "none",
-      onError: (error) => {
-        const detail = error instanceof Error && error.message.trim()
-          ? error.message.trim().slice(0, 220)
-          : "Unknown streaming transport error.";
-        setChatError("Assistant request failed: " + detail);
-      },
-      onFinish: () => setChatError(undefined),
-    });
-  }, [history, projectId, transport]);
-  const runtime = useRemoteThreadListRuntime({
-    runtimeHook,
-    adapter: threadListAdapter,
-    threadId: projectId,
+  const runtime = useChatRuntime({
+    transport,
+    scopeId: `${projectId}:${sessionId}`,
+    adapters: { history },
+    joinStrategy: "none",
+    onError: (error) => {
+      const detail = error instanceof Error && error.message.trim()
+        ? error.message.trim().slice(0, 220)
+        : "Unknown streaming transport error.";
+      setChatError("Assistant request failed: " + detail);
+    },
+    onFinish: () => {
+      setChatError(undefined);
+      onConversationSaved();
+    },
   });
 
   return (
@@ -494,34 +580,30 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
       <section className={styles.panel} aria-labelledby="engineering-assistant-title">
         <header className={styles.header}>
           <div className={styles.headerIdentity}>
-            <span className={styles.headerMark} aria-hidden="true">F</span>
+            <span className={styles.headerMark} aria-hidden="true"><Workflow size={18} strokeWidth={2.1} /></span>
             <div className={styles.headerText}>
               <h2 id="engineering-assistant-title">Engineering Assistant</h2>
-              <p>Think through the problem. Validate before execution.</p>
+              <p>Project conversation · Saved automatically</p>
             </div>
           </div>
           <span className={styles.status}>
             <span className={styles.statusDot} aria-hidden="true" />
-            Conversation
+            Guidance only
           </span>
         </header>
 
         {historyError && (
-          <p className={styles.error} role="alert">
-            Chat history issue: {historyError}
-          </p>
+          <p className={styles.error} role="alert">Chat history issue: {historyError}</p>
         )}
         {chatError && (
-          <p className={styles.error} role="alert">
-            Assistant response issue: {chatError}
-          </p>
+          <p className={styles.error} role="alert">{chatError}</p>
         )}
 
         <ThreadPrimitive.Root className={styles.thread}>
           <ThreadPrimitive.Viewport className={styles.viewport} turnAnchor="bottom">
             <AuiIf condition={(state) => state.thread.isEmpty}>
               <div className={styles.emptyState}>
-                <span className={styles.emptyMark} aria-hidden="true">F</span>
+                <span className={styles.emptyMark} aria-hidden="true"><Workflow size={22} /></span>
                 <p className={styles.emptyEyebrow}>ENGINEERING, WITH CLARITY</p>
                 <h3>What are we solving today?</h3>
                 <p className={styles.emptyDescription}>
@@ -562,7 +644,7 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
                 }
                 return (
                   <MessagePrimitive.Root className={styles.assistantMessage}>
-                    <div className={styles.assistantAvatar} aria-hidden="true">F</div>
+                    <div className={styles.assistantAvatar} aria-hidden="true"><Workflow size={15} /></div>
                     <div className={styles.assistantContent}>
                       <div className={styles.assistantIdentity}>
                         <strong>Forge</strong>
@@ -593,8 +675,8 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
                 />
                 <div className={styles.composerBottom}>
                   <span className={styles.composerHint}>
-                    <span>{projectId === "demo" ? "Demo chat · Local browser history" : "Project chat · History saved automatically"}</span>
-                    <small>Engineering guidance only · Verify before acting</small>
+                    <span>{projectId === "demo" ? "Demo chat · Local browser history" : "This conversation is saved to the project"}</span>
+                    <small>AI proposes · Engineering workflows execute and validate</small>
                   </span>
                   <AuiIf condition={(state) => state.composer.canCancel}>
                     <ComposerPrimitive.Cancel className={styles.stopButton} aria-label="Stop generating">
@@ -613,5 +695,191 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
         </ThreadPrimitive.Root>
       </section>
     </AssistantRuntimeProvider>
+  );
+}
+
+export default function EngineeringChat({ projectId }: { projectId: string }) {
+  const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string>();
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string>();
+  const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState("");
+  const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function initialize() {
+      setListLoading(true);
+      setListError(undefined);
+      try {
+        if (projectId === "demo") {
+          const storedIds = listDemoConversationIds(window.localStorage);
+          const preferredId = readSelectedChatId(projectId);
+          const sessionId = preferredId && (storedIds.includes(preferredId) || storedIds.length === 0)
+            ? preferredId
+            : storedIds[0] ?? createSessionId();
+          const orderedIds = rememberDemoConversationId(window.localStorage, sessionId);
+          rememberSelectedChatId(projectId, sessionId);
+          if (!mounted) return;
+          setSessions(orderedIds.map(id => {
+            const conversation = loadDemoConversation(window.localStorage, id);
+            const updatedAt = conversation.at(-1)?.at ?? new Date(0).toISOString();
+            return summarizeEngineeringChatSession({ sessionId: id, conversation, updatedAt });
+          }));
+          setActiveSessionId(sessionId);
+          return;
+        }
+        const existing = await fetchProjectChatSessions(projectId);
+        if (!mounted) return;
+        let selected = readSelectedChatId(projectId);
+        if (!selected || !existing.some(item => item.sessionId === selected)) {
+          selected = existing[0]?.sessionId;
+        }
+        let nextSessions = existing;
+        if (!selected) {
+          const created = await createProjectChatSession(projectId);
+          if (!mounted) return;
+          selected = created.sessionId;
+          nextSessions = [created];
+        }
+        rememberSelectedChatId(projectId, selected);
+        if (!mounted) return;
+        setSessions(nextSessions);
+        setActiveSessionId(selected);
+      } catch (error) {
+        if (mounted) setListError(error instanceof Error ? error.message : "Project chat history could not be restored.");
+      } finally {
+        if (mounted) setListLoading(false);
+      }
+    }
+    void initialize();
+    return () => { mounted = false; };
+  }, [projectId]);
+
+  async function handleNewConversation() {
+    if (creating) return;
+    setCreating(true);
+    setListError(undefined);
+    try {
+      if (projectId === "demo") {
+        const sessionId = createSessionId();
+        const ids = rememberDemoConversationId(window.localStorage, sessionId);
+        rememberSelectedChatId(projectId, sessionId);
+        const next = ids.map(id => {
+          const conversation = loadDemoConversation(window.localStorage, id);
+          return summarizeEngineeringChatSession({ sessionId: id, conversation, updatedAt: conversation.at(-1)?.at ?? new Date(0).toISOString() });
+        });
+        setSessions(next);
+        setActiveSessionId(sessionId);
+      } else {
+        const created = await createProjectChatSession(projectId);
+        setSessions(current => [created, ...current.filter(item => item.sessionId !== created.sessionId)].slice(0, 50));
+        rememberSelectedChatId(projectId, created.sessionId);
+        setActiveSessionId(created.sessionId);
+      }
+      setMobileHistoryOpen(false);
+    } catch (error) {
+      setListError(error instanceof Error ? error.message : "A new conversation could not be created.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleConversationSaved() {
+    if (projectId === "demo" && activeSessionId) {
+      try {
+        const conversation = loadDemoConversation(window.localStorage, activeSessionId);
+        const summary = summarizeEngineeringChatSession({
+          sessionId: activeSessionId,
+          conversation,
+          updatedAt: conversation.at(-1)?.at ?? new Date().toISOString(),
+        });
+        setSessions(current => [summary, ...current.filter(item => item.sessionId !== activeSessionId)]);
+      } catch (error) {
+        setListError(error instanceof Error ? error.message : "Demo chat metadata could not be refreshed.");
+      }
+      return;
+    }
+    try {
+      const next = await fetchProjectChatSessions(projectId);
+      setSessions(next);
+    } catch {
+      // The individual history adapter already reports save failures; a metadata refresh is secondary.
+    }
+  }
+
+  const visibleSessions = sessions.filter(session => session.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const activeSession = sessions.find(session => session.sessionId === activeSessionId);
+
+  return (
+    <div className={styles.chatWorkspace}>
+      <aside className={`${styles.historySidebar} ${mobileHistoryOpen ? styles.historySidebarOpen : ""}`} aria-label="Conversation history">
+        <div className={styles.historyHeader}>
+          <div className={styles.historyTitle}><History size={15} aria-hidden="true" /><span>Project chats</span></div>
+          <button className={styles.newConversationButton} type="button" onClick={handleNewConversation} disabled={creating || listLoading}>
+            {creating ? <LoaderCircle size={14} className={styles.spin} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
+            <span>New chat</span>
+          </button>
+        </div>
+        {projectId !== "demo" && (
+          <label className={styles.historySearch}>
+            <Search size={14} aria-hidden="true" />
+            <span className={styles.srOnly}>Search conversations</span>
+            <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search conversations" />
+          </label>
+        )}
+        <div className={styles.historySectionLabel}>RECENT</div>
+        <nav className={styles.historyList} aria-label="Saved project conversations">
+          {listLoading && <p className={styles.historyLoading}><LoaderCircle size={14} className={styles.spin} />Loading conversations…</p>}
+          {!listLoading && listError && <p className={styles.historyError} role="alert">{listError}</p>}
+          {!listLoading && !listError && visibleSessions.length === 0 && <p className={styles.historyEmpty}>{search.trim() ? "No conversations match this search." : "No saved conversations yet."}</p>}
+          {visibleSessions.map(session => (
+            <button
+              key={session.sessionId}
+              type="button"
+              className={`${styles.historyItem} ${session.sessionId === activeSessionId ? styles.historyItemActive : ""}`}
+              aria-current={session.sessionId === activeSessionId ? "page" : undefined}
+              onClick={() => {
+                setActiveSessionId(session.sessionId);
+                rememberSelectedChatId(projectId, session.sessionId);
+                setMobileHistoryOpen(false);
+              }}
+            >
+              <span className={styles.historyItemIcon}><MessageSquare size={14} aria-hidden="true" /></span>
+              <span className={styles.historyItemText}>
+                <strong>{session.title}</strong>
+                <small>{session.messageCount} messages · {session.messageCount === 0 ? "New" : formatSessionDate(session.updatedAt)}</small>
+              </span>
+              {session.sessionId === activeSessionId && <span className={styles.historyItemActiveMark} aria-label="Selected"><Check size={12} /></span>}
+            </button>
+          ))}
+        </nav>
+        <div className={styles.historyFooter}>
+          <span>Project-scoped history</span>
+          <small>Separate from calculations, CAD and solver runs.</small>
+        </div>
+      </aside>
+
+      <div className={styles.chatMain}>
+        <div className={styles.mobileHistoryBar}>
+          <button type="button" onClick={() => setMobileHistoryOpen(value => !value)} aria-expanded={mobileHistoryOpen} aria-label={mobileHistoryOpen ? "Hide conversation history" : "Show conversation history"}>
+            {mobileHistoryOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+            <span>History</span>
+          </button>
+          <span>{activeSession?.title ?? "Engineering chat"}</span>
+        </div>
+        {activeSessionId ? (
+          <EngineeringChatThread
+            key={`${projectId}:${activeSessionId}`}
+            projectId={projectId}
+            sessionId={activeSessionId}
+            onConversationSaved={handleConversationSaved}
+          />
+        ) : (
+          <div className={styles.chatLoadingState} role="status"><LoaderCircle size={18} className={styles.spin} />Preparing project conversation…</div>
+        )}
+      </div>
+    </div>
   );
 }
