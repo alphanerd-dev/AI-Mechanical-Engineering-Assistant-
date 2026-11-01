@@ -70,6 +70,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   let sessionId: string | undefined;
   let projectId: string | undefined;
+  const latest = url.searchParams.get("latest");
   try {
     sessionId = parseSessionId(url.searchParams.get("sessionId"));
     projectId = parseProjectId(url.searchParams.get("projectId"));
@@ -77,8 +78,14 @@ export async function GET(request: Request) {
     return jsonError(error instanceof Error ? error.message : "Invalid session identifiers.", 400);
   }
 
+  if (latest !== null && latest !== "chat") {
+    return jsonError("latest must be chat when provided.", 400);
+  }
+  if (latest === "chat" && sessionId) {
+    return jsonError("Provide either sessionId or latest=chat, not both.", 400);
+  }
   if (!projectId) return jsonError("projectId is required.", 400);
-  if (!sessionId) return jsonError("sessionId is required.", 400);
+  if (!sessionId && latest !== "chat") return jsonError("sessionId is required.", 400);
 
   let authorization;
   try {
@@ -90,13 +97,21 @@ export async function GET(request: Request) {
 
   try {
     const store = await createSessionStore();
-    const session = await store.get(sessionId, projectId);
+    const session = latest === "chat"
+      ? await store.getLatestChatSession(projectId)
+      : await store.get(sessionId!, projectId);
     if (!session) {
-      return jsonError("Engineering intent session was not found for this project.", 404, {
-        code: "SESSION_NOT_FOUND",
-        recoverable: true,
-        lastTurnSaved: false,
-      });
+      return jsonError(
+        latest === "chat"
+          ? "No saved engineering chat session was found for this project."
+          : "Engineering intent session was not found for this project.",
+        404,
+        {
+          code: latest === "chat" ? "CHAT_SESSION_NOT_FOUND" : "SESSION_NOT_FOUND",
+          recoverable: true,
+          lastTurnSaved: false,
+        },
+      );
     }
     return NextResponse.json({
       sessionId: session.sessionId,
