@@ -66,9 +66,10 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
     });
     expect(result.success).toBe(true);
     const output = result.output as any;
-    expect(output.status).toBe("NEEDS_INPUT");
-    expect(output.nextQuestion).toBe("bearing span");
-    expect(output.completion).toBeUndefined();
+    expect(output.status).toBe("BLOCKED");
+    expect(output.missingInputs[0]).toBe("bearing span");
+    expect(output.nextAction).toContain("Bending moment is calculated from the gear forces and bearing geometry");
+    expect(output).not.toHaveProperty("completion");
   });
 
   it("derives gear forces and bending moment from the supplied midspan geometry", async () => {
