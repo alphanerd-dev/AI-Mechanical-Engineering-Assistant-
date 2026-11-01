@@ -10,11 +10,8 @@ import {
   ThreadPrimitive,
   useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
-import {
-  StreamdownTextPrimitive,
-  escapeCurrencyDollars,
-  normalizeMathDelimiters,
-} from "@assistant-ui/react-streamdown";
+import { StreamdownTextPrimitive } from "@assistant-ui/react-streamdown";
+import { preprocessEngineeringMath } from "../src/chat/engineering-markdown.js";
 import { code } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
 import { useChatRuntime } from "@assistant-ui/ai-sdk";
@@ -437,10 +434,6 @@ const CHAT_MARKDOWN_REPAIR = {
   setextHeadings: true,
   singleTilde: true,
 };
-
-function preprocessEngineeringMath(text: string): string {
-  return escapeCurrencyDollars(normalizeMathDelimiters(text));
-}
 
 function AssistantMarkdown() {
   return (

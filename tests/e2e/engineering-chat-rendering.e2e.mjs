@@ -104,22 +104,6 @@ test("engineering chat renders streamed Markdown, equations, code, tables and cu
   // intentionally not part of the browser test contract.
   const markdown = chatPanel;
   await expect(markdown.getByRole("heading", { name: "Pump shaft power", level: 1 })).toBeVisible();
-  const renderDiagnostics = await markdown.evaluate((root) => ({
-    renderedText: root.innerText,
-    katexNodes: Array.from(root.querySelectorAll(".katex")).map((node) => ({
-      display: node.classList.contains("katex-display"),
-      text: node.textContent,
-      parentTag: node.parentElement?.tagName ?? null,
-      parentClass: node.parentElement?.className ?? null,
-    })),
-    strongWeight: getComputedStyle(root.querySelector('[data-streamdown="strong"]')).fontWeight,
-    codeLines: Array.from(root.querySelectorAll("pre code > span")).map((line) => ({
-      display: getComputedStyle(line).display,
-      text: line.textContent,
-    })),
-    codeText: root.querySelector("pre code")?.innerText ?? null,
-  }));
-  console.log("CHAT_RENDER_DIAGNOSTICS " + JSON.stringify(renderDiagnostics));
   await expect(markdown).toContainText("torque multiplied by angular speed");
   await expect(markdown.locator('[data-streamdown="strong"]')).toHaveCSS("font-weight", "760");
   await expect(markdown.locator(".katex-display")).toHaveCount(1);
