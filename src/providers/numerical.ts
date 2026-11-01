@@ -1,7 +1,7 @@
 import {CapabilityRequest,CapabilityResult} from "../core/types";
 import {shaftTorque} from "../engineering/calculations";
 import {sizeSolidShaft} from "../engineering/shaft-design";
-import {calculateShaftStaticDesign, SHAFT_STATIC_DESIGN_CAPABILITY} from "../engineering/shaft-static-design.js";
+import {calculateShaftStaticDesign, SHAFT_STATIC_DESIGN_CAPABILITY, type ShaftStaticDesignInput} from "../engineering/shaft-static-design.js";
 import {calculatePumpHydraulicPower,PUMP_HYDRAULIC_POWER_CAPABILITY} from "../engineering/pump-hydraulic-power";
 import {CapabilityProvider} from "../capabilities/registry";
 
@@ -19,7 +19,7 @@ export class NumericalAnalysisProvider implements CapabilityProvider {
       }
       if(request.capability===SHAFT_STATIC_DESIGN_CAPABILITY) {
         return {capability:request.capability,provider:this.id,success:true,
-          output:calculateShaftStaticDesign(request.input as never)};
+          output:calculateShaftStaticDesign(request.input as unknown as ShaftStaticDesignInput)};
       }
       if(request.capability==="ANALYSIS.SHAFT_SIZE") {
         return {capability:request.capability,provider:this.id,success:true,
