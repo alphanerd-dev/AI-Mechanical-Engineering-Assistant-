@@ -39,7 +39,7 @@ describe("AI-native engineering intent entry",()=>{
         rawIntent:"Design a solid circular shaft to transmit 12 kW at 1450 rpm. The shaft is simply supported between two bearings 400 mm apart, with a spur gear mounted at midpoint. The gear has a pitch diameter of 180 mm and pressure angle of 20 degrees. Assume AISI 1020 steel (Sut = 420 MPa, Sy = 350 MPa). Use a design factor of 2.5 based on yield strength. Neglect axial forces and shock/impact factors for now. Apply the ASME elliptic criteria."
       }
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     const output=result.output as any;
     expect(output.interpretation.extractedInputs).toMatchObject({
       projectId:"ai-intent-shaft-geometry",
@@ -56,17 +56,18 @@ describe("AI-native engineering intent entry",()=>{
       axialLoadN:0
     });
     expect(output.interpretation.extractedInputs).not.toHaveProperty("bendingMomentNm");
-    expect(output.status).toBe("WAITING_APPROVAL");
-    expect(output.completion.validation.passed).toBe(true);
+    expect(output.status).toBe("FAILED");
+    expect(output.completion.validation.passed).toBe(false);
     expect(output.completion.evidence).toHaveLength(0);
     expect(output.completion.artifacts[0].informationStatus).toBe("CALCULATED");
+    expect(output.completion.artifacts[0].validationStatus).toBe("UNVALIDATED");
     expect(output.decision.metrics).toEqual(expect.arrayContaining([
       {key:"torqueNm",value:expect.any(Number),unit:"N·m"},
       {key:"maximumBendingMomentNm",value:expect.any(Number),unit:"N·m"},
       {key:"minimumDiameterMm",value:expect.any(Number),unit:"mm"},
       {key:"achievedYieldFactorOfSafety",value:expect.any(Number),unit:"—"}
     ]));
-    expect(output.completion.nextAction).toContain("not an ASME elliptic result");
+    expect(output.completion.nextAction).toContain("ASME elliptic criterion was not evaluated");
   });
   it("uses known geometry and material context instead of asking for values already available",async()=>{
     const result=await router().execute({
