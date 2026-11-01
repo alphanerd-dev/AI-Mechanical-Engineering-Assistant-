@@ -180,10 +180,22 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
       shaftDesignIdempotencyKey = input.idempotencyKey;
       const rawShaftInput = input.shaftInput as Record<string, unknown>;
-      const normalizedShaftInput = {
-        ...rawShaftInput,
-        materialGrade: typeof rawShaftInput.materialGrade === "string" ? rawShaftInput.materialGrade.trim() : rawShaftInput.materialGrade
-      } as unknown as ShaftStaticDesignInput;
+      const normalizedShaftInput: ShaftStaticDesignInput = {
+        powerKw: rawShaftInput.powerKw as number,
+        speedRpm: rawShaftInput.speedRpm as number,
+        bearingSpanMm: rawShaftInput.bearingSpanMm as number,
+        gearPositionFromLeftMm: rawShaftInput.gearPositionFromLeftMm as number,
+        pitchDiameterMm: rawShaftInput.pitchDiameterMm as number,
+        pressureAngleDeg: rawShaftInput.pressureAngleDeg as number,
+        axialLoadN: rawShaftInput.axialLoadN as number,
+        materialGrade: typeof rawShaftInput.materialGrade === "string" ? rawShaftInput.materialGrade.trim() : rawShaftInput.materialGrade as string,
+        yieldStrengthMpa: rawShaftInput.yieldStrengthMpa as number,
+        ultimateTensileStrengthMpa: rawShaftInput.ultimateTensileStrengthMpa as number,
+        designFactor: rawShaftInput.designFactor as number,
+        bendingStressFactorKb: rawShaftInput.bendingStressFactorKb as number,
+        torsionalStressFactorKts: rawShaftInput.torsionalStressFactorKts as number,
+        ...(rawShaftInput.candidateDiameterMm === undefined ? {} : { candidateDiameterMm: rawShaftInput.candidateDiameterMm as number })
+      };
       // Calculate and validate before replay lookup; a repeated key must describe the exact same input.
       shaftDesignRun = calculateShaftStaticDesign(normalizedShaftInput);
       const previousEvent = loaded.snapshot.project.events.find((event) => event.idempotencyKey === shaftDesignIdempotencyKey);
