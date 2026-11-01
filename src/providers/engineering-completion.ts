@@ -3,6 +3,7 @@ import {CapabilityRequest,CapabilityResult} from "../core/types";
 import {CapabilityRouter} from "../capabilities/router";
 import {ShaftEngineeringCompletionRequest} from "../completion/types";
 import {completeShaftEngineeringUnit} from "../completion/shaft";
+import {completeShaftStaticDesignUnit, type ShaftStaticDesignCompletionRequest} from "../completion/shaft-static";
 
 export class EngineeringCompletionProvider implements CapabilityProvider{
   id="engineering-completion";
@@ -15,10 +16,19 @@ export class EngineeringCompletionProvider implements CapabilityProvider{
       return {capability:request.capability,provider:this.id,success:false,error:"Unsupported engineering completion capability."};
     }
     try{
-      const report=await completeShaftEngineeringUnit(
-        request.input as unknown as ShaftEngineeringCompletionRequest,
-        this.router
-      );
+      const input = request.input as Record<string, unknown>;
+      const geometryBased = typeof input.bearingSpanMm === "number" &&
+        typeof input.pitchDiameterMm === "number" &&
+        typeof input.materialGrade === "string";
+      const report = geometryBased
+        ? await completeShaftStaticDesignUnit(
+            input as unknown as ShaftStaticDesignCompletionRequest,
+            this.router
+          )
+        : await completeShaftEngineeringUnit(
+            request.input as unknown as ShaftEngineeringCompletionRequest,
+            this.router
+          );
       return {
         capability:request.capability,
         provider:this.id,
