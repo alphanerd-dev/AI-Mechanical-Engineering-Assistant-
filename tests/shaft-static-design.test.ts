@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NumericalAnalysisProvider } from "../src/providers/numerical.js";
 import {
   calculateShaftStaticDesign,
   type ShaftStaticDesignInput
@@ -54,6 +55,26 @@ describe("deterministic shaft static-yield design", () => {
     expect(at15kW.tangentialForceN / at12kW.tangentialForceN).toBeCloseTo(1.25, 10);
     expect(at15kW.maximumBendingMomentNm / at12kW.maximumBendingMomentNm).toBeCloseTo(1.25, 10);
     expect(at15kW.minimumDiameterMm).toBeGreaterThan(at12kW.minimumDiameterMm);
+  });
+
+  it("recomputes reactions and bending moment when the gear is moved along the span", () => {
+    const atMidspan = calculateShaftStaticDesign({ ...referenceInput, gearPositionFromLeftMm: 200 });
+    const at150mm = calculateShaftStaticDesign({ ...referenceInput, gearPositionFromLeftMm: 150 });
+    expect(at150mm.leftBearingReactionN).not.toBeCloseTo(atMidspan.leftBearingReactionN, 2);
+    expect(at150mm.rightBearingReactionN).not.toBeCloseTo(atMidspan.rightBearingReactionN, 2);
+    expect(at150mm.maximumBendingMomentNm).toBeLessThan(atMidspan.maximumBendingMomentNm);
+    expect(at150mm.bendingMomentLocationMm).toBe(150);
+  });
+
+  it("exposes the new shaft calculation through the numerical capability provider", async () => {
+    const provider = new NumericalAnalysisProvider();
+    const response = await provider.execute({
+      capability: "ANALYSIS.SHAFT_STATIC_DESIGN",
+      risk: "MEDIUM",
+      input: referenceInput as unknown as Record<string, unknown>
+    });
+    expect(response.success).toBe(true);
+    expect((response.output as ReturnType<typeof calculateShaftStaticDesign>).minimumDiameterMm).toBeCloseTo(26.86815, 4);
   });
 
   it("recomputes the preferred size when a candidate diameter is explicitly supplied", () => {
