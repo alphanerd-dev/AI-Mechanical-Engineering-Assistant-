@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMathDelimiters } from "@assistant-ui/react-streamdown";
+import {
+  escapeCurrencyDollars,
+  normalizeMathDelimiters,
+} from "@assistant-ui/react-streamdown";
+
+function preprocessEngineeringMath(text: string): string {
+  return escapeCurrencyDollars(normalizeMathDelimiters(text));
+}
 
 describe("engineering chat Markdown math normalization", () => {
-  it("normalizes inline LaTeX delimiters for streamed rendering", () => {
+  it("normalizes inline LaTeX delimiters for single-dollar rendering", () => {
     const source = String.raw`The shaft power is \(P = T\omega\).`;
     expect(normalizeMathDelimiters(source)).toContain(String.raw`$P = T\omega$`);
   });
@@ -12,19 +19,26 @@ describe("engineering chat Markdown math normalization", () => {
     expect(normalizeMathDelimiters(source)).toContain(String.raw`$$P_h = \frac{\Delta p Q}{600}$$`);
   });
 
-  it("does not turn an ordinary currency amount into a math expression", () => {
-    const source = "The replacement seal costs $5.";
-    expect(normalizeMathDelimiters(source)).toContain("costs $5.");
+  it("keeps a single-dollar currency amount out of inline math", () => {
+    expect(preprocessEngineeringMath("The replacement seal costs $5."))
+      .toContain(String.raw`costs \$5.`);
+  });
+
+  it("renders inline engineering notation while preserving nearby currency", () => {
+    const source = String.raw`Power is \(P = T\omega\); a seal costs $5.`;
+    const normalized = preprocessEngineeringMath(source);
+    expect(normalized).toContain(String.raw`$P = T\omega$`);
+    expect(normalized).toContain(String.raw`costs \$5.`);
   });
 
   it("normalizes engineering notation with Greek symbols, subscripts and powers", () => {
     const source = String.raw`The maximum shear stress is \(\tau_{max} = \frac{16T}{\pi d^3}\).`;
-    const normalized = normalizeMathDelimiters(source);
-    expect(normalized).toContain(String.raw`$\tau_{max} = \frac{16T}{\pi d^3}$`);
+    expect(normalizeMathDelimiters(source))
+      .toContain(String.raw`$\tau_{max} = \frac{16T}{\pi d^3}$`);
   });
 
   it("preserves currency values with thousands separators and decimals", () => {
-    const source = "The replacement seal costs $1,250.00.";
-    expect(normalizeMathDelimiters(source)).toContain("$1,250.00");
+    expect(preprocessEngineeringMath("The replacement seal costs $1,250.00."))
+      .toContain(String.raw`\$1,250.00`);
   });
 });

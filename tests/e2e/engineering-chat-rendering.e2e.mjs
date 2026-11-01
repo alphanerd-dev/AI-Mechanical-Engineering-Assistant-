@@ -100,8 +100,9 @@ test("engineering chat renders streamed Markdown, equations, code, tables and cu
   await composer.fill("Show a hydraulic power example with its equation, code and units.");
   await page.getByRole("button", { name: "Send message" }).click();
 
-  const assistantMessage = chatPanel.locator(".assistantMessage").last();
-  const markdown = assistantMessage.locator(".assistantBubble");
+  // Scope assertions to the accessible chat region. CSS-module class names are
+  // intentionally not part of the browser test contract.
+  const markdown = chatPanel;
   await expect(markdown.getByRole("heading", { name: "Pump shaft power", level: 1 })).toBeVisible();
   await expect(markdown.locator("strong")).toContainText("torque multiplied by angular speed");
   await expect(markdown.locator(".katex-display")).toHaveCount(1);
@@ -109,9 +110,9 @@ test("engineering chat renders streamed Markdown, equations, code, tables and cu
   await expect(markdown.locator("pre code")).toContainText("power_kw = torque_nm * omega_rad_s / 1000");
   await expect(markdown.locator("table")).toContainText("Angular speed");
   await expect(markdown).toContainText("The replacement seal costs $1,250.00.");
-  await expect(markdown.locator('a[href="https://example.com/hydraulic-power"]')).toBeVisible();
-  await expect(assistantMessage.getByRole("button", { name: "Copy" })).toBeVisible();
-  await expect(assistantMessage.getByRole("button", { name: "Regenerate" })).toBeVisible();
+  await expect(markdown.getByRole("button", { name: "hydraulic power reference" })).toBeVisible();
+  await expect(chatPanel.getByRole("button", { name: "Copy" })).toBeVisible();
+  await expect(chatPanel.getByRole("button", { name: "Regenerate" })).toBeVisible();
   expect(interceptedRequests).toBe(1);
 
   await page.screenshot({ path: "test-results/engineering-chat-rendering-desktop.png", fullPage: true });

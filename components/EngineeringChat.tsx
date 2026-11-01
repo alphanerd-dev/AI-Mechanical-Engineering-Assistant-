@@ -12,10 +12,11 @@ import {
 } from "@assistant-ui/react";
 import {
   StreamdownTextPrimitive,
+  escapeCurrencyDollars,
   normalizeMathDelimiters,
 } from "@assistant-ui/react-streamdown";
 import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
+import { createMathPlugin } from "@streamdown/math";
 import { useChatRuntime } from "@assistant-ui/ai-sdk";
 import { DefaultChatTransport } from "ai";
 import type { ThreadHistoryAdapter } from "@assistant-ui/react";
@@ -419,7 +420,10 @@ function createEngineeringChatHistoryAdapter(
   };
 }
 
-const CHAT_MARKDOWN_PLUGINS = { code, math };
+const CHAT_MARKDOWN_PLUGINS = {
+  code,
+  math: createMathPlugin({ singleDollarTextMath: true }),
+};
 const CHAT_MARKDOWN_REPAIR = {
   links: true,
   images: true,
@@ -434,11 +438,15 @@ const CHAT_MARKDOWN_REPAIR = {
   singleTilde: true,
 };
 
+function preprocessEngineeringMath(text: string): string {
+  return escapeCurrencyDollars(normalizeMathDelimiters(text));
+}
+
 function AssistantMarkdown() {
   return (
     <StreamdownTextPrimitive
       plugins={CHAT_MARKDOWN_PLUGINS}
-      preprocess={normalizeMathDelimiters}
+      preprocess={preprocessEngineeringMath}
       remend={CHAT_MARKDOWN_REPAIR}
       controls={false}
       shikiTheme={["github-light", "github-dark"]}
