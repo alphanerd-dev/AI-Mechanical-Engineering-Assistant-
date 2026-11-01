@@ -34,10 +34,11 @@ describe("V2.0.19 domain-neutral engineering decision contract",()=>{
         rawIntent:"Design a shaft that transmits 5 kW at 1500 rpm."
       }
     });
-    const decision=(result.output as any).decision;
+    const output=result.output as any;
+    const decision=output.decision;
     expect(decision.status).toBe("NEEDS_INPUT");
     expect(decision.metrics).toEqual([]);
     expect(Array.isArray(decision.evidenceIds)).toBe(true);
-    expect(decision.nextQuestion).toBe("bearing span");
+    expect(output.nextQuestion).toBe("bearing span");
   });
 });
