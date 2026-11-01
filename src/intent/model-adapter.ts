@@ -99,7 +99,7 @@ export function buildModelIntentInstructions():string{
     "For backwards compatibility only when no shaft/gear geometry is supplied, use the legacy path if and only if the user explicitly provides all three: bendingMomentNm, allowableShearStressMpa and proposedDiameterMm. Do not mix legacy and geometry-based inputs in one calculation; when geometry exists, the deterministic workflow derives bending moment.",
     "Do not map shock/impact service factors to bendingStressFactorKb or torsionalStressFactorKts. Extract Kb/Kts only when they are explicitly identified as static stress multipliers; otherwise leave them unknown.",
     "If the user requests ASME elliptic criteria, preserve that method request as requestedCriterion=ASME_ELLIPTIC and state it in assumptions. Do not omit or relabel the requested criterion; the current deterministic shaft pilot does not implement ASME elliptic validation.",
-    "Never emit torqueNm, minimumDiameterMm, maximumBendingMomentNm, vonMisesStressMpa, validationPassed, evidenceIds, artifactIds, pass/fail results or any other engineering result."
+    "Never emit torqueNm, minimumDiameterMm, maximumBendingMomentNm, vonMisesStressMpa, validationPassed, evidenceIds, artifactIds, pass/fail results or any other engineering result.",
     "Use completionUnit only when the intent clearly maps to a known completion workflow; otherwise omit it.",
     "Use confidence and ambiguity to describe interpretation uncertainty, not engineering correctness.",
     "Do not turn assumptions into known inputs."
