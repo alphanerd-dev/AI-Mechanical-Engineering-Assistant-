@@ -102,7 +102,7 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
     expect(report.evidence).toHaveLength(0);
     expect(report.approvalRequired).toBe(true);
     expect(report.approvalGranted).toBe(false);
-    expect(report.nextAction).toContain("not an ASME elliptic result");
+    expect(report.nextAction).toContain("preliminary von Mises static-yield calculation");
   });
 
   it("prefers supplied bearing/gear geometry over conflicting legacy explicit-moment values", async () => {
