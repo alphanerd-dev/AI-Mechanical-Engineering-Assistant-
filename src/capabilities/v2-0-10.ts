@@ -9,7 +9,8 @@ export const V2_0_10_CAPABILITIES:CapabilityDefinition[]=[
       "projectId","powerKw","speedRpm","bearingSpanMm","gearPositionFromLeftMm",
       "pitchDiameterMm","pressureAngleDeg","materialGrade","yieldStrengthMpa",
       "ultimateTensileStrengthMpa","designFactor","axialLoadN",
-      "bendingStressFactorKb","torsionalStressFactorKts","candidateDiameterMm","approval"
+      "bendingStressFactorKb","torsionalStressFactorKts","candidateDiameterMm","approval",
+      "bendingMomentNm","allowableShearStressMpa","proposedDiameterMm"
     ],
     outputs:["engineering_completion_report"],
     risk:"HIGH",
