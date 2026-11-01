@@ -3,7 +3,7 @@ import type { CapabilityRouter } from "../capabilities/router.js";
 import type { EngineeringArtifact, EvidenceRecord } from "../artifacts/engineering-artifacts.js";
 import type { ProjectState, Requirement, EngineeringDecisionMetric } from "../core/types.js";
 import type { EngineeringTaskGraph, EngineeringTask } from "../task-graph/types.js";
-import { calculateShaftStaticDesign, SHAFT_STATIC_DESIGN_CAPABILITY, SHAFT_STATIC_DESIGN_VERSION, type ShaftStaticDesignInput, type ShaftStaticDesignResult } from "../engineering/shaft-static-design.js";
+import { SHAFT_STATIC_DESIGN_CAPABILITY, SHAFT_STATIC_DESIGN_VERSION, type ShaftStaticDesignInput, type ShaftStaticDesignResult } from "../engineering/shaft-static-design.js";
 import { produceEvidenceByProduct } from "../evidence/by-product.js";
 import type { EngineeringCompletionReport, EngineeringValidationSummary } from "./types.js";
 
