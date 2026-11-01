@@ -152,6 +152,6 @@ describe("AI-native engineering intent entry",()=>{
     expect(result.success).toBe(false);
     const output=result.output as unknown as IntentTestOutput;
     expect(output.status).toBe("FAILED");
-    expect(output.completion.evidence).toHaveLength(0);
+    expect(output.completion?.evidence).toHaveLength(0);
   });
 });
