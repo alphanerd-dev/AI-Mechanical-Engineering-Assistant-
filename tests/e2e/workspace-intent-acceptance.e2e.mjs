@@ -604,7 +604,7 @@ test("engineering conversation and decision restore after full browser reload", 
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
 
     await page.goto("/projects/" + projectId + "/engineering");
-    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await openEngineeringCore(page);
     await expect(page.locator(".conversation")).toHaveAttribute("aria-live", "polite");
     await expect(page.getByRole("button", { name: "Run engineering task" })).toBeVisible();
 
@@ -627,7 +627,7 @@ test("engineering conversation and decision restore after full browser reload", 
     await page.reload();
 
     // Heading appears only after the restore effect has completed and the UI returns to ready state.
-    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await openEngineeringCore(page);
     await expect(page.getByText(prompt, { exact: true })).toBeVisible();
     await expect(page.getByText(assistantReply, { exact: true })).toBeVisible();
     await expect(page.locator(".interactionHeader .pill")).toHaveText("NEEDS_INPUT");
@@ -714,7 +714,7 @@ test("provider outage is shown and the failed turn remains recoverable after rel
     await expect(page.locator(".interactionHeader .pill")).toHaveText("REQUEST FAILED");
 
     await page.reload();
-    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await openEngineeringCore(page);
     await expect(page.getByText(prompt, { exact: true })).toBeVisible();
     await expect(page.locator(".message.assistant p").filter({
       hasText: "The engineering service did not return a usable decision.",
@@ -775,7 +775,7 @@ test("existing session restore outage preserves identity and does not start a re
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
 
     await page.goto("/projects/" + projectId + "/engineering");
-    await expect(page.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await openEngineeringCore(page);
     await expect(page.getByRole("textbox", { name: "Engineering request" })).toBeEnabled();
     const sessionKey = "engineering-intent-session:" + projectId;
     const originalSessionId = await page.evaluate((key) => sessionStorage.getItem(key), sessionKey);

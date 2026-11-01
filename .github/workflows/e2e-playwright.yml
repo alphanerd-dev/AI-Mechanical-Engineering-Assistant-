@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       suite:
-        description: Run read-only public workspace and auth-form UI smoke, or the full authenticated acceptance suite
+        description: Run public workspace, engineering chat rendering and auth-form UI smoke, or the full authenticated acceptance suite
         required: true
         type: choice
         options:
@@ -138,7 +138,7 @@ jobs:
         run: npm ci
 
       - name: Install pinned Playwright and axe accessibility test helpers
-        run: npm install --no-save --package-lock=false @playwright/test@1.64.0 @axe-core/playwright@4.13.0
+        run: npm install --no-save --package-lock=false @playwright/test@1.64.1 @axe-core/playwright@4.13.0
 
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
@@ -148,7 +148,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$E2E_SUITE" == "public-ui-smoke" ]]; then
-            npm run test:e2e -- tests/e2e/public-workspace-smoke.e2e.mjs tests/e2e/auth-responsive-layout.e2e.mjs
+            npm run test:e2e -- tests/e2e/public-workspace-smoke.e2e.mjs tests/e2e/engineering-chat-rendering.e2e.mjs tests/e2e/auth-responsive-layout.e2e.mjs
           else
             npm run test:e2e
           fi

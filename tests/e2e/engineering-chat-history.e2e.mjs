@@ -54,15 +54,25 @@ test("streamed engineering chat restores after refresh and recovers a missing br
     expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
 
     await page.goto("/projects/" + projectId + "/engineering");
-    await expect(page.getByRole("heading", { name: "Explore the problem before you execute" })).toBeVisible();
+    const chatPanel = page.locator('section[aria-labelledby="engineering-assistant-title"]');
+    await expect(chatPanel).toBeVisible();
+
+    const corePanel = page.locator("details").filter({ hasText: "Engineering Core" });
+    await expect(corePanel).toBeVisible();
+    expect(await corePanel.evaluate((element) => element.open)).toBe(false);
+    await corePanel.locator("summary").click();
+    await expect(corePanel.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    expect(await corePanel.evaluate((element) => element.open)).toBe(true);
+    await corePanel.locator("summary").click();
+    expect(await corePanel.evaluate((element) => element.open)).toBe(false);
+    await expect(chatPanel.getByRole("textbox", { name: "Message the engineering assistant" })).toBeVisible();
 
     const prompt = "Reply with exactly CHAT_HISTORY_E2E and no other text.";
     const composer = page.getByRole("textbox", { name: "Message the engineering assistant" });
     await expect(composer).toBeEnabled();
     await composer.fill(prompt);
-    await page.getByRole("button", { name: "Send ↑" }).click();
+    await page.getByRole("button", { name: "Send message" }).click();
 
-    const chatPanel = page.locator('section[aria-labelledby="engineering-assistant-title"]');
     const userMessage = chatPanel.getByText(prompt, { exact: true });
     const assistantMessage = chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true });
     await expect(userMessage).toBeVisible({ timeout: 30_000 });
