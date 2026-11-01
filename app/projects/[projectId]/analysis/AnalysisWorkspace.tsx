@@ -313,8 +313,9 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
         <code>sigma_VM &lt;= Sy / nd</code>
         <span>Power and speed are taken from the rotational shaft torque inputs above. Kb and Kts are explicit static stress multipliers, not fatigue factors.</span>
       </div>
-      <button className="button" type="button" onClick={() => void runShaftDesign()} disabled={busy || loading || !(Number(powerKw) > 0) || !(Number(speedRpm) > 0)}>
-        {busy ? "Calculating and saving…" : "Run static shaft design and persist state"}
+      {demo && <p className="projectNotice projectNoticeWarning">The demo sandbox is read-only. Create or open a registered engineering project to calculate and persist a shaft design.</p>}
+      <button className="button" type="button" onClick={() => void runShaftDesign()} disabled={busy || loading || demo || !(Number(powerKw) > 0) || !(Number(speedRpm) > 0)}>
+        {demo ? "Registered project required" : busy ? "Calculating and saving…" : "Run static shaft design and persist state"}
       </button>
     </section>
     {shaftDesign && <section className="panel shaftDesignPanel">
