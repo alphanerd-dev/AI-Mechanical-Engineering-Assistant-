@@ -5,6 +5,7 @@ import {V2_0_10_CAPABILITIES} from "../src/capabilities/v2-0-10.js";
 import {V2_0_11_CAPABILITIES} from "../src/capabilities/v2-0-11.js";
 import {V2_0_12_CAPABILITIES} from "../src/capabilities/v2-0-12.js";
 import {V2_0_14_CAPABILITIES} from "../src/capabilities/v2-0-14.js";
+import {ENGINEERING_CAPABILITIES} from "../src/capabilities/catalog.js";
 import {EngineeringCompletionProvider} from "../src/providers/engineering-completion.js";
 import {RiskAdaptiveExperienceProvider} from "../src/providers/experience.js";
 import {EngineeringContextProvider} from "../src/providers/context.js";
@@ -20,7 +21,10 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
     expect(unit).toBeDefined();
     expect(unit?.capability).toBe("ENGINEERING.COMPLETE_SHAFT");
     expect(unit?.requiredInputs.map(item=>item.label)).toEqual([
-      "power","speed","bending moment","allowable shear stress","proposed shaft diameter"
+      "transmitted power","shaft speed","bearing span",
+      "gear position from the left bearing (or an explicit midpoint)",
+      "gear pitch diameter","gear pressure angle","material grade",
+      "material yield strength Sy","material ultimate tensile strength Sut","design factor"
     ]);
   });
 
@@ -37,6 +41,7 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
     registry.registerCatalog(V2_0_11_CAPABILITIES);
     registry.registerCatalog(V2_0_12_CAPABILITIES);
     registry.registerCatalog(V2_0_14_CAPABILITIES);
+    registry.registerCatalog(ENGINEERING_CAPABILITIES);
     const router=new CapabilityRouter(registry);
     registry.register(new NumericalAnalysisProvider());
     registry.register(new EngineeringCompletionProvider(router));
@@ -54,14 +59,14 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
       risk:"HIGH",
       input:{
         projectId:"V2-0-20-ROUTING",
-        rawIntent:"Design a shaft that transmits 5 kW at 1500 rpm. Bending moment is 80 N·m. Allowable shear is 55 MPa. Proposed diameter is 30 mm."
+        rawIntent:"Design a shaft to transmit 5 kW at 1500 rpm. It is simply supported between bearings 400 mm apart. A spur gear is mounted at midpoint with pitch diameter 180 mm and pressure angle 20 degrees. Use AISI 1020, Sy 350 MPa, Sut 420 MPa and design factor 2.5. Neglect axial forces."
       }
     });
 
     expect(result.success).toBe(true);
     const output=result.output as any;
     expect(output.completion.completionUnit).toBe("ENGINEERING.COMPLETE_SHAFT");
-    expect(output.completion.decisionMetrics).toHaveLength(3);
+    expect(output.completion.decisionMetrics).toHaveLength(8);
     expect(output.decision.metrics).toEqual(output.completion.decisionMetrics);
   });
 
