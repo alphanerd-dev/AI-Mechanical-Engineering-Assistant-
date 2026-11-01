@@ -171,6 +171,9 @@ describe("V2.0.10 geometry-based shaft completion unit", () => {
     expect(result.success).toBe(false);
     const report = result.output as unknown as ShaftCompletionTestReport;
     expect(report.status).toBe("FAILED");
+    if (!report.validation) {
+      throw new Error("Expected a failed shaft candidate to include a validation result.");
+    }
     expect(report.validation.passed).toBe(false);
     expect(report.lineage.evidenceIds).toHaveLength(0);
     expect(report.nextAction).toContain("Do not accept the failing candidate");

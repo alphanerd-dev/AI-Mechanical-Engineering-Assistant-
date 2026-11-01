@@ -1,6 +1,8 @@
 import { EngineeringContext } from "../experience/context.js";
 import { EngineeringIntentInterpreter, EngineeringIntentInterpretation } from "./types.js";
 
+const MAX_SHAFT_INTENT_CHARACTERS = 12_000;
+
 function numberAfter(pattern: RegExp, raw: string): number | undefined {
   const match = raw.match(pattern);
   if (!match) return undefined;
@@ -25,31 +27,34 @@ function contextString(context: EngineeringContext | undefined, keys: string[]):
 }
 
 function isAxialLoadNeglected(text: string): boolean {
-  return /\b(?:neglect|ignore|neglecting|ignoring)\s+(?:the\s+)?axial\s+(?:force|forces|load|loads)\b/i.test(text) ||
-    /\bno\s+axial\s+(?:force|forces|load|loads)\b/i.test(text);
+  return /\b(?:neglect|ignore|neglecting|ignoring)[\t ]{1,16}(?:the[\t ]{1,16})?axial[\t ]{1,16}(?:force|forces|load|loads)\b/i.test(text) ||
+    /\bno[\t ]{1,16}axial[\t ]{1,16}(?:force|forces|load|loads)\b/i.test(text);
 }
 
 export class DeterministicShaftIntentInterpreter implements EngineeringIntentInterpreter {
   async interpret(raw: string, context?: EngineeringContext): Promise<EngineeringIntentInterpretation> {
+    if (raw.length > MAX_SHAFT_INTENT_CHARACTERS) {
+      throw new Error(`Shaft design intent exceeds the ${MAX_SHAFT_INTENT_CHARACTERS}-character limit.`);
+    }
     const text = raw.trim();
     const lower = text.toLowerCase();
     const projectId = typeof context?.projectId === "string" && context.projectId.trim()
       ? context.projectId.trim()
       : undefined;
 
-    const powerKw = numberAfter(/([0-9]+(?:\.[0-9]+)?)\s*kW\b/i, text) ??
+    const powerKw = numberAfter(/([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}kW\b/i, text) ??
       contextNumber(context, ["powerKw", "power"]);
-    const speedRpm = numberAfter(/([0-9]+(?:\.[0-9]+)?)\s*rpm\b/i, text) ??
+    const speedRpm = numberAfter(/([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}rpm\b/i, text) ??
       contextNumber(context, ["speedRpm", "speed"]);
 
     const bearingSpanMm =
-      numberAfter(/([0-9]+(?:\.[0-9]+)?)\s*mm\s+apart\b/i, text) ??
-      numberAfter(/\bbearing\s+span(?:\s+of)?\s*(?:=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
-      numberAfter(/\bspan\s+between\s+(?:the\s+)?bearings?\s*(?:of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
+      numberAfter(/([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}mm[\t ]{1,16}apart\b/i, text) ??
+      numberAfter(/\bbearing[\t ]{1,16}span(?:[\t ]{1,16}of)?[\t ]{0,16}(?:=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}mm\b/i, text) ??
+      numberAfter(/\bspan[\t ]{1,16}between[\t ]{1,16}(?:the[\t ]{1,16})?bearings?[\t ]{0,16}(?:of|=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}mm\b/i, text) ??
       contextNumber(context, ["bearingSpanMm", "bearingSpan"]);
 
     let gearPositionFromLeftMm =
-      numberAfter(/\bgear\b[^.\n]{0,100}\b(?:at|located|positioned)\s*(?:x\s*=\s*)?([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
+      numberAfter(/\bgear\b[^.\n]{0,100}\b(?:at|located|positioned)[\t ]{0,16}(?:x[\t ]{0,16}=[\t ]{0,16})?([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}mm\b/i, text) ??
       contextNumber(context, ["gearPositionFromLeftMm", "gearPositionMm"]);
     const gearAtMidpoint = /\bgear\b[^.\n]{0,120}\bmidpoint\b/i.test(text) ||
       /\bmidpoint\b[^.\n]{0,80}\bgear\b/i.test(text);
@@ -58,50 +63,50 @@ export class DeterministicShaftIntentInterpreter implements EngineeringIntentInt
     }
 
     const pitchDiameterMm =
-      numberAfter(/\bpitch\s+diameter(?:\s+of)?\s*(?:=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
+      numberAfter(/\bpitch[\t ]{1,16}diameter(?:[\t ]{1,16}of)?[\t ]{0,16}(?:=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}mm\b/i, text) ??
       contextNumber(context, ["pitchDiameterMm", "gearPitchDiameterMm"]);
     const pressureAngleDeg =
-      numberAfter(/\bpressure\s+angle(?:\s+of)?\s*(?:=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:°|deg(?:rees?)?)?/i, text) ??
+      numberAfter(/\bpressure[\t ]{1,16}angle(?:[\t ]{1,16}of)?[\t ]{0,16}(?:=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}(?:°|deg(?:rees?)?)?/i, text) ??
       contextNumber(context, ["pressureAngleDeg", "pressureAngle"]);
 
-    const materialMatch = text.match(/\bAISI\s*[- ]?\s*(\d{3,5})\b/i);
+    const materialMatch = text.match(/\bAISI[\t ]{0,16}[- ]?[\t ]{0,16}(\d{3,5})\b/i);
     const materialGrade = (materialMatch ? "AISI " + materialMatch[1] : undefined) ??
       contextString(context, ["materialGrade", "material"]);
     const yieldStrengthMpa =
-      numberAfter(/\bSy\s*(?:=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*MPa\b/i, text) ??
-      numberAfter(/\byield\s+strength(?:\s+of)?\s*([0-9]+(?:\.[0-9]+)?)\s*MPa\b/i, text) ??
+      numberAfter(/\bSy[\t ]{0,16}(?:=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}MPa\b/i, text) ??
+      numberAfter(/\byield[\t ]{1,16}strength(?:[\t ]{1,16}of)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}MPa\b/i, text) ??
       contextNumber(context, ["yieldStrengthMpa", "Sy"]);
     const ultimateTensileStrengthMpa =
-      numberAfter(/\bSut\s*(?:=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*MPa\b/i, text) ??
-      numberAfter(/\bultimate\s+tensile\s+strength(?:\s+of)?\s*([0-9]+(?:\.[0-9]+)?)\s*MPa\b/i, text) ??
+      numberAfter(/\bSut[\t ]{0,16}(?:=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}MPa\b/i, text) ??
+      numberAfter(/\bultimate[\t ]{1,16}tensile[\t ]{1,16}strength(?:[\t ]{1,16}of)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}MPa\b/i, text) ??
       contextNumber(context, ["ultimateTensileStrengthMpa", "Sut"]);
     const designFactor =
-      numberAfter(/\b(?:design\s+factor|factor\s+of\s+safety|nd)\s*(?:of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)/i, text) ??
+      numberAfter(/\b(?:design[\t ]{1,16}factor|factor[\t ]{1,16}of[\t ]{1,16}safety|nd)[\t ]{0,16}(?:of|=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)/i, text) ??
       contextNumber(context, ["designFactor", "nd", "factorOfSafety"]);
 
-    const explicitAxialLoadN = numberAfter(/\baxial\s+(?:load|force)\s*(?:of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*N\b/i, text);
+    const explicitAxialLoadN = numberAfter(/\baxial[\t ]{1,16}(?:load|force)[\t ]{0,16}(?:of|=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}N\b/i, text);
     const axialLoadN = explicitAxialLoadN ??
       (isAxialLoadNeglected(text) ? 0 : contextNumber(context, ["axialLoadN", "axialForceN"]) ?? 0);
 
     const bendingStressFactorKb =
-      numberAfter(/\bKb\s*(?:=|:)?\s*([0-9]+(?:\.[0-9]+)?)/i, text) ??
+      numberAfter(/\bKb[\t ]{0,16}(?:=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)/i, text) ??
       contextNumber(context, ["bendingStressFactorKb", "Kb"]);
     const torsionalStressFactorKts =
-      numberAfter(/\bKts\s*(?:=|:)?\s*([0-9]+(?:\.[0-9]+)?)/i, text) ??
+      numberAfter(/\bKts[\t ]{0,16}(?:=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)/i, text) ??
       contextNumber(context, ["torsionalStressFactorKts", "Kts"]);
     const candidateDiameterMm =
-      numberAfter(/\b(?:candidate|proposed|selected)\s+(?:shaft\s+)?diameter\s*(?:of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
+      numberAfter(/\b(?:candidate|proposed|selected)[\t ]{1,16}(?:shaft[\t ]{1,16})?diameter[\t ]{0,16}(?:of|=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}mm\b/i, text) ??
       contextNumber(context, ["candidateDiameterMm", "proposedDiameterMm", "diameter"]);
 
     // Compatibility extraction for the earlier explicit-M / allowable-shear workflow.
     const bendingMomentNm =
-      numberAfter(/\b(?:bending\s+moment|bending)\s*(?:is|of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:N(?:·|\.)?\s*m|Nm)\b/i, text) ??
+      numberAfter(/\b(?:bending[\t ]{1,16}moment|bending)[\t ]{0,16}(?:is|of|=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}(?:N(?:·|\.)?[\t ]{0,16}m|Nm)\b/i, text) ??
       contextNumber(context, ["bendingMomentNm", "bending moment"]);
     const allowableShearStressMpa =
-      numberAfter(/\ballowable\s+shear(?:\s+stress)?\s*(?:is|of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*MPa\b/i, text) ??
+      numberAfter(/\ballowable[\t ]{1,16}shear(?:[\t ]{1,16}stress)?[\t ]{0,16}(?:is|of|=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}MPa\b/i, text) ??
       contextNumber(context, ["allowableShearStressMpa", "allowable shear stress"]);
     const proposedDiameterMm =
-      numberAfter(/\bproposed\s+(?:shaft\s+)?diameter\s*(?:is|of|=|:)?\s*([0-9]+(?:\.[0-9]+)?)\s*mm\b/i, text) ??
+      numberAfter(/\bproposed[\t ]{1,16}(?:shaft[\t ]{1,16})?diameter[\t ]{0,16}(?:is|of|=|:)?[\t ]{0,16}([0-9]{1,12}(?:\.[0-9]{1,12})?)[\t ]{0,16}mm\b/i, text) ??
       contextNumber(context, ["proposedDiameterMm", "proposed shaft diameter"]);
     const requestedCriterion = /ASME.{0,40}\belliptic\b|\belliptic\b.{0,40}ASME/i.test(text)
       ? "ASME_ELLIPTIC"

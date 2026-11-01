@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NumericalAnalysisProvider } from "../src/providers/numerical.js";
+import { DeterministicShaftIntentInterpreter } from "../src/intent/shaft.js";
 import {
   calculateShaftStaticDesign,
   type ShaftStaticDesignInput
@@ -114,5 +115,28 @@ describe("persistent shaft design state", () => {
       ...state,
       result: { ...state.result, torqueNm: state.result.torqueNm + 1 }
     })).toContain("Persisted shaft design result does not match resultSha256.");
+  });
+});
+
+
+describe("deterministic shaft intent parsing", () => {
+  const interpreter = new DeterministicShaftIntentInterpreter();
+
+  it("derives midpoint gear position and does not request a user-entered bending moment", async () => {
+    const result = await interpreter.interpret(
+      "Design a shaft transmitting 12 kW at 1450 rpm, with bearings 400 mm apart, " +
+      "the gear at midpoint, a pitch diameter of 180 mm, a pressure angle of 20 degrees, " +
+      "AISI 1020 steel, Sy 350 MPa, Sut 420 MPa, and design factor 2.5. Ignore axial load."
+    );
+
+    expect(result.completionUnit).toBe("ENGINEERING.COMPLETE_SHAFT");
+    expect(result.missingInputs).toEqual([]);
+    expect(result.extractedInputs.gearPositionFromLeftMm).toBe(200);
+    expect(result.extractedInputs.bendingMomentNm).toBeUndefined();
+  });
+
+  it("rejects oversized raw intent before applying extraction patterns", async () => {
+    await expect(interpreter.interpret("0".repeat(12_001)))
+      .rejects.toThrow(/12000-character limit/);
   });
 });
