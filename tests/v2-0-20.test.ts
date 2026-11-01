@@ -14,6 +14,14 @@ import {DeterministicShaftIntentInterpreter} from "../src/intent/shaft.js";
 import {EngineeringCompletionUnitRegistry,createDefaultEngineeringCompletionUnitRegistry} from "../src/completion/registry.js";
 import {NumericalAnalysisProvider} from "../src/providers/numerical.js";
 
+type RoutedCompletionTestOutput = {
+  completion: {
+    completionUnit: string;
+    decisionMetrics: Array<{ key: string; value: number | string; unit: string }>;
+  };
+  decision: { metrics: Array<{ key: string; value: number | string; unit: string }> };
+};
+
 describe("V2.0.20 domain-neutral completion routing",()=>{
   it("registers the canonical shaft completion unit without exposing shaft logic in the registry",()=>{
     const registry=createDefaultEngineeringCompletionUnitRegistry();
@@ -60,7 +68,7 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
     });
 
     expect(result.success).toBe(true);
-    const output=result.output as any;
+    const output=result.output as unknown as RoutedCompletionTestOutput;
     expect(output.completion.completionUnit).toBe("ENGINEERING.COMPLETE_SHAFT");
     expect(output.completion.decisionMetrics).toHaveLength(8);
     expect(output.decision.metrics).toEqual(output.completion.decisionMetrics);
@@ -109,7 +117,10 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
     });
 
     expect(result.success).toBe(false);
-    expect((result.output as any).decision).toMatchObject({
+    const output = result.output as unknown as {
+      decision: { status: string; validationPassed: boolean; metrics: unknown[]; evidenceIds: string[] }
+    };
+    expect(output.decision).toMatchObject({
       status:"FAILED",
       validationPassed:false,
       metrics:[],
