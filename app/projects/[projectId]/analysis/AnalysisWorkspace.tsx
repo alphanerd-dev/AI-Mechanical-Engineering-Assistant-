@@ -186,7 +186,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
         bendingStressFactorKb: Number(shaftDesignForm.bendingStressFactorKb),
         torsionalStressFactorKts: Number(shaftDesignForm.torsionalStressFactorKts)
       };
-      if (!Object.values(numericFields).every(Number.isFinite) || !shaftDesignForm.materialGrade.trim()) {
+      if (!Object.values(numericFields).every(Number.isFinite) || !shaftDesignForm.materialGrade.trim() || !shaftDesignForm.axialLoadN.trim()) {
         throw new Error("Complete every shaft input with a valid number and a material grade. Axial load may be zero.");
       }
       const candidate = shaftDesignForm.candidateDiameterMm.trim()
