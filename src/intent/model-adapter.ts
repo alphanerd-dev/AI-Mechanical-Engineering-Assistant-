@@ -94,7 +94,10 @@ export function buildModelIntentInstructions():string{
     "Return only information grounded in the user intent or the supplied context.",
     "For every input, declare source USER, CONTEXT or UNKNOWN.",
     "USER inputs require sourceText copied from the user intent. CONTEXT inputs require sourceKey matching a supplied knownInputs key. UNKNOWN inputs must omit value.",
-    "Never emit torqueNm, minimumDiameterMm, validationPassed, evidenceIds, artifactIds, pass/fail results or any other engineering result.",
+    "For a solid shaft with a simply supported span and a gear load, extract bearingSpanMm, gearPositionFromLeftMm, pitchDiameterMm and pressureAngleDeg. Only when the user explicitly says the gear is at midpoint or midspan, derive gearPositionFromLeftMm as bearingSpanMm divided by 2 and state that assumption. Never request or invent bendingMomentNm: the deterministic workflow derives bending moment from gear forces and support geometry.",
+    "Also extract materialGrade, yieldStrengthMpa (Sy), ultimateTensileStrengthMpa (Sut), designFactor and any explicitly supplied axialLoadN. When the user explicitly says to neglect axial forces, report axialLoadN as 0 N. Do not infer axial thrust for a spur gear.",
+    "Do not map shock/impact service factors to bendingStressFactorKb or torsionalStressFactorKts. Extract Kb/Kts only when they are explicitly identified as static stress multipliers; otherwise leave them unknown.",
+    "Never emit torqueNm, minimumDiameterMm, maximumBendingMomentNm, vonMisesStressMpa, validationPassed, evidenceIds, artifactIds, pass/fail results or any other engineering result."
     "Use completionUnit only when the intent clearly maps to a known completion workflow; otherwise omit it.",
     "Use confidence and ambiguity to describe interpretation uncertainty, not engineering correctness.",
     "Do not turn assumptions into known inputs."
