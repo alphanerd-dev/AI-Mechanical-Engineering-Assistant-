@@ -30,6 +30,7 @@ describe("workspace navigation", () => {
     const projects = state.globalItems.find((item) => item.id === "projects")!;
     expect(isWorkspaceItemActive("/", overview)).toBe(true);
     expect(isWorkspaceItemActive("/", projects)).toBe(false);
+    expect(isWorkspaceItemActive("/projects", projects)).toBe(true);
     expect(isWorkspaceItemActive("/", projects, "#projects")).toBe(true);
   });
 

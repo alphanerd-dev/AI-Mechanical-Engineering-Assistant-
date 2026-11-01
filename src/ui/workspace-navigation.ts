@@ -27,6 +27,7 @@ function titleFromPath(pathname: string): string {
   if (pathname === "/") return "Workspace overview";
   const segment = pathname.split("/").filter(Boolean).at(-1) ?? "";
   const titles: Record<string, string> = {
+    projects: "Projects",
     login: "Sign in",
     signup: "Create account",
     requirements: "Requirements",
@@ -54,7 +55,7 @@ export function getWorkspaceNavigation(pathnameInput: string | null | undefined)
 
   const globalItems: WorkspaceNavItem[] = [
     { id: "overview", label: "Overview", href: "/", icon: "layout-dashboard", description: "Workspace and recent projects" },
-    { id: "projects", label: "Projects", href: "/#projects", icon: "folder-kanban", description: "Browse and create projects" },
+    { id: "projects", label: "Projects", href: "/projects", icon: "folder-kanban", description: "Browse and create projects" },
     { id: "assistant", label: "AI assistant", href: projectPrefix + "/engineering", icon: "bot", description: projectId ? "Project-scoped conversation" : "Open the illustrative demo assistant" },
   ];
 
@@ -82,7 +83,7 @@ export function getWorkspaceNavigation(pathnameInput: string | null | undefined)
 
 export function isWorkspaceItemActive(pathname: string, item: WorkspaceNavItem, hash = ""): boolean {
   if (item.id === "overview") return pathname === "/";
-  if (item.id === "projects") return pathname === "/" && hash === "#projects";
+  if (item.id === "projects") return pathname === "/projects" || (pathname === "/" && hash === "#projects");
   if (item.href === "/") return pathname === "/";
   if (pathname === item.href) return true;
   // A section remains active on its real nested destinations (for example, analysis/execution).

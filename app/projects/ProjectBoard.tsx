@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Activity, AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight, Clock3, FolderKanban, Plus, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { isEngineeringRoleRequiredFailure } from "../../src/auth/http-error-classification";
 import { buildProjectBriefReview, getProjectAssistantHref } from "../../src/projects/project-brief-review.js";
+import { summarizeProjectStatuses } from "../../src/projects/project-dashboard";
 
 type Project = {
   id: string;
@@ -170,14 +173,28 @@ export default function ProjectBoard() {
     }
   }
 
-  return <div className="shell projectBoard">
-    <header className="hero">
+  const sortedProjects = [...projects].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+  const recentProjects = sortedProjects.slice(0, 3);
+  const projectCounts = summarizeProjectStatuses(projects);
+  const suggestedProjects = sortedProjects.filter((project) => project.status !== "COMPLETE").slice(0, 3);
+  const dashboardActions = (suggestedProjects.length ? suggestedProjects : sortedProjects.slice(0, 3)).map((project) => ({
+    project,
+    title: project.status === "BLOCKED" ? "Inspect blocked project" : project.status === "COMPLETE" ? "Open completed project" : "Continue project",
+    description: project.status === "BLOCKED" ? "Inspect project status and available validation evidence" : "Return to the persisted project workspace",
+    href: project.status === "BLOCKED" ? `/projects/${project.id}/validation` : `/projects/${project.id}`,
+  }));
+
+  return <div className="shell projectBoard workspaceOverview">
+    <header className="workspaceViewHeader">
       <div>
-        <p className="eyebrow">AI-NATIVE ENGINEERING WORKSPACE</p>
-        <h1>Engineering Workspace</h1>
-        <p className="muted">Engineering outcomes, not engineering overhead. State the task; the workspace coordinates supported workflows and surfaces results, checks, evidence, and the next decision. Material gaps and unsupported tasks stay explicit.</p>
+        <p className="eyebrow">ENGINEERING OS</p>
+        <h1>Workspace overview</h1>
+        <p className="muted">Your engineering projects, project context and next safe actions in one place.</p>
       </div>
-      <div className="actions"><Link className="button secondaryButton" href="/projects/demo">Open demo sandbox</Link></div>
+      <div className="workspaceViewActions">
+        <Link className="button secondaryButton" href="/projects"><FolderKanban size={15} aria-hidden="true" />Browse projects</Link>
+        <a className="button workspacePrimaryAction" href="#create-project"><Plus size={15} aria-hidden="true" />Create project</a>
+      </div>
     </header>
 
     {roleRequired && <section className="projectNotice projectNoticeWarning" role="status">
@@ -185,111 +202,117 @@ export default function ProjectBoard() {
       <p>Your session is valid, but the API did not find an authorized engineering role in this session. Sign out and sign in again to refresh your session. The sign-in service provisions standard <code>ENGINEER</code> access for accounts without a trusted role; if this message remains after signing in again, the platform administrator must inspect the user&apos;s trusted Supabase <code>app_metadata.engineering_roles</code>. User Metadata does not grant access.</p>
     </section>}
 
-    <section className="projectBoardGrid">
-      <section className="panel projectCreatePanel">
-        <p className="eyebrow">NEW WORKSPACE</p>
-        <h2>Create an engineering project</h2>
-        <p className="muted">Start with a project name and an optional problem statement. Add detailed requirements as they become relevant. Creating a project does not mean its design is approved.</p>
-        <form className="projectForm" onSubmit={createStage === "details" ? reviewProject : createProject}>
-          {createStage === "details" ? <>
-            <p className="projectStepLabel">STEP 1 OF 2 · CAPTURE THE PROBLEM</p>
-            <label className="projectField">Project name
-              <input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={120} required placeholder="e.g. Pump impeller redesign" disabled={creating || roleRequired} />
-            </label>
-            <label className="projectField">Problem statement <span className="muted">(optional)</span>
-              <textarea value={problemStatement} onChange={(event) => setProblemStatement(event.target.value)} maxLength={2000} rows={4} placeholder="What needs to be improved, and under what constraints?" disabled={creating || roleRequired} />
-            </label>
-            {createError && <p className="projectError" role="alert">{createError}</p>}
-            {notice && <p className="projectNoticeText" role="status">{notice}</p>}
-            <div className="projectCreateActions">
-              <span className="projectStepHint">You’ll review the inputs before anything is created.</span>
-              <button className="button" type="submit" disabled={creating || roleRequired || name.trim().length < 2}>Review project brief</button>
-            </div>
-          </> : <>
-            <p className="projectStepLabel">STEP 2 OF 2 · REVIEW BEFORE CREATION</p>
-            <section className="projectBriefReview" aria-labelledby="project-brief-review-title">
-              <div className="projectBriefReviewHeader">
-                <div>
-                  <p className="eyebrow">INPUT SUMMARY · NOT AI-GENERATED</p>
-                  <h3 id="project-brief-review-title">{briefReview.projectName}</h3>
-                </div>
-                <span className="projectBriefReviewBadge">REVIEW ONLY</span>
-              </div>
-              <div className="projectBriefReviewSection">
-                <h4>Problem statement</h4>
-                <p>{briefReview.objective}</p>
-              </div>
-              <div className="projectBriefReviewSection">
-                <h4>Scope at creation</h4>
-                <p>{briefReview.scopeSummary}</p>
-              </div>
-              <div className="projectBriefReviewGrid">
-                <div className="projectBriefReviewSection">
-                  <h4>Assumptions and inputs</h4>
-                  <ul>{briefReview.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>
-                </div>
-                <div className="projectBriefReviewSection">
-                  <h4>Success criteria</h4>
-                  <p>{briefReview.successCriteria}</p>
-                </div>
-              </div>
-              <div className="projectBriefReviewSection">
-                <h4>Artifacts</h4>
-                <p>{briefReview.artifactStatus}</p>
-              </div>
-              <p className="projectBriefReviewDisclaimer">{briefReview.disclaimer}</p>
-            </section>
+    <section className="workspaceLaunchPanel" aria-labelledby="workspace-launch-title">
+      <div className="workspaceLaunchMain">
+        <div className="workspaceLaunchTags">
+          <Badge variant="default"><Sparkles size={12} aria-hidden="true" />AI-assisted engineering</Badge>
+          <Badge variant="muted">Project-scoped conversations</Badge>
+        </div>
+        <p className="eyebrow">ENGINEERING TASK ENTRY</p>
+        <h2 id="workspace-launch-title">What are we engineering today?</h2>
+        <p>Start with a design problem, calculation, simulation request or set of files. The assistant can help structure the task. Deterministic execution and validation remain separate workflows.</p>
+        <div className="workspaceLaunchActions">
+          <Link className="button workspacePrimaryAction" href="/projects/demo/engineering">Open demo assistant <ArrowUpRight size={15} aria-hidden="true" /></Link>
+          <span className="workspaceDemoNote">Demo assistant · illustrative context · may reset</span>
+        </div>
+      </div>
+      <aside className="workspaceContinueCard" aria-label="Most recently updated project">
+        {recentProjects[0] ? <>
+          <div className="workspaceContinueTop"><span className="eyebrow">MOST RECENTLY UPDATED</span><Badge variant={recentProjects[0].status === "BLOCKED" ? "warning" : recentProjects[0].status === "COMPLETE" ? "success" : "info"}>{recentProjects[0].status === "COMPLETE" ? "Complete" : recentProjects[0].status === "BLOCKED" ? "Blocked" : "Active"}</Badge></div>
+          <h3>{recentProjects[0].name}</h3>
+          <p>{recentProjects[0].stage.replaceAll("_", " ")} · Revision {recentProjects[0].revision}</p>
+          <div className="workspaceContinueMeta"><span>Last updated</span><strong>{new Date(recentProjects[0].updated_at).toLocaleString()}</strong></div>
+          <Link href={`/projects/${recentProjects[0].id}`}>Open project <ArrowUpRight size={14} aria-hidden="true" /></Link>
+        </> : <>
+          <span className="eyebrow">YOUR PROJECTS</span>
+          <FolderKanban size={23} aria-hidden="true" />
+          <h3>{loading ? "Loading persisted projects…" : "No project to continue"}</h3>
+          <p>Create a project to establish durable engineering context and revision history.</p>
+          <a href="#create-project">Create your first project <ArrowUpRight size={14} aria-hidden="true" /></a>
+        </>}
+      </aside>
+    </section>
 
-            {createOutcomeUncertain && <section className="projectNotice projectNoticeWarning" role="alert" aria-live="assertive">
-              <strong>Project creation outcome is unconfirmed</strong>
-              <p>{createError || "The server did not return a final confirmation."} The request may have created the project even though the client did not receive a confirmed response. A blind retry can create a duplicate; your draft has been preserved.</p>
-              <div className="projectCreateActions">
-                <button className="button secondaryButton" type="button" onClick={() => void checkProjectListBeforeRetry()} disabled={loading || creating}>Refresh project list before retry</button>
-                {projectListCheckedAfterUncertain && <button className="button secondaryButton" type="button" onClick={() => { setAllowRetryAfterUncertain(true); setCreateError(""); }} disabled={creating}>I reviewed the list; allow one retry</button>}
-              </div>
-              {possibleMatches.length > 0 && <div className="projectPossibleMatches">
-                <strong>Projects with the same name</strong>
-                {possibleMatches.map((project) => <Link key={project.id} href={`/projects/${project.id}`} className="projectPossibleMatch">
-                  <span>{project.name}</span><small>Revision {project.revision} · {project.status}</small>
-                </Link>)}
-              </div>}
-              {allowRetryAfterUncertain && <p className="projectCreateRiskNotice">Retry enabled after your acknowledgement. The unchanged draft reuses its server key; edits are treated as a new project-creation request.</p>}
-            </section>}
+    <section className="workspaceMetricGrid" aria-label="Persisted project counts">
+      <article className="workspaceMetricCard"><div><span>Persisted projects</span><FolderKanban size={16} aria-hidden="true" /></div><strong>{loading ? "—" : projectCounts.all}</strong><small>Projects accessible to this account</small></article>
+      <article className="workspaceMetricCard"><div><span>Active projects</span><Activity size={16} aria-hidden="true" /></div><strong>{loading ? "—" : projectCounts.active}</strong><small>Project status: ACTIVE</small></article>
+      <article className="workspaceMetricCard workspaceMetricWarning"><div><span>Blocked projects</span><AlertTriangle size={16} aria-hidden="true" /></div><strong>{loading ? "—" : projectCounts.blocked}</strong><small>Requires project-level inspection</small></article>
+      <article className="workspaceMetricCard workspaceMetricSuccess"><div><span>Completed projects</span><CheckCircle2 size={16} aria-hidden="true" /></div><strong>{loading ? "—" : projectCounts.complete}</strong><small>Project status: COMPLETE</small></article>
+    </section>
 
-            {!createOutcomeUncertain && createError && <p className="projectError" role="alert">{createError}</p>}
-            {notice && <p className="projectNoticeText" role="status">{notice}</p>}
-            <div className="projectCreateActions">
-              <button className="button secondaryButton" type="button" onClick={() => { setCreateError(""); setNotice(""); setCreateStage("details"); }} disabled={creating || createOutcomeUncertain}>Edit inputs</button>
-              <button className="button" type="submit" disabled={creating || roleRequired || (createOutcomeUncertain && !allowRetryAfterUncertain)}>
-                {creating ? "Creating project…" : createOutcomeUncertain ? "Retry creation (possible duplicate)" : "Create project & open workspace"}
-              </button>
-            </div>
-          </>}
-        </form>
+    <section className="workspaceDashboardSection" aria-labelledby="recent-projects-heading">
+      <div className="workspaceSectionHeader">
+        <div><h2 id="recent-projects-heading">Recent projects</h2><p>Resume work without losing project context.</p></div>
+        <Link href="/projects">View all projects <ArrowUpRight size={14} aria-hidden="true" /></Link>
+      </div>
+      {loading && <p className="muted">Loading persisted projects…</p>}
+      {!loading && loadingError && <p className="projectError" role="alert">{loadingError}</p>}
+      {!loading && !loadingError && recentProjects.length === 0 && <div className="workspaceEmptyPanel"><FolderKanban size={22} aria-hidden="true" /><strong>No engineering projects yet</strong><p>Create a project, then add requirements and verification methods as the work develops. The demo sandbox remains separate.</p><a className="button" href="#create-project">Create a project <Plus size={14} aria-hidden="true" /></a></div>}
+      <div className="workspaceRecentGrid">
+        {recentProjects.map((project) => <Link className="workspaceRecentCard" href={`/projects/${project.id}`} key={project.id}>
+          <div className="workspaceRecentCardTop"><span className="workspaceProjectIcon"><FolderKanban size={17} aria-hidden="true" /></span><Badge variant={project.status === "BLOCKED" ? "warning" : project.status === "COMPLETE" ? "success" : "info"}>{project.status === "COMPLETE" ? "Complete" : project.status === "BLOCKED" ? "Blocked" : "Active"}</Badge></div>
+          <h3>{project.name}</h3>
+          <p>{project.stage.replaceAll("_", " ")}</p>
+          <div className="workspaceRecentCardMeta"><span>Revision {project.revision}</span><span>{new Date(project.updated_at).toLocaleDateString()}</span></div>
+          <span className="workspaceRecentCardAction">Open project <ArrowUpRight size={14} aria-hidden="true" /></span>
+        </Link>)}
+      </div>
+    </section>
+
+    <section className="workspaceDashboardBottom">
+      <section className="panel workspaceUpdatesPanel" aria-labelledby="workspace-updates-title">
+        <div className="workspacePanelHeader"><div><h2 id="workspace-updates-title">Recently updated projects</h2><p>Derived from persisted project timestamps, not a detailed activity log.</p></div><Clock3 size={17} aria-hidden="true" /></div>
+        {recentProjects.length === 0 ? <p className="muted">No project update timestamps are available yet.</p> : <div className="workspaceUpdateList">
+          {recentProjects.map(project => <Link className="workspaceUpdateItem" href={`/projects/${project.id}`} key={project.id}>
+            <span className="workspaceUpdateIcon"><Activity size={15} aria-hidden="true" /></span>
+            <span><strong>Project record updated</strong><small>{project.name} · Revision {project.revision}</small></span>
+            <time dateTime={project.updated_at}>{new Date(project.updated_at).toLocaleString()}</time>
+          </Link>)}
+        </div>}
       </section>
 
-      <section className="projectListSection" id="projects">
-        <div className="projectListHeader">
-          <div><p className="eyebrow">PERSISTED PROJECTS</p><h2>Your engineering projects</h2></div>
-          <button type="button" className="button secondaryButton" onClick={() => { setLoading(true); refresh().catch((error: unknown) => setLoadingError(error instanceof Error ? error.message : "Refresh failed.")).finally(() => setLoading(false)); }} disabled={loading}>Refresh</button>
-        </div>
-        {loading && <p className="muted">Loading projects…</p>}
-        {!loading && loadingError && <p className="projectError" role="alert">{loadingError}</p>}
-        {!loading && !loadingError && projects.length === 0 && <div className="projectEmptyState">
-          <h3>No engineering projects yet</h3>
-          <p className="muted">Create a project, then start with the problem you need to solve. Add specific requirements when they matter; the demo sandbox is separate and may reset.</p>
-        </div>}
-        <div className="projectCards">
-          {projects.map((project) => <Link className="projectCard" href={`/projects/${project.id}`} key={project.id}>
-            <div className="projectCardTop"><span className="tag">{project.stage.replaceAll("_", " ")}</span><span className={`projectState projectState-${project.status.toLowerCase()}`}>{project.status}</span></div>
-            <h3>{project.name}</h3>
-            <p className="muted">Updated {new Date(project.updated_at).toLocaleDateString()}</p>
-            <div className="projectCardBottom"><span>Revision {project.revision}</span><span>Open workspace →</span></div>
-          </Link>)}
-        </div>
-        <Link className="projectDemoLink" href="/projects/demo">Explore the demo sandbox (example data, not durable)</Link>
+      <section className="panel workspaceActionsPanel" aria-labelledby="workspace-actions-title">
+        <div className="workspacePanelHeader"><div><h2 id="workspace-actions-title">Suggested next actions</h2><p>Project-aware navigation only; nothing runs automatically.</p></div><Badge variant="muted">{dashboardActions.length} available</Badge></div>
+        {dashboardActions.length === 0 ? <div className="workspaceSuggestedAction"><span className="workspaceUpdateIcon"><Plus size={15} aria-hidden="true" /></span><span><strong>Prepare an engineering brief</strong><small>Start a new project from a defined objective.</small></span><a href="#create-project" aria-label="Create an engineering project"><ChevronRight size={16} /></a></div> : dashboardActions.map(action => <Link className="workspaceSuggestedAction" href={action.href} key={action.project.id}>
+          <span className="workspaceUpdateIcon">{action.project.status === "BLOCKED" ? <AlertTriangle size={15} aria-hidden="true" /> : <FolderKanban size={15} aria-hidden="true" />}</span>
+          <span><strong>{action.title}</strong><small>{action.project.name} · {action.description}</small></span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Link>)}
       </section>
     </section>
-    <section className="status"><div><span className="dot" /> Application online</div><div>Persisted state: Supabase</div><div>CAD: gated by runtime readiness</div><div>Authority: role and project membership checks</div></section>
+
+    <section className="panel projectCreatePanel workspaceCreatePanel" id="create-project" aria-labelledby="create-project-title">
+      <div className="workspaceCreateIntro"><p className="eyebrow">NEW WORKSPACE</p><h2 id="create-project-title">Create an engineering project</h2><p className="muted">Capture the problem, review the initial brief, then explicitly confirm creation. Creating a project does not mean its design is approved.</p></div>
+      <form className="projectForm" onSubmit={createStage === "details" ? reviewProject : createProject}>
+        {createStage === "details" ? <>
+          <p className="projectStepLabel">STEP 1 OF 2 · CAPTURE THE PROBLEM</p>
+          <label className="projectField">Project name
+            <input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={120} required placeholder="e.g. Pump impeller redesign" disabled={creating || roleRequired} />
+          </label>
+          <label className="projectField">Problem statement <span className="muted">(optional)</span>
+            <textarea value={problemStatement} onChange={(event) => setProblemStatement(event.target.value)} maxLength={2000} rows={4} placeholder="What needs to be improved, and under what constraints?" disabled={creating || roleRequired} />
+          </label>
+          {createError && <p className="projectError" role="alert">{createError}</p>}
+          {notice && <p className="projectNoticeText" role="status">{notice}</p>}
+          <div className="projectCreateActions"><span className="projectStepHint">You’ll review the inputs before anything is created.</span><button className="button workspacePrimaryAction" type="submit" disabled={creating || roleRequired || name.trim().length < 2}>Review project brief <ArrowUpRight size={14} aria-hidden="true" /></button></div>
+        </> : <>
+          <p className="projectStepLabel">STEP 2 OF 2 · REVIEW BEFORE CREATION</p>
+          <section className="projectBriefReview" aria-labelledby="project-brief-review-title">
+            <div className="projectBriefReviewHeader"><div><p className="eyebrow">INPUT SUMMARY · NOT AI-GENERATED</p><h3 id="project-brief-review-title">{briefReview.projectName}</h3></div><span className="projectBriefReviewBadge">REVIEW ONLY</span></div>
+            <div className="projectBriefReviewSection"><h4>Problem statement</h4><p>{briefReview.objective}</p></div>
+            <div className="projectBriefReviewSection"><h4>Scope at creation</h4><p>{briefReview.scopeSummary}</p></div>
+            <div className="projectBriefReviewGrid"><div className="projectBriefReviewSection"><h4>Assumptions and inputs</h4><ul>{briefReview.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></div><div className="projectBriefReviewSection"><h4>Success criteria</h4><p>{briefReview.successCriteria}</p></div></div>
+            <div className="projectBriefReviewSection"><h4>Artifacts</h4><p>{briefReview.artifactStatus}</p></div>
+            <p className="projectBriefReviewDisclaimer">{briefReview.disclaimer}</p>
+          </section>
+          {createOutcomeUncertain && <section className="projectNotice projectNoticeWarning" role="alert" aria-live="assertive"><strong>Project creation outcome is unconfirmed</strong><p>{createError || "The server did not return a final confirmation."} The request may have created the project even though the client did not receive a confirmed response. A blind retry can create a duplicate; your draft has been preserved.</p><div className="projectCreateActions"><button className="button secondaryButton" type="button" onClick={() => void checkProjectListBeforeRetry()} disabled={loading || creating}>Refresh project list before retry</button>{projectListCheckedAfterUncertain && <button className="button secondaryButton" type="button" onClick={() => { setAllowRetryAfterUncertain(true); setCreateError(""); }} disabled={creating}>I reviewed the list; allow one retry</button>}</div>{possibleMatches.length > 0 && <div className="projectPossibleMatches"><strong>Projects with the same name</strong>{possibleMatches.map((project) => <Link key={project.id} href={`/projects/${project.id}`} className="projectPossibleMatch"><span>{project.name}</span><small>Revision {project.revision} · {project.status}</small></Link>)}</div>}{allowRetryAfterUncertain && <p className="projectCreateRiskNotice">Retry enabled after your acknowledgement. The unchanged draft reuses its server key; edits are treated as a new project-creation request.</p>}</section>}
+          {!createOutcomeUncertain && createError && <p className="projectError" role="alert">{createError}</p>}
+          {notice && <p className="projectNoticeText" role="status">{notice}</p>}
+          <div className="projectCreateActions"><button className="button secondaryButton" type="button" onClick={() => { setCreateError(""); setNotice(""); setCreateStage("details"); }} disabled={creating || createOutcomeUncertain}>Edit inputs</button><button className="button workspacePrimaryAction" type="submit" disabled={creating || roleRequired || (createOutcomeUncertain && !allowRetryAfterUncertain)}>{creating ? "Creating project…" : createOutcomeUncertain ? "Retry creation (possible duplicate)" : "Create project & open workspace"}</button></div>
+        </>}
+      </form>
+    </section>
+    <p className="workspaceDataNote">Dashboard counts and update times come from the current persisted project list. They do not imply solver completion, validation, review or approval.</p>
   </div>;
+
 }
