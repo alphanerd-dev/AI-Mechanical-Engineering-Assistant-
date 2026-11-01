@@ -97,6 +97,8 @@ describe("AI-native engineering intent entry",()=>{
     expect(result.success).toBe(true);
     const output=result.output as any;
     expect(output.status).toBe("WAITING_APPROVAL");
+    expect(output.decisionSummary).toContain("not independently verified");
+    expect(output.completion.evidence).toHaveLength(0);
     expect(output.interpretation.contextUsed).toEqual(expect.arrayContaining([
       "powerKw","speedRpm","bearingSpanMm","gearPositionFromLeftMm","pitchDiameterMm",
       "pressureAngleDeg","materialGrade","yieldStrengthMpa","ultimateTensileStrengthMpa","designFactor"
