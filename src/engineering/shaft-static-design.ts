@@ -129,7 +129,10 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
   };
 
   // Bracket a feasible diameter and use bisection; axial stress scales with d^-2.
-  let low = 0.1;
+  let low = 1e-6;
+  if (stressAtDiameter(low).vonMisesStressMpa <= allowableVonMisesStressMpa) {
+    throw new Error("The minimum-diameter root is below the supported numerical resolution.");
+  }
   let high = 1;
   let iterations = 0;
   while (stressAtDiameter(high).vonMisesStressMpa > allowableVonMisesStressMpa && iterations < 80) {
@@ -145,6 +148,9 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
     else high = middle;
   }
   const minimumDiameterMm = high;
+  if (stressAtDiameter(minimumDiameterMm).vonMisesStressMpa > allowableVonMisesStressMpa * (1 + 1e-9)) {
+    throw new Error("The numerical diameter solution did not satisfy the static-yield inequality.");
+  }
   const preferredDiameterMm = PREFERRED_DIAMETERS_MM.find((diameter) => diameter >= minimumDiameterMm)
     ?? Math.ceil(minimumDiameterMm);
   const candidateDiameterMm = input.candidateDiameterMm ?? preferredDiameterMm;
@@ -204,7 +210,9 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
       "The maximum transverse resultant is treated as a single equivalent point load for the bending-moment magnitude.",
       "Axial and bending normal-stress magnitudes are conservatively added at the critical surface because the axial load direction is not resolved.",
       "Kb and Kts are user-supplied static stress multipliers; they are not fatigue factors and are not inferred from keyway geometry.",
-      "The design factor is applied to material yield strength for a von Mises static-yield check."
+      "The design factor is applied to material yield strength for a von Mises static-yield check.",
+      "Sut is recorded as material context but is not used by this static-yield criterion; fatigue assessment requires a separate method.",
+      "The preferred diameter is selected from this calculation module’s configured preliminary size series, not a complete standards-based shaft, fit or bearing selection."
     ],
     limitations: [
       "This is preliminary static-yield sizing, not a complete shaft design or an ASME code compliance calculation.",
