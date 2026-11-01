@@ -106,6 +106,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
           setEvents(body.snapshot.project.events ?? []);
           setArtifacts(body.snapshot.artifacts ?? []);
           setShaftDesign(body.snapshot.shaftDesign);
+          setShaftDesignDirty(false);
           if (body.snapshot.shaftDesign) {
             const saved = body.snapshot.shaftDesign.input;
             setPowerKw(String(saved.powerKw));
@@ -335,7 +336,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       </div>
       <div className="pumpPowerEvidence">
         <div><span>Power / speed</span><strong>{shaftDesign.input.powerKw} kW / {shaftDesign.input.speedRpm} rpm</strong></div>
-        <div><span>Geometry</span><strong>{shaftDesign.input.bearingSpanMm} mm span · a {shaftDesign.input.gearPositionFromLeftMm} mm · b {(shaftDesign.input.bearingSpanMm - shaftDesign.input.gearPositionFromLeftMm).toFixed(2)} mm · dp {shaftDesign.input.pitchDiameterMm} mm</strong></div>
+        <div><span>Geometry / pressure angle</span><strong>{shaftDesign.input.bearingSpanMm} mm span · a {shaftDesign.input.gearPositionFromLeftMm} mm · b {(shaftDesign.input.bearingSpanMm - shaftDesign.input.gearPositionFromLeftMm).toFixed(2)} mm · dp {shaftDesign.input.pitchDiameterMm} mm · phi {shaftDesign.input.pressureAngleDeg}°</strong></div>
         <div><span>Gear forces</span><strong>Ft {shaftDesign.result.tangentialForceN.toFixed(2)} N · Fr {shaftDesign.result.radialForceN.toFixed(2)} N · Fa {shaftDesign.input.axialLoadN.toFixed(2)} N</strong></div>
         <div><span>Support reactions</span><strong>Left {shaftDesign.result.leftBearingReactionN.toFixed(2)} N · Right {shaftDesign.result.rightBearingReactionN.toFixed(2)} N</strong></div>
         <div><span>Material / strengths</span><strong>{shaftDesign.input.materialGrade} · Sy {shaftDesign.input.yieldStrengthMpa} MPa · Sut {shaftDesign.input.ultimateTensileStrengthMpa} MPa</strong></div>
