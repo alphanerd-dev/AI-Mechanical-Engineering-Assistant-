@@ -3,7 +3,6 @@ import { CapabilityRegistry } from "../src/capabilities/registry.js";
 import { CapabilityRouter } from "../src/capabilities/router.js";
 import { NumericalAnalysisProvider } from "../src/providers/numerical.js";
 import { EngineeringCompletionProvider } from "../src/providers/engineering-completion.js";
-import { EngineeringCompletionUnitRegistry, createDefaultEngineeringCompletionUnitRegistry } from "../src/completion/registry.js";
 import { SHAFT_STATIC_DESIGN_CAPABILITY, type ShaftStaticDesignResult } from "../src/engineering/shaft-static-design.js";
 import { EngineeringVerificationProvider } from "../src/providers/engineering-verification.js";
 import { AuthenticatedIdentity } from "../src/auth/types.js";
