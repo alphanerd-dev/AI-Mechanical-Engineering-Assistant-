@@ -92,7 +92,8 @@ export function parseEngineeringChatHistory(value: unknown): ParsedEngineeringCh
   }
 
   // Do not begin a compacted transcript with an orphaned assistant response.
-  while (parsed.length > 1 && parsed[0]?.role === "assistant") {
+  const transcriptWasCompacted = originalMessageCount > MAX_MESSAGES || droppedMessageCount > 0 || droppedCharacterCount > 0;
+  while (transcriptWasCompacted && parsed.length > 1 && parsed[0]?.role === "assistant") {
     const removed = parsed.shift()!;
     retainedCharacterCount -= removed.content.length;
     droppedCharacterCount += removed.content.length;
