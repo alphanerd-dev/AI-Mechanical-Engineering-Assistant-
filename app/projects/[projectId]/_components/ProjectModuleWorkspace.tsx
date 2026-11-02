@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import StlViewport from "../workbench/StlViewport";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Activity, AlertCircle, ArrowDownToLine, ArrowRight, ArrowUpRight, Box,
@@ -17,7 +18,9 @@ type ProjectRecord = {
   revision: number; created_at: string; updated_at: string;
 };
 type CadModel = { id: string; projectId: string; name: string; nativeReferences: unknown[]; createdAt: string; updatedAt: string };
-type ApiState = { project: ProjectRecord | null; snapshot: EngineeringWorkspaceSnapshot | null; cadModels: CadModel[]; loading: boolean; error: string | null };
+type CadArtifactRecord = { id: string; kind: string; name: string; uri?: string; validationStatus?: string; informationStatus?: string };
+type CadCompletionRecord = { id: string; status: string; created_at: string; artifact_records?: CadArtifactRecord[] | null; signedUrls?: Record<string, string> };
+type ApiState = { project: ProjectRecord | null; snapshot: EngineeringWorkspaceSnapshot | null; cadModels: CadModel[]; cadCompletions: CadCompletionRecord[]; loading: boolean; error: string | null };
 
 const projectTabs = [
   ["Overview", ""], ["AI chat", "engineering"], ["Workbench", "workbench"],
@@ -74,7 +77,7 @@ function Panel({ title, detail, action, children }: { title: string; detail?: st
 }
 
 export default function ProjectModuleWorkspace({ projectId, module }: { projectId: string; module: ModuleKey }) {
-  const [data, setData] = useState<ApiState>({ project: null, snapshot: null, cadModels: [], loading: true, error: null });
+  const [data, setData] = useState<ApiState>({ project: null, snapshot: null, cadModels: [], cadCompletions: [], loading: true, error: null });
   const [refresh, setRefresh] = useState(0);
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
@@ -87,26 +90,30 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
 
   const load = useCallback(async (signal: AbortSignal) => {
     if (isDemo) {
-      setData({ project: null, snapshot: null, cadModels: [], loading: false, error: null });
+      setData({ project: null, snapshot: null, cadModels: [], cadCompletions: [], loading: false, error: null });
       return;
     }
     setData((current) => ({ ...current, loading: true, error: null }));
     try {
-      const [projectResponse, workspaceResponse, cadResponse] = await Promise.all([
+      const [projectResponse, workspaceResponse, cadResponse, completionResponse] = await Promise.all([
         fetch("/api/projects/" + encodeURIComponent(projectId), { cache: "no-store", signal }),
         fetch("/api/projects/" + encodeURIComponent(projectId) + "/workspace", { cache: "no-store", signal }),
-        fetch("/api/cad/models?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal })
+        fetch("/api/cad/models?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal }),
+        fetch("/api/cad/completions?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal })
       ]);
       const projectBody = await projectResponse.json().catch(() => ({}));
       const workspaceBody = await workspaceResponse.json().catch(() => ({}));
       const cadBody = await cadResponse.json().catch(() => ({}));
+      const completionBody = await completionResponse.json().catch(() => ({}));
       if (!projectResponse.ok) throw new Error(typeof projectBody.error === "string" ? projectBody.error : "Project access could not be confirmed.");
       if (!workspaceResponse.ok) throw new Error(typeof workspaceBody.error === "string" ? workspaceBody.error : "The saved workspace could not be loaded.");
       if (signal.aborted) return;
       const project = projectBody.project as ProjectRecord;
       const snapshot = workspaceBody.snapshot as EngineeringWorkspaceSnapshot;
       const models = cadResponse.ok && Array.isArray(cadBody.models) ? cadBody.models as CadModel[] : [];
-      setData({ project, snapshot, cadModels: models, loading: false, error: cadResponse.ok ? null : "CAD model identities could not be loaded; other project records remain available." });
+      const cadCompletions = completionResponse.ok && Array.isArray(completionBody.completions) ? completionBody.completions as CadCompletionRecord[] : [];
+      const cadLoadError = cadResponse.ok && completionResponse.ok ? null : "Some CAD records could not be loaded; geometry preview may be unavailable.";
+      setData({ project, snapshot, cadModels: models, cadCompletions, loading: false, error: cadLoadError });
       setNameDraft(project.name);
     } catch (error) {
       if (signal.aborted) return;
@@ -199,7 +206,7 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
 
     {!data.loading && snapshot && <div className="moduleContent">
       {data.error && <div className="moduleNotice" role="status"><Info size={15} />{data.error}</div>}
-      {module === "workbench" && <WorkbenchContent project={data.project!} snapshot={snapshot} tasks={tasks} artifacts={artifacts} models={data.cadModels} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} />}
+      {module === "workbench" && <WorkbenchContent project={data.project!} snapshot={snapshot} tasks={tasks} artifacts={artifacts} models={data.cadModels} completions={data.cadCompletions} onRefresh={() => setRefresh((value) => value + 1)} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} />}
       {module === "fea" && <UnsupportedEngineeringModule title="No FEA result is attached" detail="This project has no recorded finite-element run or result artifact. The current UI does not launch a solver or infer a result from CAD geometry." requirements={["A native or neutral geometry artifact linked to this project revision", "Material properties, contacts, constraints and load cases", "A configured solver run with mesh and convergence evidence", "Independent validation of result quality and model assumptions"]} />}
       {module === "pid" && <UnsupportedEngineeringModule title="No P&ID / PFD document is attached" detail="The current project data model has no persisted process-diagram canvas or symbol-library records. No editable diagram is being simulated here." requirements={["A project-scoped diagram document and revision model", "Equipment, instrument and line-number registry", "Connection validation and diagram export"]} />}
       {module === "calculations" && <CalculationsContent artifacts={artifacts} />}
@@ -212,35 +219,51 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
   </div>;
 }
 
-function WorkbenchContent({ project, snapshot, tasks, artifacts, models, completedTasks, runningTasks, failedTasks }: {
+function WorkbenchContent({ project, snapshot, tasks, artifacts, models, completions, onRefresh, completedTasks, runningTasks, failedTasks }: {
   project: ProjectRecord; snapshot: EngineeringWorkspaceSnapshot; tasks: EngineeringWorkspaceSnapshot["taskGraph"]["tasks"];
-  artifacts: CalculationArtifact[]; models: CadModel[]; completedTasks: number; runningTasks: number; failedTasks: number;
+  artifacts: CalculationArtifact[]; models: CadModel[]; completions: CadCompletionRecord[]; onRefresh: () => void;
+  completedTasks: number; runningTasks: number; failedTasks: number;
 }) {
   const [visibility, setVisibility] = useState({ geometry: true, annotations: true, labels: true });
   const latestArtifact = [...artifacts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+  const latestStlPreview = [...completions]
+    .filter((completion) => completion.status === "ACCEPTED")
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .map((completion) => {
+      const stl = completion.artifact_records?.find((artifact) => artifact.kind === "STL" && typeof artifact.uri === "string");
+      const prefix = "storage://engineering-cad-artifacts/";
+      if (!stl?.uri?.startsWith(prefix)) return null;
+      const objectPath = stl.uri.slice(prefix.length);
+      const signedUrl = completion.signedUrls?.[objectPath];
+      return typeof signedUrl === "string" && signedUrl.startsWith("https://")
+        ? { artifact: stl, url: signedUrl, completion }
+        : null;
+    })
+    .find((item) => item !== null) ?? null;
   return <div className="workbenchPage">
     <div className="workbenchSubnav" aria-label="Workbench views"><span aria-current="page">3D / CAD</span><Link href={"/projects/" + project.id + "/fea"}>FEA results</Link><Link href={"/projects/" + project.id + "/pid"}>P&ID / PFD</Link><Link href={"/projects/" + project.id + "/calculations"}>Calculations</Link><Link href={"/projects/" + project.id + "/reports"}>Reports</Link></div>
     <div className="workbenchMetaRow"><span className="modulePill">PROJECT · {project.id.slice(0, 8).toUpperCase()}</span><span>Project revision <strong>R{project.revision}</strong></span><span>Workspace revision <strong>R{snapshot.revision}</strong></span></div>
     <div className="workbenchGrid">
-      <Panel title="Geometry viewport" detail="Native CAD geometry is loaded only when a source artifact is attached." action={<Link href={"/projects/" + project.id + "/cad"} className="moduleTextLink">Open CAD registry <ArrowUpRight size={12} /></Link>}>
+      <Panel title="Geometry viewport" detail="Read-only STL visual preview from the latest accepted CAD completion." action={<div className="moduleHeaderActions"><button type="button" className="button secondaryButton" onClick={onRefresh}>Refresh preview URL</button><Link href={"/projects/" + project.id + "/cad"} className="moduleTextLink">Open CAD registry <ArrowUpRight size={12} /></Link></div>}>
         <div className="workbenchViewport">
           <div className="viewportToolbar"><span><Layers3 size={13} /> CAD source</span><span>Units: source-defined</span></div>
           <div className="viewportScene">
             <div className="viewportGridPattern" aria-hidden="true" />
             <div className="viewportAxis viewportAxisX">X</div><div className="viewportAxis viewportAxisY">Y</div><div className="viewportAxis viewportAxisZ">Z</div>
             <div className="viewportCube" aria-hidden="true"><span /><i /><b /></div>
-            <div className="viewportEmptyCopy"><Box size={28} /><strong>No native geometry selected</strong><p>{models.length ? "CAD model identities exist, but this workspace has no verified mesh or geometry file attached for display." : "No CAD model identity or geometry file is registered for this project yet."}</p></div>
+            {latestStlPreview && visibility.geometry ? <StlViewport src={latestStlPreview.url} label={latestStlPreview.artifact.name} /> : <div className="viewportEmptyCopy"><Box size={28} /><strong>{latestStlPreview && !visibility.geometry ? "Geometry is hidden" : "No accepted STL preview available"}</strong><p>{latestStlPreview && !visibility.geometry ? "Enable the geometry preference to display this read-only preview." : models.length ? "CAD model identities exist, but no accepted completion with an accessible STL artifact is available for preview." : "No CAD model identity or accepted STL artifact is registered for this project yet."}</p></div>}
           </div>
-          <div className="viewportFooter"><span>Display is empty until a native geometry file is connected.</span><span>View state does not modify source artifacts.</span></div>
+          <div className="viewportFooter"><span>{latestStlPreview ? "STL visual preview only · does not independently certify mesh quality." : "Display remains empty until an accepted CAD completion includes an accessible STL artifact."}</span><span>View state does not modify source artifacts.</span></div>
         </div>
       </Panel>
       <div className="workbenchSide">
         <Panel title="Model properties" detail="Current project geometry registry">
           <div className="moduleKeyValue"><span>CAD model identities</span><strong>{models.length}</strong></div>
           <div className="moduleKeyValue"><span>Calculation artefacts</span><strong>{artifacts.length}</strong></div>
-          <div className="moduleKeyValue"><span>Geometry file loaded</span><StateLabel value="NOT_LOADED" /></div>
+          <div className="moduleKeyValue"><span>Accepted CAD completions</span><strong>{completions.filter((completion) => completion.status === "ACCEPTED").length}</strong></div>
+          <div className="moduleKeyValue"><span>STL preview source</span><StateLabel value={latestStlPreview ? "PREVIEW_AVAILABLE" : "NOT_AVAILABLE"} /></div>
           <div className="moduleVisibility">
-            <h3>Temporary view preferences</h3><p className="moduleSmallNote">Local to this view; no native geometry is loaded and source files are not modified.</p>
+            <h3>Temporary view preferences</h3><p className="moduleSmallNote">Preferences are local to this screen. Geometry visibility controls the STL preview; annotation and label overlays are not yet connected to persisted metadata.</p>
             {(["geometry", "annotations", "labels"] as const).map((key) => <label key={key}><span>{readable(key)}</span><input type="checkbox" checked={visibility[key]} onChange={(event) => setVisibility((current) => ({ ...current, [key]: event.target.checked }))} /></label>)}
           </div>
         </Panel>
