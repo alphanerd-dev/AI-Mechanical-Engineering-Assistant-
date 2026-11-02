@@ -230,7 +230,7 @@ export default function StlViewport({ src, label }: { src: string; label: string
       const message = error instanceof Error ? error.message : "The 3D preview could not be rendered.";
       Promise.resolve().then(() => setRenderFailure({ src, message }));
     }
-  }, [mesh]);
+  }, [mesh, src]);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 300 }}>
