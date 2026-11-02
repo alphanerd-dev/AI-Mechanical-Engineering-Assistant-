@@ -5,36 +5,47 @@ import { usePathname, useRouter } from "next/navigation";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthNavigation from "./AuthNavigation";
 import {
+  Activity,
+  BookOpen,
   Bot,
   BrainCircuit,
   Calculator,
   ChevronRight,
   ClipboardList,
   DraftingCompass,
+  FileText,
+  Files,
   FolderKanban,
+  GitBranch,
+  History,
   Home,
   LayoutDashboard,
   Menu,
   MessageSquare,
   PanelsTopLeft,
   Search,
+  Settings,
+  Settings2,
+  Sigma,
+  SlidersHorizontal,
+  UserRound,
+  Workflow as WorkflowIcon,
+  Box,
+  ChartNoAxesCombined,
   ShieldCheck,
-  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { getWorkspaceNavigation, isWorkspaceItemActive, type WorkspaceNavItem } from "../src/ui/workspace-navigation";
 
 const workspaceIcons: Record<string, LucideIcon> = {
-  "layout-dashboard": LayoutDashboard,
-  "folder-kanban": FolderKanban,
-  bot: Bot,
-  "panels-top-left": PanelsTopLeft,
-  "clipboard-list": ClipboardList,
-  "brain-circuit": BrainCircuit,
-  calculator: Calculator,
-  "drafting-compass": DraftingCompass,
-  "shield-check": ShieldCheck,
-  search: Search,
+  "layout-dashboard": LayoutDashboard, "folder-kanban": FolderKanban, bot: Bot,
+  "panels-top-left": PanelsTopLeft, "clipboard-list": ClipboardList,
+  "brain-circuit": BrainCircuit, calculator: Calculator,
+  "drafting-compass": DraftingCompass, "shield-check": ShieldCheck, search: Search,
+  activity: Activity, "book-open": BookOpen, box: Box, files: Files, history: History,
+  "git-branch": GitBranch, "file-text": FileText, settings: Settings,
+  "user-round": UserRound, "sliders-horizontal": SlidersHorizontal, "settings-2": Settings2,
+  "chart-no-axes-combined": ChartNoAxesCombined, workflow: WorkflowIcon, sigma: Sigma,
 };
 
 export default function WorkspaceShell({ children }: { children: ReactNode }) {
@@ -132,7 +143,10 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     if (searchOpen) searchInput.current?.focus();
   }, [searchOpen]);
 
-  const allItems = useMemo(() => [...navigation.globalItems, ...navigation.projectItems], [navigation]);
+  const allItems = useMemo(() => [
+    ...navigation.globalItems, ...navigation.projectItems,
+    ...navigation.engineeringItems, ...navigation.preferenceItems
+  ], [navigation]);
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return allItems;
@@ -169,9 +183,9 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     ? loadedProjectName.name
     : navigation.projectLabel;
   const assistantHref = navigation.globalItems.find((item) => item.id === "assistant")?.href ?? "/projects/demo/engineering";
-  const cadHref = navigation.projectId ? "/projects/" + navigation.projectId + "/cad" : "/projects/demo/cad";
+  const workbenchHref = navigation.projectId ? "/projects/" + navigation.projectId + "/workbench" : "/projects/demo/workbench";
+  const filesHref = navigation.projectId ? "/projects/" + navigation.projectId + "/files" : "/projects/demo/files";
   const overviewHref = navigation.projectId ? "/projects/" + navigation.projectId : "/";
-  const requirementsHref = navigation.projectId ? "/projects/" + navigation.projectId + "/requirements" : "/projects/demo/requirements";
 
   return <div className={"workspaceApp" + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
     <button type="button" className="workspaceMobileScrim" aria-label="Close navigation menu" onClick={() => closeSidebar(true)} tabIndex={sidebarOpen ? 0 : -1} />
@@ -190,7 +204,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       }
     }}>
       <Link href="/" className="workspaceBrand" onClick={() => setSidebarOpen(false)} aria-label="Forge workspace home">
-        <span className="workspaceBrandMark" aria-hidden="true"><Workflow size={18} strokeWidth={2.2} /></span>
+        <span className="workspaceBrandMark" aria-hidden="true"><WorkflowIcon size={18} strokeWidth={2.2} /></span>
         <span><span className="workspaceBrandName">FORGE</span><span className="workspaceBrandSubtitle">ENGINEERING OS</span></span>
       </Link>
 
@@ -199,20 +213,21 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
         {navigation.globalItems.map((item) => renderLink(item))}
       </nav>
 
-      {navigation.projectId && <nav className="workspaceNavGroup" aria-label="Current project">
-        <p className="workspaceNavHeading">Project workspace</p>
-        <div className="workspaceProjectLabel"><span className="workspaceProjectDot" aria-hidden="true" />{currentProjectLabel}</div>
-        {navigation.projectItems.map((item) => renderLink(item, "project"))}
-      </nav>}
-
-      <div className="workspacePlannedGroup">
-        <p className="workspaceNavHeading">Planned modules</p>
-        <div className="workspacePlannedList">
-          {navigation.plannedItems.map((label) => <div className="workspacePlannedItem" key={label} aria-label={label + ", planned"}>
-            <span>{label}</span><small>PLANNED</small>
-          </div>)}
-        </div>
-      </div>
+      {navigation.projectId && <>
+        <nav className="workspaceNavGroup" aria-label="Current project">
+          <p className="workspaceNavHeading">Project workspace</p>
+          <div className="workspaceProjectLabel"><span className="workspaceProjectDot" aria-hidden="true" />{currentProjectLabel}</div>
+          {navigation.projectItems.map((item) => renderLink(item, "project"))}
+        </nav>
+        <nav className="workspaceNavGroup workspaceEngineeringNav" aria-label="Engineering modules">
+          <p className="workspaceNavHeading">Engineering</p>
+          {navigation.engineeringItems.map((item) => renderLink(item, "project"))}
+        </nav>
+      </>}
+      <nav className="workspaceNavGroup workspacePreferencesNav" aria-label="Preferences">
+        <p className="workspaceNavHeading">Preferences</p>
+        {navigation.preferenceItems.map((item) => renderLink(item, "preferences"))}
+      </nav>
 
       <div className="workspaceSidebarSpacer" />
       {navigation.projectId && <div className="workspaceSidebarNote">
@@ -257,8 +272,8 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       <nav className="workspaceBottomNav" aria-label="Quick navigation">
         <Link href={overviewHref} aria-current={pathname === overviewHref ? "page" : undefined}><Home size={17} aria-hidden="true" />Overview</Link>
         <Link href={assistantHref} aria-current={pathname === assistantHref ? "page" : undefined}><MessageSquare size={17} aria-hidden="true" />Chat</Link>
-        <Link href={cadHref} aria-current={pathname === cadHref || pathname.startsWith(cadHref + "/") ? "page" : undefined}><DraftingCompass size={17} aria-hidden="true" />CAD</Link>
-        <Link href={requirementsHref} aria-current={pathname === requirementsHref || pathname.startsWith(requirementsHref + "/") ? "page" : undefined}><ClipboardList size={17} aria-hidden="true" />Requirements</Link>
+        <Link href={workbenchHref} aria-current={pathname === workbenchHref || pathname.startsWith(workbenchHref + "/") ? "page" : undefined}><Box size={17} aria-hidden="true" />Workbench</Link>
+        <Link href={filesHref} aria-current={pathname === filesHref || pathname.startsWith(filesHref + "/") ? "page" : undefined}><Files size={17} aria-hidden="true" />Files</Link>
       </nav>
     </div>
 
