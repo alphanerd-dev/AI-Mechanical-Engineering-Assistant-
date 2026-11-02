@@ -60,17 +60,16 @@ function createPreviewProgram(gl: WebGLRenderingContext): { program: WebGLProgra
 export default function StlViewport({ src, label }: { src: string; label: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controlsRef = useRef<ViewControls | null>(null);
-  const [mesh, setMesh] = useState<STLMeshPreview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [renderError, setRenderError] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<{ src: string; mesh: STLMeshPreview | null; error: string | null }>({ src: "", mesh: null, error: null });
+  const [renderFailure, setRenderFailure] = useState<{ src: string; message: string } | null>(null);
+  const currentLoad = loadState.src === src;
+  const mesh = currentLoad ? loadState.mesh : null;
+  const loading = !currentLoad;
+  const loadError = currentLoad ? loadState.error : null;
+  const renderError = renderFailure?.src === src ? renderFailure.message : null;
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setLoadError(null);
-    setRenderError(null);
-    setMesh(null);
     void fetch(src, { signal: controller.signal, cache: "no-store" })
       .then((response) => {
         if (!response.ok) throw new Error("The signed STL preview could not be downloaded.");
@@ -80,14 +79,15 @@ export default function StlViewport({ src, label }: { src: string; label: string
         if (buffer.byteLength < 84 || buffer.byteLength > 100 * 1024 * 1024) {
           throw new Error("The STL file is empty or exceeds the 100 MiB preview limit.");
         }
-        setMesh(parseSTLPreview(buffer));
+        setLoadState({ src, mesh: parseSTLPreview(buffer), error: null });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setLoadError(error instanceof Error ? error.message : "The STL preview could not be loaded.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        setLoadState({
+          src,
+          mesh: null,
+          error: error instanceof Error ? error.message : "The STL preview could not be loaded."
+        });
       });
     return () => controller.abort();
   }, [src]);
@@ -98,7 +98,7 @@ export default function StlViewport({ src, label }: { src: string; label: string
     if (!canvas) return;
     const gl = canvas.getContext("webgl", { antialias: true, alpha: true });
     if (!gl) {
-      setRenderError("WebGL is unavailable in this browser. The CAD source record is still preserved.");
+      Promise.resolve().then(() => setRenderFailure({ src, message: "WebGL is unavailable in this browser. The CAD source record is still preserved." }));
       return;
     }
 
@@ -227,7 +227,8 @@ export default function StlViewport({ src, label }: { src: string; label: string
         }
       };
     } catch (error) {
-      setRenderError(error instanceof Error ? error.message : "The 3D preview could not be rendered.");
+      const message = error instanceof Error ? error.message : "The 3D preview could not be rendered.";
+      Promise.resolve().then(() => setRenderFailure({ src, message }));
     }
   }, [mesh]);
 
