@@ -36,7 +36,7 @@ function readBinarySTL(buffer: ArrayBuffer): Point3[] | null {
 
 function readAsciiSTL(buffer: ArrayBuffer): Point3[] {
   const text = new TextDecoder().decode(buffer);
-  const expression = /\\bvertex\\s+([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)\\s+([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)\\s+([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)/gi;
+  const expression = /\bvertex\s+([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s+([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s+([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)/gi;
   const vertices: Point3[] = [];
   let match: RegExpExecArray | null;
   while ((match = expression.exec(text)) !== null) {
