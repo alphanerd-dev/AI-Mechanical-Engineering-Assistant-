@@ -5,8 +5,8 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import {
   Activity, AlertCircle, ArrowDownToLine, ArrowRight, ArrowUpRight, Box,
   CheckCircle2, ChevronRight, Clock3, FileCheck2, FileText, GitBranch,
-  History, Info, Layers3, LockKeyhole, MessageSquare, RefreshCw, Settings2,
-  ShieldCheck, Table2, Wrench, XCircle
+  History, Info, Layers3, LockKeyhole, MessageSquare, RefreshCw,
+  ShieldCheck, Table2
 } from "lucide-react";
 import type { EngineeringWorkspaceSnapshot } from "../../../../src/workspace/types";
 import type { CalculationArtifact } from "../../../../src/artifacts/calculation-artifact";
