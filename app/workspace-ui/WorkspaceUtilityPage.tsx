@@ -20,7 +20,7 @@ function ProjectStatusInline({ status }: { status: string }) {
   const tone = status === "BLOCKED" ? "warning" : status === "COMPLETE" ? "success" : "info";
   return <span className="moduleState" data-tone={tone}><Icon size={10} aria-hidden="true" />{readable(status)}</span>;
 }
-\nfunction readable(value: string) { return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function readable(value: string) { return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function dateLabel(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Time not recorded" : date.toLocaleString();
