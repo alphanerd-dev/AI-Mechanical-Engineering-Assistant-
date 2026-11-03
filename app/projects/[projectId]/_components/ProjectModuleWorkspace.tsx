@@ -78,6 +78,27 @@ function Panel({ title, detail, action, children }: { title: string; detail?: st
   return <section className="modulePanel"><header className="modulePanelHeader"><div><h2>{title}</h2>{detail && <p>{detail}</p>}</div>{action}</header>{children}</section>;
 }
 
+async function fetchProjectModuleData(projectId: string, signal: AbortSignal): Promise<ApiState> {
+  const urls = [
+    "/api/projects/" + encodeURIComponent(projectId),
+    "/api/projects/" + encodeURIComponent(projectId) + "/workspace",
+    "/api/cad/models?projectId=" + encodeURIComponent(projectId),
+    "/api/cad/completions?projectId=" + encodeURIComponent(projectId),
+  ];
+  const responses = await Promise.all(urls.map((url) => fetch(url, { cache: "no-store", signal })));
+  const bodies = await Promise.all(responses.map((response) => response.json().catch(() => ({}))));
+  assertSuccessfulResponse(responses[0], bodies[0], "Project access could not be confirmed.");
+  assertSuccessfulResponse(responses[1], bodies[1], "The saved workspace could not be loaded.");
+  const cadModels = responses[2].ok && Array.isArray(bodies[2].models) ? bodies[2].models as CadModel[] : [];
+  const cadCompletions = responses[3].ok && Array.isArray(bodies[3].completions) ? bodies[3].completions as CadCompletionRecord[] : [];
+  const error = responses[2].ok && responses[3].ok ? null : "Some CAD records could not be loaded; geometry preview may be unavailable.";
+  return { project: bodies[0].project as ProjectRecord, snapshot: bodies[1].snapshot as EngineeringWorkspaceSnapshot, cadModels, cadCompletions, loading: false, error };
+}
+
+function assertSuccessfulResponse(response: Response, body: { error?: unknown }, fallback: string) {
+  if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : fallback);
+}
+
 function useProjectModuleData(projectId: string, isDemo: boolean, refresh: number) {
   const [data, setData] = useState<ApiState>({ project: null, snapshot: null, cadModels: [], cadCompletions: [], loading: true, error: null });
   const load = useCallback(async (signal: AbortSignal) => {
@@ -87,25 +108,10 @@ function useProjectModuleData(projectId: string, isDemo: boolean, refresh: numbe
     }
     setData((current) => ({ ...current, loading: true, error: null }));
     try {
-      const requests = await Promise.all([
-        fetch("/api/projects/" + encodeURIComponent(projectId), { cache: "no-store", signal }),
-        fetch("/api/projects/" + encodeURIComponent(projectId) + "/workspace", { cache: "no-store", signal }),
-        fetch("/api/cad/models?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal }),
-        fetch("/api/cad/completions?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal }),
-      ]);
-      const bodies = await Promise.all(requests.map((response) => response.json().catch(() => ({}))));
-      if (!requests[0].ok) throw new Error(typeof bodies[0].error === "string" ? bodies[0].error : "Project access could not be confirmed.");
-      if (!requests[1].ok) throw new Error(typeof bodies[1].error === "string" ? bodies[1].error : "The saved workspace could not be loaded.");
-      if (signal.aborted) return;
-      const project = bodies[0].project as ProjectRecord;
-      const snapshot = bodies[1].snapshot as EngineeringWorkspaceSnapshot;
-      const cadModels = requests[2].ok && Array.isArray(bodies[2].models) ? bodies[2].models as CadModel[] : [];
-      const cadCompletions = requests[3].ok && Array.isArray(bodies[3].completions) ? bodies[3].completions as CadCompletionRecord[] : [];
-      const error = requests[2].ok && requests[3].ok ? null : "Some CAD records could not be loaded; geometry preview may be unavailable.";
-      setData({ project, snapshot, cadModels, cadCompletions, loading: false, error });
+      const result = await fetchProjectModuleData(projectId, signal);
+      if (!signal.aborted) setData(result);
     } catch (cause) {
-      if (signal.aborted) return;
-      setData((current) => ({ ...current, loading: false, error: cause instanceof Error ? cause.message : "Project workspace is unavailable." }));
+      if (!signal.aborted) setData((current) => ({ ...current, loading: false, error: cause instanceof Error ? cause.message : "Project workspace is unavailable." }));
     }
   }, [isDemo, projectId]);
 
