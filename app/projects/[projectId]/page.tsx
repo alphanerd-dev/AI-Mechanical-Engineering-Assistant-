@@ -168,7 +168,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       <section className={`projectExecutionBanner projectExecutionBanner-${summary.execution.tone}`} aria-label="Engineering execution state">
         <span className="projectExecutionIcon"><Activity size={17} aria-hidden="true" /></span>
         <div className="projectExecutionCopy"><strong>{summary.execution.label}</strong><p>{summary.execution.detail}</p></div>
-        <Badge variant={badgeVariant[summary.execution.tone]}>{summary.execution.state.replaceAll("_", " ")}</Badge>
+        <Badge variant={badgeVariant[summary.execution.tone]}><Activity size={11} aria-hidden="true" />{summary.execution.state.replaceAll("_", " ")}</Badge>
         {summary.execution.state === "RUNNING" && <Link className="projectExecutionAction" href={executionRoute}>Monitor run <ArrowRight size={14} aria-hidden="true" /></Link>}
       </section>
 
@@ -195,13 +195,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             <div className="projectBaselineCard">
               <span className="projectFactIcon"><CheckCircle2 size={16} aria-hidden="true" /></span>
               <div><strong>Verified baseline evidence</strong>{summary.baseline ? <p>{summary.baseline.name} · R{summary.baseline.revision} · {summary.baseline.validator} · {formatTimestamp(summary.baseline.validatedAt)}</p> : <p>No calculation artifact currently meets the completed, passing-validation and verified conditions for a baseline.</p>}</div>
-              <Badge variant={summary.baseline ? "success" : "muted"}>{summary.baseline ? "Verified" : "Not recorded"}</Badge>
+              <Badge variant={summary.baseline ? "success" : "muted"}>{summary.baseline ? <CheckCircle2 size={11} aria-hidden="true" /> : <Clock3 size={11} aria-hidden="true" />}{summary.baseline ? "Verified" : "Not recorded"}</Badge>
             </div>
           </div>
         </article>
 
         <article className="panel projectSafeActionsPanel">
-          <header className="projectPanelHeader"><div><h2>Next safe actions</h2><p>Suggested steps; nothing runs automatically.</p></div><Badge variant="muted">Guidance only</Badge></header>
+          <header className="projectPanelHeader"><div><h2>Next safe actions</h2><p>Suggested steps; nothing runs automatically.</p></div><Badge variant="muted"><ShieldCheck size={11} aria-hidden="true" />Guidance only</Badge></header>
           <div className="projectSafeActionsList">
             {nextActions.map(action => {
               const Icon = action.icon;
