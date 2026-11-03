@@ -50,13 +50,13 @@ function readAsciiSTL(buffer: ArrayBuffer): Point3[] {
   return vertices;
 }
 
-/** Parse binary or ASCII STL and return a centered, normalized triangle mesh for preview. */
-export function parseSTLPreview(buffer: ArrayBuffer): STLMeshPreview {
-  const vertices = readBinarySTL(buffer) ?? readAsciiSTL(buffer);
+function assertCompleteTriangleMesh(vertices: Point3[]) {
   if (vertices.length < 3 || vertices.length % 3 !== 0) {
     throw new Error("The file is not a readable STL mesh or contains no complete triangles.");
   }
+}
 
+function getMeshBounds(vertices: Point3[]) {
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
   for (const [x, y, z] of vertices) {
@@ -71,23 +71,28 @@ export function parseSTLPreview(buffer: ArrayBuffer): STLMeshPreview {
   if (!Number.isFinite(radius) || radius < 1e-12) {
     throw new Error("The STL has zero-size geometry and cannot be displayed.");
   }
+  return { center, radius };
+}
 
+function normalForTriangle(a: Point3, b: Point3, c: Point3): Point3 {
+  const ab: Point3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const ac: Point3 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const cross: Point3 = [
+    ab[1] * ac[2] - ab[2] * ac[1],
+    ab[2] * ac[0] - ab[0] * ac[2],
+    ab[0] * ac[1] - ab[1] * ac[0],
+  ];
+  const magnitude = Math.hypot(cross[0], cross[1], cross[2]);
+  return magnitude > 1e-12
+    ? [cross[0] / magnitude, cross[1] / magnitude, cross[2] / magnitude]
+    : [0, 0, 1];
+}
+
+function buildPreviewBuffers(vertices: Point3[], center: Point3, radius: number) {
   const positions = new Float32Array(vertices.length * 3);
   const normals = new Float32Array(vertices.length * 3);
   for (let index = 0; index < vertices.length; index += 3) {
-    const a = vertices[index], b = vertices[index + 1], c = vertices[index + 2];
-    const ab: Point3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    const ac: Point3 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    const cross: Point3 = [
-      ab[1] * ac[2] - ab[2] * ac[1],
-      ab[2] * ac[0] - ab[0] * ac[2],
-      ab[0] * ac[1] - ab[1] * ac[0]
-    ];
-    const magnitude = Math.hypot(cross[0], cross[1], cross[2]);
-    const normal: Point3 = magnitude > 1e-12
-      ? [cross[0] / magnitude, cross[1] / magnitude, cross[2] / magnitude]
-      : [0, 0, 1];
-
+    const normal = normalForTriangle(vertices[index], vertices[index + 1], vertices[index + 2]);
     for (let vertex = 0; vertex < 3; vertex += 1) {
       const point = vertices[index + vertex];
       const offset = (index + vertex) * 3;
@@ -99,6 +104,14 @@ export function parseSTLPreview(buffer: ArrayBuffer): STLMeshPreview {
       normals[offset + 2] = normal[2];
     }
   }
+  return { positions, normals };
+}
 
+/** Parse binary or ASCII STL and return a centered, normalized triangle mesh for preview. */
+export function parseSTLPreview(buffer: ArrayBuffer): STLMeshPreview {
+  const vertices = readBinarySTL(buffer) ?? readAsciiSTL(buffer);
+  assertCompleteTriangleMesh(vertices);
+  const { center, radius } = getMeshBounds(vertices);
+  const { positions, normals } = buildPreviewBuffers(vertices, center, radius);
   return { positions, normals, triangleCount: vertices.length / 3 };
 }
