@@ -451,3 +451,107 @@
   .revisionStateBanner,
   .workflowStep { transition: none; }
 }
+
+/* FEA shell: disabled input and result slots until a real solver and evidence exist. */
+.feaWorkspaceGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr);
+  align-items: start;
+  gap: var(--space-3);
+}
+.feaInputGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-4); }
+.feaDisabledField { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.feaDisabledField > span { color: var(--color-text-subtle); font-size: 9px; font-weight: 700; }
+.feaDisabledField input,
+.feaDisabledField textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-subtle);
+  font: inherit;
+  font-size: 9px;
+  opacity: .72;
+  resize: none;
+}
+.feaFieldSlots { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); }
+.feaFieldSlot {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-subtle);
+  font-size: 9px;
+}
+.feaFieldSlot input { accent-color: var(--color-accent); }
+.feaLegendSlot { display: flex; flex-direction: column; gap: var(--space-2); margin: 0 var(--space-3) var(--space-3); padding: var(--space-3); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md); }
+.feaLegendSlot strong { color: var(--color-text-muted); font-size: 9px; }
+.feaLegendSlot span,
+.feaLegendSlot small { color: var(--color-text-subtle); font-size: 8px; }
+.feaLegendTrack { min-height: 12px; border: 1px dashed var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); }
+.feaLegendSlot small { line-height: 1.5; }
+.feaWorkspaceGrid .moduleKeyValue { margin-inline: var(--space-3); }
+.feaWorkspaceGrid .moduleKeyValue:last-child { margin-bottom: var(--space-3); }
+
+/* P&ID shell: a real empty canvas and explicit disabled layer slots, never fixture symbols. */
+.pidWorkspaceGrid {
+  display: grid;
+  grid-template-columns: minmax(190px, .7fr) minmax(0, 1.7fr) minmax(220px, .85fr);
+  align-items: stretch;
+  gap: var(--space-3);
+}
+.pidLayerList { display: flex; flex-direction: column; padding: var(--space-3); }
+.pidLayerList label {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 9px;
+}
+.pidLayerList label:last-child { border-bottom: 0; }
+.pidLayerList input { accent-color: var(--color-accent); }
+.pidCanvasEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  margin: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(var(--color-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+  background-size: var(--space-8) var(--space-8);
+  background-position: center;
+}
+.pidCanvasEmpty .moduleEmptyState {
+  width: min(420px, calc(100% - var(--space-6)));
+  min-height: 190px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+@media (max-width: 1080px) {
+  .pidWorkspaceGrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pidWorkspaceGrid > .modulePanel:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+  .pidWorkspaceGrid > .modulePanel:first-child { grid-column: 1; grid-row: 2; }
+  .pidWorkspaceGrid > .modulePanel:last-child { grid-column: 2; grid-row: 2; }
+}
+@media (max-width: 760px) {
+  .feaWorkspaceGrid,
+  .pidWorkspaceGrid { grid-template-columns: minmax(0, 1fr); }
+  .pidWorkspaceGrid > .modulePanel:first-child,
+  .pidWorkspaceGrid > .modulePanel:nth-child(2),
+  .pidWorkspaceGrid > .modulePanel:last-child { grid-column: 1; grid-row: auto; }
+  .feaInputGrid { grid-template-columns: minmax(0, 1fr); }
+  .pidCanvasEmpty { min-height: 300px; }
+}
