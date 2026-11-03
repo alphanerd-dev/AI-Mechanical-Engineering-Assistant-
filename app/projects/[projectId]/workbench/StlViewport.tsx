@@ -45,8 +45,9 @@ function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: Ref
   const controlsRef = useRef<StlViewportControls | null>(null);
   const [failure, setFailure] = useState<{ src: string; mesh: STLMeshPreview; message: string } | null>(null);
   useEffect(() => {
-    if (!mesh || !canvasRef.current) return;
+    if (!mesh) return;
     const canvas = canvasRef.current;
+    if (!canvas) return;
     let active = true;
     const result = createRendererResult(canvas, mesh);
     const renderer = result.renderer;
