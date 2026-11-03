@@ -64,7 +64,7 @@ function StlViewportFrame({ label, mesh, loading, loadError, renderError, contro
 }) {
   const canRender = Boolean(mesh && !loadError && !renderError);
   return <div className={styles.viewportRoot}>
-    <canvas className={styles.viewportCanvas} role="img" aria-label={"3D STL preview of " + label} tabIndex={0} />
+    <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D STL preview of " + label} tabIndex={0} />
     {loading && <div className={styles.viewportStatus} role="status">Loading STL geometry…</div>}
     {loadError && <div className={styles.viewportStatus} role="alert">{loadError}</div>}
     {renderError && <div className={styles.viewportStatus} role="alert">{renderError}</div>}
@@ -76,7 +76,7 @@ function StlViewportFrame({ label, mesh, loading, loadError, renderError, contro
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
       </div>
     </div>}
-    {mesh && <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>}
+    {canRender && <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>}
   </div>;
 }
 
@@ -84,5 +84,5 @@ export default function StlViewport({ src, label }: { src: string; label: string
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const meshState = useStlMesh(src);
   const rendererState = useStlRenderer(src, meshState.mesh, canvasRef);
-  return <StlViewportFrame label={label} mesh={meshState.mesh} loading={meshState.loading} loadError={meshState.error} renderError={rendererState.renderError} controlsRef={rendererState.controlsRef} />;
+  return <StlViewportFrame label={label} canvasRef={canvasRef} mesh={meshState.mesh} loading={meshState.loading} loadError={meshState.error} renderError={rendererState.renderError} controlsRef={rendererState.controlsRef} />;
 }
