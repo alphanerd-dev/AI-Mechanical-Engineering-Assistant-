@@ -33,21 +33,27 @@ function useStlMesh(src: string) {
   return { mesh: current ? state.mesh : null, error: current ? state.error : null, loading: !current };
 }
 
+function createRendererResult(canvas: HTMLCanvasElement, mesh: STLMeshPreview) {
+  try {
+    return { renderer: createStlWebGLRenderer(canvas, mesh), message: null as string | null };
+  } catch (cause) {
+    return { renderer: null, message: cause instanceof Error ? cause.message : "The 3D preview could not be rendered." };
+  }
+}
+
 function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: RefObject<HTMLCanvasElement | null>) {
   const controlsRef = useRef<StlViewportControls | null>(null);
   const [failure, setFailure] = useState<{ src: string; mesh: STLMeshPreview; message: string } | null>(null);
   useEffect(() => {
     if (!mesh || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
     let active = true;
-    try {
-      renderer = createStlWebGLRenderer(canvas, mesh);
-      controlsRef.current = renderer.controls;
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "The 3D preview could not be rendered.";
+    const result = createRendererResult(canvas, mesh);
+    const renderer = result.renderer;
+    controlsRef.current = renderer?.controls ?? null;
+    if (result.message) {
       void Promise.resolve().then(() => {
-        if (active) setFailure({ src, mesh, message });
+        if (active) setFailure({ src, mesh, message: result.message! });
       });
     }
     return () => {
