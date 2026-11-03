@@ -172,30 +172,51 @@ function AssistantProjectResults({ loading, error, errorCode, projects, filtered
   return <AssistantProjectList projects={filteredProjects} selectedId={selectedId} onSelect={onSelect} />;
 }
 
-function AssistantProjectFooter({ project, onOpen }: { project: Project; onOpen: () => void }) {
+function AssistantProjectFooter({ project }: { project: Project }) {
+  const router = useRouter();
+  const openSelectedProject = () => router.push(`/projects/${encodeURIComponent(project.id)}/engineering`);
   return <div className="assistantPickerFooter">
     <div><span>Selected project</span><strong>{project.name}</strong></div>
-    <button className="button workspacePrimaryAction" type="button" onClick={onOpen}>Open project chat <ArrowRight size={15} aria-hidden="true" /></button>
+    <button className="button workspacePrimaryAction" type="button" onClick={openSelectedProject}>Open project chat <ArrowRight size={15} aria-hidden="true" /></button>
   </div>;
 }
 
+function filterAssistantProjects(projects: Project[], query: string): Project[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return projects;
+  return projects.filter((project) => [
+    project.name,
+    project.stage.replaceAll("_", " "),
+    project.status,
+  ].some((value) => value.toLowerCase().includes(normalized)));
+}
+
+function AssistantProjectPanel({ projects, filteredProjects, selectedId, setSelectedId, loading, refreshing, error, errorCode, refresh, query, setQuery }: {
+  projects: Project[]; filteredProjects: Project[]; selectedId: string; setSelectedId: (id: string) => void;
+  loading: boolean; refreshing: boolean; error: string; errorCode: string; refresh: () => void;
+  query: string; setQuery: (value: string) => void;
+}) {
+  const selectedProject = projects.find((project) => project.id === selectedId);
+  return <section className="assistantPickerPanel" aria-labelledby="assistant-picker-title">
+    <div className="assistantPickerPanelHeading">
+      <span className="assistantPickerIcon"><Bot size={19} aria-hidden="true" /></span>
+      <div><h2 id="assistant-picker-title">Your projects</h2><p>Choose a project to continue or start its project-scoped conversation.</p></div>
+      <button className="assistantPickerRefresh" type="button" onClick={() => void refresh()} disabled={loading || refreshing}>
+        <RefreshCw size={14} className={refreshing ? "assistantPickerSpin" : undefined} aria-hidden="true" />{refreshing ? "Refreshing" : "Refresh"}
+      </button>
+    </div>
+    <label className="assistantPickerSearch"><Search size={15} aria-hidden="true" /><span className="sr-only">Search projects</span>
+      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by project, stage or status…" />
+    </label>
+    <AssistantProjectResults loading={loading} error={error} errorCode={errorCode} projects={projects} filteredProjects={filteredProjects} query={query} selectedId={selectedId} onSelect={setSelectedId} />
+    {selectedProject && !loading && !error && <AssistantProjectFooter project={selectedProject} />}
+  </section>;
+}
+
 export default function AssistantProjectPicker() {
-  const router = useRouter();
   const { projects, selectedId, setSelectedId, loading, refreshing, error, errorCode, refresh } = useAssistantProjects();
   const [query, setQuery] = useState("");
-  const filteredProjects = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return projects;
-    return projects.filter((project) =>
-      project.name.toLowerCase().includes(normalized)
-      || project.stage.toLowerCase().replaceAll("_", " ").includes(normalized)
-      || project.status.toLowerCase().includes(normalized),
-    );
-  }, [projects, query]);
-  const selectedProject = projects.find((project) => project.id === selectedId);
-  const openSelectedProject = () => {
-    if (selectedProject) router.push(`/projects/${encodeURIComponent(selectedProject.id)}/engineering`);
-  };
+  const filteredProjects = useMemo(() => filterAssistantProjects(projects, query), [projects, query]);
 
   return <main className="assistantPickerPage">
     <header className="assistantPickerHeader">
@@ -204,20 +225,7 @@ export default function AssistantProjectPicker() {
       </div>
       <Link className="button secondaryButton" href="/projects"><FolderKanban size={15} aria-hidden="true" /> Projects</Link>
     </header>
-    <section className="assistantPickerPanel" aria-labelledby="assistant-picker-title">
-      <div className="assistantPickerPanelHeading">
-        <span className="assistantPickerIcon"><Bot size={19} aria-hidden="true" /></span>
-        <div><h2 id="assistant-picker-title">Your projects</h2><p>Choose a project to continue or start its project-scoped conversation.</p></div>
-        <button className="assistantPickerRefresh" type="button" onClick={() => void refresh()} disabled={loading || refreshing}>
-          <RefreshCw size={14} className={refreshing ? "assistantPickerSpin" : undefined} aria-hidden="true" />{refreshing ? "Refreshing" : "Refresh"}
-        </button>
-      </div>
-      <label className="assistantPickerSearch"><Search size={15} aria-hidden="true" /><span className="sr-only">Search projects</span>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by project, stage or status…" />
-      </label>
-      <AssistantProjectResults loading={loading} error={error} errorCode={errorCode} projects={projects} filteredProjects={filteredProjects} query={query} selectedId={selectedId} onSelect={setSelectedId} />
-      {selectedProject && !loading && !error && <AssistantProjectFooter project={selectedProject} onOpen={openSelectedProject} />}
-    </section>
+    <AssistantProjectPanel projects={projects} filteredProjects={filteredProjects} selectedId={selectedId} setSelectedId={setSelectedId} loading={loading} refreshing={refreshing} error={error} errorCode={errorCode} refresh={refresh} query={query} setQuery={setQuery} />
     <aside className="assistantPickerNotice"><LockKeyhole size={16} aria-hidden="true" />
       <p><strong>Project context is explicit.</strong> Chat history is scoped to the project you select. AI responses do not execute calculations, CAD operations or solver jobs on their own.</p>
     </aside>
