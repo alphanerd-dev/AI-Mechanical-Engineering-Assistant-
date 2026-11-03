@@ -157,83 +157,83 @@ function createEngineeringChatHistoryAdapter(
     }
   }
 
+  function readSavedSessionId(key: string): string | null {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function persistSessionId(key: string, sessionId: string): void {
+    try {
+      window.localStorage.setItem(key, sessionId);
+    } catch {
+      // Recover registered project history from the server on the next load.
+    }
+  }
+
+  async function initializeDemoSession(key: string, savedId: string | null): Promise<void> {
+    const demoSessionId = selectedSessionId || savedId || createSessionId();
+    state.sessionId = demoSessionId;
+    if (!savedId) {
+      try {
+        window.localStorage.setItem(key, demoSessionId);
+      } catch {
+        state.sessionId = undefined;
+        throw new Error("Browser local storage is blocked; local demo history cannot be retained.");
+      }
+    }
+    state.conversation = loadDemoConversation(window.localStorage, demoSessionId);
+    state.revision = 1;
+    state.initialized = true;
+    onError(undefined);
+  }
+
+  async function resolveRegisteredSession(savedId: string | null): Promise<{ body: SessionResponse; expectedSessionId?: string }> {
+    const savedChatId = selectedSessionId ?? (savedId?.startsWith("engineering-chat-") ? savedId : undefined);
+    let body: SessionResponse | undefined;
+    let expectedSessionId = savedChatId;
+
+    if (savedChatId) {
+      state.sessionId = savedChatId;
+      body = await readSession(savedChatId);
+    }
+    if (!body && !selectedSessionId) {
+      expectedSessionId = undefined;
+      body = await readLatestChatSession();
+      if (body?.sessionId) state.sessionId = body.sessionId;
+    }
+    if (!body && selectedSessionId) {
+      throw new Error("The selected conversation could not be restored. Refresh the chat list and select it again.");
+    }
+    if (!body) {
+      const newSessionId = savedChatId ?? createSessionId();
+      state.sessionId = newSessionId;
+      expectedSessionId = newSessionId;
+      body = await createSession(newSessionId);
+    }
+    return { body, expectedSessionId };
+  }
+
   let initializationPromise: Promise<void> | undefined;
 
   async function initializeOnce(): Promise<void> {
     try {
       if (typeof window === "undefined") throw new Error("Chat history can only be initialized in the browser.");
       const key = "engineering-chat-session:" + projectId;
-      let savedId: string | null = null;
-      try {
-        savedId = window.localStorage.getItem(key);
-      } catch {
-        // Registered project history is server-backed. Local storage is only a fast
-        // identity hint; the server can recover the latest chat session if it is blocked.
-      }
-
+      const savedId = readSavedSessionId(key);
       if (projectId === "demo") {
-        const demoSessionId = selectedSessionId || savedId || createSessionId();
-        state.sessionId = demoSessionId;
-        if (!savedId) {
-          try {
-            window.localStorage.setItem(key, demoSessionId);
-          } catch {
-            state.sessionId = undefined;
-            throw new Error("Browser local storage is blocked; local demo history cannot be retained.");
-          }
-        }
-        state.conversation = loadDemoConversation(window.localStorage, demoSessionId);
-        state.revision = 1;
-        state.initialized = true;
-        onError(undefined);
+        await initializeDemoSession(key, savedId);
         return;
       }
 
-      let body: SessionResponse | undefined;
-      let expectedSessionId: string | undefined;
-      const savedChatId = selectedSessionId ?? (typeof savedId === "string" && savedId.startsWith("engineering-chat-")
-        ? savedId
-        : undefined);
-      if (savedChatId) {
-        state.sessionId = savedChatId;
-        expectedSessionId = savedChatId;
-        body = await readSession(savedChatId);
-      }
-
-      // Recover server-side if the browser identity was cleared, blocked, or stale.
-      // The API only returns sessions with the engineering-chat- prefix, never task sessions.
-      if (!body && !selectedSessionId) {
-        expectedSessionId = undefined;
-        body = await readLatestChatSession();
-        if (body && typeof body.sessionId === "string") {
-          state.sessionId = body.sessionId;
-        }
-      }
-
-      if (!body && selectedSessionId) {
-        throw new Error("The selected conversation could not be restored. Refresh the chat list and select it again.");
-      }
-
-      if (!body) {
-        const newSessionId = savedChatId ?? createSessionId();
-        state.sessionId = newSessionId;
-        expectedSessionId = newSessionId;
-        body = await createSession(newSessionId);
-      }
-
+      const { body, expectedSessionId } = await resolveRegisteredSession(savedId);
       assertSessionResponse(body, expectedSessionId);
       state.sessionId = body.sessionId;
       state.revision = body.snapshotRevision;
       state.conversation = body.conversation;
-
-      // Keep the fast path when storage is available; failure is recoverable via
-      // readLatestChatSession on the next page load.
-      try {
-        window.localStorage.setItem(key, state.sessionId);
-      } catch {
-        // Intentionally non-fatal for registered projects.
-      }
-
+      persistSessionId(key, state.sessionId);
       state.initialized = true;
       onError(undefined);
     } catch (error) {
