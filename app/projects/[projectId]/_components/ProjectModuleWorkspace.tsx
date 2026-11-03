@@ -129,27 +129,43 @@ function summarizeTaskStates(tasks: EngineeringWorkspaceSnapshot["taskGraph"]["t
   };
 }
 
-async function saveProjectName(event: FormEvent<HTMLFormElement>, projectId: string, project: ProjectRecord | null, nameDraft: string, saving: boolean, setData: React.Dispatch<React.SetStateAction<ApiState>>, setSaving: (value: boolean) => void, setMessage: (value: string | null) => void, setError: (value: string | null) => void) {
-  event.preventDefault();
-  if (!project || saving) return;
-  setSaving(true);
-  setError(null);
-  setMessage(null);
+type SaveProjectNameArgs = {
+  event: FormEvent<HTMLFormElement>;
+  projectId: string;
+  project: ProjectRecord | null;
+  nameDraft: string;
+  saving: boolean;
+  setData: React.Dispatch<React.SetStateAction<ApiState>>;
+  setSaving: (value: boolean) => void;
+  setMessage: (value: string | null) => void;
+  setError: (value: string | null) => void;
+};
+
+async function patchProjectName(projectId: string, project: ProjectRecord, name: string): Promise<ProjectRecord> {
+  const response = await fetch("/api/projects/" + encodeURIComponent(projectId), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, expectedRevision: project.revision }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.project) throw new Error(typeof body.error === "string" ? body.error : "Project rename could not be confirmed.");
+  return body.project as ProjectRecord;
+}
+
+async function saveProjectName(args: SaveProjectNameArgs) {
+  args.event.preventDefault();
+  if (!args.project || args.saving) return;
+  args.setSaving(true);
+  args.setError(null);
+  args.setMessage(null);
   try {
-    const response = await fetch("/api/projects/" + encodeURIComponent(projectId), {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: nameDraft.trim(), expectedRevision: project.revision }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok || !body.project) throw new Error(typeof body.error === "string" ? body.error : "Project rename could not be confirmed.");
-    const updatedProject = body.project as ProjectRecord;
-    setData((current) => ({ ...current, project: updatedProject }));
-    setMessage("Project name saved.");
+    const updatedProject = await patchProjectName(args.projectId, args.project, args.nameDraft.trim());
+    args.setData((current) => ({ ...current, project: updatedProject }));
+    args.setMessage("Project name saved.");
   } catch (cause) {
-    setError(cause instanceof Error ? cause.message : "Project rename failed.");
+    args.setError(cause instanceof Error ? cause.message : "Project rename failed.");
   } finally {
-    setSaving(false);
+    args.setSaving(false);
   }
 }
 
@@ -186,7 +202,7 @@ function getActiveModuleTab(module: ModuleKey) {
 }
 
 function ProjectModuleContent({ data, isDemo, module, projectId, onRefresh, nameDraft, onNameChange, onSaveName, savingName, settingsMessage, settingsError, exportMessage, onExport }: {
-  data: ApiState; isDemo: boolean; module: ModuleKey; projectId: string; onRefresh: () => void;
+  data: ApiState; isDemo: boolean; module: ModuleKey; onRefresh: () => void;
   nameDraft: string; onNameChange: (value: string) => void; onSaveName: (event: FormEvent<HTMLFormElement>) => void;
   savingName: boolean; settingsMessage: string | null; settingsError: string | null; exportMessage: string | null; onExport: () => void;
 }) {
@@ -209,18 +225,18 @@ function ProjectModuleView({ module, project, snapshot, cadModels, cadCompletion
   const artifacts = (snapshot.artifacts ?? []) as CalculationArtifact[];
   const events = getProjectEvents(snapshot);
   const taskCounts = summarizeTaskStates(tasks);
-  switch (module) {
-    case "workbench": return <WorkbenchContent project={project} snapshot={snapshot} tasks={tasks} artifacts={artifacts} models={cadModels} completions={cadCompletions} onRefresh={onRefresh} completedTasks={taskCounts.completed} runningTasks={taskCounts.running} failedTasks={taskCounts.failed} />;
-    case "fea": return <FeaUnavailableContent />;
-    case "pid": return <PidUnavailableContent />;
-    case "calculations": return <CalculationsContent artifacts={artifacts} />;
-    case "files": return <FilesContent artifacts={artifacts} models={cadModels} />;
-    case "history": return <HistoryContent events={events} tasks={tasks} createdAt={project.created_at} updatedAt={project.updated_at} />;
-    case "revisions": return <RevisionsContent project={project} snapshot={snapshot} artifacts={artifacts} />;
-    case "reports": return <ReportsContent project={project} snapshot={snapshot} exportMessage={exportMessage} onExport={onExport} />;
-    case "settings": return <SettingsContent project={project} nameDraft={nameDraft} onNameChange={onNameChange} onSubmit={onSaveName} saving={savingName} message={settingsMessage} error={settingsError} />;
-    default: return null;
-  }
+  const views: Record<ModuleKey, React.ReactNode> = {
+    workbench: <WorkbenchContent project={project} snapshot={snapshot} tasks={tasks} artifacts={artifacts} models={cadModels} completions={cadCompletions} onRefresh={onRefresh} completedTasks={taskCounts.completed} runningTasks={taskCounts.running} failedTasks={taskCounts.failed} />,
+    fea: <FeaUnavailableContent />,
+    pid: <PidUnavailableContent />,
+    calculations: <CalculationsContent artifacts={artifacts} />,
+    files: <FilesContent artifacts={artifacts} models={cadModels} />,
+    history: <HistoryContent events={events} tasks={tasks} createdAt={project.created_at} updatedAt={project.updated_at} />,
+    revisions: <RevisionsContent project={project} snapshot={snapshot} artifacts={artifacts} />,
+    reports: <ReportsContent project={project} snapshot={snapshot} exportMessage={exportMessage} onExport={onExport} />,
+    settings: <SettingsContent project={project} nameDraft={nameDraft} onNameChange={onNameChange} onSubmit={onSaveName} saving={savingName} message={settingsMessage} error={settingsError} />,
+  };
+  return views[module] ?? null;
 }
 
 export default function ProjectModuleWorkspace({ projectId, module }: { projectId: string; module: ModuleKey }) {
@@ -237,7 +253,7 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
   const path = "/projects/" + projectId;
   const navLinks = [...projectTabs, ...engineeringTabs];
   const activeTab = getActiveModuleTab(module);
-  const onSaveName = (event: FormEvent<HTMLFormElement>) => void saveProjectName(event, projectId, data.project, nameDraft, savingName, setData, setSavingName, setSettingsMessage, setSettingsError);
+  const onSaveName = (event: FormEvent<HTMLFormElement>) => void saveProjectName({ event, projectId, project: data.project, nameDraft, saving: savingName, setData, setSaving: setSavingName, setMessage: setSettingsMessage, setError: setSettingsError });
   const onExport = () => exportWorkspaceSnapshot(projectId, data.project, data.snapshot, setExportMessage);
 
   return <div className="shell moduleWorkspace">
@@ -249,7 +265,7 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
     <nav className="moduleTabs" aria-label="Project sections">
       {navLinks.map(([label, slug]) => <Link key={label} href={slug ? path + "/" + slug : path} aria-current={activeTab === (slug || "overview") ? "page" : undefined}>{label}</Link>)}
     </nav>
-    <ProjectModuleContent data={data} isDemo={isDemo} module={module} projectId={projectId} onRefresh={() => setRefresh((value) => value + 1)} nameDraft={nameDraft} onNameChange={setNameDraft} onSaveName={onSaveName} savingName={savingName} settingsMessage={settingsMessage} settingsError={settingsError} exportMessage={exportMessage} onExport={onExport} />
+    <ProjectModuleContent data={data} isDemo={isDemo} module={module} onRefresh={() => setRefresh((value) => value + 1)} nameDraft={nameDraft} onNameChange={setNameDraft} onSaveName={onSaveName} savingName={savingName} settingsMessage={settingsMessage} settingsError={settingsError} exportMessage={exportMessage} onExport={onExport} />
   </div>;
 }
 
