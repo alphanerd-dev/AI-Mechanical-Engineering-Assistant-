@@ -83,7 +83,7 @@ export default function ProjectsIndex() {
   const counts = useMemo(() => summarizeProjectStatuses(projects), [projects]);
 
   return (
-    <div className="shell projectsIndex">
+    <div className="projectsIndexPage projectsIndex">
       <header className="projectsIndexHeader">
         <div>
           <p className="eyebrow">ENGINEERING OS</p>
