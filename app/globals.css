@@ -395,7 +395,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 @media(max-width:640px){.projectCards{grid-template-columns:1fr}.projectFormRow{grid-template-columns:1fr}.projectListHeader{align-items:flex-start}.projectListHeader>.button{flex-shrink:0}.requirementsActions{align-items:flex-start;flex-direction:column}.requirementsTable{min-width:720px}}
 
 /* Accessible link contrast on dark panels, including authentication forms. */
-.panel a{color:color-mix(in srgb, var(--color-info) 72%, var(--color-text));text-underline-offset:3px}.panel a:focus-visible{outline:2px solid color-mix(in srgb, var(--color-info) 72%, var(--color-text));outline-offset:3px;border-radius:var(--radius-sm)}
+.panel a{color:color-mix(in srgb, var(--color-info) 72%, var(--color-text));text-underline-offset:var(--space-1)}.panel a:focus-visible{outline:2px solid color-mix(in srgb, var(--color-info) 72%, var(--color-text));outline-offset:var(--space-1);border-radius:var(--radius-sm)}
 
 /* M0: communicate engineering decisions without collapsing execution, validation, and approval. */
 .decisionOutcome{margin: var(--space-3) 0;padding: var(--space-4) var(--space-4);border:1px solid var(--color-border-strong);border-radius:var(--radius-md);background:var(--color-surface)}
@@ -411,7 +411,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 /* Shared focus treatment and motion preferences apply to both legacy and new primitives. */
 :where(button, a, input, textarea, select, [role="button"], [tabindex]):focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline-offset: var(--space-1);
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
@@ -431,7 +431,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .workspaceNavLink:hover{background:var(--color-surface-raised);color:var(--color-text,var(--color-text))}
 .workspaceNavLink[aria-current="page"]{background:var(--color-surface-raised);border-color:color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));color:var(--color-text)}
 .workspaceNavLink[aria-current="page"] .workspaceNavIcon{color:var(--color-accent,var(--color-accent))}
-.workspaceNavLink:focus-visible,.workspaceBrand:focus-visible,.workspacePlannedItem:focus-visible{outline:2px solid var(--color-accent,var(--color-accent));outline-offset:2px}
+.workspaceNavLink:focus-visible,.workspaceBrand:focus-visible,.workspacePlannedItem:focus-visible{outline:2px solid var(--color-accent,var(--color-accent));outline-offset:var(--space-1)}
 .workspaceNavSubtext{display:block;margin-top: var(--space-1);font-size:10px;font-weight:500;color:var(--color-text-subtle,var(--color-text-subtle))}
 .workspacePlannedList{display:flex;flex-direction:column;gap: var(--space-1)}
 .workspacePlannedItem{display:flex;align-items:center;justify-content:space-between;gap: var(--space-2);min-height:32px;padding: var(--space-2) var(--space-3);border-radius:var(--radius-md);color:var(--color-text-subtle);font-size:11px}
@@ -462,7 +462,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .workspaceCommandTitle{margin: 0;font-size:13px;color:var(--color-text)}
 .workspaceCommandForm{display:flex;gap: var(--space-2)}
 .workspaceCommandInput{width:100%;min-width:0;min-height:42px;padding: var(--space-3) var(--space-3);border:1px solid var(--color-border-strong);border-radius:var(--radius-md);background:var(--color-surface-raised);color:var(--color-text);font:inherit;font-size:13px}
-.workspaceCommandInput:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+.workspaceCommandInput:focus-visible{outline:2px solid var(--color-accent);outline-offset:var(--space-1)}
 .workspaceCommandResults{display:flex;flex-direction:column;gap: var(--space-1);overflow-y:auto}
 .workspaceCommandResult{display:flex;align-items:center;justify-content:space-between;gap: var(--space-3);padding: var(--space-3) var(--space-3);border:1px solid transparent;border-radius:var(--radius-md);color:var(--color-text-muted);text-decoration:none;font-size:12px}
 .workspaceCommandResult:hover,.workspaceCommandResult:focus-visible{background:var(--color-surface-raised);border-color:color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));color:var(--color-text);outline:none}
@@ -658,7 +658,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .workspaceSidebarToggle:focus-visible,
 .workspaceBottomNav a:focus-visible {
   outline: 2px solid var(--color-accent, var(--color-accent));
-  outline-offset: 2px;
+  outline-offset: var(--space-1);
 }
 .workspaceBottomNav a {
   min-height: 48px;
@@ -1502,7 +1502,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .authMenuPopover a:hover,
 .authMenuPopover form button:hover { background: var(--color-surface-hover); color: var(--color-text); }
 .authMenuPopover a:focus-visible,
-.authMenuPopover form button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.authMenuPopover form button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: var(--space-1); }
 .authMenuPopover form { border-top: 1px solid var(--color-border); padding-top: var(--space-1); }
 .authMenuPopover form button { color: var(--color-danger); }
 @media (max-width: 900px) {
