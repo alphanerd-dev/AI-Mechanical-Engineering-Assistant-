@@ -61,7 +61,9 @@ function toneForStatus(value?: string) {
   return "neutral";
 }
 function StateLabel({ value }: { value: string }) {
-  return <span className="moduleState" data-tone={toneForStatus(value)}>{readable(value)}</span>;
+  const tone = toneForStatus(value);
+  const Icon = tone === "success" ? CheckCircle2 : tone === "warning" || tone === "danger" ? AlertCircle : tone === "info" ? Info : Clock3;
+  return <span className="moduleState" data-tone={tone}><Icon size={10} aria-hidden="true" />{readable(value)}</span>;
 }
 function EmptyState({ icon: Icon, title, detail, action }: { icon: typeof Box; title: string; detail: string; action?: React.ReactNode }) {
   return <div className="moduleEmptyState">
