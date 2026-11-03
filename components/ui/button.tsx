@@ -17,10 +17,10 @@ export const buttonVariants = cva(
       },
       size: {
         default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-sm px-3 text-xs",
+        sm: "h-8 rounded-[var(--radius-sm)] px-3 text-xs",
         lg: "h-11 rounded-md px-6",
         icon: "size-10",
-        "icon-sm": "size-8 rounded-sm",
+        "icon-sm": "size-8 rounded-[var(--radius-sm)]",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
