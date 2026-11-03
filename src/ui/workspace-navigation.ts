@@ -25,7 +25,7 @@ function titleFromPath(pathname: string): string {
   const segments = pathname.split("/").filter(Boolean);
   const segment = segments.at(-1) ?? "";
   const titles: Record<string, string> = {
-    projects: "Projects", login: "Sign in", signup: "Create account",
+    projects: "Projects", assistant: "Choose project context", login: "Sign in", signup: "Create account",
     templates: "Engineering templates", activity: "Workspace activity",
     profile: "Profile settings", ai: "AI configuration",
     requirements: "Requirements", reasoning: "Reasoning workbench",
@@ -51,7 +51,7 @@ export function getWorkspaceNavigation(pathnameInput: string | null | undefined)
   const globalItems: WorkspaceNavItem[] = [
     { id: "overview", label: "Overview", href: "/", icon: "layout-dashboard", description: "Workspace and recent projects" },
     { id: "projects", label: "Projects", href: "/projects", icon: "folder-kanban", description: "Browse and create projects" },
-    { id: "assistant", label: "AI assistant", href: projectPrefix + "/engineering", icon: "bot", description: projectId ? "Project-scoped conversation" : "Open the illustrative demo assistant" },
+    { id: "assistant", label: "AI assistant", href: "/assistant", icon: "bot", description: "Choose a project before opening its saved conversation" },
     { id: "templates", label: "Templates", href: "/templates", icon: "book-open", description: "Engineering workflow starters" },
     { id: "activity", label: "Activity", href: "/activity", icon: "activity", description: "Recent workspace project activity" },
   ];
