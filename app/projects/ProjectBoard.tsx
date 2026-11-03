@@ -41,6 +41,7 @@ export default function ProjectBoard() {
   const [roleRequired, setRoleRequired] = useState(false);
   const [name, setName] = useState("");
   const [problemStatement, setProblemStatement] = useState("");
+  const [taskPrompt, setTaskPrompt] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [notice, setNotice] = useState("");
@@ -84,6 +85,15 @@ export default function ProjectBoard() {
     });
     return () => { active = false; };
   }, []);
+
+  function useTaskPrompt() {
+    const prompt = taskPrompt.trim();
+    if (!prompt) return;
+    setProblemStatement(prompt);
+    setCreateStage("details");
+    setCreateError("");
+    document.getElementById("create-project")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function reviewProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -210,10 +220,24 @@ export default function ProjectBoard() {
         </div>
         <p className="eyebrow">ENGINEERING TASK ENTRY</p>
         <h2 id="workspace-launch-title">What are we engineering today?</h2>
-        <p>Start with a design problem, calculation, simulation request or set of files. The assistant can help structure the task. Deterministic execution and validation remain separate workflows.</p>
-        <div className="workspaceLaunchActions">
-          <Link className="button workspacePrimaryAction" href="/projects/demo/engineering">Open demo assistant <ArrowUpRight size={15} aria-hidden="true" /></Link>
-          <span className="workspaceDemoNote">Demo assistant · illustrative context · may reset</span>
+        <p>Describe the problem, operating conditions and constraints. Turn the prompt into a project brief first; AI guidance, deterministic execution and validation remain separate steps.</p>
+        <div className="workspacePromptComposer">
+          <label htmlFor="workspace-task-prompt">Engineering problem or task</label>
+          <textarea
+            id="workspace-task-prompt"
+            value={taskPrompt}
+            onChange={(event) => setTaskPrompt(event.target.value)}
+            maxLength={2000}
+            rows={3}
+            placeholder="Describe the engineering problem, operating conditions, constraints or question…"
+          />
+          <div className="workspacePromptFooter">
+            <span>Up to 2,000 characters · saved into a new project brief</span>
+            <div className="workspacePromptActions">
+              <button type="button" className="button secondaryButton" onClick={useTaskPrompt} disabled={!taskPrompt.trim()}>Use this brief</button>
+              <Link className="button workspacePrimaryAction" href="/assistant">Choose project for AI chat <ArrowUpRight size={14} aria-hidden="true" /></Link>
+            </div>
+          </div>
         </div>
       </div>
       <aside className="workspaceContinueCard" aria-label="Most recently updated project">
