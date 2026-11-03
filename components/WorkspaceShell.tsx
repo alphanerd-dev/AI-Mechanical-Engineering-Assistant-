@@ -160,7 +160,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     closeSearch();
   }
 
-  function renderLink(item: WorkspaceNavItem, context = "global") {
+  function renderLink(item: WorkspaceNavItem) {
     const active = isWorkspaceItemActive(pathname, item, hash);
     const ItemIcon = workspaceIcons[item.icon] ?? Search;
     return <Link
@@ -173,7 +173,6 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     >
       <span className="workspaceNavIcon" aria-hidden="true"><ItemIcon size={17} strokeWidth={1.8} /></span>
       <span>{item.label}</span>
-      {context === "global" && item.id === "assistant" && !navigation.projectId && <span className="workspaceNavSubtext">Demo</span>}
     </Link>;
   }
 
@@ -182,9 +181,9 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const currentProjectLabel = loadedProjectName && loadedProjectName.projectId === navigation.projectId
     ? loadedProjectName.name
     : navigation.projectLabel;
-  const assistantHref = navigation.globalItems.find((item) => item.id === "assistant")?.href ?? "/projects/demo/engineering";
-  const workbenchHref = navigation.projectId ? "/projects/" + navigation.projectId + "/workbench" : "/projects/demo/workbench";
-  const filesHref = navigation.projectId ? "/projects/" + navigation.projectId + "/files" : "/projects/demo/files";
+  const assistantHref = "/assistant";
+  const workbenchHref = navigation.projectId ? "/projects/" + navigation.projectId + "/workbench" : "/projects";
+  const filesHref = navigation.projectId ? "/projects/" + navigation.projectId + "/files" : "/projects";
   const overviewHref = navigation.projectId ? "/projects/" + navigation.projectId : "/";
 
   return <div className={"workspaceApp" + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
@@ -272,8 +271,17 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       <nav className="workspaceBottomNav" aria-label="Quick navigation">
         <Link href={overviewHref} aria-current={pathname === overviewHref ? "page" : undefined}><Home size={17} aria-hidden="true" />Overview</Link>
         <Link href={assistantHref} aria-current={pathname === assistantHref ? "page" : undefined}><MessageSquare size={17} aria-hidden="true" />Chat</Link>
-        <Link href={workbenchHref} aria-current={pathname === workbenchHref || pathname.startsWith(workbenchHref + "/") ? "page" : undefined}><Box size={17} aria-hidden="true" />Workbench</Link>
-        <Link href={filesHref} aria-current={pathname === filesHref || pathname.startsWith(filesHref + "/") ? "page" : undefined}><Files size={17} aria-hidden="true" />Files</Link>
+        {navigation.projectId ? (
+          <>
+            <Link href={workbenchHref} aria-current={pathname === workbenchHref || pathname.startsWith(workbenchHref + "/") ? "page" : undefined}><Box size={17} aria-hidden="true" />Workbench</Link>
+            <Link href={filesHref} aria-current={pathname === filesHref || pathname.startsWith(filesHref + "/") ? "page" : undefined}><Files size={17} aria-hidden="true" />Files</Link>
+          </>
+        ) : (
+          <>
+            <Link href="/projects" aria-current={pathname === "/projects" ? "page" : undefined}><FolderKanban size={17} aria-hidden="true" />Projects</Link>
+            <Link href="/activity" aria-current={pathname === "/activity" ? "page" : undefined}><Activity size={17} aria-hidden="true" />Activity</Link>
+          </>
+        )}
       </nav>
     </div>
 
