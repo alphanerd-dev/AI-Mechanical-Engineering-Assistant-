@@ -17,7 +17,7 @@ const taskStatuses: EngineeringTaskStatus[] = [
   "PROPOSED", "READY", "RUNNING", "BLOCKED", "COMPLETED", "FAILED", "VERIFIED",
 ];
 
-function problemStatementFromEvent(event: ProjectState["events"][number]): string | null {
+function problemStatementFromEvent(event: NonNullable<ProjectState["events"]>[number]): string | null {
   if (event.action !== "PROBLEM_CAPTURED" || !event.input || typeof event.input !== "object") return null;
   const value = (event.input as Record<string, unknown>).problemStatement;
   return typeof value === "string" && value.trim() ? value.trim() : null;
