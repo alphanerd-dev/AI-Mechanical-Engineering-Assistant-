@@ -52,6 +52,37 @@ function TemplatesPage() {
     <div className="moduleNotice"><BookOpen size={15} /><span>These starter checklists are guidance only. Persisted project templates, reusable organisation libraries and automatic template-to-project provisioning are not yet implemented.</span></div>
   </div>;
 }
+async function fetchRecentProjects(signal: AbortSignal): Promise<Project[]> {
+  const response = await fetch("/api/projects", { cache: "no-store", signal });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !Array.isArray(body.projects)) {
+    throw new Error(typeof body.error === "string" ? body.error : "Workspace projects could not be loaded.");
+  }
+  return (body.projects as Project[]).slice(0, 8);
+}
+
+async function fetchProjectEvents(project: Project, signal: AbortSignal): Promise<FeedItem[]> {
+  const response = await fetch("/api/projects/" + encodeURIComponent(project.id) + "/workspace", { cache: "no-store", signal });
+  if (!response.ok) return [];
+  const body = await response.json().catch(() => ({}));
+  const events = Array.isArray(body.snapshot?.project?.events) ? body.snapshot.project.events : [];
+  return events.map((event: { id: string; action: string; actor: string; timestamp: string }) => ({
+    id: event.id,
+    projectId: project.id,
+    projectName: project.name,
+    action: event.action,
+    actor: event.actor,
+    timestamp: event.timestamp,
+  }));
+}
+
+async function loadActivityFeed(signal: AbortSignal) {
+  const projects = await fetchRecentProjects(signal);
+  const groups = await Promise.all(projects.map((project) => fetchProjectEvents(project, signal)));
+  const feed = groups.flat().sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)).slice(0, 40);
+  return { projects, feed };
+}
+
 function ActivityPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -59,32 +90,18 @@ function ActivityPage() {
   const [message, setMessage] = useState("");
   useEffect(() => {
     const controller = new AbortController();
-    async function load() {
-      try {
-        const response = await fetch("/api/projects", { cache: "no-store", signal: controller.signal });
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok || !Array.isArray(body.projects)) throw new Error(typeof body.error === "string" ? body.error : "Workspace projects could not be loaded.");
-        const recent = (body.projects as Project[]).slice(0, 8);
-        setProjects(recent);
-        const workspaces = await Promise.all(recent.map(async (project) => {
-          const result = await fetch("/api/projects/" + encodeURIComponent(project.id) + "/workspace", { cache: "no-store", signal: controller.signal });
-          if (!result.ok) return [] as FeedItem[];
-          const payload = await result.json().catch(() => ({}));
-          const events = Array.isArray(payload.snapshot?.project?.events) ? payload.snapshot.project.events : [];
-          return events.map((event: { id: string; action: string; actor: string; timestamp: string }) => ({
-            id: event.id, projectId: project.id, projectName: project.name, action: event.action, actor: event.actor, timestamp: event.timestamp
-          })) as FeedItem[];
-        }));
+    void loadActivityFeed(controller.signal)
+      .then((result) => {
         if (controller.signal.aborted) return;
-        setFeed(workspaces.flat().sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)).slice(0, 40));
+        setProjects(result.projects);
+        setFeed(result.feed);
         setStatus("ready");
-      } catch (error) {
+      })
+      .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
-        setMessage(error instanceof Error ? error.message : "Workspace activity could not be loaded.");
+        setMessage(cause instanceof Error ? cause.message : "Workspace activity could not be loaded.");
         setStatus("error");
-      }
-    }
-    void load();
+      });
     return () => controller.abort();
   }, []);
   return <div className="shell utilityPage">
@@ -101,6 +118,7 @@ function ActivityPage() {
     </div>}
   </div>;
 }
+
 function SettingsPage({ page }: { page: "profile" | "ai" | "engineering" }) {
   const config = {
     profile: { eyebrow: "ACCOUNT", title: "Profile settings", detail: "Account identity and profile preferences.", icon: UserRound, items: ["Authentication is handled by the connected sign-in provider.", "Profile editing and organisation membership controls are not exposed by the current settings API.", "No profile changes are written from this screen."] },
