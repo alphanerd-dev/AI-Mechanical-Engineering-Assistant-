@@ -72,27 +72,47 @@ type GetSessionQuery = {
   projectId: string | undefined;
 };
 
-function validateGetSessionQuery(query: GetSessionQuery): string | null {
-  if (query.latest !== null) {
-    if (query.latest !== "chat") return "latest must be chat when provided.";
-  }
-  if (query.list !== null) {
-    if (query.list !== "chat") return "list must be chat when provided.";
-  }
-  if (query.list === "chat") {
-    if (query.latest !== null) return "Provide list=chat without sessionId or latest.";
-    if (query.sessionId) return "Provide list=chat without sessionId or latest.";
-  }
-  if (query.latest === "chat") {
-    if (query.sessionId) return "Provide either sessionId or latest=chat, not both.";
-  }
-  if (!query.projectId) return "projectId is required.";
-  if (!query.sessionId) {
-    if (query.latest !== "chat") {
-      if (query.list !== "chat") return "sessionId is required.";
-    }
-  }
+function validateLatestQuery(latest: string | null): string | null {
+  if (latest === null) return null;
+  return latest === "chat" ? null : "latest must be chat when provided.";
+}
+
+function validateListQuery(list: string | null): string | null {
+  if (list === null) return null;
+  return list === "chat" ? null : "list must be chat when provided.";
+}
+
+function validateListMode(query: GetSessionQuery): string | null {
+  if (query.list !== "chat") return null;
+  if (query.latest !== null) return "Provide list=chat without sessionId or latest.";
+  if (query.sessionId) return "Provide list=chat without sessionId or latest.";
   return null;
+}
+
+function validateLatestMode(query: GetSessionQuery): string | null {
+  if (query.latest !== "chat") return null;
+  if (query.sessionId) return "Provide either sessionId or latest=chat, not both.";
+  return null;
+}
+
+function validateProjectId(projectId: string | undefined): string | null {
+  return projectId ? null : "projectId is required.";
+}
+
+function validateSessionSelector(query: GetSessionQuery): string | null {
+  if (query.sessionId) return null;
+  if (query.latest === "chat") return null;
+  if (query.list === "chat") return null;
+  return "sessionId is required.";
+}
+
+function validateGetSessionQuery(query: GetSessionQuery): string | null {
+  return validateLatestQuery(query.latest)
+    ?? validateListQuery(query.list)
+    ?? validateListMode(query)
+    ?? validateLatestMode(query)
+    ?? validateProjectId(query.projectId)
+    ?? validateSessionSelector(query);
 }
 
 /** Restore a durable engineering intent session. Never creates a session. */
