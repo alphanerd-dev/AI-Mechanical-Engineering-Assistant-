@@ -201,7 +201,7 @@ function getActiveModuleTab(module: ModuleKey) {
   return module;
 }
 
-function ProjectModuleContent({ data, isDemo, module, projectId, onRefresh, nameDraft, onNameChange, onSaveName, savingName, settingsMessage, settingsError, exportMessage, onExport }: {
+function ProjectModuleContent({ data, isDemo, module, onRefresh, nameDraft, onNameChange, onSaveName, savingName, settingsMessage, settingsError, exportMessage, onExport }: {
   data: ApiState; isDemo: boolean; module: ModuleKey; onRefresh: () => void;
   nameDraft: string; onNameChange: (value: string) => void; onSaveName: (event: FormEvent<HTMLFormElement>) => void;
   savingName: boolean; settingsMessage: string | null; settingsError: string | null; exportMessage: string | null; onExport: () => void;
