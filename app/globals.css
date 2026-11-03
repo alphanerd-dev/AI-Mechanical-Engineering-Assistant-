@@ -937,3 +937,59 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
     box-sizing: border-box;
   }
 }
+
+
+/* Mobile viewport hardening.
+   Keep the app shell tied to the device viewport even when a parent or
+   browser layout viewport reports a narrower intrinsic width. */
+@media (max-width: 900px) {
+  html,
+  body {
+    width: 100% !important;
+    min-width: 100% !important;
+    margin: 0;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  body > .workspaceApp {
+    display: flex !important;
+    flex-direction: column;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+  }
+
+  .workspaceApp > .workspaceMain {
+    display: flex !important;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+  }
+
+  .workspaceMain > .workspaceTopbar,
+  .workspaceMain > .workspacePageArea {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+  }
+
+  .workspaceMain > .workspacePageArea > .shell {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0;
+    margin-inline: 0 !important;
+  }
+
+  .workspaceBottomNav {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}
