@@ -58,8 +58,8 @@ function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: Ref
   return { controlsRef, renderError: failure?.src === src ? failure.message : null };
 }
 
-function StlViewportFrame({ label, mesh, loading, loadError, renderError, controlsRef }: {
-  label: string; mesh: STLMeshPreview | null; loading: boolean; loadError: string | null; renderError: string | null;
+function StlViewportFrame({ label, mesh, loading, loadError, renderError, controlsRef, canvasRef }: {
+  label: string; canvasRef: RefObject<HTMLCanvasElement | null>; mesh: STLMeshPreview | null; loading: boolean; loadError: string | null; renderError: string | null;
   controlsRef: { current: StlViewportControls | null };
 }) {
   const canRender = Boolean(mesh && !loadError && !renderError);
