@@ -41,6 +41,36 @@ function createRendererResult(canvas: HTMLCanvasElement, mesh: STLMeshPreview) {
   }
 }
 
+function mountStlRenderer(
+  canvas: HTMLCanvasElement,
+  mesh: STLMeshPreview,
+  src: string,
+  controlsRef: { current: StlViewportControls | null },
+  onFailure: (failure: { src: string; mesh: STLMeshPreview; message: string }) => void,
+) {
+  let active = true;
+  const result = createRendererResult(canvas, mesh);
+  const renderer = result.renderer;
+  controlsRef.current = renderer?.controls ?? null;
+  if (result.message) {
+    void Promise.resolve().then(() => {
+      if (active) onFailure({ src, mesh, message: result.message! });
+    });
+  }
+  return () => {
+    active = false;
+    renderer?.destroy();
+    controlsRef.current = null;
+  };
+}
+
+function currentRenderError(failure: { src: string; mesh: STLMeshPreview; message: string } | null, src: string, mesh: STLMeshPreview | null) {
+  if (!failure) return null;
+  if (failure.src !== src) return null;
+  if (failure.mesh !== mesh) return null;
+  return failure.message;
+}
+
 function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: RefObject<HTMLCanvasElement | null>) {
   const controlsRef = useRef<StlViewportControls | null>(null);
   const [failure, setFailure] = useState<{ src: string; mesh: STLMeshPreview; message: string } | null>(null);
@@ -48,22 +78,9 @@ function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: Ref
     if (!mesh) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    let active = true;
-    const result = createRendererResult(canvas, mesh);
-    const renderer = result.renderer;
-    controlsRef.current = renderer?.controls ?? null;
-    if (result.message) {
-      void Promise.resolve().then(() => {
-        if (active) setFailure({ src, mesh, message: result.message! });
-      });
-    }
-    return () => {
-      active = false;
-      renderer?.destroy();
-      controlsRef.current = null;
-    };
+    return mountStlRenderer(canvas, mesh, src, controlsRef, setFailure);
   }, [canvasRef, mesh, src]);
-  return { controlsRef, renderError: failure?.src === src && failure.mesh === mesh ? failure.message : null };
+  return { controlsRef, renderError: currentRenderError(failure, src, mesh) };
 }
 
 function StlViewportFrame({ label, mesh, loading, loadError, renderError, controlsRef, canvasRef }: {
