@@ -41,13 +41,18 @@ export default function StlViewport({ src, label }: { src: string; label: string
     const canvas = canvasRef.current;
     if (!canvas) return;
     let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
+    let active = true;
     try {
       renderer = createStlWebGLRenderer(canvas, mesh);
       controlsRef.current = renderer.controls;
     } catch (cause) {
-      setRenderFailure({ src, message: cause instanceof Error ? cause.message : "The 3D preview could not be rendered." });
+      const message = cause instanceof Error ? cause.message : "The 3D preview could not be rendered.";
+      void Promise.resolve().then(() => {
+        if (active) setRenderFailure({ src, message });
+      });
     }
     return () => {
+      active = false;
       renderer?.destroy();
       controlsRef.current = null;
     };
