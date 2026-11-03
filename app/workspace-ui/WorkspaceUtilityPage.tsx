@@ -83,6 +83,25 @@ async function loadActivityFeed(signal: AbortSignal) {
   return { projects, feed };
 }
 
+function ActivityEventList({ feed }: { feed: FeedItem[] }) {
+  if (feed.length === 0) return <div className="moduleEmptyState"><Activity size={24} /><strong>No project events found</strong><p>Saved requirements changes, calculations and project actions will appear when recorded in a project workspace.</p></div>;
+  return <div className="moduleTimeline">{feed.map((item) => <article className="moduleTimelineItem" key={item.projectId + item.id}><span className="moduleTimelineDot" /><div><div className="moduleTimelineHead"><strong>{readable(item.action)}</strong><small>{dateLabel(item.timestamp)}</small></div><p>{item.projectName} · {item.actor}</p><Link href={"/projects/" + item.projectId + "/history"} className="moduleTextLink">Open project history <ArrowRight size={12} /></Link></div></article>)}</div>;
+}
+
+function RecentProjectList({ projects }: { projects: Project[] }) {
+  if (projects.length === 0) return <p className="moduleSmallNote">No accessible projects were returned.</p>;
+  return <div className="moduleSimpleList">{projects.map((project) => <Link className="moduleListRow moduleListLink" href={"/projects/" + project.id} key={project.id}><span className="utilityProjectIcon"><FileText size={15} /></span><div><strong>{project.name}</strong><small><ProjectStatusInline status={project.status} /> · R{project.revision}</small></div><span className="moduleSmallNote">{dateLabel(project.updated_at)}</span></Link>)}</div>;
+}
+
+function ActivityContent({ status, message, feed, projects }: { status: "loading" | "ready" | "error"; message: string; feed: FeedItem[]; projects: Project[] }) {
+  if (status === "loading") return <div className="moduleLoading"><Activity size={16} className="moduleSpin" />Loading project events…</div>;
+  if (status === "error") return <div className="moduleError" role="alert">{message}</div>;
+  return <div className="moduleTwoColumn">
+    <section className="modulePanel"><header className="modulePanelHeader"><div><h2>Latest recorded events</h2><p>{feed.length} event records across {projects.length} recent projects</p></div></header><ActivityEventList feed={feed} /></section>
+    <section className="modulePanel"><header className="modulePanelHeader"><div><h2>Recent projects</h2><p>Ordered by latest project update</p></div></header><RecentProjectList projects={projects} /></section>
+  </div>;
+}
+
 function ActivityPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -106,16 +125,7 @@ function ActivityPage() {
   }, []);
   return <div className="shell utilityPage">
     <PageHeader eyebrow="WORKSPACE MONITOR" title="Recent activity" detail="Project event records from the currently accessible workspaces. This is not the full authorisation audit log." />
-    {status === "loading" && <div className="moduleLoading"><Activity size={16} className="moduleSpin" />Loading project events…</div>}
-    {status === "error" && <div className="moduleError" role="alert">{message}</div>}
-    {status === "ready" && <div className="moduleTwoColumn">
-      <section className="modulePanel"><header className="modulePanelHeader"><div><h2>Latest recorded events</h2><p>{feed.length} event records across {projects.length} recent projects</p></div></header>
-        {feed.length === 0 ? <div className="moduleEmptyState"><Activity size={24} /><strong>No project events found</strong><p>Saved requirements changes, calculations and project actions will appear when recorded in a project workspace.</p></div> : <div className="moduleTimeline">{feed.map((item) => <article className="moduleTimelineItem" key={item.projectId + item.id}><span className="moduleTimelineDot" /><div><div className="moduleTimelineHead"><strong>{readable(item.action)}</strong><small>{dateLabel(item.timestamp)}</small></div><p>{item.projectName} · {item.actor}</p><Link href={"/projects/" + item.projectId + "/history"} className="moduleTextLink">Open project history <ArrowRight size={12} /></Link></div></article>)}</div>}
-      </section>
-      <section className="modulePanel"><header className="modulePanelHeader"><div><h2>Recent projects</h2><p>Ordered by latest project update</p></div></header>
-        {projects.length === 0 ? <p className="moduleSmallNote">No accessible projects were returned.</p> : <div className="moduleSimpleList">{projects.map((project) => <Link className="moduleListRow moduleListLink" href={"/projects/" + project.id} key={project.id}><span className="utilityProjectIcon"><FileText size={15} /></span><div><strong>{project.name}</strong><small><ProjectStatusInline status={project.status} /> · R{project.revision}</small></div><span className="moduleSmallNote">{dateLabel(project.updated_at)}</span></Link>)}</div>}
-      </section>
-    </div>}
+    <ActivityContent status={status} message={message} feed={feed} projects={projects} />
   </div>;
 }
 
