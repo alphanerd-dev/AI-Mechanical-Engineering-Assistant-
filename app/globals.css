@@ -54,6 +54,7 @@
   --color-warning: #e8b35c;
   --color-danger: #f07878;
   --color-success: #53c5a4;
+  --color-overlay: color-mix(in srgb, var(--color-bg) 70%, transparent);
 
   --radius-sm: 6px;
   --radius-md: 10px;
