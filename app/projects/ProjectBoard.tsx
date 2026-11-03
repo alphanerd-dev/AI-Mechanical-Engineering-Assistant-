@@ -239,7 +239,7 @@ export default function ProjectBoard() {
             placeholder="Describe the engineering problem, operating conditions, constraints or question…"
           />
           <div className="workspacePromptFooter">
-            <span>Up to 2,000 characters · saved into a new project brief</span>
+            <span>Up to 2,000 characters · prefilled into the brief, saved only when the project is created</span>
             <div className="workspacePromptActions">
               <button type="button" className="button secondaryButton" onClick={useTaskPrompt} disabled={!taskPrompt.trim()}>Use this brief</button>
               <Link className="button workspacePrimaryAction" href="/assistant">Choose project for AI chat <ArrowUpRight size={14} aria-hidden="true" /></Link>
