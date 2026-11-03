@@ -40,6 +40,39 @@ function formatUpdated(value: string) {
   return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
 }
 
+function ProjectCards({ projects }: { projects: Project[] }) {
+  return <div className="projectsIndexCards">
+    {projects.map(project => <Link className="projectsIndexCard" href={`/projects/${project.id}`} key={project.id}>
+      <div className="projectsIndexCardTop"><span className="projectsIndexProjectIcon"><FolderKanban size={17} aria-hidden="true" /></span><ProjectStatus status={project.status} /></div>
+      <h2>{project.name}</h2>
+      <p>{project.stage.replaceAll("_", " ")}</p>
+      <div className="projectsIndexCardMeta"><span>Revision {project.revision}</span><span>{formatUpdated(project.updated_at)}</span></div>
+      <span className="projectsIndexCardAction">Open project <ArrowUpRight size={14} aria-hidden="true" /></span>
+    </Link>)}
+  </div>;
+}
+
+function ProjectTable({ projects }: { projects: Project[] }) {
+  return <section className="projectsIndexTable panel">
+    <div className="projectsIndexTableHeader"><div><h2>Project index</h2><p className="muted">Persisted project records. Open a row to inspect project context and its current revision.</p></div></div>
+    <div className="projectsIndexTableScroll">
+      <table>
+        <thead><tr><th scope="col">Project</th><th scope="col">Stage</th><th scope="col">Current revision</th><th scope="col">Status</th><th scope="col">Last updated</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead>
+        <tbody>
+          {projects.map(project => <tr key={project.id}>
+            <th scope="row"><Link className="projectsIndexNameLink" href={`/projects/${project.id}`}>{project.name}<small>{project.id}</small></Link></th>
+            <td>{project.stage.replaceAll("_", " ")}</td>
+            <td>R{project.revision}</td>
+            <td><ProjectStatus status={project.status} /></td>
+            <td>{formatUpdated(project.updated_at)}</td>
+            <td><Link className="projectsIndexOpenLink" href={`/projects/${project.id}`}>Open <ArrowUpRight size={13} aria-hidden="true" /></Link></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+  </section>;
+}
+
 export default function ProjectsIndex() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,37 +169,8 @@ export default function ProjectsIndex() {
 
       {visibleProjects.length > 0 && (
         <>
-          <div className="projectsIndexCards">
-            {visibleProjects.map(project => (
-              <Link className="projectsIndexCard" href={`/projects/${project.id}`} key={project.id}>
-                <div className="projectsIndexCardTop"><span className="projectsIndexProjectIcon"><FolderKanban size={17} aria-hidden="true" /></span><ProjectStatus status={project.status} /></div>
-                <h2>{project.name}</h2>
-                <p>{project.stage.replaceAll("_", " ")}</p>
-                <div className="projectsIndexCardMeta"><span>Revision {project.revision}</span><span>{formatUpdated(project.updated_at)}</span></div>
-                <span className="projectsIndexCardAction">Open project <ArrowUpRight size={14} aria-hidden="true" /></span>
-              </Link>
-            ))}
-          </div>
-          <section className="projectsIndexTable panel">
-            <div className="projectsIndexTableHeader"><div><h2>Project index</h2><p className="muted">Persisted project records. Open a row to inspect project context and its current revision.</p></div></div>
-            <div className="projectsIndexTableScroll">
-              <table>
-                <thead><tr><th scope="col">Project</th><th scope="col">Stage</th><th scope="col">Current revision</th><th scope="col">Status</th><th scope="col">Last updated</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead>
-                <tbody>
-                  {visibleProjects.map(project => (
-                    <tr key={project.id}>
-                      <th scope="row"><Link className="projectsIndexNameLink" href={`/projects/${project.id}`}>{project.name}<small>{project.id}</small></Link></th>
-                      <td>{project.stage.replaceAll("_", " ")}</td>
-                      <td>R{project.revision}</td>
-                      <td><ProjectStatus status={project.status} /></td>
-                      <td>{formatUpdated(project.updated_at)}</td>
-                      <td><Link className="projectsIndexOpenLink" href={`/projects/${project.id}`}>Open <ArrowUpRight size={13} aria-hidden="true" /></Link></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <ProjectCards projects={visibleProjects} />
+          <ProjectTable projects={visibleProjects} />
         </>
       )}
     </div>
