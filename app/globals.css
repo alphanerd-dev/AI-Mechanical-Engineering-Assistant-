@@ -258,7 +258,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .reasoningRouteCard>p{font-size:13px;margin: var(--space-2) 0 0;line-height:1.5}
 .reasoningRouteCard>.muted{font-size:11px;color:var(--color-text-subtle)}
 .route-selected{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text))}
-.route-blocked{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text))}
+.route-blocked{border-color:color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text))}
 .route-skipped{border-color:var(--color-border-strong);color:var(--color-text-muted)}
 .reasoningProposalAction{display:flex;flex-direction:column;gap: var(--space-2);margin-top: var(--space-4);padding-top: var(--space-4);border-top:1px solid var(--color-border)}
 .reasoningProposalAction>span{font-size:11px;line-height:1.6}
@@ -270,8 +270,8 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .reasoningRecordHeader>div>strong{font-size:12px;letter-spacing:.08em}
 .reasoningRecordHeader .muted,.reasoningRecordHeader small{font-size:10px;line-height:1.5}
 .reasoningRecordHeader small{color:var(--color-text-subtle);text-align:right}
-.reasoningValidationBoundary{display:flex;flex-direction:column;gap: var(--space-1);margin: var(--space-3) 0;padding: var(--space-3) var(--space-3);border-left:3px solid color-mix(in srgb, var(--color-danger) 72%, var(--color-text));background:var(--color-bg)}
-.reasoningValidationBoundary strong{color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));font-size:10px;letter-spacing:.1em}
+.reasoningValidationBoundary{display:flex;flex-direction:column;gap: var(--space-1);margin: var(--space-3) 0;padding: var(--space-3) var(--space-3);border-left:3px solid color-mix(in srgb, var(--color-warning) 72%, var(--color-text));background:var(--color-bg)}
+.reasoningValidationBoundary strong{color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text));font-size:10px;letter-spacing:.1em}
 .reasoningValidationBoundary span{color:var(--color-text-muted);font-size:11px;line-height:1.5}
 .reasoningRecordSection{margin-top: var(--space-4)}
 .reasoningRecordSection h4{font-size:12px;color:var(--color-text-muted);margin: 0 0 var(--space-2)}
@@ -299,7 +299,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .cadExamples{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap: var(--space-3);color:var(--color-text-subtle);font-size:11px}
 .cadTextButton{padding: 0;border:0;background:transparent;color:var(--color-text-muted);text-decoration:underline;cursor:pointer;font:inherit}
 .cadTextButton:disabled{opacity:.5}
-.cadNotice{padding: var(--space-4) var(--space-4);border:1px solid color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));border-radius:var(--radius-md);color:var(--color-text-muted);background:var(--color-accent-foreground);line-height:1.5}
+.cadNotice{padding: var(--space-4) var(--space-4);border:1px solid color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));border-radius:var(--radius-md);color:var(--color-text-muted);background:var(--color-accent-foreground);line-height:1.5}
 .cadError{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));background:var(--color-bg);color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text))}
 .cadHistoryHeader{align-items:center;margin-bottom: var(--space-3)}
 .cadCompletionList{display:flex;flex-direction:column;gap: var(--space-3)}
@@ -308,11 +308,11 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .cadCompletionHeader h4{font-size:15px;line-height:1.5;margin: var(--space-2) 0 0;color:var(--color-text);font-weight:650}
 .cadStatus{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid var(--color-border-strong);border-radius:var(--radius-lg);padding: var(--space-1) var(--space-2);font-size:10px;letter-spacing:.06em;color:var(--color-text-muted)}
 .cadStatusGood{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));background:var(--color-surface)}
-.cadStatusWarn{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));background:var(--color-surface)}
+.cadStatusWarn{border-color:color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text));background:var(--color-surface)}
 .cadStatusBad{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));background:var(--color-surface)}
 .cadSummary{display:flex;flex-wrap:wrap;gap: var(--space-2) var(--space-5);margin: var(--space-3) 0;color:var(--color-text-subtle);font-size:11px}
 .cadSummary strong{color:var(--color-text-muted);font-weight:650}
-.cadFollowup{padding: var(--space-3) var(--space-3);border-left:3px solid var(--color-text-subtle);background:var(--color-bg);color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));font-size:12px;margin: var(--space-3) 0}
+.cadFollowup{padding: var(--space-3) var(--space-3);border-left:3px solid var(--color-text-subtle);background:var(--color-bg);color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text));font-size:12px;margin: var(--space-3) 0}
 .cadMessageList,.cadArtifacts,.cadEvidenceList{display:flex;flex-direction:column;gap: var(--space-2);margin-top: var(--space-4)}
 .cadMessageList>strong,.cadArtifacts>strong,.cadEvidenceList>strong{font-size:11px;color:var(--color-text-muted);letter-spacing:.04em}
 .cadMessageList p{margin: 0;border:1px solid var(--color-border);background:var(--color-bg);border-radius:var(--radius-sm);padding: var(--space-2) var(--space-3);font-size:11px;color:var(--color-text-muted);overflow-wrap:anywhere}
@@ -350,7 +350,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .projectCardBottom span:last-child{color:var(--color-text)}
 .projectState{display:inline-flex;align-items:center;border:1px solid var(--color-border-strong);border-radius:var(--radius-lg);padding: var(--space-1) var(--space-2);color:var(--color-text-muted);background:var(--color-surface);font-size:10px;line-height:1.3;letter-spacing:.04em;white-space:nowrap}
 .projectState-active,.projectState-complete{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));background:var(--color-surface)}
-.projectState-blocked{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));background:var(--color-surface)}
+.projectState-blocked{border-color:color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text));background:var(--color-surface)}
 .projectState-pending{border-color:var(--color-border-strong);color:var(--color-text-muted);background:var(--color-surface)}
 .projectEmptyState{padding: var(--space-6);border:1px dashed var(--color-border);border-radius:var(--radius-md);background:var(--color-bg)}
 .projectEmptyState h3{margin: 0 0 var(--space-2)}
@@ -358,7 +358,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .projectDemoLink{display:inline-flex;margin-top: var(--space-4);color:var(--color-text-muted);font-size:12px;text-decoration:underline}
 .projectNotice{padding: var(--space-3) var(--space-4);border:1px solid color-mix(in srgb, var(--color-info) 14%, var(--color-surface));border-radius:var(--radius-md);background:var(--color-surface);color:var(--color-text);line-height:1.55;margin: var(--space-3) 0}
 .projectNotice p{margin: var(--space-2) 0 0;font-size:12px}
-.projectNoticeWarning{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));background:var(--color-surface);color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text))}
+.projectNoticeWarning{border-color:color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));background:var(--color-surface);color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text))}
 .projectNoticeText{border-left:3px solid var(--color-border-strong);padding: var(--space-2) var(--space-3);background:var(--color-accent-foreground);color:var(--color-text-muted);font-size:12px;line-height:1.5}
 .projectError{border:1px solid color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));border-radius:var(--radius-md);background:var(--color-surface);padding: var(--space-3) var(--space-3);color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));font-size:12px;line-height:1.5}
 .projectPrinciples{margin: var(--space-5) 0}
@@ -373,7 +373,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .requirementsTable code{font-size:10px;color:var(--color-text-muted)}
 .requirementsActions{display:flex;align-items:center;gap: var(--space-3);flex-wrap:wrap;margin-top: var(--space-4)}
 .requirementsActions .muted{font-size:11px;line-height:1.5}
-.textButton{border:0;background:transparent;color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));font:inherit;font-size:11px;text-decoration:underline;cursor:pointer}
+.textButton{border:0;background:transparent;color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text));font:inherit;font-size:11px;text-decoration:underline;cursor:pointer}
 .textButton:disabled{opacity:.45;cursor:default}
 .calculationFormula{display:flex;flex-wrap:wrap;align-items:center;gap: var(--space-3);padding: var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text-muted)}
 .calculationFormula code{padding: var(--space-1) var(--space-2);border-radius:var(--radius-sm);background:var(--color-surface-raised);color:var(--color-text);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -387,7 +387,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .readinessCheck p{margin: var(--space-1) 0 0;color:var(--color-text-subtle);font-size:11px;line-height:1.5;overflow-wrap:anywhere}
 .evidenceCard{padding: var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg)}
 .evidenceCard small{display:block;margin-top: var(--space-1);color:var(--color-text-subtle);font-size:10px}
-.cadReadinessPanel{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface))}
+.cadReadinessPanel{border-color:color-mix(in srgb, var(--color-warning) 14%, var(--color-surface))}
 .cadReadinessPanel.cadReady{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface))}
 .cadReadinessPanel h3{margin: var(--space-1) 0}
 @media(max-width:980px){.projectBoardGrid{grid-template-columns:1fr}.projectCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -400,11 +400,11 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .decisionOutcome{margin: var(--space-3) 0;padding: var(--space-4) var(--space-4);border:1px solid var(--color-border-strong);border-radius:var(--radius-md);background:var(--color-surface)}
 .decisionOutcome strong{display:block;color:var(--color-text);font-size:13px}
 .decisionOutcome p,.decisionFollowUp p{margin: var(--space-2) 0 0;font-size:13px;line-height:1.55}
-.decisionOutcome--positive{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));background:var(--color-surface)}
-.decisionOutcome--attention{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));background:var(--color-bg)}
+.decisionOutcome--positive{border-color:color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));background:var(--color-surface)}
+.decisionOutcome--attention{border-color:color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));background:var(--color-bg)}
 .decisionOutcome--danger{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));background:var(--color-surface)}
 .decisionOutcome--neutral{border-color:var(--color-border-strong);background:var(--color-surface)}
-.decisionFollowUp{margin-top: var(--space-3);padding: var(--space-3) var(--space-4);border-left:2px solid color-mix(in srgb, var(--color-danger) 72%, var(--color-text));background:var(--color-surface)}
+.decisionFollowUp{margin-top: var(--space-3);padding: var(--space-3) var(--space-4);border-left:2px solid color-mix(in srgb, var(--color-accent) 72%, var(--color-text));background:var(--color-surface)}
 .decisionFollowUp strong{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-muted)}
 
 /* Shared focus treatment and motion preferences apply to both legacy and new primitives. */
@@ -428,7 +428,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .workspaceNavLink{position:relative;display:flex;align-items:center;gap: var(--space-3);min-height:40px;padding: var(--space-2) var(--space-3);border:1px solid transparent;border-radius:var(--radius-md);color:var(--color-text-muted,var(--color-text-muted));text-decoration:none;font-size:12px;font-weight:600;line-height:1.3;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease}
 .workspaceNavIcon{display:inline-grid;place-items:center;flex:0 0 21px;width:21px;height:21px;color:var(--color-text-subtle,var(--color-text-subtle));font-size:15px}
 .workspaceNavLink:hover{background:var(--color-surface-raised);color:var(--color-text,var(--color-text))}
-.workspaceNavLink[aria-current="page"]{background:var(--color-surface-raised);border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:var(--color-text)}
+.workspaceNavLink[aria-current="page"]{background:var(--color-surface-raised);border-color:color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));color:var(--color-text)}
 .workspaceNavLink[aria-current="page"] .workspaceNavIcon{color:var(--color-accent,var(--color-accent))}
 .workspaceNavLink:focus-visible,.workspaceBrand:focus-visible,.workspacePlannedItem:focus-visible{outline:2px solid var(--color-accent,var(--color-accent));outline-offset:2px}
 .workspaceNavSubtext{display:block;margin-top: var(--space-1);font-size:10px;font-weight:500;color:var(--color-text-subtle,var(--color-text-subtle))}
@@ -464,7 +464,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .workspaceCommandInput:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
 .workspaceCommandResults{display:flex;flex-direction:column;gap: var(--space-1);overflow-y:auto}
 .workspaceCommandResult{display:flex;align-items:center;justify-content:space-between;gap: var(--space-3);padding: var(--space-3) var(--space-3);border:1px solid transparent;border-radius:var(--radius-md);color:var(--color-text-muted);text-decoration:none;font-size:12px}
-.workspaceCommandResult:hover,.workspaceCommandResult:focus-visible{background:var(--color-surface-raised);border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));color:var(--color-text);outline:none}
+.workspaceCommandResult:hover,.workspaceCommandResult:focus-visible{background:var(--color-surface-raised);border-color:color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));color:var(--color-text);outline:none}
 .workspaceCommandResult small{color:var(--color-text-subtle);font-size:10px}
 .workspaceCommandEmpty{padding: var(--space-3);color:var(--color-text-muted);font-size:12px}
 .workspaceMobileScrim{display:none}
@@ -488,7 +488,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
  .workspaceSearchButton .workspaceSearchLabel,.workspaceSearchButton kbd{display:none}
  .workspaceBottomNav{position:fixed;left:0;right:0;bottom:0;z-index:22;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap: var(--space-1);padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom));border-top:1px solid var(--color-border);background:rgba(8,17,26,.97);backdrop-filter:blur(12px)}
  .workspaceBottomNav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap: var(--space-1);min-height:44px;border:1px solid transparent;border-radius:var(--radius-md);color:var(--color-text-subtle);text-decoration:none;font-size:10px}
- .workspaceBottomNav a[aria-current="page"]{border-color:color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));background:var(--color-surface-raised);color:var(--color-text)}
+ .workspaceBottomNav a[aria-current="page"]{border-color:color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));background:var(--color-surface-raised);color:var(--color-text)}
  .workspaceBottomNav a span:first-child{font-size:14px;color:var(--color-accent)}
  .workspacePageArea{padding-bottom: var(--space-19)}
  .workspaceMain .shell{padding-top: var(--space-6)}
@@ -535,7 +535,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .projectPossibleMatch{display:flex;justify-content:space-between;gap: var(--space-3);align-items:center;padding: var(--space-2);border:1px solid var(--color-border-strong);border-radius:var(--radius-md);color:var(--color-text);text-decoration:none;font-size:12px}
 .projectPossibleMatch:hover{border-color:var(--color-accent)}
 .projectPossibleMatch small{color:var(--color-text-subtle);font-size:10px}
-.projectCreateRiskNotice{margin: 0;padding: var(--space-2) var(--space-3);border-left:2px solid var(--color-warning);background:var(--color-bg);color:color-mix(in srgb, var(--color-danger) 72%, var(--color-text));font-size:11px;line-height:1.5}
+.projectCreateRiskNotice{margin: 0;padding: var(--space-2) var(--space-3);border-left:2px solid var(--color-warning);background:var(--color-bg);color:color-mix(in srgb, var(--color-warning) 72%, var(--color-text));font-size:11px;line-height:1.5}
 @media(max-width:560px){.projectBriefReviewGrid{grid-template-columns:1fr}.projectCreateActions{align-items:stretch}.projectCreateActions>.button{width:100%;margin-left: 0}.projectPossibleMatch{align-items:flex-start;flex-direction:column}}
 
 .workspaceContextBadge{max-width:min(300px,35vw);overflow:hidden;text-overflow:ellipsis}
