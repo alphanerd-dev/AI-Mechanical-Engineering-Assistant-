@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import StlViewport from "../workbench/StlViewport";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
-  Activity, AlertCircle, ArrowDownToLine, ArrowRight, ArrowUpRight, Box,
+  Activity, AlertCircle, ArrowDownToLine, ArrowUpRight, Box,
   CheckCircle2, ChevronRight, Clock3, FileCheck2, FileText, GitBranch,
   History, Info, Layers3, LockKeyhole, MessageSquare, RefreshCw,
   ShieldCheck, Table2, Workflow
@@ -142,6 +142,7 @@ type SaveProjectNameArgs = {
   nameDraft: string;
   saving: boolean;
   setData: React.Dispatch<React.SetStateAction<ApiState>>;
+  setNameDraftOverride: (value: { projectId: string; value: string } | null) => void;
   setSaving: (value: boolean) => void;
   setMessage: (value: string | null) => void;
   setError: (value: string | null) => void;
@@ -167,6 +168,7 @@ async function saveProjectName(args: SaveProjectNameArgs) {
   try {
     const updatedProject = await patchProjectName(args.projectId, args.project, args.nameDraft.trim());
     args.setData((current) => ({ ...current, project: updatedProject }));
+    args.setNameDraftOverride(null);
     args.setMessage("Project name saved.");
   } catch (cause) {
     args.setError(cause instanceof Error ? cause.message : "Project rename failed.");
@@ -247,19 +249,19 @@ function ProjectModuleView({ module, project, snapshot, cadModels, cadCompletion
 
 export default function ProjectModuleWorkspace({ projectId, module }: { projectId: string; module: ModuleKey }) {
   const [refresh, setRefresh] = useState(0);
-  const [nameDraft, setNameDraft] = useState("");
+  const [nameDraftOverride, setNameDraftOverride] = useState<{ projectId: string; value: string } | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const isDemo = projectId === "demo";
   const { data, setData } = useProjectModuleData(projectId, isDemo, refresh);
-  useEffect(() => { if (data.project) setNameDraft(data.project.name); }, [data.project?.id, data.project?.name]);
+  const nameDraft = nameDraftOverride?.projectId === projectId ? nameDraftOverride.value : data.project?.name ?? "";
   const page = config[module];
   const path = "/projects/" + projectId;
   const navLinks = [...projectTabs, ...engineeringTabs];
   const activeTab = getActiveModuleTab(module);
-  const onSaveName = (event: FormEvent<HTMLFormElement>) => void saveProjectName({ event, projectId, project: data.project, nameDraft, saving: savingName, setData, setSaving: setSavingName, setMessage: setSettingsMessage, setError: setSettingsError });
+  const onSaveName = (event: FormEvent<HTMLFormElement>) => void saveProjectName({ event, projectId, project: data.project, nameDraft, saving: savingName, setData, setNameDraftOverride, setSaving: setSavingName, setMessage: setSettingsMessage, setError: setSettingsError });
   const onExport = () => exportWorkspaceSnapshot(projectId, data.project, data.snapshot, setExportMessage);
 
   return <div className="shell moduleWorkspace">
@@ -271,7 +273,7 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
     <nav className="moduleTabs" aria-label="Project sections">
       {navLinks.map(([label, slug]) => <Link key={label} href={slug ? path + "/" + slug : path} aria-current={activeTab === (slug || "overview") ? "page" : undefined}>{label}</Link>)}
     </nav>
-    <ProjectModuleContent data={data} isDemo={isDemo} module={module} onRefresh={() => setRefresh((value) => value + 1)} nameDraft={nameDraft} onNameChange={setNameDraft} onSaveName={onSaveName} savingName={savingName} settingsMessage={settingsMessage} settingsError={settingsError} exportMessage={exportMessage} onExport={onExport} />
+    <ProjectModuleContent data={data} isDemo={isDemo} module={module} onRefresh={() => setRefresh((value) => value + 1)} nameDraft={nameDraft} onNameChange={(value) => setNameDraftOverride({ projectId, value })} onSaveName={onSaveName} savingName={savingName} settingsMessage={settingsMessage} settingsError={settingsError} exportMessage={exportMessage} onExport={onExport} />
   </div>;
 }
 
@@ -327,7 +329,7 @@ function WorkbenchContent({ project, snapshot, tasks, artifacts, models, complet
     <div className="workbenchSubnav" aria-label="Workbench views"><span aria-current="page">3D / CAD</span><Link href={"/projects/" + project.id + "/fea"}>FEA results</Link><Link href={"/projects/" + project.id + "/pid"}>P&amp;ID / PFD</Link><Link href={"/projects/" + project.id + "/calculations"}>Calculations</Link><Link href={"/projects/" + project.id + "/reports"}>Reports</Link></div>
     <div className="workbenchMetaRow"><span className="modulePill">PROJECT · {project.id.slice(0, 8).toUpperCase()}</span><span>Project revision <strong>R{project.revision}</strong></span><span>Workspace revision <strong>R{snapshot.revision}</strong></span></div>
     <RevisionStateBanner project={project} snapshot={snapshot} />
-    <WorkflowStrip tasks={tasks} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} acceptedCount={acceptedCompletions.length} latestArtifact={latestArtifact} executionState={executionState} />
+    <WorkflowStrip tasks={tasks} runningTasks={runningTasks} failedTasks={failedTasks} acceptedCount={acceptedCompletions.length} latestArtifact={latestArtifact} executionState={executionState} />
     <p className="workflowBoundaryNote"><ShieldCheck size={12} aria-hidden="true" />Task execution, CAD completion, solver completion, artifact validation and human approval are separate records. This view does not infer missing results or approval.</p>
     <div className="workbenchThreePane">
       <ArtifactExplorer projectId={project.id} models={models} artifacts={artifacts} completions={completions} />
