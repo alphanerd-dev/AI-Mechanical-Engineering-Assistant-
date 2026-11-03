@@ -101,6 +101,7 @@ function ProjectFilterBar({ filter, setFilter, query, setQuery, counts }: {
   filter: ProjectFilter; setFilter: (value: ProjectFilter) => void; query: string; setQuery: (value: string) => void;
   counts: ReturnType<typeof summarizeProjectStatuses>;
 }) {
+  const countByFilter: Record<ProjectFilter, number> = { ALL: counts.all, ACTIVE: counts.active, BLOCKED: counts.blocked, COMPLETE: counts.complete };
   return <section className="projectsIndexToolbar panel" aria-label="Project filters">
     <div className="projectsIndexFilters" role="group" aria-label="Filter projects by status">
       {filterOptions.map(option => <button key={option.value} type="button"
