@@ -2,14 +2,23 @@ import { describe, expect, it } from "vitest";
 import { getWorkspaceNavigation, isWorkspaceItemActive } from "../src/ui/workspace-navigation.js";
 
 describe("workspace navigation", () => {
-  it("keeps the home screen as workspace overview and points new users to the demo assistant", () => {
+  it("keeps the home screen as workspace overview and routes the global assistant through project selection", () => {
     const state = getWorkspaceNavigation("/");
     expect(state.pageTitle).toBe("Workspace overview");
     expect(state.projectId).toBeUndefined();
-    expect(state.globalItems.find((item) => item.id === "assistant")?.href).toBe("/projects/demo/engineering");
+    expect(state.globalItems.find((item) => item.id === "assistant")?.href).toBe("/assistant");
     expect(state.projectItems).toHaveLength(0);
     expect(state.globalItems.map((item) => item.id)).toEqual(["overview", "projects", "assistant", "templates", "activity"]);
     expect(state.preferenceItems).toHaveLength(3);
+  });
+
+  it("shows the project-context entry route as the active global assistant destination", () => {
+    const state = getWorkspaceNavigation("/assistant");
+    const assistant = state.globalItems.find((item) => item.id === "assistant");
+    expect(state.pageTitle).toBe("Choose project context");
+    expect(assistant?.href).toBe("/assistant");
+    expect(assistant ? isWorkspaceItemActive("/assistant", assistant) : false).toBe(true);
+    expect(state.projectId).toBeUndefined();
   });
 
   it("extracts a stable project ID and produces project-scoped routes", () => {
