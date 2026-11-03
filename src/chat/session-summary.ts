@@ -36,12 +36,14 @@ function firstVisibleTextInRecord(record: Record<string, unknown>, depth: number
   return undefined;
 }
 
-function firstVisibleText(value: unknown, depth = 0): string | undefined {
-  if (depth > 12 || value === null || value === undefined) return undefined;
-  const direct = normalizedText(value);
-  if (direct) return direct;
+function firstVisibleTextFromContainer(value: unknown, depth: number): string | undefined {
   if (Array.isArray(value)) return firstVisibleTextInArray(value, depth);
   return isRecord(value) ? firstVisibleTextInRecord(value, depth) : undefined;
+}
+
+function firstVisibleText(value: unknown, depth = 0): string | undefined {
+  if (depth > 12 || value === null || value === undefined) return undefined;
+  return normalizedText(value) ?? firstVisibleTextFromContainer(value, depth);
 }
 
 function firstEngineerMessageText(message: SummarizableConversationMessage): string | undefined {
