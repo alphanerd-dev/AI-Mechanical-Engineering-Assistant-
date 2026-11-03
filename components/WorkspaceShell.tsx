@@ -11,6 +11,11 @@ import {
   BrainCircuit,
   Calculator,
   ChevronRight,
+  ChevronDown,
+  CheckCircle2,
+  AlertTriangle,
+  CircleDot,
+  Plus,
   ClipboardList,
   DraftingCompass,
   FileText,
@@ -48,6 +53,16 @@ const workspaceIcons: Record<string, LucideIcon> = {
   "chart-no-axes-combined": ChartNoAxesCombined, workflow: WorkflowIcon, sigma: Sigma,
 };
 
+type WorkspaceProjectSummary = { id: string; name: string; stage: string; status: "ACTIVE" | "BLOCKED" | "COMPLETE"; revision: number };
+
+function isWorkspaceProject(value: unknown): value is WorkspaceProjectSummary {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === "string" && typeof row.name === "string" && typeof row.stage === "string"
+    && (row.status === "ACTIVE" || row.status === "BLOCKED" || row.status === "COMPLETE")
+    && typeof row.revision === "number" && Number.isInteger(row.revision);
+}
+
 export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() || "/";
   const router = useRouter();
@@ -56,7 +71,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [hash, setHash] = useState("");
-  const [loadedProjectName, setLoadedProjectName] = useState<{ projectId: string; name: string } | null>(null);
+  const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProjectSummary[]>([]);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchDialog = useRef<HTMLElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -71,25 +86,17 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const selectedProjectId = navigation.projectId;
-    if (!selectedProjectId || selectedProjectId === "demo") return;
-
     let active = true;
-    void fetch("/api/projects", { cache: "no-store" })
+    void fetch("/api/projects", { cache: "no-store", headers: { accept: "application/json" } })
       .then(async (response) => response.ok ? response.json() : null)
       .then((body: unknown) => {
         if (!active || !body || typeof body !== "object" || !("projects" in body)) return;
-        const projects = (body as { projects?: unknown }).projects;
-        if (!Array.isArray(projects)) return;
-        const project = projects.find((item) =>
-          item && typeof item === "object" &&
-          "id" in item && item.id === selectedProjectId &&
-          "name" in item && typeof item.name === "string"
-        ) as { id: string; name: string } | undefined;
-        if (project && active) setLoadedProjectName({ projectId: project.id, name: project.name });
+        const rows = (body as { projects?: unknown }).projects;
+        if (Array.isArray(rows)) setWorkspaceProjects(rows.filter(isWorkspaceProject));
       })
-      .catch(() => undefined);
-
+      .catch(() => {
+        if (active) setWorkspaceProjects([]);
+      });
     return () => { active = false; };
   }, [navigation.projectId]);
 
@@ -178,13 +185,26 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
   if (navigation.isAuthRoute) return <div className="authLayout">{children}</div>;
 
-  const currentProjectLabel = loadedProjectName && loadedProjectName.projectId === navigation.projectId
-    ? loadedProjectName.name
-    : navigation.projectLabel;
+  const currentProject = workspaceProjects.find((project) => project.id === navigation.projectId);
+  const currentProjectLabel = currentProject?.name ?? navigation.projectLabel ?? "Select project";
+  const projectStatusLabel = currentProject?.status === "BLOCKED" ? "Blocked"
+    : currentProject?.status === "COMPLETE" ? "Complete"
+    : currentProject ? "Active" : navigation.projectId === "demo" ? "Demo" : "Unavailable";
+  const ProjectStatusIcon = currentProject?.status === "BLOCKED" ? AlertTriangle
+    : currentProject?.status === "COMPLETE" ? CheckCircle2 : CircleDot;
   const assistantHref = "/assistant";
   const workbenchHref = navigation.projectId ? "/projects/" + navigation.projectId + "/workbench" : "/projects";
   const filesHref = navigation.projectId ? "/projects/" + navigation.projectId + "/files" : "/projects";
   const overviewHref = navigation.projectId ? "/projects/" + navigation.projectId : "/";
+  function switchProject(nextProjectId: string) {
+    if (!nextProjectId) {
+      router.push("/");
+      return;
+    }
+    const currentPrefix = navigation.projectId ? "/projects/" + encodeURIComponent(navigation.projectId) : "";
+    const suffix = currentPrefix && pathname.startsWith(currentPrefix) ? pathname.slice(currentPrefix.length) : "";
+    router.push("/projects/" + encodeURIComponent(nextProjectId) + suffix);
+  }
 
   return <div className={"workspaceApp" + (pathname === "/projects" ? " workspaceApp--projects-index" : "") + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
     <button type="button" className="workspaceMobileScrim" aria-label="Close navigation menu" onClick={() => closeSidebar(true)} tabIndex={sidebarOpen ? 0 : -1} />
@@ -215,7 +235,15 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       {navigation.projectId && <>
         <nav className="workspaceNavGroup" aria-label="Current project">
           <p className="workspaceNavHeading">Project workspace</p>
-          <div className="workspaceProjectLabel"><span className="workspaceProjectDot" aria-hidden="true" />{currentProjectLabel}</div>
+          <div className="workspaceProjectContextCard">
+            <span className="workspaceProjectContextIcon" aria-hidden="true"><Box size={17} /></span>
+            <span className="workspaceProjectContextCopy">
+              <strong>{currentProjectLabel}</strong>
+              <small>{currentProject ? `Project ${currentProject.id.slice(0, 8).toUpperCase()} · ${currentProject.stage.replaceAll("_", " ")}` : "Illustrative demo context · not persisted"}</small>
+            </span>
+            <span className="workspaceProjectContextRevision">{currentProject ? `R${currentProject.revision}` : "DEMO"}</span>
+            <span className="workspaceProjectContextStatus" data-status={currentProject?.status ?? "DEMO"}><ProjectStatusIcon size={12} aria-hidden="true" />{projectStatusLabel}</span>
+          </div>
           {navigation.projectItems.map((item) => renderLink(item))}
         </nav>
         <nav className="workspaceNavGroup workspaceEngineeringNav" aria-label="Engineering modules">
@@ -258,10 +286,25 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
         <div className="workspaceTopbarRight">
-          <span className="workspaceContextBadge"><span className="workspaceContextDot" aria-hidden="true" />{navigation.projectId ? <>PROJECT · <span className="workspaceCurrentProjectName" title={currentProjectLabel}>{currentProjectLabel}</span></> : "WORKSPACE"}</span>
+          <label className="workspaceProjectSwitcher">
+            <FolderKanban size={15} aria-hidden="true" />
+            <span className="workspaceProjectSwitcherCopy"><small>Current project</small>
+              <select aria-label="Switch current project" value={navigation.projectId ?? ""} onChange={(event) => switchProject(event.target.value)}>
+                <option value="">Select project</option>
+                {navigation.projectId && navigation.projectId !== "demo" && !workspaceProjects.some((project) => project.id === navigation.projectId) && <option value={navigation.projectId}>{currentProjectLabel}</option>}
+                {workspaceProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                <option value="demo">Demo sandbox · illustrative</option>
+              </select>
+            </span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </label>
           <button type="button" className="workspaceSearchButton" onClick={openSearch} aria-label="Search workspace" aria-haspopup="dialog" aria-expanded={searchOpen}>
-            <Search size={15} aria-hidden="true" /><span className="workspaceSearchLabel">Search workspace</span><kbd>Ctrl K</kbd>
+            <Search size={15} aria-hidden="true" /><span className="workspaceSearchLabel">Search projects, chats, artifacts</span><kbd>Ctrl K</kbd>
           </button>
+          <Link href="/#create-project" className="workspaceNewProjectButton"><Plus size={14} aria-hidden="true" /><span>New project</span></Link>
+          {navigation.projectId === "demo" ? <span className="workspaceContextBadge workspaceDemoStatus"><CircleDot size={11} aria-hidden="true" />DEMO DATA · no solver connected</span>
+            : currentProject ? <span className="workspaceContextBadge" data-status={currentProject.status}><ProjectStatusIcon size={11} aria-hidden="true" />{projectStatusLabel} project</span>
+            : <span className="workspaceContextBadge">Workspace</span>}
           <div className="workspaceAccount"><AuthNavigation /></div>
         </div>
       </header>
