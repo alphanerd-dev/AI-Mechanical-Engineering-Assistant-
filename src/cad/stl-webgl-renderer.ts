@@ -22,6 +22,20 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string):
   throw new Error(message);
 }
 
+function linkPreviewProgram(gl: WebGLRenderingContext, vertex: WebGLShader, fragment: WebGLShader) {
+  const program = gl.createProgram();
+  if (!program) throw new Error("WebGL could not create a render program.");
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const message = gl.getProgramInfoLog(program) || "The 3D preview program could not be linked.";
+    gl.deleteProgram(program);
+    throw new Error(message);
+  }
+  return program;
+}
+
 function createPreviewProgram(gl: WebGLRenderingContext, accent: [number, number, number]): PreviewProgram {
   const vertexSource = [
     "attribute vec3 a_position;",
@@ -51,20 +65,11 @@ function createPreviewProgram(gl: WebGLRenderingContext, accent: [number, number
   ].join("\n");
   const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
   let fragment: WebGLShader | null = null;
-  let program: WebGLProgram | null = null;
   try {
     fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
-    program = gl.createProgram();
-    if (!program) throw new Error("WebGL could not create a render program.");
-    gl.attachShader(program, vertex);
-    gl.attachShader(program, fragment);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error(gl.getProgramInfoLog(program) || "The 3D preview program could not be linked.");
-    }
+    const program = linkPreviewProgram(gl, vertex, fragment);
     return { program, vertex, fragment };
   } catch (error) {
-    if (program) gl.deleteProgram(program);
     if (fragment) gl.deleteShader(fragment);
     gl.deleteShader(vertex);
     throw error;
