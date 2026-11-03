@@ -1370,3 +1370,61 @@ padding: var(--space-5) var(--space-4) var(--space-23);
   .workspaceProjectSwitcher,
   .workspaceNewProjectButton { transition: none; }
 }
+
+/* Workspace task prompt — captures intent without implying execution. */
+.workspacePromptComposer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-bg) 48%, var(--color-surface));
+}
+.workspacePromptComposer > label {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.workspacePromptComposer textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 84px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.workspacePromptComposer textarea::placeholder { color: var(--color-text-subtle); }
+.workspacePromptComposer textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+.workspacePromptFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.workspacePromptFooter > span { color: var(--color-text-subtle); font-size: 9px; line-height: 1.45; }
+.workspacePromptActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.workspacePromptActions .button { min-height: 36px; padding: var(--space-2) var(--space-3); font-size: 10px; }
+.workspacePromptActions .button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 720px) {
+  .workspaceLaunchPanel { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); padding: var(--space-4); }
+  .workspacePromptFooter { align-items: flex-start; flex-direction: column; }
+  .workspacePromptActions { width: 100%; justify-content: flex-start; }
+}
+@media (max-width: 420px) {
+  .workspacePromptActions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .workspacePromptActions .button { width: 100%; }
+}
