@@ -17,7 +17,8 @@ const templateCards = [
 
 function ProjectStatusInline({ status }: { status: string }) {
   const Icon = status === "BLOCKED" ? AlertTriangle : status === "COMPLETE" ? CheckCircle2 : CircleDot;
-  return <span className="utilityProjectStatus" data-status={status}><Icon size={10} aria-hidden="true" />{readable(status)}</span>;
+  const tone = status === "BLOCKED" ? "warning" : status === "COMPLETE" ? "success" : "info";
+  return <span className="moduleState" data-tone={tone}><Icon size={10} aria-hidden="true" />{readable(status)}</span>;
 }
 \nfunction readable(value: string) { return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function dateLabel(value: string) {
