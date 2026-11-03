@@ -209,8 +209,8 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
     {!data.loading && snapshot && <div className="moduleContent">
       {data.error && <div className="moduleNotice" role="status"><Info size={15} />{data.error}</div>}
       {module === "workbench" && <WorkbenchContent project={data.project!} snapshot={snapshot} tasks={tasks} artifacts={artifacts} models={data.cadModels} completions={data.cadCompletions} onRefresh={() => setRefresh((value) => value + 1)} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} />}
-      {module === "fea" && <UnsupportedEngineeringModule title="No FEA result is attached" detail="This project has no recorded finite-element run or result artifact. The current UI does not launch a solver or infer a result from CAD geometry." requirements={["A native or neutral geometry artifact linked to this project revision", "Material properties, contacts, constraints and load cases", "A configured solver run with mesh and convergence evidence", "Independent validation of result quality and model assumptions"]} />}
-      {module === "pid" && <UnsupportedEngineeringModule title="No P&ID / PFD document is attached" detail="The current project data model has no persisted process-diagram canvas or symbol-library records. No editable diagram is being simulated here." requirements={["A project-scoped diagram document and revision model", "Equipment, instrument and line-number registry", "Connection validation and diagram export"]} />}
+      {module === "fea" && <FeaUnavailableContent />}
+      {module === "pid" && <PidUnavailableContent />}
       {module === "calculations" && <CalculationsContent artifacts={artifacts} />}
       {module === "files" && <FilesContent artifacts={artifacts} models={data.cadModels} />}
       {module === "history" && <HistoryContent events={events} tasks={tasks} createdAt={data.project?.created_at} updatedAt={data.project?.updated_at} />}
@@ -362,13 +362,64 @@ function WorkbenchInspector({ models, artifacts, acceptedCount, latestStlPreview
   </aside>;
 }
 
-function UnsupportedEngineeringModule({ title, detail, requirements }: { title: string; detail: string; requirements: string[] }) {
-  return <div className="moduleTwoColumn">
-    <Panel title="Current availability" detail="No solver or diagram execution is triggered from this screen.">
-      <EmptyState icon={LockKeyhole} title={title} detail={detail} />
-    </Panel>
-    <Panel title="Required before this becomes executable" detail="These are implementation and evidence requirements, not completed checks.">
+function FeaUnavailableContent() {
+  const fields = ["Von Mises stress", "Total displacement", "Factor of safety", "Temperature"];
+  const requirements = [
+    "A native or neutral geometry artifact linked to this project revision",
+    "Material properties, contacts, constraints and load cases",
+    "A configured solver run with mesh and convergence evidence",
+    "Independent validation of result quality and model assumptions",
+  ];
+  return <div className="moduleStack">
+    <div className="moduleNotice"><Info size={15} aria-hidden="true" /><span>No finite-element solver is connected to this project. Input controls and result fields are disabled; no stress, displacement or safety-factor values are simulated.</span></div>
+    <div className="feaWorkspaceGrid">
+      <Panel title="Analysis setup" detail="Input slots are shown for structure only. No solver job can be started here.">
+        <div className="feaInputGrid">
+          <label className="feaDisabledField"><span>Geometry source</span><input disabled placeholder="No linked geometry artifact" /></label>
+          <label className="feaDisabledField"><span>Material definition</span><input disabled placeholder="Material data not recorded" /></label>
+          <label className="feaDisabledField"><span>Boundary conditions</span><textarea disabled rows={2} placeholder="Constraints not configured" /></label>
+          <label className="feaDisabledField"><span>Load cases</span><textarea disabled rows={2} placeholder="Loads not configured" /></label>
+          <label className="feaDisabledField"><span>Mesh target</span><input disabled placeholder="Mesh controls unavailable" /></label>
+          <label className="feaDisabledField"><span>Solver profile</span><input disabled placeholder="No solver provider configured" /></label>
+        </div>
+      </Panel>
+      <Panel title="Result fields & legend" detail="Field selectors remain unavailable until a validated result artifact exists.">
+        <div className="feaFieldSlots">
+          {fields.map((field) => <label key={field} className="feaFieldSlot"><input type="radio" name="fea-result-field" disabled /><span>{field}</span><StateLabel value="NOT_AVAILABLE" /></label>)}
+        </div>
+        <div className="feaLegendSlot" aria-disabled="true"><strong>Scalar legend</strong><span>Field range unavailable</span><div className="feaLegendTrack" /><small>No result field or unit range has been recorded.</small></div>
+        <div className="moduleKeyValue"><span>Mesh convergence</span><StateLabel value="NOT_RECORDED" /></div>
+        <div className="moduleKeyValue"><span>Validation receipt</span><StateLabel value="NOT_RECORDED" /></div>
+        <div className="moduleKeyValue"><span>Human approval</span><StateLabel value="NOT_RECORDED" /></div>
+      </Panel>
+    </div>
+    <Panel title="Required before analysis" detail="Prerequisites, not completed checks.">
       <ol className="moduleRequirementList">{requirements.map((item) => <li key={item}>{item}</li>)}</ol>
+    </Panel>
+  </div>;
+}
+
+function PidUnavailableContent() {
+  const layers = ["Piping", "Equipment", "Instrumentation", "Control loops", "Equipment tags"];
+  return <div className="moduleStack">
+    <div className="moduleNotice"><Info size={15} aria-hidden="true" /><span>No persisted P&amp;ID/PFD document or symbol registry is attached to this project. The canvas is intentionally empty; no sample equipment, lines or instruments are drawn.</span></div>
+    <div className="pidWorkspaceGrid">
+      <Panel title="Layer panel" detail="Disabled layer slots; no layer visibility state is persisted.">
+        <div className="pidLayerList">{layers.map((layer) => <label key={layer}><input type="checkbox" disabled /><span>{layer}</span><StateLabel value="UNAVAILABLE" /></label>)}</div>
+      </Panel>
+      <Panel title="Diagram canvas" detail="A document must be attached before diagram elements can be rendered.">
+        <div className="pidCanvasEmpty"><EmptyState icon={Workflow} title="No process diagram attached" detail="Create or attach a project-scoped P&amp;ID/PFD document to enable diagram editing, layers and connection checks." /></div>
+      </Panel>
+      <Panel title="Document inspector" detail="No selected diagram element or document metadata is available.">
+        <div className="moduleKeyValue"><span>Diagram document</span><StateLabel value="NOT_ATTACHED" /></div>
+        <div className="moduleKeyValue"><span>Document revision</span><StateLabel value="NOT_RECORDED" /></div>
+        <div className="moduleKeyValue"><span>Symbol registry</span><StateLabel value="UNAVAILABLE" /></div>
+        <div className="moduleKeyValue"><span>Connection validation</span><StateLabel value="NOT_RUN" /></div>
+        <div className="moduleKeyValue"><span>Human approval</span><StateLabel value="NOT_RECORDED" /></div>
+      </Panel>
+    </div>
+    <Panel title="Required before diagramming" detail="These are product prerequisites, not completed checks.">
+      <ol className="moduleRequirementList"><li>A project-scoped diagram document and revision model</li><li>Equipment, instrument and line-number registry</li><li>Typed connections and deterministic connectivity validation</li><li>Diagram export and review evidence</li></ol>
     </Panel>
   </div>;
 }
