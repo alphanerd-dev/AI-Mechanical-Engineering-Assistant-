@@ -322,3 +322,72 @@
   .spin { animation: none; }
   .historyItem, .newConversationButton { transition: none; }
 }
+
+
+/* Engineering response readability: preserve Streamdown/KaTeX rendering, improve layout only. */
+.markdown :global(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: .85rem 0 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #2b414d;
+  border-radius: 10px;
+  background: #09131c;
+  line-height: 1.55;
+  tab-size: 2;
+}
+.markdown :global(pre code) {
+  display: block;
+  min-width: max-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d9e7ed;
+  font-size: .82rem;
+  line-height: 1.65;
+}
+.markdown :global(:not(pre) > code) {
+  padding: .13rem .36rem;
+  border: 1px solid #304653;
+  border-radius: 5px;
+  background: #12232e;
+  color: #9ce1d6;
+  font-size: .86em;
+  overflow-wrap: anywhere;
+}
+.markdown :global(.katex-display) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 1rem 0;
+  padding: .85rem .75rem;
+  border: 1px solid #243b47;
+  border-radius: 9px;
+  background: #0b1721;
+  text-align: left;
+}
+.markdown :global(.katex) { font-size: 1.02em; }
+.markdown :global(table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: .9rem 0 1rem;
+  font-size: .84rem;
+}
+.markdown :global(th), .markdown :global(td) {
+  min-width: 7rem;
+  padding: .55rem .7rem;
+  border: 1px solid #2a414d;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown :global(th) { background: #142632; color: #eef5f7; font-weight: 720; }
+.markdown :global(td) { color: #c5d4da; }
+.markdown :global(img) { max-width: 100%; height: auto; border-radius: 8px; }
+@media (max-width: 640px) {
+  .markdown { font-size: .9rem; line-height: 1.68; }
+  .markdown :global(pre) { padding: .8rem; margin-inline: 0; }
+  .markdown :global(.katex-display) { padding: .65rem .45rem; }
+}
