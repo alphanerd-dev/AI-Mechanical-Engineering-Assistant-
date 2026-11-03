@@ -247,7 +247,7 @@ function ProjectModuleView({ module, project, snapshot, cadModels, cadCompletion
   return views[module] ?? null;
 }
 
-export default function ProjectModuleWorkspace({ projectId, module }: { projectId: string; module: ModuleKey }) {
+function ProjectModuleWorkspaceInstance({ projectId, module }: { projectId: string; module: ModuleKey }) {
   const [refresh, setRefresh] = useState(0);
   const [nameDraftOverride, setNameDraftOverride] = useState<{ projectId: string; value: string } | null>(null);
   const [savingName, setSavingName] = useState(false);
@@ -584,4 +584,8 @@ function SettingsContent({ project, nameDraft, onNameChange, onSubmit, saving, m
       <p className="moduleSmallNote">Units, default material libraries, tolerance policies and project collaborators are not yet exposed by a persisted settings API. They are not presented as editable in this release.</p>
     </Panel>
   </div>;
+}
+
+export default function ProjectModuleWorkspace(props: { projectId: string; module: ModuleKey }) {
+  return <ProjectModuleWorkspaceInstance key={props.projectId} {...props} />;
 }
