@@ -204,8 +204,6 @@ function exportWorkspaceSnapshot(projectId: string, project: ProjectRecord | nul
 }
 
 function getActiveModuleTab(module: ModuleKey) {
-  if (module === "settings") return "project-settings";
-  if (module === "workbench") return "workbench";
   return module;
 }
 
