@@ -78,18 +78,8 @@ function Panel({ title, detail, action, children }: { title: string; detail?: st
   return <section className="modulePanel"><header className="modulePanelHeader"><div><h2>{title}</h2>{detail && <p>{detail}</p>}</div>{action}</header>{children}</section>;
 }
 
-export default function ProjectModuleWorkspace({ projectId, module }: { projectId: string; module: ModuleKey }) {
+function useProjectModuleData(projectId: string, isDemo: boolean, refresh: number) {
   const [data, setData] = useState<ApiState>({ project: null, snapshot: null, cadModels: [], cadCompletions: [], loading: true, error: null });
-  const [refresh, setRefresh] = useState(0);
-  const [nameDraft, setNameDraft] = useState("");
-  const [savingName, setSavingName] = useState(false);
-  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
-  const isDemo = projectId === "demo";
-  const path = "/projects/" + projectId;
-  const page = config[module];
-
   const load = useCallback(async (signal: AbortSignal) => {
     if (isDemo) {
       setData({ project: null, snapshot: null, cadModels: [], cadCompletions: [], loading: false, error: null });
@@ -97,29 +87,25 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
     }
     setData((current) => ({ ...current, loading: true, error: null }));
     try {
-      const [projectResponse, workspaceResponse, cadResponse, completionResponse] = await Promise.all([
+      const requests = await Promise.all([
         fetch("/api/projects/" + encodeURIComponent(projectId), { cache: "no-store", signal }),
         fetch("/api/projects/" + encodeURIComponent(projectId) + "/workspace", { cache: "no-store", signal }),
         fetch("/api/cad/models?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal }),
-        fetch("/api/cad/completions?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal })
+        fetch("/api/cad/completions?projectId=" + encodeURIComponent(projectId), { cache: "no-store", signal }),
       ]);
-      const projectBody = await projectResponse.json().catch(() => ({}));
-      const workspaceBody = await workspaceResponse.json().catch(() => ({}));
-      const cadBody = await cadResponse.json().catch(() => ({}));
-      const completionBody = await completionResponse.json().catch(() => ({}));
-      if (!projectResponse.ok) throw new Error(typeof projectBody.error === "string" ? projectBody.error : "Project access could not be confirmed.");
-      if (!workspaceResponse.ok) throw new Error(typeof workspaceBody.error === "string" ? workspaceBody.error : "The saved workspace could not be loaded.");
+      const bodies = await Promise.all(requests.map((response) => response.json().catch(() => ({}))));
+      if (!requests[0].ok) throw new Error(typeof bodies[0].error === "string" ? bodies[0].error : "Project access could not be confirmed.");
+      if (!requests[1].ok) throw new Error(typeof bodies[1].error === "string" ? bodies[1].error : "The saved workspace could not be loaded.");
       if (signal.aborted) return;
-      const project = projectBody.project as ProjectRecord;
-      const snapshot = workspaceBody.snapshot as EngineeringWorkspaceSnapshot;
-      const models = cadResponse.ok && Array.isArray(cadBody.models) ? cadBody.models as CadModel[] : [];
-      const cadCompletions = completionResponse.ok && Array.isArray(completionBody.completions) ? completionBody.completions as CadCompletionRecord[] : [];
-      const cadLoadError = cadResponse.ok && completionResponse.ok ? null : "Some CAD records could not be loaded; geometry preview may be unavailable.";
-      setData({ project, snapshot, cadModels: models, cadCompletions, loading: false, error: cadLoadError });
-      setNameDraft(project.name);
-    } catch (error) {
+      const project = bodies[0].project as ProjectRecord;
+      const snapshot = bodies[1].snapshot as EngineeringWorkspaceSnapshot;
+      const cadModels = requests[2].ok && Array.isArray(bodies[2].models) ? bodies[2].models as CadModel[] : [];
+      const cadCompletions = requests[3].ok && Array.isArray(bodies[3].completions) ? bodies[3].completions as CadCompletionRecord[] : [];
+      const error = requests[2].ok && requests[3].ok ? null : "Some CAD records could not be loaded; geometry preview may be unavailable.";
+      setData({ project, snapshot, cadModels, cadCompletions, loading: false, error });
+    } catch (cause) {
       if (signal.aborted) return;
-      setData((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Project workspace is unavailable." }));
+      setData((current) => ({ ...current, loading: false, error: cause instanceof Error ? cause.message : "Project workspace is unavailable." }));
     }
   }, [isDemo, projectId]);
 
@@ -128,96 +114,142 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
     void load(controller.signal);
     return () => controller.abort();
   }, [load, refresh]);
+  return { data, setData };
+}
 
-  const snapshot = data.snapshot;
-  const projectState = snapshot?.project;
-  const tasks = snapshot?.taskGraph.tasks ?? [];
-  const artifacts = (snapshot?.artifacts ?? []) as CalculationArtifact[];
-  const events = useMemo(() => [...(projectState?.events ?? [])].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)), [projectState?.events]);
-  const completedTasks = tasks.filter((task) => task.status === "COMPLETED" || task.status === "VERIFIED").length;
-  const runningTasks = tasks.filter((task) => task.status === "RUNNING").length;
-  const failedTasks = tasks.filter((task) => task.status === "FAILED" || task.status === "BLOCKED").length;
+function getProjectEvents(snapshot: EngineeringWorkspaceSnapshot) {
+  return [...(snapshot.project?.events ?? [])].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+}
 
-  async function saveProjectName(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!data.project || savingName) return;
-    setSavingName(true); setSettingsError(null); setSettingsMessage(null);
-    try {
-      const response = await fetch("/api/projects/" + encodeURIComponent(projectId), {
-        method: "PATCH", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: nameDraft.trim(), expectedRevision: data.project.revision })
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !body.project) throw new Error(typeof body.error === "string" ? body.error : "Project rename could not be confirmed.");
-      setData((current) => ({ ...current, project: body.project }));
-      setNameDraft(body.project.name);
-      setSettingsMessage("Project name saved.");
-    } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : "Project rename failed.");
-    } finally { setSavingName(false); }
+function summarizeTaskStates(tasks: EngineeringWorkspaceSnapshot["taskGraph"]["tasks"]) {
+  return {
+    completed: tasks.filter((task) => task.status === "COMPLETED" || task.status === "VERIFIED").length,
+    running: tasks.filter((task) => task.status === "RUNNING").length,
+    failed: tasks.filter((task) => task.status === "FAILED" || task.status === "BLOCKED").length,
+  };
+}
+
+async function saveProjectName(event: FormEvent<HTMLFormElement>, projectId: string, project: ProjectRecord | null, nameDraft: string, saving: boolean, setData: React.Dispatch<React.SetStateAction<ApiState>>, setSaving: (value: boolean) => void, setMessage: (value: string | null) => void, setError: (value: string | null) => void) {
+  event.preventDefault();
+  if (!project || saving) return;
+  setSaving(true);
+  setError(null);
+  setMessage(null);
+  try {
+    const response = await fetch("/api/projects/" + encodeURIComponent(projectId), {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: nameDraft.trim(), expectedRevision: project.revision }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.project) throw new Error(typeof body.error === "string" ? body.error : "Project rename could not be confirmed.");
+    const updatedProject = body.project as ProjectRecord;
+    setData((current) => ({ ...current, project: updatedProject }));
+    setMessage("Project name saved.");
+  } catch (cause) {
+    setError(cause instanceof Error ? cause.message : "Project rename failed.");
+  } finally {
+    setSaving(false);
   }
+}
 
-  function exportSnapshot() {
-    if (!data.project || !snapshot) return;
-    const payload = {
-      documentType: "engineering-workspace-snapshot",
-      schemaVersion: snapshot.schemaVersion,
-      exportedAt: new Date().toISOString(),
-      project: data.project,
-      workspace: snapshot,
-      exportLimitations: [
-        "This is a JSON export of the currently saved workspace snapshot.",
-        "It does not include binary CAD files, storage objects, or external solver result files.",
-        "A saved calculation and its validation receipt do not imply human approval."
-      ]
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = projectId + "-workspace-r" + snapshot.revision + ".json";
-    document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
-    setExportMessage("Workspace snapshot exported.");
+function exportWorkspaceSnapshot(projectId: string, project: ProjectRecord | null, snapshot: EngineeringWorkspaceSnapshot | null, setMessage: (value: string | null) => void) {
+  if (!project || !snapshot) return;
+  const payload = {
+    documentType: "engineering-workspace-snapshot",
+    schemaVersion: snapshot.schemaVersion,
+    exportedAt: new Date().toISOString(),
+    project,
+    workspace: snapshot,
+    exportLimitations: [
+      "This is a JSON export of the currently saved workspace snapshot.",
+      "It does not include binary CAD files, storage objects, or external solver result files.",
+      "A saved calculation and its validation receipt do not imply human approval.",
+    ],
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = projectId + "-workspace-r" + snapshot.revision + ".json";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  setMessage("Workspace snapshot exported.");
+}
+
+function getActiveModuleTab(module: ModuleKey) {
+  if (module === "settings") return "project-settings";
+  if (module === "workbench") return "workbench";
+  return module;
+}
+
+function ProjectModuleContent({ data, isDemo, module, projectId, onRefresh, nameDraft, onNameChange, onSaveName, savingName, settingsMessage, settingsError, exportMessage, onExport }: {
+  data: ApiState; isDemo: boolean; module: ModuleKey; projectId: string; onRefresh: () => void;
+  nameDraft: string; onNameChange: (value: string) => void; onSaveName: (event: FormEvent<HTMLFormElement>) => void;
+  savingName: boolean; settingsMessage: string | null; settingsError: string | null; exportMessage: string | null; onExport: () => void;
+}) {
+  if (data.loading) return <div className="moduleLoading" role="status"><RefreshCw size={16} className="moduleSpin" /> Loading saved project records…</div>;
+  if (data.error && !data.snapshot) return <div className="moduleError" role="alert"><AlertCircle size={17} /><div><strong>Project data could not be loaded</strong><p>{data.error}</p></div><button type="button" className="button secondaryButton" onClick={onRefresh}>Retry</button></div>;
+  if (isDemo) return <div className="moduleNotice" role="note"><Info size={16} /><span>This is the demo route. It has no durable project record, so no saved artefacts, solver results or revisions are displayed as real project data.</span></div>;
+  if (!data.snapshot || !data.project) return null;
+  return <div className="moduleContent">
+    {data.error && <div className="moduleNotice" role="status"><Info size={15} />{data.error}</div>}
+    <ProjectModuleView module={module} project={data.project} snapshot={data.snapshot} cadModels={data.cadModels} cadCompletions={data.cadCompletions} onRefresh={onRefresh} nameDraft={nameDraft} onNameChange={onNameChange} onSaveName={onSaveName} savingName={savingName} settingsMessage={settingsMessage} settingsError={settingsError} exportMessage={exportMessage} onExport={onExport} />
+  </div>;
+}
+
+function ProjectModuleView({ module, project, snapshot, cadModels, cadCompletions, onRefresh, nameDraft, onNameChange, onSaveName, savingName, settingsMessage, settingsError, exportMessage, onExport }: {
+  module: ModuleKey; project: ProjectRecord; snapshot: EngineeringWorkspaceSnapshot; cadModels: CadModel[]; cadCompletions: CadCompletionRecord[];
+  onRefresh: () => void; nameDraft: string; onNameChange: (value: string) => void; onSaveName: (event: FormEvent<HTMLFormElement>) => void;
+  savingName: boolean; settingsMessage: string | null; settingsError: string | null; exportMessage: string | null; onExport: () => void;
+}) {
+  const tasks = snapshot.taskGraph.tasks;
+  const artifacts = (snapshot.artifacts ?? []) as CalculationArtifact[];
+  const events = getProjectEvents(snapshot);
+  const taskCounts = summarizeTaskStates(tasks);
+  switch (module) {
+    case "workbench": return <WorkbenchContent project={project} snapshot={snapshot} tasks={tasks} artifacts={artifacts} models={cadModels} completions={cadCompletions} onRefresh={onRefresh} completedTasks={taskCounts.completed} runningTasks={taskCounts.running} failedTasks={taskCounts.failed} />;
+    case "fea": return <FeaUnavailableContent />;
+    case "pid": return <PidUnavailableContent />;
+    case "calculations": return <CalculationsContent artifacts={artifacts} />;
+    case "files": return <FilesContent artifacts={artifacts} models={cadModels} />;
+    case "history": return <HistoryContent events={events} tasks={tasks} createdAt={project.created_at} updatedAt={project.updated_at} />;
+    case "revisions": return <RevisionsContent project={project} snapshot={snapshot} artifacts={artifacts} />;
+    case "reports": return <ReportsContent project={project} snapshot={snapshot} exportMessage={exportMessage} onExport={onExport} />;
+    case "settings": return <SettingsContent project={project} nameDraft={nameDraft} onNameChange={onNameChange} onSubmit={onSaveName} saving={savingName} message={settingsMessage} error={settingsError} />;
+    default: return null;
   }
+}
 
+export default function ProjectModuleWorkspace({ projectId, module }: { projectId: string; module: ModuleKey }) {
+  const [refresh, setRefresh] = useState(0);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const isDemo = projectId === "demo";
+  const { data, setData } = useProjectModuleData(projectId, isDemo, refresh);
+  useEffect(() => { if (data.project) setNameDraft(data.project.name); }, [data.project?.id, data.project?.name]);
+  const page = config[module];
+  const path = "/projects/" + projectId;
   const navLinks = [...projectTabs, ...engineeringTabs];
-  const activeTab = module === "settings" ? "project-settings" : module === "workbench" ? "workbench"
-    : module === "fea" ? "fea"
-      : module === "pid" ? "pid"
-        : module === "calculations" ? "calculations"
-          : module;
-  const projectName = data.project?.name ?? (isDemo ? "Demo sandbox" : "Project workspace");
+  const activeTab = getActiveModuleTab(module);
+  const onSaveName = (event: FormEvent<HTMLFormElement>) => void saveProjectName(event, projectId, data.project, nameDraft, savingName, setData, setSavingName, setSettingsMessage, setSettingsError);
+  const onExport = () => exportWorkspaceSnapshot(projectId, data.project, data.snapshot, setExportMessage);
 
   return <div className="shell moduleWorkspace">
-    <div className="moduleBreadcrumb"><Link href="/">Workspace</Link><ChevronRight size={12} /><Link href="/projects">Projects</Link><ChevronRight size={12} /><Link href={path}>{projectName}</Link><ChevronRight size={12} /><span>{page.title}</span></div>
+    <div className="moduleBreadcrumb"><Link href="/">Workspace</Link><ChevronRight size={12} /><Link href="/projects">Projects</Link><ChevronRight size={12} /><Link href={path}>{data.project?.name ?? (isDemo ? "Demo sandbox" : "Project workspace")}</Link><ChevronRight size={12} /><span>{page.title}</span></div>
     <header className="modulePageHeader">
       <div><p className="eyebrow">{page.eyebrow}</p><h1>{page.title}</h1><p className="moduleLead">{page.description}</p></div>
-      <div className="moduleHeaderActions">
-        <Link className="button secondaryButton" href={path + "/engineering"}><MessageSquare size={14} /> Open AI chat</Link>
-        <Link className="button workspacePrimaryAction" href={path}><ArrowUpRight size={14} /> Project overview</Link>
-      </div>
+      <div className="moduleHeaderActions"><Link className="button secondaryButton" href={path + "/engineering"}><MessageSquare size={14} /> Open AI chat</Link><Link className="button workspacePrimaryAction" href={path}><ArrowUpRight size={14} /> Project overview</Link></div>
     </header>
-
     <nav className="moduleTabs" aria-label="Project sections">
       {navLinks.map(([label, slug]) => <Link key={label} href={slug ? path + "/" + slug : path} aria-current={activeTab === (slug || "overview") ? "page" : undefined}>{label}</Link>)}
     </nav>
-
-    {data.loading ? <div className="moduleLoading" role="status"><RefreshCw size={16} className="moduleSpin" /> Loading saved project records…</div>
-      : data.error && !snapshot ? <div className="moduleError" role="alert"><AlertCircle size={17} /><div><strong>Project data could not be loaded</strong><p>{data.error}</p></div><button type="button" className="button secondaryButton" onClick={() => setRefresh((value) => value + 1)}>Retry</button></div>
-      : isDemo ? <div className="moduleNotice" role="note"><Info size={16} /><span>This is the demo route. It has no durable project record, so no saved artefacts, solver results or revisions are displayed as real project data.</span></div>
-      : null}
-
-    {!data.loading && snapshot && <div className="moduleContent">
-      {data.error && <div className="moduleNotice" role="status"><Info size={15} />{data.error}</div>}
-      {module === "workbench" && <WorkbenchContent project={data.project!} snapshot={snapshot} tasks={tasks} artifacts={artifacts} models={data.cadModels} completions={data.cadCompletions} onRefresh={() => setRefresh((value) => value + 1)} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} />}
-      {module === "fea" && <FeaUnavailableContent />}
-      {module === "pid" && <PidUnavailableContent />}
-      {module === "calculations" && <CalculationsContent artifacts={artifacts} />}
-      {module === "files" && <FilesContent artifacts={artifacts} models={data.cadModels} />}
-      {module === "history" && <HistoryContent events={events} tasks={tasks} createdAt={data.project?.created_at} updatedAt={data.project?.updated_at} />}
-      {module === "revisions" && <RevisionsContent project={data.project!} snapshot={snapshot} artifacts={artifacts} />}
-      {module === "reports" && <ReportsContent project={data.project!} snapshot={snapshot} exportMessage={exportMessage} onExport={exportSnapshot} />}
-      {module === "settings" && <SettingsContent project={data.project!} nameDraft={nameDraft} onNameChange={setNameDraft} onSubmit={saveProjectName} saving={savingName} message={settingsMessage} error={settingsError} />}
-    </div>}
+    <ProjectModuleContent data={data} isDemo={isDemo} module={module} projectId={projectId} onRefresh={() => setRefresh((value) => value + 1)} nameDraft={nameDraft} onNameChange={setNameDraft} onSaveName={onSaveName} savingName={savingName} settingsMessage={settingsMessage} settingsError={settingsError} exportMessage={exportMessage} onExport={onExport} />
   </div>;
 }
 
