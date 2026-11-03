@@ -349,8 +349,8 @@ function RevisionStateBanner({ project, snapshot }: { project: ProjectRecord; sn
   </section>;
 }
 
-function WorkflowStrip({ tasks, completedTasks, runningTasks, failedTasks, acceptedCount, latestArtifact, executionState }: {
-  tasks: EngineeringWorkspaceSnapshot["taskGraph"]["tasks"]; completedTasks: number; runningTasks: number; failedTasks: number;
+function WorkflowStrip({ tasks, runningTasks, failedTasks, acceptedCount, latestArtifact, executionState }: {
+  tasks: EngineeringWorkspaceSnapshot["taskGraph"]["tasks"]; runningTasks: number; failedTasks: number;
   acceptedCount: number; latestArtifact?: CalculationArtifact; executionState: string;
 }) {
   return <section className="workflowStrip" aria-label="Independent workflow states">
