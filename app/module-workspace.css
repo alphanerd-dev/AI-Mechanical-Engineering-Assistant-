@@ -150,3 +150,99 @@
 @media(max-width:720px){.moduleTwoColumn{grid-template-columns:minmax(0,1fr)}.workbenchSide{grid-template-columns:minmax(0,1fr)}.viewportScene{min-height:340px}.utilityTemplateGrid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:520px){.moduleWorkspace,.utilityPage{gap:13px;padding:20px 12px 36px}.moduleHeaderActions{flex-direction:column;align-items:stretch}.moduleHeaderActions>.button{width:100%}.moduleMetrics{gap:7px}.moduleMetric{min-height:82px;padding:10px}.moduleMetric>strong{font-size:18px}.moduleReportStats{grid-template-columns:repeat(2,minmax(0,1fr))}.moduleTimelineHead{flex-direction:column;gap:3px}.moduleTimelineHead small{text-align:left}.moduleTable{min-width:780px}.workbenchMetaRow{gap:8px}.viewportScene{min-height:290px}.viewportFooter{align-items:flex-start;flex-direction:column}.modulePanelHeader{padding:13px}.moduleTable th,.moduleTable td{padding:10px}.utilitySettingsPanel{padding:13px}}
 @media(prefers-reduced-motion:reduce){.moduleSpin{animation:none}}
+
+
+/* Shared project workbench: stronger hierarchy without touching action semantics. */
+.workbenchPage { gap: 16px; min-width: 0; }
+.workbenchSubnav {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 7px; border: 1px solid #263b48; border-radius: 10px;
+  background: #0c1822;
+}
+.workbenchSubnav a, .workbenchSubnav span {
+  display: inline-flex; align-items: center; min-height: 34px;
+  padding: 0 11px; border-radius: 7px; color: #91a8b4;
+  font-size: 10px; font-weight: 700; text-decoration: none;
+  transition: background .16s ease, color .16s ease;
+}
+.workbenchSubnav a:hover { background: #172b37; color: #e4f0f2; }
+.workbenchSubnav [aria-current="page"] {
+  color: #a4e8dc; background: #12302d; box-shadow: inset 0 0 0 1px #28534d;
+}
+.workbenchMetaRow {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 9px 18px;
+  color: #8299a5; font-size: 10px;
+}
+.workbenchMetaRow strong { color: #dce8ec; font-variant-numeric: tabular-nums; }
+.workbenchGrid { gap: 14px; }
+.workbenchGrid > * { min-width: 0; }
+.workbenchPage :is(.panel, .modulePanel, .workbenchPanel) {
+  border-color: #263d49;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 12%);
+}
+.workbenchPage :is(button, a):focus-visible {
+  outline: 2px solid #42c8b4; outline-offset: 3px;
+}
+@media (max-width: 680px) {
+  .workbenchSubnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .workbenchSubnav a, .workbenchSubnav span { flex: 0 0 auto; }
+  .workbenchMetaRow { gap: 7px 12px; }
+}
+
+/* Workspace and project overview surfaces: real project records only. */
+.projectsIndexHeader { align-items: flex-end; }
+.projectsIndexHeader h1 { letter-spacing: -.045em; }
+.projectsIndexCards {
+  display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,260px),1fr));
+  gap: 14px; align-items: stretch;
+}
+.projectsIndexCard {
+  position: relative; isolation: isolate; min-width: 0; min-height: 184px;
+  padding: 17px; overflow: hidden; border: 1px solid #2a414d;
+  border-radius: 12px; background: linear-gradient(145deg,#11212c 0%,#0c1720 76%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  transition: transform .16s ease,border-color .16s ease,background .16s ease;
+}
+.projectsIndexCard::after {
+  content: ""; position: absolute; z-index: -1; width: 140px; height: 140px;
+  right: -65px; top: -78px; border-radius: 50%;
+  background: radial-gradient(circle,rgb(66 200 180 / 13%),transparent 68%);
+}
+.projectsIndexCard:hover {
+  transform: translateY(-2px); border-color: #47766f;
+  background: linear-gradient(145deg,#142a35 0%,#0d1b25 76%);
+}
+.projectsIndexCard:focus-visible { outline: 2px solid #42c8b4; outline-offset: 3px; }
+.projectsIndexCard h2 { margin: 16px 0 5px; color: #e8f1f3; font-size: 15px; letter-spacing: -.02em; }
+.projectsIndexCard > p { margin: 0; color: #8da3ae; font-size: 10px; text-transform: capitalize; }
+.projectsIndexCardMeta {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin-top: 18px; padding-top: 12px; border-top: 1px solid #263b47;
+  color: #8299a5; font-size: 9px; font-variant-numeric: tabular-nums;
+}
+.projectsIndexCardAction { display: inline-flex; align-items: center; gap: 6px; margin-top: 13px; color: #77d3c4; font-size: 10px; font-weight: 750; }
+.projectsIndexCardTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.projectsIndexToolbar { gap: 12px; }
+.projectsIndexSearch { min-width: min(100%,250px); }
+.projectOverviewMetrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.projectOverviewMetric {
+  min-width: 0; padding: 15px; border: 1px solid #293f4b; border-radius: 10px;
+  background: linear-gradient(145deg,#11212b,#0d1821);
+}
+.projectOverviewMetric > div { display:flex; align-items:center; justify-content:space-between; gap:8px; color:#8da4af; font-size:9px; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }
+.projectOverviewMetric > div svg { color:#5bc9b6; }
+.projectOverviewMetric > strong { display:block; margin:13px 0 5px; color:#e8f1f3; font-size:23px; line-height:1.1; letter-spacing:-.04em; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.projectOverviewMetric > small { display:block; color:#849aa5; font-size:9px; line-height:1.5; }
+.projectOverviewNotice { padding:12px 14px; border:1px solid #665334; border-radius:9px; background:#241e13; color:#d5bd8c; font-size:10px; line-height:1.6; }
+.projectExecutionBanner { border-radius:11px; }
+.projectExecutionCopy p { line-height:1.55; }
+@media (max-width: 900px) { .projectOverviewMetrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 560px) {
+  .projectsIndexCards { grid-template-columns: 1fr; }
+  .projectsIndexHeader { align-items: flex-start; flex-direction: column; }
+  .projectsIndexToolbar { align-items: stretch; }
+  .projectsIndexSearch { min-width: 0; width: 100%; }
+  .projectOverviewMetrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap:8px; }
+  .projectOverviewMetric { padding:12px; }
+  .projectOverviewMetric > strong { font-size:19px; }
+}
