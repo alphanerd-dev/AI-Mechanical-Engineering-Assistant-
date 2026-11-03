@@ -149,11 +149,20 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       <nav className="projectOverviewTabs" aria-label="Project sections">
         <span aria-current="page">Overview</span>
         <Link href={`/projects/${projectId}/engineering`}>AI chat</Link>
-        <Link href={`/projects/${projectId}/analysis`}>Workbench</Link>
+        <Link href={`/projects/${projectId}/workbench`}>3D workbench</Link>
+        <Link href={`/projects/${projectId}/analysis`}>Analysis</Link>
+        <Link href={`/projects/${projectId}/calculations`}>Calculations</Link>
         <Link href={`/projects/${projectId}/requirements`}>Requirements</Link>
         <Link href={`/projects/${projectId}/cad`}>CAD</Link>
+        <Link href={`/projects/${projectId}/fea`}>FEA</Link>
+        <Link href={`/projects/${projectId}/pid`}>P&amp;ID</Link>
         <Link href={`/projects/${projectId}/validation`}>Validation</Link>
         <Link href={`/projects/${projectId}/research`}>Research</Link>
+        <Link href={`/projects/${projectId}/files`}>Files</Link>
+        <Link href={`/projects/${projectId}/reports`}>Reports</Link>
+        <Link href={`/projects/${projectId}/history`}>History</Link>
+        <Link href={`/projects/${projectId}/revisions`}>Revisions</Link>
+        <Link href={`/projects/${projectId}/settings`}>Settings</Link>
       </nav>
 
       <section className={`projectExecutionBanner projectExecutionBanner-${summary.execution.tone}`} aria-label="Engineering execution state">
