@@ -904,3 +904,36 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
   }
 }
 
+/* Keep the mobile workspace canvas aligned to the device viewport.
+   The bottom navigation is fixed to the viewport, so the app shell,
+   top bar and route content must use that same full-width coordinate space. */
+@media (max-width: 900px) {
+  html,
+  body {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .workspaceApp,
+  .workspaceMain {
+    width: 100vw;
+    max-width: 100vw;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .workspaceTopbar,
+  .workspacePageArea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .workspaceMain .shell {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+}
