@@ -186,7 +186,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const filesHref = navigation.projectId ? "/projects/" + navigation.projectId + "/files" : "/projects";
   const overviewHref = navigation.projectId ? "/projects/" + navigation.projectId : "/";
 
-  return <div className={"workspaceApp" + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
+  return <div className={"workspaceApp" + (pathname === "/projects" ? " workspaceApp--projects-index" : "") + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
     <button type="button" className="workspaceMobileScrim" aria-label="Close navigation menu" onClick={() => closeSidebar(true)} tabIndex={sidebarOpen ? 0 : -1} />
     <aside ref={sidebarRef} className="workspaceSidebar" id="workspace-sidebar" aria-label="Workspace navigation" onKeyDown={(event) => {
       if (!sidebarOpen || event.key !== "Tab") return;
