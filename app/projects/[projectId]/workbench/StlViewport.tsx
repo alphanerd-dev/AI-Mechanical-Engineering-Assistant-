@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { parseSTLPreview, type STLMeshPreview } from "../../../../src/cad/stl-preview";
+import styles from "./StlViewport.module.css";
 
 type ViewControls = { reset: () => void; rotateLeft: () => void; rotateRight: () => void };
 
@@ -18,7 +19,15 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string):
   return shader;
 }
 
-function createPreviewProgram(gl: WebGLRenderingContext): { program: WebGLProgram; vertex: WebGLShader; fragment: WebGLShader } {
+function readThemeRgb(variable: string): [number, number, number] {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  const match = value.match(/^#([0-9a-f]{6})$/i);
+  if (!match) throw new Error(`The required design token ${variable} is unavailable.`);
+  const hex = match[1];
+  return [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255) as [number, number, number];
+}
+
+function createPreviewProgram(gl: WebGLRenderingContext, accent: [number, number, number]): { program: WebGLProgram; vertex: WebGLShader; fragment: WebGLShader } {
   const vertexSource = [
     "attribute vec3 a_position;",
     "attribute vec3 a_normal;",
@@ -33,6 +42,7 @@ function createPreviewProgram(gl: WebGLRenderingContext): { program: WebGLProgra
     "  gl_Position = vec4(p.xy * u_zoom, p.z * 0.48, 1.0);",
     "}"
   ].join("\n");
+  const accentSource = accent.map((channel) => channel.toFixed(4)).join(", ");
   const fragmentSource = [
     "precision mediump float;",
     "varying vec3 v_normal;",
@@ -40,7 +50,7 @@ function createPreviewProgram(gl: WebGLRenderingContext): { program: WebGLProgra
     "  vec3 light = normalize(vec3(-0.45, 0.75, 1.0));",
     "  float diffuse = max(dot(normalize(v_normal), light), 0.0);",
     "  float shade = 0.32 + 0.68 * diffuse;",
-    "  vec3 base = vec3(0.26, 0.72, 0.70);",
+    `  vec3 base = vec3(${accentSource});`,
     "  gl_FragColor = vec4(base * shade, 1.0);",
     "}"
   ].join("\n");
@@ -114,7 +124,7 @@ export default function StlViewport({ src, label }: { src: string; label: string
     let lastY = 0;
 
     try {
-      resources = createPreviewProgram(gl);
+      resources = createPreviewProgram(gl, readThemeRgb("--color-accent"));
       const { program } = resources;
       const positionLocation = gl.getAttribLocation(program, "a_position");
       const normalLocation = gl.getAttribLocation(program, "a_normal");
@@ -149,7 +159,7 @@ export default function StlViewport({ src, label }: { src: string; label: string
           canvas.height = height;
         }
         gl.viewport(0, 0, width, height);
-        gl.clearColor(0.015, 0.025, 0.035, 0);
+        gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.useProgram(program);
         gl.uniform2f(rotationLocation, rotationX, rotationY);
@@ -233,28 +243,22 @@ export default function StlViewport({ src, label }: { src: string; label: string
   }, [mesh, src]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 300 }}>
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label={"3D STL preview of " + label}
-        tabIndex={0}
-        style={{ display: "block", width: "100%", height: "100%", minHeight: 300, touchAction: "none", outlineOffset: 3 }}
-      />
-      {loading && <div role="status" style={{ position: "absolute", inset: 12, display: "grid", placeItems: "center", pointerEvents: "none" }}>Loading STL geometry…</div>}
-      {loadError && <div role="alert" style={{ position: "absolute", inset: 12, display: "grid", placeItems: "center", textAlign: "center", padding: 16 }}>{loadError}</div>}
-      {renderError && <div role="alert" style={{ position: "absolute", inset: 12, display: "grid", placeItems: "center", textAlign: "center", padding: 16 }}>{renderError}</div>}
+    <div className={styles.viewportRoot}>
+      <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D STL preview of " + label} tabIndex={0} />
+      {loading && <div className={styles.viewportStatus} role="status">Loading STL geometry…</div>}
+      {loadError && <div className={styles.viewportStatus} role="alert">{loadError}</div>}
+      {renderError && <div className={styles.viewportStatus} role="alert">{renderError}</div>}
       {mesh && !loadError && !renderError && (
-        <div style={{ position: "absolute", left: 10, right: 10, bottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, padding: "5px 8px", borderRadius: 6, background: "rgba(8,16,22,.82)", color: "#c6d3d9" }}>{mesh.triangleCount.toLocaleString()} triangles · preview only</span>
-          <div style={{ display: "flex", gap: 6 }}>
+        <div className={styles.viewportMeta}>
+          <span className={styles.viewportMetaBadge}>{mesh.triangleCount.toLocaleString()} triangles · preview only</span>
+          <div className={styles.viewportControls}>
             <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateLeft()} aria-label="Rotate model left">Rotate left</button>
             <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateRight()} aria-label="Rotate model right">Rotate right</button>
             <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
           </div>
         </div>
       )}
-      {mesh && <span style={{ position: "absolute", top: 8, right: 10, color: "#9aaab3", fontSize: 10, pointerEvents: "none" }}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>}
+      {mesh && <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>}
     </div>
   );
 }
