@@ -415,7 +415,7 @@ function WorkbenchInspector({ models, artifacts, acceptedCount, latestStlPreview
         <div className="moduleKeyValue"><span>STL preview source</span><StateLabel value={latestStlPreview ? "PREVIEW_AVAILABLE" : "NOT_AVAILABLE"} /></div>
         <div className="moduleVisibility">
           <h3>Temporary view preferences</h3><p className="moduleSmallNote">Preferences are local to this screen. Geometry visibility controls the STL preview; annotation and label overlays are not yet connected to persisted metadata.</p>
-          {(["geometry", "annotations", "labels"] as const).map((key) => <label key={key}><span>{readable(key)}</span><input type="checkbox" checked={visibility[key]} onChange={(event) => onVisibilityChange(key, event.target.checked)} /></label>)}
+          {(["geometry", "annotations", "labels"] as const).map((key) => <label key={key}><span>{readable(key)}</span><input type="checkbox" checked={visibility[key]} disabled={key !== "geometry"} onChange={(event) => onVisibilityChange(key, event.target.checked)} /></label>)}
         </div>
       </Panel>
       <Panel title="Execution and review" detail="Independent project states; no automatic approval.">
