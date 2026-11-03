@@ -7,21 +7,22 @@ import styles from "./StlViewport.module.css";
 
 type MeshLoadState = { src: string; mesh: STLMeshPreview | null; error: string | null };
 
+async function downloadAndParseStl(src: string, signal: AbortSignal): Promise<STLMeshPreview> {
+  const response = await fetch(src, { signal, cache: "no-store" });
+  if (!response.ok) throw new Error("The signed STL preview could not be downloaded.");
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength < 84 || buffer.byteLength > 100 * 1024 * 1024) {
+    throw new Error("The STL file is empty or exceeds the 100 MiB preview limit.");
+  }
+  return parseSTLPreview(buffer);
+}
+
 function useStlMesh(src: string) {
   const [state, setState] = useState<MeshLoadState>({ src: "", mesh: null, error: null });
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(src, { signal: controller.signal, cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error("The signed STL preview could not be downloaded.");
-        return response.arrayBuffer();
-      })
-      .then((buffer) => {
-        if (buffer.byteLength < 84 || buffer.byteLength > 100 * 1024 * 1024) {
-          throw new Error("The STL file is empty or exceeds the 100 MiB preview limit.");
-        }
-        setState({ src, mesh: parseSTLPreview(buffer), error: null });
-      })
+    void downloadAndParseStl(src, controller.signal)
+      .then((mesh) => setState({ src, mesh, error: null }))
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
         setState({ src, mesh: null, error: cause instanceof Error ? cause.message : "The STL preview could not be loaded." });
