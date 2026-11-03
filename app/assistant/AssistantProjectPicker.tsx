@@ -107,7 +107,12 @@ export default function AssistantProjectPicker() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadProjects(false, controller.signal);
+    void Promise.resolve().then(() => {
+      if (!controller.signal.aborted) {
+        return loadProjects(false, controller.signal);
+      }
+      return undefined;
+    });
     return () => controller.abort();
   }, [loadProjects]);
 
