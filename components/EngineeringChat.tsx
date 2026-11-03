@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActionBarPrimitive,
@@ -15,7 +16,7 @@ import { code } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
 import { useChatRuntime } from "@assistant-ui/ai-sdk";
 import { DefaultChatTransport } from "ai";
-import { Check, History, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Search, Workflow } from "lucide-react";
+import { ArrowUpRight, Check, FileText, FolderKanban, History, LoaderCircle, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Plus, Search, ShieldCheck, Workflow } from "lucide-react";
 import type { ThreadHistoryAdapter } from "@assistant-ui/react";
 import styles from "./EngineeringChat.module.css";
 import { listDemoConversationIds, loadDemoConversation, rememberDemoConversationId, saveDemoConversation } from "../src/chat/demo-history.js";
@@ -587,7 +588,7 @@ function EngineeringChatThread({
             </div>
           </div>
           <span className={styles.status}>
-            <span className={styles.statusDot} aria-hidden="true" />
+            <ShieldCheck size={13} aria-hidden="true" />
             Guidance only
           </span>
         </header>
@@ -706,6 +707,7 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  const [mobileContextOpen, setMobileContextOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -863,10 +865,16 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
 
       <div className={styles.chatMain}>
         <div className={styles.mobileHistoryBar}>
-          <button type="button" onClick={() => setMobileHistoryOpen(value => !value)} aria-expanded={mobileHistoryOpen} aria-label={mobileHistoryOpen ? "Hide conversation history" : "Show conversation history"}>
-            {mobileHistoryOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-            <span>History</span>
-          </button>
+          <div className={styles.mobileChatControls}>
+            <button type="button" onClick={() => setMobileHistoryOpen(value => !value)} aria-expanded={mobileHistoryOpen} aria-label={mobileHistoryOpen ? "Hide conversation history" : "Show conversation history"}>
+              {mobileHistoryOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+              <span>Threads</span>
+            </button>
+            <button type="button" onClick={() => setMobileContextOpen(value => !value)} aria-expanded={mobileContextOpen} aria-label={mobileContextOpen ? "Hide conversation context" : "Show conversation context"}>
+              {mobileContextOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              <span>Context</span>
+            </button>
+          </div>
           <span>{activeSession?.title ?? "Engineering chat"}</span>
         </div>
         {activeSessionId ? (
@@ -880,6 +888,39 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
           <div className={styles.chatLoadingState} role="status"><LoaderCircle size={18} className={styles.spin} />Preparing project conversation…</div>
         )}
       </div>
+
+      <aside className={`${styles.contextSidebar} ${mobileContextOpen ? styles.contextSidebarOpen : ""}`} aria-label="Context for this conversation">
+        <header className={styles.contextHeader}>
+          <ShieldCheck size={16} aria-hidden="true" />
+          <div><strong>Context for this conversation</strong><small>Explicit project scope</small></div>
+        </header>
+        <div className={styles.contextSources}>
+          <div className={styles.contextSource}>
+            <FolderKanban size={15} aria-hidden="true" />
+            <div><strong>Project identity</strong><small>{projectId === "demo" ? "Demo sandbox · not persisted" : projectId}</small></div>
+            <span>Scope</span>
+          </div>
+          <div className={styles.contextSource}>
+            <MessageSquare size={15} aria-hidden="true" />
+            <div><strong>Conversation history</strong><small>{activeSessionId ? `Session ${activeSessionId.slice(0, 18)}…` : "Selecting a conversation"}</small></div>
+            <span>{projectId === "demo" ? "Local" : "Saved"}</span>
+          </div>
+          <div className={styles.contextSource}>
+            <Paperclip size={15} aria-hidden="true" />
+            <div><strong>Attached artifacts</strong><small>No files are attached to this conversation.</small></div>
+            <span>None</span>
+          </div>
+        </div>
+        <section className={styles.contextActions} aria-labelledby="chat-context-actions">
+          <h3 id="chat-context-actions">Suggested actions</h3>
+          <Link href={`/projects/${encodeURIComponent(projectId)}/files`}><FileText size={14} aria-hidden="true" /><span>Browse project files</span><ArrowUpRight size={13} aria-hidden="true" /></Link>
+          <Link href={`/projects/${encodeURIComponent(projectId)}/requirements`}><FolderKanban size={14} aria-hidden="true" /><span>Review requirements</span><ArrowUpRight size={13} aria-hidden="true" /></Link>
+        </section>
+        <div className={styles.contextTrust}>
+          <ShieldCheck size={15} aria-hidden="true" />
+          <div><strong>Trust boundary</strong><p>AI guidance only. This conversation does not execute CAD, FEA or solver jobs. Execution, validation and human approval remain separate controlled states.</p></div>
+        </div>
+      </aside>
     </div>
   );
 }
