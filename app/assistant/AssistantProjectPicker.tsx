@@ -35,16 +35,24 @@ const projectStatusPresentation = {
   COMPLETE: { label: "Complete", variant: "success" as const, Icon: CheckCircle2 },
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasProjectIdentity(row: Record<string, unknown>) {
+  return typeof row.id === "string" && typeof row.name === "string" && typeof row.stage === "string";
+}
+
+function hasProjectStatus(row: Record<string, unknown>) {
+  return row.status === "ACTIVE" || row.status === "BLOCKED" || row.status === "COMPLETE";
+}
+
+function hasProjectRevision(row: Record<string, unknown>) {
+  return typeof row.revision === "number" && typeof row.created_at === "string" && typeof row.updated_at === "string";
+}
+
 function isProject(value: unknown): value is Project {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Record<string, unknown>;
-  return typeof row.id === "string"
-    && typeof row.name === "string"
-    && typeof row.stage === "string"
-    && (row.status === "ACTIVE" || row.status === "BLOCKED" || row.status === "COMPLETE")
-    && typeof row.revision === "number"
-    && typeof row.created_at === "string"
-    && typeof row.updated_at === "string";
+  return isRecord(value) && hasProjectIdentity(value) && hasProjectStatus(value) && hasProjectRevision(value);
 }
 
 function ProjectStatusBadge({ status }: { status: Project["status"] }) {
