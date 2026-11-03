@@ -17,10 +17,19 @@ const taskStatuses: EngineeringTaskStatus[] = [
   "PROPOSED", "READY", "RUNNING", "BLOCKED", "COMPLETED", "FAILED", "VERIFIED",
 ];
 
+function isProblemCapturedEvent(event: NonNullable<ProjectState["events"]>[number]) {
+  return event.action === "PROBLEM_CAPTURED" && typeof event.input === "object" && event.input !== null;
+}
+
+function readProblemStatement(input: object): string | null {
+  const value = (input as Record<string, unknown>).problemStatement;
+  if (typeof value !== "string") return null;
+  const statement = value.trim();
+  return statement.length > 0 ? statement : null;
+}
+
 function problemStatementFromEvent(event: NonNullable<ProjectState["events"]>[number]): string | null {
-  if (event.action !== "PROBLEM_CAPTURED" || !event.input || typeof event.input !== "object") return null;
-  const value = (event.input as Record<string, unknown>).problemStatement;
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  return isProblemCapturedEvent(event) ? readProblemStatement(event.input as object) : null;
 }
 
 function problemStatementFromEvents(project: ProjectState): string | null {
