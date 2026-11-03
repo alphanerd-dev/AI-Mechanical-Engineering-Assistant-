@@ -1284,7 +1284,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
   color: var(--color-text-muted);
 }
 .workspaceProjectSwitcher > svg { flex: none; color: var(--color-text-subtle); }
-.workspaceProjectSwitcherCopy { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.workspaceProjectSwitcherCopy { display: flex; flex: 1; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .workspaceProjectSwitcherCopy small {
   color: var(--color-text-subtle);
   font-size: 9px;
@@ -1355,7 +1355,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
   .workspaceSidebar { width: min(288px, 86vw); gap: var(--space-5); }
   .workspaceTopbar { min-height: 56px; padding-inline: var(--space-3); }
   .workspaceTopbarLeft { flex: 0 1 auto; gap: var(--space-2); }
-  .workspaceMobileBrand { display: inline-flex; flex-direction: column; gap: 1px; color: var(--color-text); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-decoration: none; }
+  .workspaceMobileBrand { display: inline-flex; flex-direction: column; gap: var(--space-1); color: var(--color-text); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-decoration: none; }
   .workspaceMobileBrand span { color: var(--color-text-subtle); font-size: 8px; font-weight: 600; letter-spacing: .04em; }
   .workspaceTopbarRight { flex: 1; justify-content: flex-end; gap: var(--space-1); }
   .workspaceProjectSwitcher { width: clamp(112px, 34vw, 156px); min-height: 36px; padding: var(--space-1) var(--space-2); gap: var(--space-1); }
@@ -1441,4 +1441,71 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 @media (max-width: 420px) {
   .workspacePromptActions { display: grid; grid-template-columns: minmax(0, 1fr); }
   .workspacePromptActions .button { width: 100%; }
+}
+
+/* Account popover: keyboard-native details menu, with explicit account destinations. */
+.authMenu { position: relative; }
+.authMenu > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+.authMenu > summary::-webkit-details-marker { display: none; }
+.authMenu > summary:hover,
+.authMenu[open] > summary { border-color: var(--color-border-strong); color: var(--color-text); }
+.authMenu > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.authMenuPopover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 208px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--color-bg) 75%, transparent);
+}
+.authMenuPopover a,
+.authMenuPopover form button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.authMenuPopover a:hover,
+.authMenuPopover form button:hover { background: var(--color-surface-hover); color: var(--color-text); }
+.authMenuPopover a:focus-visible,
+.authMenuPopover form button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.authMenuPopover form { border-top: 1px solid var(--color-border); padding-top: var(--space-1); }
+.authMenuPopover form button { color: var(--color-danger); }
+@media (max-width: 900px) {
+  .authMenu > summary { width: 34px; min-height: 34px; padding: 0; }
+  .authMenu > summary span,
+  .authMenu > summary > svg:last-child { display: none; }
 }
