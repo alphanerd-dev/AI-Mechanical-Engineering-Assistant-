@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, FolderKanban, Plus, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDot, FolderKanban, Plus, RefreshCw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { filterProjectIndex, summarizeProjectStatuses } from "@/src/projects/project-dashboard";
@@ -31,7 +31,8 @@ const filterOptions: { value: ProjectFilter; label: string }[] = [
 function ProjectStatus({ status }: { status: Project["status"] }) {
   const variant = status === "ACTIVE" ? "info" : status === "BLOCKED" ? "warning" : "success";
   const label = status === "COMPLETE" ? "Complete" : status === "BLOCKED" ? "Blocked" : "Active";
-  return <Badge variant={variant}>{label}</Badge>;
+  const Icon = status === "BLOCKED" ? AlertTriangle : status === "COMPLETE" ? CheckCircle2 : CircleDot;
+  return <Badge variant={variant}><Icon size={11} aria-hidden="true" />{label}</Badge>;
 }
 
 function formatUpdated(value: string) {
