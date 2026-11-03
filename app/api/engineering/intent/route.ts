@@ -65,6 +65,36 @@ async function createSessionStore() {
   }
 }
 
+type GetSessionQuery = {
+  latest: string | null;
+  list: string | null;
+  sessionId?: string;
+  projectId?: string;
+};
+
+function validateGetSessionQuery(query: GetSessionQuery): string | null {
+  if (query.latest !== null) {
+    if (query.latest !== "chat") return "latest must be chat when provided.";
+  }
+  if (query.list !== null) {
+    if (query.list !== "chat") return "list must be chat when provided.";
+  }
+  if (query.list === "chat") {
+    if (query.latest !== null) return "Provide list=chat without sessionId or latest.";
+    if (query.sessionId) return "Provide list=chat without sessionId or latest.";
+  }
+  if (query.latest === "chat") {
+    if (query.sessionId) return "Provide either sessionId or latest=chat, not both.";
+  }
+  if (!query.projectId) return "projectId is required.";
+  if (!query.sessionId) {
+    if (query.latest !== "chat") {
+      if (query.list !== "chat") return "sessionId is required.";
+    }
+  }
+  return null;
+}
+
 /** Restore a durable engineering intent session. Never creates a session. */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -79,20 +109,8 @@ export async function GET(request: Request) {
     return jsonError(error instanceof Error ? error.message : "Invalid session identifiers.", 400);
   }
 
-  if (latest !== null && latest !== "chat") {
-    return jsonError("latest must be chat when provided.", 400);
-  }
-  if (list !== null && list !== "chat") {
-    return jsonError("list must be chat when provided.", 400);
-  }
-  if (list === "chat" && (latest !== null || sessionId)) {
-    return jsonError("Provide list=chat without sessionId or latest.", 400);
-  }
-  if (latest === "chat" && sessionId) {
-    return jsonError("Provide either sessionId or latest=chat, not both.", 400);
-  }
-  if (!projectId) return jsonError("projectId is required.", 400);
-  if (!sessionId && latest !== "chat" && list !== "chat") return jsonError("sessionId is required.", 400);
+  const validationError = validateGetSessionQuery({ latest, list, sessionId, projectId });
+  if (validationError) return jsonError(validationError, 400);
 
   let authorization;
   try {
