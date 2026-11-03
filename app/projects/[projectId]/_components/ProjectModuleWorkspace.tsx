@@ -276,7 +276,7 @@ function WorkbenchContent({ project, snapshot, tasks, artifacts, models, complet
           </section>
           <section className="workbenchExplorerSection">
             <header><strong>Calculation artifacts</strong><span>{artifacts.length}</span></header>
-            {artifacts.length === 0 ? <p className="workbenchExplorerEmpty">No calculation artifact is recorded.</p> : [...artifacts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5).map((artifact) => <div className="workbenchExplorerRow" key={artifact.id}><FileText size={13} aria-hidden="true" /><div><strong>{artifact.name}</strong><small>Workspace R{artifact.workspaceRevision} · {formatDate(artifact.createdAt)}</small></div><StateLabel value={artifact.validationStatus} /></div>)}
+            {artifacts.length === 0 ? <p className="workbenchExplorerEmpty">No calculation artifact is recorded.</p> : [...artifacts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5).map((artifact) => <div className="workbenchExplorerRow" key={artifact.id}><FileText size={13} aria-hidden="true" /><div><strong>{artifact.name}</strong><small>Workspace R{artifact.workspaceRevision} · {formatDate(artifact.createdAt)}</small></div><StateLabel value={artifact.validationStatus ?? "NOT_RECORDED"} /></div>)}
           </section>
           <section className="workbenchExplorerSection">
             <header><strong>CAD completions</strong><span>{completions.length}</span></header>
