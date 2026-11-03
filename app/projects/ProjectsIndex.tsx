@@ -25,10 +25,14 @@ const filterOptions: { value: ProjectFilter; label: string }[] = [
   { value: "COMPLETE", label: "Complete" },
 ];
 
+const projectStatusPresentation = {
+  ACTIVE: { variant: "info" as const, label: "Active", Icon: CircleDot },
+  BLOCKED: { variant: "warning" as const, label: "Blocked", Icon: AlertTriangle },
+  COMPLETE: { variant: "success" as const, label: "Complete", Icon: CheckCircle2 },
+};
+
 function ProjectStatus({ status }: { status: Project["status"] }) {
-  const variant = status === "ACTIVE" ? "info" : status === "BLOCKED" ? "warning" : "success";
-  const label = status === "COMPLETE" ? "Complete" : status === "BLOCKED" ? "Blocked" : "Active";
-  const Icon = status === "BLOCKED" ? AlertTriangle : status === "COMPLETE" ? CheckCircle2 : CircleDot;
+  const { variant, label, Icon } = projectStatusPresentation[status];
   return <Badge variant={variant}><Icon size={11} aria-hidden="true" />{label}</Badge>;
 }
 
@@ -102,7 +106,7 @@ function ProjectFilterBar({ filter, setFilter, query, setQuery, counts }: {
       {filterOptions.map(option => <button key={option.value} type="button"
         className={filter === option.value ? "projectsFilter projectsFilterActive" : "projectsFilter"}
         aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}>
-        {option.label}<span>{option.value === "ALL" ? counts.all : option.value === "ACTIVE" ? counts.active : option.value === "BLOCKED" ? counts.blocked : counts.complete}</span>
+        {option.label}<span>{countByFilter[option.value]}</span>
       </button>)}
     </div>
     <label className="projectsIndexSearch"><span className="sr-only">Search projects</span><Search size={15} aria-hidden="true" />
