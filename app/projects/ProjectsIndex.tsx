@@ -70,31 +70,47 @@ function ProjectTable({ projects }: { projects: Project[] }) {
   </section>;
 }
 
+async function fetchProjectIndex(): Promise<Project[]> {
+  const response = await fetch("/api/projects", { cache: "no-store" });
+  const body = await response.json().catch(() => ({})) as ApiBody;
+  if (!response.ok) throw new Error(body.error || "Projects could not be loaded.");
+  return Array.isArray(body.projects) ? body.projects : [];
+}
+
 function useProjectIndexData() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (refresh = false) => {
-    if (refresh) setRefreshing(true);
-    else setLoading(true);
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
     setError("");
     try {
-      const response = await fetch("/api/projects", { cache: "no-store" });
-      const body = await response.json().catch(() => ({})) as ApiBody;
-      if (!response.ok) throw new Error(body.error || "Projects could not be loaded.");
-      setProjects(Array.isArray(body.projects) ? body.projects : []);
+      setProjects(await fetchProjectIndex());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Projects could not be loaded.");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
-  return { projects, loading, refreshing, error, refresh: () => load(true) };
+  useEffect(() => {
+    let active = true;
+    void fetchProjectIndex()
+      .then((items) => {
+        if (!active) return;
+        setProjects(items);
+        setLoading(false);
+      })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setError(cause instanceof Error ? cause.message : "Projects could not be loaded.");
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+  return { projects, loading, refreshing, error, refresh };
 }
 
 function ProjectFilterBar({ filter, setFilter, query, setQuery, counts }: {
