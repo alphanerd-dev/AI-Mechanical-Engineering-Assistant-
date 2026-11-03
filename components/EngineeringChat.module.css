@@ -391,3 +391,121 @@
   .markdown :global(pre) { padding: .8rem; margin-inline: 0; }
   .markdown :global(.katex-display) { padding: .65rem .45rem; }
 }
+
+/* Three-column project chat: durable threads, guidance conversation, explicit context. */
+.chatWorkspace {
+  grid-template-columns: minmax(200px, 220px) minmax(0, 1fr) minmax(220px, 248px);
+  align-items: stretch;
+  min-height: 680px;
+}
+.historySidebar,
+.contextSidebar {
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.contextSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-4) var(--space-3);
+  overflow-y: auto;
+}
+.contextHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.contextHeader > svg { flex: none; margin-top: 1px; color: var(--color-accent); }
+.contextHeader > div { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.contextHeader strong { color: var(--color-text); font-size: 11px; line-height: 1.4; }
+.contextHeader small { color: var(--color-text-subtle); font-size: 9px; }
+.contextSources { display: flex; flex-direction: column; gap: var(--space-3); }
+.contextSource {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.contextSource > svg { margin-top: 1px; color: var(--color-text-subtle); }
+.contextSource > div { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.contextSource strong { color: var(--color-text); font-size: 10px; line-height: 1.4; }
+.contextSource small { color: var(--color-text-subtle); font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
+.contextSource > span {
+  grid-column: 2;
+  width: fit-content;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+.contextActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.contextActions h3 { margin: 0 0 var(--space-1); color: var(--color-text); font-size: 10px; }
+.contextActions a {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 13px;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: 9px;
+  text-decoration: none;
+}
+.contextActions a > svg:first-child { color: var(--color-accent); }
+.contextActions a > svg:last-child { color: var(--color-text-subtle); }
+.contextActions a:hover { border-color: var(--color-accent); color: var(--color-text); }
+.contextTrust {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.contextTrust > svg { margin-top: 1px; color: var(--color-warning); }
+.contextTrust > div { display: flex; flex-direction: column; gap: var(--space-1); }
+.contextTrust strong { color: var(--color-text); font-size: 10px; }
+.contextTrust p { margin: 0; color: var(--color-text-subtle); font-size: 9px; line-height: 1.55; }
+.mobileChatControls { display: flex; align-items: center; gap: var(--space-1); flex: none; }
+@media (max-width: 1200px) {
+  .chatWorkspace { grid-template-columns: minmax(184px, 200px) minmax(0, 1fr) minmax(204px, 220px); gap: var(--space-2); }
+  .contextSidebar { padding-inline: var(--space-2); }
+}
+@media (max-width: 900px) {
+  .chatWorkspace { grid-template-columns: minmax(184px, 200px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .contextSidebar { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .contextHeader { grid-column: 1 / -1; }
+  .contextSources { grid-column: 1; }
+  .contextActions { grid-column: 2; grid-row: 2; }
+  .contextTrust { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .chatWorkspace { display: flex; flex-direction: column; min-height: 0; height: auto; }
+  .contextSidebar { display: none; grid-template-columns: minmax(0, 1fr); }
+  .contextSidebarOpen { display: flex; }
+  .contextHeader, .contextSources, .contextActions, .contextTrust { grid-column: auto; grid-row: auto; }
+  .mobileHistoryBar { justify-content: space-between; gap: var(--space-2); }
+  .mobileChatControls { gap: var(--space-1); }
+  .mobileHistoryBar button { min-height: 36px; padding-inline: var(--space-2); }
+}
+@media (max-width: 420px) {
+  .mobileHistoryBar { align-items: flex-start; flex-direction: column; }
+  .mobileChatControls { width: 100%; }
+  .mobileHistoryBar button { flex: 1; justify-content: center; }
+  .contextSidebar { padding: var(--space-3); }
+}
