@@ -256,19 +256,31 @@ export default function ProjectModuleWorkspace({ projectId, module }: { projectI
 type LatestStlPreview = { artifact: CadArtifactRecord; url: string; completion: CadCompletionRecord };
 type ViewVisibility = { geometry: boolean; annotations: boolean; labels: boolean };
 
+function getAcceptedStlArtifact(completion: CadCompletionRecord) {
+  if (completion.status !== "ACCEPTED") return null;
+  return completion.artifact_records?.find((item) => item.kind === "STL" && typeof item.uri === "string") ?? null;
+}
+
+function getSignedArtifactUrl(completion: CadCompletionRecord, artifact: CadArtifactRecord) {
+  const prefix = "storage://engineering-cad-artifacts/";
+  if (!artifact.uri?.startsWith(prefix)) return null;
+  const url = completion.signedUrls?.[artifact.uri.slice(prefix.length)];
+  return typeof url === "string" && url.startsWith("https://") ? url : null;
+}
+
+function toLatestStlPreview(completion: CadCompletionRecord): LatestStlPreview | null {
+  const artifact = getAcceptedStlArtifact(completion);
+  if (!artifact) return null;
+  const url = getSignedArtifactUrl(completion, artifact);
+  return url ? { artifact, url, completion } : null;
+}
+
 function findLatestStlPreview(completions: CadCompletionRecord[]): LatestStlPreview | null {
-  const accepted = completions
+  return completions
     .filter((completion) => completion.status === "ACCEPTED")
-    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
-  for (const completion of accepted) {
-    const artifact = completion.artifact_records?.find((item) => item.kind === "STL" && typeof item.uri === "string");
-    const prefix = "storage://engineering-cad-artifacts/";
-    if (!artifact?.uri?.startsWith(prefix)) continue;
-    const objectPath = artifact.uri.slice(prefix.length);
-    const url = completion.signedUrls?.[objectPath];
-    if (typeof url === "string" && url.startsWith("https://")) return { artifact, url, completion };
-  }
-  return null;
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .map(toLatestStlPreview)
+    .find((preview): preview is LatestStlPreview => preview !== null) ?? null;
 }
 
 function getTaskExecutionState(tasks: number, completed: number, running: number, failed: number) {
