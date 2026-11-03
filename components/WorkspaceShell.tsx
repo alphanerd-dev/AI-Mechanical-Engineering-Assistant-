@@ -234,7 +234,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 
       {navigation.projectId && <>
         <nav className="workspaceNavGroup" aria-label="Current project">
-          <p className="workspaceNavHeading">Project workspace</p>
+          <p className="workspaceNavHeading">Current project</p>
           <div className="workspaceProjectContextCard">
             <span className="workspaceProjectContextIcon" aria-hidden="true"><Box size={17} /></span>
             <span className="workspaceProjectContextCopy">
