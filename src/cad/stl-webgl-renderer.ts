@@ -1,5 +1,12 @@
 import type { STLMeshPreview } from "./stl-preview";
 
+/**
+ * Isolated, bounded WebGL fallback for the existing STL-only preview path.
+ * R3F/drei are not present in the current lockfile; keeping this renderer behind
+ * a small lifecycle API allows a future R3F viewport without changing artifact
+ * loading, project authorization, or validation boundaries.
+ */
+
 export type StlViewportControls = { reset: () => void; rotateLeft: () => void; rotateRight: () => void };
 type PreviewProgram = { program: WebGLProgram; vertex: WebGLShader; fragment: WebGLShader };
 
