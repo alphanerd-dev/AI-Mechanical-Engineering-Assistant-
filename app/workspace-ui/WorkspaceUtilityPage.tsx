@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Activity, ArrowRight, BookOpen, Bot, Calculator, ClipboardList, DraftingCompass, FileText, Settings2, ShieldCheck, UserRound } from "lucide-react";
+import { Activity, AlertTriangle, ArrowRight, BookOpen, Bot, Calculator, CheckCircle2, CircleDot, ClipboardList, DraftingCompass, FileText, Settings2, ShieldCheck, UserRound } from "lucide-react";
 
 type UtilityPage = "templates" | "activity" | "profile" | "ai" | "engineering";
 type Project = { id: string; name: string; stage: string; status: string; revision: number; updated_at: string };
@@ -15,7 +15,11 @@ const templateCards = [
   { title: "Manufacturing process review", category: "MANUFACTURING", description: "Review process routes, equipment constraints, quality checks and opportunities for process improvement.", steps: ["Define output and takt requirements", "Map the existing process", "Record quality and resource constraints", "Set measurable improvement criteria"], icon: ClipboardList },
 ];
 
-function readable(value: string) { return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function ProjectStatusInline({ status }: { status: string }) {
+  const Icon = status === "BLOCKED" ? AlertTriangle : status === "COMPLETE" ? CheckCircle2 : CircleDot;
+  return <span className="utilityProjectStatus" data-status={status}><Icon size={10} aria-hidden="true" />{readable(status)}</span>;
+}
+\nfunction readable(value: string) { return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function dateLabel(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Time not recorded" : date.toLocaleString();
@@ -91,7 +95,7 @@ function ActivityPage() {
         {feed.length === 0 ? <div className="moduleEmptyState"><Activity size={24} /><strong>No project events found</strong><p>Saved requirements changes, calculations and project actions will appear when recorded in a project workspace.</p></div> : <div className="moduleTimeline">{feed.map((item) => <article className="moduleTimelineItem" key={item.projectId + item.id}><span className="moduleTimelineDot" /><div><div className="moduleTimelineHead"><strong>{readable(item.action)}</strong><small>{dateLabel(item.timestamp)}</small></div><p>{item.projectName} · {item.actor}</p><Link href={"/projects/" + item.projectId + "/history"} className="moduleTextLink">Open project history <ArrowRight size={12} /></Link></div></article>)}</div>}
       </section>
       <section className="modulePanel"><header className="modulePanelHeader"><div><h2>Recent projects</h2><p>Ordered by latest project update</p></div></header>
-        {projects.length === 0 ? <p className="moduleSmallNote">No accessible projects were returned.</p> : <div className="moduleSimpleList">{projects.map((project) => <Link className="moduleListRow moduleListLink" href={"/projects/" + project.id} key={project.id}><span className="utilityProjectIcon"><FileText size={15} /></span><div><strong>{project.name}</strong><small>{readable(project.status)} · R{project.revision}</small></div><span className="moduleSmallNote">{dateLabel(project.updated_at)}</span></Link>)}</div>}
+        {projects.length === 0 ? <p className="moduleSmallNote">No accessible projects were returned.</p> : <div className="moduleSimpleList">{projects.map((project) => <Link className="moduleListRow moduleListLink" href={"/projects/" + project.id} key={project.id}><span className="utilityProjectIcon"><FileText size={15} /></span><div><strong>{project.name}</strong><small><ProjectStatusInline status={project.status} /> · R{project.revision}</small></div><span className="moduleSmallNote">{dateLabel(project.updated_at)}</span></Link>)}</div>}
       </section>
     </div>}
   </div>;
