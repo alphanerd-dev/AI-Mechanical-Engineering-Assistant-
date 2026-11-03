@@ -68,8 +68,8 @@ async function createSessionStore() {
 type GetSessionQuery = {
   latest: string | null;
   list: string | null;
-  sessionId?: string;
-  projectId?: string;
+  sessionId: string | undefined;
+  projectId: string | undefined;
 };
 
 function validateGetSessionQuery(query: GetSessionQuery): string | null {
