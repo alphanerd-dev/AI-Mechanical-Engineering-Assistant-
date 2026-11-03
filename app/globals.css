@@ -106,7 +106,6 @@
   --space-7: 28px;
   --space-8: 32px;
   --space-9: 36px;
-  --space-9: 36px;
   --space-10: 40px;
   --space-11: 44px;
   --space-12: 48px;
@@ -178,7 +177,7 @@ th { color: var(--color-text-subtle); font-size: 11px; letter-spacing: .1em; tex
 .pipeline { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); align-items: stretch; }
 .pipe { position: relative; min-height: 130px; padding: var(--space-5); }
 .pipe span { display: block; margin-bottom: var(--space-7); color: var(--color-text-subtle); font-size: 11px; }
-.pipe i { position: absolute; top: var(--space-12, var(--space-8)); right: calc(var(--space-3) * -1); z-index: 2; color: var(--color-text-muted); font-style: normal; }
+.pipe i { position: absolute; top: var(--space-13); right: calc(var(--space-3) * -1); z-index: 2; color: var(--color-text-muted); font-style: normal; }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .secondaryButton { border-color: var(--color-border-strong); background: transparent; color: var(--color-text); }
 .secondaryButton:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-surface-hover); }
