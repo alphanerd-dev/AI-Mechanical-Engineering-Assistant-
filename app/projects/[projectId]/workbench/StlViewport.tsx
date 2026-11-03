@@ -41,13 +41,15 @@ function createRendererResult(canvas: HTMLCanvasElement, mesh: STLMeshPreview) {
   }
 }
 
-function mountStlRenderer(
-  canvas: HTMLCanvasElement,
-  mesh: STLMeshPreview,
-  src: string,
-  controlsRef: { current: StlViewportControls | null },
-  onFailure: (failure: { src: string; mesh: STLMeshPreview; message: string }) => void,
-) {
+type RendererMountOptions = {
+  canvas: HTMLCanvasElement;
+  mesh: STLMeshPreview;
+  src: string;
+  controlsRef: { current: StlViewportControls | null };
+  onFailure: (failure: { src: string; mesh: STLMeshPreview; message: string }) => void;
+};
+
+function mountStlRenderer({ canvas, mesh, src, controlsRef, onFailure }: RendererMountOptions) {
   let active = true;
   const result = createRendererResult(canvas, mesh);
   const renderer = result.renderer;
@@ -78,7 +80,7 @@ function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: Ref
     if (!mesh) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    return mountStlRenderer(canvas, mesh, src, controlsRef, setFailure);
+    return mountStlRenderer({ canvas, mesh, src, controlsRef, onFailure: setFailure });
   }, [canvasRef, mesh, src]);
   return { controlsRef, renderError: currentRenderError(failure, src, mesh) };
 }
