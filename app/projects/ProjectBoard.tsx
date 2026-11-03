@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight, Clock3, FolderKanban, Plus, Sparkles } from "lucide-react";
+import { Activity, AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight, Clock3, FolderKanban, Plus, Sparkles, CircleDot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { isEngineeringRoleRequiredFailure } from "../../src/auth/http-error-classification";
@@ -20,6 +20,13 @@ type Project = {
 };
 
 type ApiBody = { projects?: Project[]; project?: Project; error?: string; code?: string; workspaceInitialized?: boolean; warning?: string };
+
+function ProjectStatusBadge({ status }: { status: Project["status"] }) {
+  const Icon = status === "BLOCKED" ? AlertTriangle : status === "COMPLETE" ? CheckCircle2 : CircleDot;
+  const label = status === "BLOCKED" ? "Blocked" : status === "COMPLETE" ? "Complete" : "Active";
+  const variant = status === "BLOCKED" ? "warning" : status === "COMPLETE" ? "success" : "info";
+  return <Badge variant={variant}><Icon size={11} aria-hidden="true" />{label}</Badge>;
+}
 
 function isEngineeringRoleAuthorizationError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -242,7 +249,7 @@ export default function ProjectBoard() {
       </div>
       <aside className="workspaceContinueCard" aria-label="Most recently updated project">
         {recentProjects[0] ? <>
-          <div className="workspaceContinueTop"><span className="eyebrow">MOST RECENTLY UPDATED</span><Badge variant={recentProjects[0].status === "BLOCKED" ? "warning" : recentProjects[0].status === "COMPLETE" ? "success" : "info"}>{recentProjects[0].status === "COMPLETE" ? "Complete" : recentProjects[0].status === "BLOCKED" ? "Blocked" : "Active"}</Badge></div>
+          <div className="workspaceContinueTop"><span className="eyebrow">MOST RECENTLY UPDATED</span><ProjectStatusBadge status={recentProjects[0].status} /></div>
           <h3>{recentProjects[0].name}</h3>
           <p>{recentProjects[0].stage.replaceAll("_", " ")} · Revision {recentProjects[0].revision}</p>
           <div className="workspaceContinueMeta"><span>Last updated</span><strong>{new Date(recentProjects[0].updated_at).toLocaleString()}</strong></div>
@@ -274,7 +281,7 @@ export default function ProjectBoard() {
       {!loading && !loadingError && recentProjects.length === 0 && <div className="workspaceEmptyPanel"><FolderKanban size={22} aria-hidden="true" /><strong>No engineering projects yet</strong><p>Create a project, then add requirements and verification methods as the work develops. The demo sandbox remains separate.</p><a className="button" href="#create-project">Create a project <Plus size={14} aria-hidden="true" /></a></div>}
       <div className="workspaceRecentGrid">
         {recentProjects.map((project) => <Link className="workspaceRecentCard" href={`/projects/${project.id}`} key={project.id}>
-          <div className="workspaceRecentCardTop"><span className="workspaceProjectIcon"><FolderKanban size={17} aria-hidden="true" /></span><Badge variant={project.status === "BLOCKED" ? "warning" : project.status === "COMPLETE" ? "success" : "info"}>{project.status === "COMPLETE" ? "Complete" : project.status === "BLOCKED" ? "Blocked" : "Active"}</Badge></div>
+          <div className="workspaceRecentCardTop"><span className="workspaceProjectIcon"><FolderKanban size={17} aria-hidden="true" /></span><ProjectStatusBadge status={project.status} /></div>
           <h3>{project.name}</h3>
           <p>{project.stage.replaceAll("_", " ")}</p>
           <div className="workspaceRecentCardMeta"><span>Revision {project.revision}</span><span>{new Date(project.updated_at).toLocaleDateString()}</span></div>
