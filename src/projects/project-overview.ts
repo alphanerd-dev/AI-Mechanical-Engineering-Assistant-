@@ -17,14 +17,17 @@ const taskStatuses: EngineeringTaskStatus[] = [
   "PROPOSED", "READY", "RUNNING", "BLOCKED", "COMPLETED", "FAILED", "VERIFIED",
 ];
 
+function problemStatementFromEvent(event: ProjectState["events"][number]): string | null {
+  if (event.action !== "PROBLEM_CAPTURED" || !event.input || typeof event.input !== "object") return null;
+  const value = (event.input as Record<string, unknown>).problemStatement;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function problemStatementFromEvents(project: ProjectState): string | null {
-  const events = [...(project.events ?? [])].reverse();
-  for (const event of events) {
-    if (event.action !== "PROBLEM_CAPTURED" || !event.input || typeof event.input !== "object") continue;
-    const value = (event.input as Record<string, unknown>).problemStatement;
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return null;
+  return [...(project.events ?? [])]
+    .reverse()
+    .map(problemStatementFromEvent)
+    .find((value): value is string => value !== null) ?? null;
 }
 
 function getExecutionSummary(tasks: EngineeringTaskGraph["tasks"]): ProjectOverviewSummary["execution"] {
