@@ -35,7 +35,7 @@ function useStlMesh(src: string) {
 
 function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: RefObject<HTMLCanvasElement | null>) {
   const controlsRef = useRef<StlViewportControls | null>(null);
-  const [failure, setFailure] = useState<{ src: string; message: string } | null>(null);
+  const [failure, setFailure] = useState<{ src: string; mesh: STLMeshPreview; message: string } | null>(null);
   useEffect(() => {
     if (!mesh || !canvasRef.current) return;
     const canvas = canvasRef.current;
@@ -47,7 +47,7 @@ function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: Ref
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "The 3D preview could not be rendered.";
       void Promise.resolve().then(() => {
-        if (active) setFailure({ src, message });
+        if (active) setFailure({ src, mesh, message });
       });
     }
     return () => {
@@ -56,7 +56,7 @@ function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: Ref
       controlsRef.current = null;
     };
   }, [canvasRef, mesh, src]);
-  return { controlsRef, renderError: failure?.src === src ? failure.message : null };
+  return { controlsRef, renderError: failure?.src === src && failure.mesh === mesh ? failure.message : null };
 }
 
 function StlViewportFrame({ label, mesh, loading, loadError, renderError, controlsRef, canvasRef }: {
