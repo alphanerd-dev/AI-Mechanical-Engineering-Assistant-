@@ -1,8 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import WorkspaceShell from "../components/WorkspaceShell";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import "./module-workspace.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover"
+};
 
 export const metadata: Metadata = {
   title: "Forge — AI Mechanical Engineering Assistant",
