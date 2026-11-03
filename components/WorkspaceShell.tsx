@@ -216,16 +216,16 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
         <nav className="workspaceNavGroup" aria-label="Current project">
           <p className="workspaceNavHeading">Project workspace</p>
           <div className="workspaceProjectLabel"><span className="workspaceProjectDot" aria-hidden="true" />{currentProjectLabel}</div>
-          {navigation.projectItems.map((item) => renderLink(item, "project"))}
+          {navigation.projectItems.map((item) => renderLink(item))}
         </nav>
         <nav className="workspaceNavGroup workspaceEngineeringNav" aria-label="Engineering modules">
           <p className="workspaceNavHeading">Engineering</p>
-          {navigation.engineeringItems.map((item) => renderLink(item, "project"))}
+          {navigation.engineeringItems.map((item) => renderLink(item))}
         </nav>
       </>}
       <nav className="workspaceNavGroup workspacePreferencesNav" aria-label="Preferences">
         <p className="workspaceNavHeading">Preferences</p>
-        {navigation.preferenceItems.map((item) => renderLink(item, "preferences"))}
+        {navigation.preferenceItems.map((item) => renderLink(item))}
       </nav>
 
       <div className="workspaceSidebarSpacer" />
