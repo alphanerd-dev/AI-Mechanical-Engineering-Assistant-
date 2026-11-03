@@ -42,7 +42,8 @@ function firstVisibleTextFromContainer(value: unknown, depth: number): string | 
 }
 
 function firstVisibleText(value: unknown, depth = 0): string | undefined {
-  if (depth > 12 || value === null || value === undefined) return undefined;
+  if (depth > 12) return undefined;
+  if (value === null || value === undefined) return undefined;
   return normalizedText(value) ?? firstVisibleTextFromContainer(value, depth);
 }
 
