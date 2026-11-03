@@ -329,7 +329,7 @@ function WorkbenchContent({ project, snapshot, tasks, artifacts, models, complet
     <div className="workbenchSubnav" aria-label="Workbench views"><span aria-current="page">3D / CAD</span><Link href={"/projects/" + project.id + "/fea"}>FEA results</Link><Link href={"/projects/" + project.id + "/pid"}>P&amp;ID / PFD</Link><Link href={"/projects/" + project.id + "/calculations"}>Calculations</Link><Link href={"/projects/" + project.id + "/reports"}>Reports</Link></div>
     <div className="workbenchMetaRow"><span className="modulePill">PROJECT · {project.id.slice(0, 8).toUpperCase()}</span><span>Project revision <strong>R{project.revision}</strong></span><span>Workspace revision <strong>R{snapshot.revision}</strong></span></div>
     <RevisionStateBanner project={project} snapshot={snapshot} />
-    <WorkflowStrip tasks={tasks} runningTasks={runningTasks} failedTasks={failedTasks} acceptedCount={acceptedCompletions.length} latestArtifact={latestArtifact} executionState={executionState} />
+    <WorkflowStrip tasks={tasks} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} acceptedCount={acceptedCompletions.length} latestArtifact={latestArtifact} executionState={executionState} />
     <p className="workflowBoundaryNote"><ShieldCheck size={12} aria-hidden="true" />Task execution, CAD completion, solver completion, artifact validation and human approval are separate records. This view does not infer missing results or approval.</p>
     <div className="workbenchThreePane">
       <ArtifactExplorer projectId={project.id} models={models} artifacts={artifacts} completions={completions} />
@@ -349,12 +349,12 @@ function RevisionStateBanner({ project, snapshot }: { project: ProjectRecord; sn
   </section>;
 }
 
-function WorkflowStrip({ tasks, runningTasks, failedTasks, acceptedCount, latestArtifact, executionState }: {
-  tasks: EngineeringWorkspaceSnapshot["taskGraph"]["tasks"]; runningTasks: number; failedTasks: number;
+function WorkflowStrip({ tasks, completedTasks, runningTasks, failedTasks, acceptedCount, latestArtifact, executionState }: {
+  tasks: EngineeringWorkspaceSnapshot["taskGraph"]["tasks"]; completedTasks: number; runningTasks: number; failedTasks: number;
   acceptedCount: number; latestArtifact?: CalculationArtifact; executionState: string;
 }) {
   return <section className="workflowStrip" aria-label="Independent workflow states">
-    <div className="workflowStep"><span className="workflowStepNumber">01</span><div><strong>Task execution</strong><small>{tasks.length} recorded tasks · {runningTasks} running · {failedTasks} blocked or failed</small></div><StateLabel value={executionState} /></div>
+    <div className="workflowStep"><span className="workflowStepNumber">01</span><div><strong>Task execution</strong><small>{tasks.length} recorded tasks · {completedTasks} completed · {runningTasks} running · {failedTasks} blocked or failed</small></div><StateLabel value={executionState} /></div>
     <div className="workflowStep"><span className="workflowStepNumber">02</span><div><strong>CAD completion</strong><small>{acceptedCount} accepted CAD completion records</small></div><StateLabel value={acceptedCount ? "ACCEPTED" : "NOT_RECORDED"} /></div>
     <div className="workflowStep"><span className="workflowStepNumber">03</span><div><strong>Solver completion</strong><small>No solver completion record is surfaced by this workspace snapshot.</small></div><StateLabel value="NOT_RECORDED" /></div>
     <div className="workflowStep"><span className="workflowStepNumber">04</span><div><strong>Artifact validation</strong><small>{latestArtifact ? "Latest calculation artifact only" : "No calculation artifact is recorded"}</small></div><StateLabel value={latestArtifact?.validationStatus ?? "NOT_RECORDED"} /></div>
