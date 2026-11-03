@@ -993,3 +993,78 @@ button, .button { transition: background-color 120ms ease, border-color 120ms ea
     width: auto;
   }
 }
+
+
+/* Projects index: isolated mobile layout. Other workspace routes retain their
+   existing shell. The index now owns its viewport width rather than inheriting
+   the legacy .shell max-width and auto margins. */
+.projectsIndexPage {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  width: 100%;
+  max-width: 1600px;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 28px 24px 44px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .workspaceApp--projects-index {
+    display: block !important;
+    position: relative;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    overflow-x: clip;
+  }
+
+  .workspaceApp--projects-index > .workspaceMain {
+    display: flex !important;
+    flex: none !important;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+  }
+
+  .workspaceApp--projects-index > .workspaceMain > .workspaceTopbar,
+  .workspaceApp--projects-index > .workspaceMain > .workspacePageArea {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    align-self: stretch;
+    box-sizing: border-box;
+  }
+
+  .workspaceApp--projects-index .projectsIndexPage {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    padding: 20px 14px 90px;
+  }
+
+  .workspaceApp--projects-index .projectsIndexToolbar,
+  .workspaceApp--projects-index .projectsIndexCards,
+  .workspaceApp--projects-index .projectsIndexResultLine,
+  .workspaceApp--projects-index .projectsIndexTable {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .workspaceApp--projects-index .projectsIndexCards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .workspaceApp--projects-index .projectsIndexPage {
+    padding-inline: 14px;
+  }
+}
