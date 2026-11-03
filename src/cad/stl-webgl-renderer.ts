@@ -120,8 +120,8 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     if (!resources) return;
     gl.useProgram(resources.program);
-    gl.uniform2f(rotationLocation, rotationX, rotationY);
-    gl.uniform1f(zoomLocation, zoom);
+    gl.uniform2f(rotationLocation!, rotationX, rotationY);
+    gl.uniform1f(zoomLocation!, zoom);
     gl.drawArrays(gl.TRIANGLES, 0, mesh.positions.length / 3);
   };
 
