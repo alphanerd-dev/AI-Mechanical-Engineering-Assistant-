@@ -131,6 +131,7 @@ export async function GET(request: Request) {
 
   const validationError = validateGetSessionQuery({ latest, list, sessionId, projectId });
   if (validationError) return jsonError(validationError, 400);
+  if (!projectId) return jsonError("projectId is required.", 400);
 
   let authorization;
   try {
