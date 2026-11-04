@@ -564,6 +564,9 @@ function EngineeringChatThread({
     // project session. Without this, every mount generates a new chat id even
     // though the history adapter is restoring a previously selected session.
     id: sessionId,
+    // assistant-ui's controlled thread identity is distinct from the AI SDK chat id.
+    // Pin both to the durable session so a keyed remount cannot attach history to a default thread.
+    threadId: sessionId,
     transport,
     // scopeId identifies the owning project/workspace; id identifies its chat.
     scopeId: projectId,
