@@ -7,6 +7,7 @@ on:
       - feat/engineering-os-v11-foundation
     paths:
       - .github/workflows/browserstack-automate.yml
+      - playwright.config.mjs
       - tests/e2e/**
   workflow_dispatch:
     inputs:

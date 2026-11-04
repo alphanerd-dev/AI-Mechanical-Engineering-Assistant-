@@ -12,7 +12,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  timeout: 60_000,
+  timeout: process.env.BROWSERSTACK_AUTOMATION ? 120_000 : 60_000,
   expect: { timeout: 12_000 },
   reporter: [
     ["list"],
