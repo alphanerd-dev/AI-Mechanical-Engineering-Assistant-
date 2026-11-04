@@ -32,8 +32,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: browserstack-pr131-cross-browser
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   browserstack-automate:
