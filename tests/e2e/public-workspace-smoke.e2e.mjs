@@ -11,7 +11,9 @@ test("public workspace overview supports keyboard search and mobile navigation",
   await expect(page.getByRole("heading", { name: "Recent projects", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Browse projects", exact: true })).toBeVisible();
   await expect(page.getByLabel("Engineering problem or task")).toBeVisible();
-  await expect(page.locator(".projectError[role=\"alert\"]")).toContainText("Unauthenticated");
+  await expect(page.locator(".workspaceAccessNotice")).toContainText("Sign in to view your saved engineering projects.");
+  await expect(page.locator(".workspaceAccessNotice").getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.locator(".projectError[role=\"alert\"]")).toHaveCount(0);
 
   await page.screenshot({ path: "test-results/ui-smoke-desktop.png", fullPage: true });
 
