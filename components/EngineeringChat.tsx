@@ -303,7 +303,7 @@ function createEngineeringChatHistoryAdapter(
   }
 
   return {
-    scopeId: selectedSessionId ? `${projectId}:${selectedSessionId}` : projectId,
+    scopeId: projectId,
     async load() {
       return { headId: null, messages: [] };
     },
@@ -560,8 +560,13 @@ function EngineeringChatThread({
     [projectId],
   );
   const runtime = useChatRuntime({
+    // Keep assistant-ui's runtime thread identity aligned with the durable
+    // project session. Without this, every mount generates a new chat id even
+    // though the history adapter is restoring a previously selected session.
+    id: sessionId,
     transport,
-    scopeId: `${projectId}:${sessionId}`,
+    // scopeId identifies the owning project/workspace; id identifies its chat.
+    scopeId: projectId,
     adapters: { history },
     joinStrategy: "none",
     onError: (error) => {
