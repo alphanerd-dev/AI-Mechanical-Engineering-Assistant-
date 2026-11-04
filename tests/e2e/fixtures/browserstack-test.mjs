@@ -48,7 +48,7 @@ export function isBrowserStackIOS(testInfo) {
 export const test = base.extend({
   // A fresh remote connection per test avoids reusing an iOS session after its
   // single supported BrowserContext has been consumed by a previous test.
-  testBrowser: async ({}, use, testInfo) => {
+  testBrowser: async ({}, provide, testInfo) => {
     let browser;
     if (process.env.BROWSERSTACK_AUTOMATION) {
       const connectOptions = testInfo.project.use.connectOptions;
@@ -61,20 +61,20 @@ export const test = base.extend({
     }
 
     try {
-      await use(browser);
+      await provide(browser);
     } finally {
       await browser.close().catch(() => undefined);
     }
   },
-  context: async ({ testBrowser }, use, testInfo) => {
+  context: async ({ testBrowser }, provide, testInfo) => {
     const context = await testBrowser.newContext(browserContextOptions(testInfo.project.use));
     try {
-      await use(context);
+      await provide(context);
     } finally {
       await context.close().catch(() => undefined);
     }
   },
-  page: async ({ context }, use, testInfo) => {
+  page: async ({ context }, provide, testInfo) => {
     const page = await context.newPage();
     if (testInfo.project.use.actionTimeout) {
       page.setDefaultTimeout(testInfo.project.use.actionTimeout);
@@ -82,7 +82,7 @@ export const test = base.extend({
     if (testInfo.project.use.navigationTimeout) {
       page.setDefaultNavigationTimeout(testInfo.project.use.navigationTimeout);
     }
-    await use(page);
+    await provide(page);
   }
 });
 
