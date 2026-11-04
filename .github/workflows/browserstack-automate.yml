@@ -1,13 +1,13 @@
 name: BrowserStack Automate — PR 131
 
 on:
-  # Temporary one-shot PR-branch trigger. The exact commit-message guard below
-  # prevents ordinary feature pushes from consuming BrowserStack minutes.
+  # Keep this automated run scoped to BrowserStack configuration or E2E spec changes.
   push:
     branches:
       - feat/engineering-os-v11-foundation
     paths:
       - .github/workflows/browserstack-automate.yml
+      - tests/e2e/**
   workflow_dispatch:
     inputs:
       base_url:
