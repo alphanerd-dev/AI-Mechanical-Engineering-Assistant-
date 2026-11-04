@@ -157,7 +157,7 @@ test("streamed engineering chat restores after refresh and recovers a missing br
 
     const secondThreadButton = historyNav.getByRole("button").filter({ hasText: "CHAT_HISTORY_E2E_SECOND" }).first();
     await secondThreadButton.click();
-    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(activeSessionKey)))
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), activeSessionKey))
       .toBe(secondSessionId);
     await expect(chatPanel.getByText("CHAT_HISTORY_E2E_SECOND", { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true })).toHaveCount(0);
