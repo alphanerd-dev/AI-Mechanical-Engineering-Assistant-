@@ -146,13 +146,13 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       await pageA.reload();
       await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}\/engineering$/i);
       await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
-      await pageA.goto(`/projects/${projectId}`);
+      await pageA.goto("/projects/" + projectId);
       await expect(pageA.getByRole("heading", { name: projectName })).toBeVisible();
       await expect(pageA.getByText("PERSISTED ENGINEERING PROJECT")).toBeVisible();
 
       await test.step("Verify Project Overview tabs remain usable on mobile", async () => {
         await pageA.setViewportSize({ width: 390, height: 844 });
-        const overviewResponse = await pageA.goto(`/projects/${projectId}`);
+        const overviewResponse = await pageA.goto("/projects/" + projectId);
         expect(overviewResponse?.status()).toBe(200);
         const sections = pageA.getByRole("navigation", { name: "Project sections" });
         await expect(sections).toBeVisible();
@@ -186,155 +186,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
         const aiChatLink = sections.getByRole("link", { name: "AI chat", exact: true });
         await aiChatLink.scrollIntoViewIfNeeded();
         await aiChatLink.click();
-        await expect(pageA).toHaveURL(new RegExp(`/projects/${projectId}/engineeringimport { test, expect } from "@playwright/test";
-
-function requiredEnv(name) {
-  const value = process.env[name];
-  if (!value || !value.trim()) {
-    throw new Error("Missing required E2E environment variable: " + name);
-  }
-  return value;
-}
-
-function watchPage(page, label, diagnostics) {
-  page.on("pageerror", (error) => {
-    diagnostics.pageErrors.push({ page: label, message: String(error.message).slice(0, 500) });
-  });
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      diagnostics.consoleErrors.push({
-        page: label,
-        message: String(message.text()).slice(0, 500)
-      });
-    }
-  });
-  page.on("response", (response) => {
-    if (response.status() >= 500) {
-      let pathname = "/";
-      try { pathname = new URL(response.url()).pathname; } catch {}
-      diagnostics.serverErrors.push({ page: label, status: response.status(), pathname });
-    }
-  });
-}
-
-async function signIn(page, email, password) {
-  await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-
-  await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
-
-  // The heading can render before the initial projects request finishes. Wait for
-  // that request's UI state before asserting the user's authorization is valid.
-  await expect(page.getByText("Loading projects…")).toHaveCount(0);
-  await expect(page.getByText("Engineering role required")).toHaveCount(0);
-  // Scope this check to the app's actual error component; Next.js's hidden route
-  // announcer also exposes role="alert" and should not make a successful login fail.
-  await expect(page.locator('.projectError[role="alert"]')).toHaveCount(0);
-  await expect(
-    page.getByRole("navigation", { name: "Account" }).getByRole("button", { name: "Sign out" })
-  ).toBeVisible();
-}
-
-test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser }) => {
-  const baseURL = requiredEnv("E2E_BASE_URL");
-  const emailAddress = requiredEnv("E2E_USER_A_EMAIL");
-  const passwordValue = requiredEnv("E2E_USER_A_PASSWORD");
-  const context = await browser.newContext({ baseURL });
-  try {
-    const page = await context.newPage();
-    await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-
-    const email = page.getByLabel("Email");
-    const password = page.getByLabel("Password");
-    const submit = page.getByRole("button", { name: "Sign in" });
-    await expect(email).toBeVisible();
-    await expect(password).toBeVisible();
-    await expect(submit).toBeEnabled();
-
-    await email.focus();
-    await expect(email).toBeFocused();
-    await email.fill(emailAddress);
-    await password.fill(passwordValue);
-    await password.focus();
-    await expect(password).toBeFocused();
-    await page.keyboard.press("Enter");
-
-    await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
-    await expect(page.getByText("Loading projects…")).toHaveCount(0);
-    await expect(page.locator('.projectError[role="alert"]')).toHaveCount(0);
-
-    const account = page.getByRole("navigation", { name: "Account" });
-    const signOut = account.getByRole("button", { name: "Sign out" });
-    await expect(signOut).toBeVisible();
-    await signOut.focus();
-    await expect(signOut).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/login(?:\?.*)?$/);
-  } finally {
-    await context.close();
-  }
-});
-
-test("sign-in, project persistence, sign-out, and cross-user isolation", async ({ browser }, testInfo) => {
-  const baseURL = requiredEnv("E2E_BASE_URL");
-  const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
-  const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
-  const userBEmail = requiredEnv("E2E_USER_B_EMAIL");
-  const userBPassword = requiredEnv("E2E_USER_B_PASSWORD");
-
-  const diagnostics = { pageErrors: [], consoleErrors: [], serverErrors: [] };
-  let contextA;
-  let contextB;
-
-  try {
-    contextA = await browser.newContext({ baseURL });
-    const pageA = await contextA.newPage();
-    watchPage(pageA, "user-a", diagnostics);
-
-    await test.step("Authenticate user A in the browser", async () => {
-      await signIn(pageA, userAEmail, userAPassword);
-    });
-
-    const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
-    const projectName = "E2E ownership verification " + suffix;
-    const problemStatement = "Automated acceptance run. This project is disposable staging test data.";
-
-    await test.step("Create a project through the workspace UI", async () => {
-      await pageA.getByLabel("Project name").fill(projectName);
-      await pageA.getByLabel(/Problem statement/).fill(problemStatement);
-      const reviewButton = pageA.getByRole("button", { name: "Review project brief" });
-      await expect(reviewButton, "valid project inputs should enable the review step").toBeEnabled();
-      await reviewButton.click();
-
-      await expect(pageA.getByText("STEP 2 OF 2 · REVIEW BEFORE CREATION")).toBeVisible();
-      await expect(pageA.getByRole("heading", { name: projectName, level: 3 })).toBeVisible();
-      await expect(pageA).not.toHaveURL(/\/projects\/[0-9a-f-]{36}$/i);
-
-      const createButton = pageA.getByRole("button", { name: /Create project & open workspace/ });
-      await expect(createButton, "creation should be enabled only after the reviewed brief is shown").toBeEnabled();
-      await createButton.click();
-
-      await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}\/engineering$/i);
-      await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
-    });
-
-    const createdProjectSegments = new URL(pageA.url()).pathname.split("/").filter(Boolean);
-    expect(createdProjectSegments[0]).toBe("projects");
-    const projectId = createdProjectSegments[1];
-    expect(createdProjectSegments[2]).toBe("engineering");
-    expect(projectId).toMatch(/^[0-9a-f-]{36}$/i);
-
-    await test.step("Reload the project and verify persisted state", async () => {
-      await pageA.reload();
-      await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}\/engineering$/i);
-      await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
-));
+        await expect(pageA).toHaveURL(new RegExp("/projects/" + projectId + "/engineering$"));
         await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
         const pageWidth = await pageA.evaluate(() => ({
           viewport: window.innerWidth,
