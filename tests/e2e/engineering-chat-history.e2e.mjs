@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/browserstack-test.mjs";
 
 async function signIn(page, email, password) {
   await page.goto("/login");
@@ -18,7 +18,7 @@ async function signIn(page, email, password) {
   ).toBeVisible();
 }
 
-test("streamed engineering chat restores after refresh and recovers a missing browser session key", async ({ browser }, testInfo) => {
+test("streamed engineering chat restores after refresh and recovers a missing browser session key", async ({ testBrowser: browser }, testInfo) => {
   const baseURL = process.env.E2E_BASE_URL;
   const email = process.env.E2E_USER_A_EMAIL;
   const password = process.env.E2E_USER_A_PASSWORD;
@@ -139,6 +139,6 @@ test("streamed engineering chat restores after refresh and recovers a missing br
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    await context.close().catch(() => undefined);
+    
   }
 });
