@@ -257,7 +257,7 @@ function ProjectModuleWorkspaceInstance({ projectId, module }: { projectId: stri
   const { data, setData } = useProjectModuleData(projectId, isDemo, refresh);
   const nameDraft = nameDraftOverride?.projectId === projectId ? nameDraftOverride.value : data.project?.name ?? "";
   const page = config[module];
-  const path = "/projects/" + projectId;
+  const path = "/projects/" + encodeURIComponent(projectId);
   const navLinks = [...projectTabs, ...engineeringTabs];
   const activeTab = getActiveModuleTab(module);
   const onSaveName = (event: FormEvent<HTMLFormElement>) => void saveProjectName({ event, projectId, project: data.project, nameDraft, saving: savingName, setData, setNameDraftOverride, setSaving: setSavingName, setMessage: setSettingsMessage, setError: setSettingsError });
