@@ -232,7 +232,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json"
     });
-    if (contextB) 
-    if (contextA) 
+
+
   }
 });
