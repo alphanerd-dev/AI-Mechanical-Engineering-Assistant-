@@ -565,8 +565,8 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    if (contextB) 
-    if (contextA) 
+
+
   }
 });
 
@@ -1183,8 +1183,8 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
         }).catch(() => undefined);
       }
     }
-    if (contextB) 
-    if (contextA) 
+
+
     if (cleanupFailure) throw new Error("Disposable CRUD project cleanup could not be confirmed.");
   }
 });
