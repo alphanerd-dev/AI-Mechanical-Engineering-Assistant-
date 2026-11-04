@@ -59,20 +59,27 @@ async function assertResponsiveAuthForm(page, { path, fieldNames, submitName }) 
   expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
   await page.screenshot({ path: "test-results/" + path.slice(1) + "-mobile.png", fullPage: true });
 
-  // Keyboard order and a visible focus treatment are part of the authentication contract.
-  await page.keyboard.press("Tab");
-  await expect(page.locator('input[name="' + fieldNames[0] + '"]')).toBeFocused();
-  const focus = await page.locator('input[name="' + fieldNames[0] + '"]').evaluate((node) => {
-    const style = getComputedStyle(node);
-    return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth, boxShadow: style.boxShadow };
-  });
-  expect(
-    (focus.outlineStyle !== "none" && Number.parseFloat(focus.outlineWidth) >= 1) ||
-    (focus.boxShadow !== "none" && !focus.boxShadow.endsWith("rgba(0, 0, 0, 0)"))
-  ).toBe(true);
-  if (fieldNames.length > 1) {
+  // Physical Tab navigation is meaningful on keyboard-driven platforms, not on
+  // touch-only iPhones. The full keyboard journey is covered separately on desktop.
+  const supportsPhysicalKeyboard = await page.evaluate(() =>
+    !window.matchMedia("(pointer: coarse)").matches && navigator.maxTouchPoints === 0
+  );
+  if (supportsPhysicalKeyboard) {
     await page.keyboard.press("Tab");
-    await expect(page.locator('input[name="' + fieldNames[1] + '"]')).toBeFocused();
+    const firstInput = page.locator('input[name="' + fieldNames[0] + '"]');
+    await expect(firstInput).toBeFocused();
+    const focus = await firstInput.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth, boxShadow: style.boxShadow };
+    });
+    expect(
+      (focus.outlineStyle !== "none" && Number.parseFloat(focus.outlineWidth) >= 1) ||
+      (focus.boxShadow !== "none" && !focus.boxShadow.endsWith("rgba(0, 0, 0, 0)"))
+    ).toBe(true);
+    if (fieldNames.length > 1) {
+      await page.keyboard.press("Tab");
+      await expect(page.locator('input[name="' + fieldNames[1] + '"]')).toBeFocused();
+    }
   }
 }
 
