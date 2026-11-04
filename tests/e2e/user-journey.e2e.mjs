@@ -29,6 +29,37 @@ function watchPage(page, label, diagnostics) {
   });
 }
 
+async function assertWorkbenchPanels(page) {
+  await expect(page.getByRole("heading", { name: "Engineering workbench" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workbench views" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Artifact explorer" })).toBeVisible();
+  await expect(page.locator("main.workbenchViewportPane")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Workbench inspector" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Revision state" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Independent workflow states" })).toBeVisible();
+}
+
+async function assertNoHorizontalOverflow(page) {
+  const dimensions = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+}
+
+async function assertResponsiveWorkbench(page, projectId) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const response = await page.goto("/projects/" + projectId + "/workbench");
+  expect(response?.status()).toBe(200);
+  await assertWorkbenchPanels(page);
+  await assertNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await assertWorkbenchPanels(page);
+  await assertNoHorizontalOverflow(page);
+}
+
 async function signIn(page, email, password) {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
@@ -196,37 +227,9 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
         expect(pageWidth.document).toBeLessThanOrEqual(pageWidth.viewport);
       });
 
-      await test.step("Verify the engineering workbench at desktop and mobile widths", async () => {
-        await pageA.setViewportSize({ width: 1440, height: 900 });
-        const desktopResponse = await pageA.goto("/projects/" + projectId + "/workbench");
-        expect(desktopResponse?.status()).toBe(200);
-        await expect(pageA.getByRole("heading", { name: "Engineering workbench" })).toBeVisible();
-        await expect(pageA.getByRole("navigation", { name: "Workbench views" })).toBeVisible();
-        await expect(pageA.getByRole("complementary", { name: "Artifact explorer" })).toBeVisible();
-        await expect(pageA.locator("main.workbenchViewportPane")).toBeVisible();
-        await expect(pageA.getByRole("complementary", { name: "Workbench inspector" })).toBeVisible();
-        await expect(pageA.getByRole("region", { name: "Revision state" })).toBeVisible();
-        await expect(pageA.getByRole("region", { name: "Independent workflow states" })).toBeVisible();
-
-        const desktopWidth = await pageA.evaluate(() => ({
-          viewport: window.innerWidth,
-          document: document.documentElement.scrollWidth,
-        }));
-        expect(desktopWidth.document).toBeLessThanOrEqual(desktopWidth.viewport);
-
-        await pageA.setViewportSize({ width: 390, height: 844 });
-        await pageA.reload();
-        await expect(pageA.getByRole("heading", { name: "Engineering workbench" })).toBeVisible();
-        await expect(pageA.getByRole("complementary", { name: "Artifact explorer" })).toBeVisible();
-        await expect(pageA.locator("main.workbenchViewportPane")).toBeVisible();
-        await expect(pageA.getByRole("complementary", { name: "Workbench inspector" })).toBeVisible();
-
-        const mobileWidth = await pageA.evaluate(() => ({
-          viewport: window.innerWidth,
-          document: document.documentElement.scrollWidth,
-        }));
-        expect(mobileWidth.document).toBeLessThanOrEqual(mobileWidth.viewport);
-      });
+      await test.step("Verify the engineering workbench at desktop and mobile widths", () =>
+        assertResponsiveWorkbench(pageA, projectId)
+      );
 
       await pageA.goto("/");
       await expect(pageA.getByRole("heading", { name: "Recent projects" })).toBeVisible();
