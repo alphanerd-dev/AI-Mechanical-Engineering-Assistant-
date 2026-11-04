@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import StlViewport from "../workbench/StlViewport";
-import "./ProjectModuleWorkspace.module.css";
+import styles from "./ProjectModuleWorkspace.module.css";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   Activity, AlertCircle, ArrowDownToLine, ArrowUpRight, Box,
@@ -263,7 +263,7 @@ function ProjectModuleWorkspaceInstance({ projectId, module }: { projectId: stri
   const onSaveName = (event: FormEvent<HTMLFormElement>) => void saveProjectName({ event, projectId, project: data.project, nameDraft, saving: savingName, setData, setNameDraftOverride, setSaving: setSavingName, setMessage: setSettingsMessage, setError: setSettingsError });
   const onExport = () => exportWorkspaceSnapshot(projectId, data.project, data.snapshot, setExportMessage);
 
-  return <div className="shell moduleWorkspace">
+  return <div className={`shell moduleWorkspace ${styles.root}`}>
     <div className="moduleBreadcrumb"><Link href="/">Workspace</Link><ChevronRight size={12} /><Link href="/projects">Projects</Link><ChevronRight size={12} /><Link href={path}>{data.project?.name ?? (isDemo ? "Demo sandbox" : "Project workspace")}</Link><ChevronRight size={12} /><span>{page.title}</span></div>
     <header className="modulePageHeader">
       <div><p className="eyebrow">{page.eyebrow}</p><h1>{page.title}</h1><p className="moduleLead">{page.description}</p></div>
