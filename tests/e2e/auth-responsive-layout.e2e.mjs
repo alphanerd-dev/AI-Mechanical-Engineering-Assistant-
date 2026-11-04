@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/browserstack-test.mjs";
 
 async function assertResponsiveAuthForm(page, { path, fieldNames, submitName }) {
   await page.setViewportSize({ width: 390, height: 844 });
