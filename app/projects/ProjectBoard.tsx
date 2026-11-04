@@ -237,7 +237,7 @@ export default function ProjectBoard() {
     <section className="workspaceLaunchPanel" aria-labelledby="workspace-launch-title">
       <div className="workspaceLaunchMain">
         <div className="workspaceLaunchTags">
-          <Badge variant="default"><Sparkles size={12} aria-hidden="true" />AI-assisted engineering</Badge>
+          <Badge variant="secondary"><Sparkles size={12} aria-hidden="true" />AI-assisted engineering</Badge>
           <Badge variant="muted">Project-scoped conversations</Badge>
         </div>
         <p className="eyebrow">ENGINEERING TASK ENTRY</p>
