@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, isBrowserStackIOS } from "./fixtures/browserstack-test.mjs";
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -51,7 +51,7 @@ async function signIn(page, email, password) {
   ).toBeVisible();
 }
 
-test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser }) => {
+test("sign-in and sign-out are labelled and keyboard-operable", async ({ testBrowser: browser }) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const emailAddress = requiredEnv("E2E_USER_A_EMAIL");
   const passwordValue = requiredEnv("E2E_USER_A_PASSWORD");
@@ -89,11 +89,12 @@ test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/login(?:\?.*)?$/);
   } finally {
-    await context.close();
+    
   }
 });
 
-test("sign-in, project persistence, sign-out, and cross-user isolation", async ({ browser }, testInfo) => {
+test("sign-in, project persistence, sign-out, and cross-user isolation", async ({ testBrowser: browser }, testInfo) => {
+  test.skip(isBrowserStackIOS(testInfo), "Cross-user isolation requires two simultaneous contexts; BrowserStack iOS supports one context per session.");
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -231,7 +232,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json"
     });
-    if (contextB) await contextB.close().catch(() => undefined);
-    if (contextA) await contextA.close().catch(() => undefined);
+    if (contextB) 
+    if (contextA) 
   }
 });
