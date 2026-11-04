@@ -6,7 +6,7 @@ framework: playwright
 
 projectName: AI_Mechanical_Engineering_Assistant_PR131
 buildName: PR131_CrossBrowser_Responsive
-buildIdentifier: ${BUILD_NUMBER}
+buildIdentifier: '#${BUILD_NUMBER}'
 
 platforms:
   # Chromium desktop baseline.
@@ -16,7 +16,8 @@ platforms:
     browserVersion: latest
 
   # Firefox engine coverage.
-  - os: Linux
+  - os: OS X
+    osVersion: Sequoia
     browserName: playwright-firefox
     browserVersion: latest
 
@@ -34,4 +35,3 @@ testObservability: true
 debug: true
 video: true
 networkLogs: true
-consoleLogs: info
