@@ -36,12 +36,12 @@ async function signIn(page, email, password) {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent projects" })).toBeVisible();
 
   // The heading can render before the initial projects request finishes. Wait for
   // that request's UI state before asserting the user's authorization is valid.
-  await expect(page.getByText("Loading projects…")).toHaveCount(0);
+  await expect(page.getByText("Loading persisted projects…")).toHaveCount(0);
   await expect(page.getByText("Engineering role required")).toHaveCount(0);
   // Scope this check to the app's actual error component; Next.js's hidden route
   // announcer also exposes role="alert" and should not make a successful login fail.
@@ -76,9 +76,9 @@ test("sign-in and sign-out are labelled and keyboard-operable", async ({ testBro
     await expect(password).toBeFocused();
     await page.keyboard.press("Enter");
 
-    await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
-    await expect(page.getByText("Loading projects…")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recent projects" })).toBeVisible();
+    await expect(page.getByText("Loading persisted projects…")).toHaveCount(0);
     await expect(page.locator('.projectError[role="alert"]')).toHaveCount(0);
 
     const account = page.getByRole("navigation", { name: "Account" });
@@ -197,7 +197,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       });
 
       await pageA.goto("/");
-      await expect(pageA.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
+      await expect(pageA.getByRole("heading", { name: "Recent projects" })).toBeVisible();
       const projectCard = pageA.getByRole("link").filter({ hasText: projectName });
       await expect(projectCard).toBeVisible();
     });
