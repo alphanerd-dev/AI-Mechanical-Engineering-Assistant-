@@ -1,6 +1,13 @@
 name: BrowserStack Automate — PR 131
 
 on:
+  # Temporary one-shot PR-branch trigger. The exact commit-message guard below
+  # prevents ordinary feature pushes from consuming BrowserStack minutes.
+  push:
+    branches:
+      - feat/engineering-os-v11-foundation
+    paths:
+      - .github/workflows/browserstack-automate.yml
   workflow_dispatch:
     inputs:
       base_url:
@@ -30,14 +37,15 @@ concurrency:
 
 jobs:
   browserstack-automate:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'ci: trigger BrowserStack PR131 acceptance') }}
     name: Cross-browser and responsive UI acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 40
     environment: e2e-staging
     env:
-      E2E_BASE_URL: ${{ inputs.base_url }}
-      E2E_SUITE: ${{ inputs.suite }}
-      CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
+      E2E_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || vars.E2E_CANONICAL_BASE_URL }}
+      E2E_SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'full' }}
+      CONFIRM_ISOLATED_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_isolated_environment || (github.event_name == 'push' && vars.E2E_CONFIRM_ISOLATED_ENVIRONMENT == 'true') }}
       E2E_RUN_ACCEPTED_CAD_SMOKE: "false"
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
