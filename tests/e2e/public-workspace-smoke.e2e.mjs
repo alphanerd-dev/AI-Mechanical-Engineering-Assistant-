@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/browserstack-test.mjs";
 import AxeBuilder from "@axe-core/playwright";
 
 test("public workspace overview supports keyboard search and mobile navigation", async ({ page }) => {
