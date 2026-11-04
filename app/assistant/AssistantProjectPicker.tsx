@@ -222,9 +222,14 @@ function AssistantProjectPanel({ projects, filteredProjects, selectedId, setSele
 }
 
 export default function AssistantProjectPicker() {
+  const router = useRouter();
   const { projects, selectedId, setSelectedId, loading, refreshing, error, errorCode, refresh } = useAssistantProjects();
   const [query, setQuery] = useState("");
   const filteredProjects = useMemo(() => filterAssistantProjects(projects, query), [projects, query]);
+  const openProjectChat = useCallback((projectId: string) => {
+    setSelectedId(projectId);
+    router.push(`/projects/${encodeURIComponent(projectId)}/engineering`);
+  }, [router, setSelectedId]);
 
   return <main className="assistantPickerPage">
     <header className="assistantPickerHeader">
@@ -233,7 +238,7 @@ export default function AssistantProjectPicker() {
       </div>
       <Link className="button secondaryButton" href="/projects"><FolderKanban size={15} aria-hidden="true" /> Projects</Link>
     </header>
-    <AssistantProjectPanel projects={projects} filteredProjects={filteredProjects} selectedId={selectedId} setSelectedId={setSelectedId} loading={loading} refreshing={refreshing} error={error} errorCode={errorCode} refresh={refresh} query={query} setQuery={setQuery} />
+    <AssistantProjectPanel projects={projects} filteredProjects={filteredProjects} selectedId={selectedId} setSelectedId={openProjectChat} loading={loading} refreshing={refreshing} error={error} errorCode={errorCode} refresh={refresh} query={query} setQuery={setQuery} />
     <aside className="assistantPickerNotice"><LockKeyhole size={16} aria-hidden="true" />
       <p><strong>Project context is explicit.</strong> Chat history is scoped to the project you select. AI responses do not execute calculations, CAD operations or solver jobs on their own.</p>
     </aside>
