@@ -48,11 +48,20 @@ export function getPublicUrl(path: string, request: Pick<Request, "url" | "heade
     throw new Error("Authentication redirects must use an absolute app-relative path.");
   }
 
+  const vercelDeploymentOrigin = process.env.VERCEL_URL
+    ? "https://" + process.env.VERCEL_URL
+    : undefined;
+  const isVercelPreview = process.env.VERCEL_ENV === "preview";
+
+  // Preview deployments must keep authentication cookies on the exact host
+  // serving the request. NEXT_PUBLIC_SITE_URL may intentionally point at the
+  // production/stable site, so it must not override VERCEL_URL in previews.
   const configuredOrigins = [
     process.env.APP_BASE_URL,
     process.env.RENDER_EXTERNAL_URL,
+    ...(isVercelPreview ? [vercelDeploymentOrigin] : []),
     process.env.NEXT_PUBLIC_SITE_URL,
-    process.env.VERCEL_URL ? "https://" + process.env.VERCEL_URL : undefined,
+    ...(!isVercelPreview ? [vercelDeploymentOrigin] : []),
     process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL
       : undefined,
