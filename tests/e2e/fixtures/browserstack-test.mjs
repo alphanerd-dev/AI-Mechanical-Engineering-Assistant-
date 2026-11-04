@@ -96,16 +96,22 @@ test.afterEach(async ({ testBrowser }, testInfo) => {
   const status = testInfo.status === "passed"
     ? "passed"
     : ["failed", "timedOut"].includes(testInfo.status) ? "failed" : "";
-  if (status) {
-    await browserStackCommand(page, {
-      action: "setSessionStatus",
-      arguments: { status, reason: testInfo.error?.message ?? "" }
-    }).catch(() => undefined);
-  }
   await browserStackCommand(page, {
     action: "setSessionName",
     arguments: { name: testInfo.titlePath.join(" > ").slice(0, 240) }
   }).catch(() => undefined);
+
+  // Mark the session last: BrowserStack can close a session after its status is set.
+  if (status) {
+    const reason = String(testInfo.error?.message ?? "")
+      .replace(/https?:\/\/[^\s]+/gi, "[url]")
+      .replace(/[\r\n\t]+/g, " ")
+      .slice(0, 240);
+    await browserStackCommand(page, {
+      action: "setSessionStatus",
+      arguments: { status, reason }
+    }).catch(() => undefined);
+  }
 });
 
 export { expect };
