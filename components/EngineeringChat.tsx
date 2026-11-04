@@ -704,6 +704,7 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
   const [activeSessionId, setActiveSessionId] = useState<string>();
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string>();
+  const [retryCount, setRetryCount] = useState(0);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
@@ -757,7 +758,7 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
     }
     void initialize();
     return () => { mounted = false; };
-  }, [projectId]);
+  }, [projectId, retryCount]);
 
   async function handleNewConversation() {
     if (creating) return;
@@ -884,6 +885,16 @@ export default function EngineeringChat({ projectId }: { projectId: string }) {
             sessionId={activeSessionId}
             onConversationSaved={handleConversationSaved}
           />
+        ) : listError ? (
+          <div className={styles.chatLoadingState} role="alert">
+            <div className={styles.chatInitializationError}>
+              <strong>Conversation could not be loaded</strong>
+              <p>{listError}</p>
+              <button type="button" onClick={() => setRetryCount(value => value + 1)} disabled={listLoading}>
+                {listLoading ? "Retrying…" : "Retry loading chat"}
+              </button>
+            </div>
+          </div>
         ) : (
           <div className={styles.chatLoadingState} role="status"><LoaderCircle size={18} className={styles.spin} />Preparing project conversation…</div>
         )}
