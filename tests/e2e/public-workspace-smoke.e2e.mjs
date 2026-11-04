@@ -6,10 +6,12 @@ test("public workspace overview supports keyboard search and mobile navigation",
 
   const response = await page.goto("/");
   expect(response?.status()).toBe(200);
-  await expect(page.getByRole("heading", { name: "Engineering Workspace", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Create an engineering project", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your engineering projects", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Explore the demo sandbox/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace overview", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What are we engineering today?", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent projects", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Browse projects", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Engineering problem or task")).toBeVisible();
+  await expect(page.locator(".projectError[role=\"alert\"]")).toContainText("Unauthenticated");
 
   await page.screenshot({ path: "test-results/ui-smoke-desktop.png", fullPage: true });
 
@@ -21,7 +23,7 @@ test("public workspace overview supports keyboard search and mobile navigation",
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Engineering Workspace", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace overview", exact: true })).toBeVisible();
 
   const dimensions = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
