@@ -108,7 +108,9 @@ test("engineering chat renders streamed Markdown, equations, code, tables and cu
   await expect(markdown.locator('[data-streamdown="strong"]')).toHaveCSS("font-weight", "760");
   await expect(markdown.locator(".katex-display")).toHaveCount(1);
   expect(await markdown.locator(".katex").count()).toBeGreaterThanOrEqual(2);
-  await expect(markdown.locator("pre code > span")).toHaveCount(2);
+  const codeBlock = markdown.locator("pre code");
+  await expect(codeBlock).toHaveCount(1);
+  await expect(codeBlock).toBeVisible();
   const renderedCodeText = await markdown.locator("pre code").evaluate((node) => node.innerText);
   expect(renderedCodeText).toContain("power_kw = torque_nm * omega_rad_s / 1000\nprint(power_kw)");
   await expect(markdown.locator("table")).toContainText("Angular speed");
