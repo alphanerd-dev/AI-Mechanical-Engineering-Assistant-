@@ -6,7 +6,7 @@ function parseOrigin(value: string | undefined): string | null {
   if (!candidate) return null;
 
   try {
-    const url = new URL(/^https?:\\/\\//i.test(candidate) ? candidate : "https://" + candidate);
+    const url = new URL(/^https?:\/\//i.test(candidate) ? candidate : "https://" + candidate);
     const hostname = url.hostname.toLowerCase();
     const isLocalHttp = url.protocol === "http:" && LOCAL_HOSTS.has(hostname);
 
