@@ -236,3 +236,110 @@
 @media (prefers-reduced-motion: reduce) {
   .root :global(.moduleSpin) { animation: none; }
 }
+
+/* Workbench: three-pane artifact explorer, read-only viewport and inspector. */
+.root :global(.workbenchPage) { display: grid; gap: 14px; min-width: 0; }
+.root :global(.workbenchSubnav) {
+  display: flex; gap: 4px; width: fit-content; max-width: 100%; padding: 4px;
+  overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.root :global(.workbenchSubnav) a, .root :global(.workbenchSubnav) span {
+  display: inline-flex; min-height: 32px; flex: 0 0 auto; align-items: center; padding: 0 11px;
+  border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: 11px; font-weight: 650; text-decoration: none; white-space: nowrap;
+}
+.root :global(.workbenchSubnav) a:hover { background: var(--color-surface-raised); color: var(--color-text); }
+.root :global(.workbenchSubnav) [aria-current="page"] { background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-raised)); color: var(--color-accent); }
+.root :global(.workbenchMetaRow) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; color: var(--color-text-subtle); font-size: 11px; }
+.root :global(.workbenchMetaRow) strong { color: var(--color-text); font-family: var(--font-mono); }
+.root :global(.revisionStateBanner) {
+  display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.root :global(.revisionStateBanner[data-state="different"]) { border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border)); }
+.root :global(.revisionStateIcon) { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border-radius: var(--radius-sm); background: var(--color-surface-raised); color: var(--color-accent); }
+.root :global(.revisionStateBanner) > div { flex: 1; min-width: 0; }
+.root :global(.revisionStateBanner) strong { display: block; color: var(--color-text); font-size: 11px; }
+.root :global(.revisionStateBanner) p { margin: 3px 0 0; font-size: 10px; line-height: 1.45; }
+.root :global(.workbenchThreePane) { display: grid; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(230px, 270px); align-items: start; gap: 12px; min-width: 0; }
+.root :global(.workbenchExplorer), .root :global(.workbenchViewportPane), .root :global(.workbenchInspector) { min-width: 0; }
+.root :global(.workbenchExplorer) .modulePanel, .root :global(.workbenchInspector) .modulePanel { padding: 13px; }
+.root :global(.workbenchExplorerSection) { padding: 11px 0; border-top: 1px solid var(--color-border); }
+.root :global(.workbenchExplorerSection) > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.root :global(.workbenchExplorerSection) > header strong { color: var(--color-text); font-size: 10px; }
+.root :global(.workbenchExplorerSection) > header span { color: var(--color-text-subtle); font: 10px var(--font-mono); }
+.root :global(.workbenchExplorerEmpty) { margin: 0; padding: 9px; border: 1px dashed var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-subtle); font-size: 10px; line-height: 1.5; }
+.root :global(.workbenchExplorerRow) { display: grid; grid-template-columns: 15px minmax(0, 1fr); align-items: start; gap: 7px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent); }
+.root :global(.workbenchExplorerRow) > svg { margin-top: 2px; color: var(--color-accent); }
+.root :global(.workbenchExplorerRow) > div { min-width: 0; }
+.root :global(.workbenchExplorerRow) strong, .root :global(.workbenchExplorerRow) small { display: block; overflow-wrap: anywhere; }
+.root :global(.workbenchExplorerRow) strong { color: var(--color-text); font-size: 10px; }
+.root :global(.workbenchExplorerRow) small { margin-top: 3px; color: var(--color-text-subtle); font-size: 9px; line-height: 1.4; }
+.root :global(.workbenchExplorerRow) .moduleState { grid-column: 2; width: fit-content; margin-top: 2px; }
+.root :global(.workbenchViewport) { display: grid; grid-template-rows: auto minmax(330px, 1fr) auto; min-width: 0; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); }
+.root :global(.viewportToolbar) { display: flex; justify-content: space-between; gap: 8px; padding: 9px 11px; border-bottom: 1px solid var(--color-border); color: var(--color-text-subtle); font-size: 10px; }
+.root :global(.viewportToolbar) span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); }
+.root :global(.viewportToolbar) svg { color: var(--color-accent); }
+.root :global(.viewportScene) { position: relative; display: grid; min-width: 0; min-height: 330px; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, var(--color-surface-raised), var(--color-bg) 72%); }
+.root :global(.viewportGridPattern) {
+  position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--color-border) 45%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--color-border) 45%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px; mask-image: radial-gradient(ellipse at center, black 10%, transparent 78%);
+}
+.root :global(.viewportAxis) { position: absolute; z-index: 1; display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface); font: 700 9px var(--font-mono); }
+.root :global(.viewportAxisX) { right: 42px; bottom: 42px; color: var(--color-danger); }
+.root :global(.viewportAxisY) { right: 65px; bottom: 64px; color: var(--color-success); }
+.root :global(.viewportAxisZ) { right: 88px; bottom: 42px; color: var(--color-info); }
+.root :global(.viewportEmptyCopy) { position: relative; z-index: 1; display: flex; max-width: 330px; flex-direction: column; align-items: center; gap: 8px; padding: 24px; text-align: center; }
+.root :global(.viewportEmptyCopy) > svg { color: var(--color-text-subtle); }
+.root :global(.viewportEmptyCopy) strong { color: var(--color-text); font-size: 12px; }
+.root :global(.viewportEmptyCopy) p { margin: 0; color: var(--color-text-subtle); font-size: 10px; line-height: 1.6; }
+.root :global(.viewportFooter) { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; padding: 9px 11px; border-top: 1px solid var(--color-border); color: var(--color-text-subtle); font-size: 9px; line-height: 1.45; }
+.root :global(.workbenchSide) { display: grid; gap: 12px; }
+.root :global(.workbenchInspector) .moduleKeyValue { padding: 8px 0; font-size: 10px; }
+.root :global(.moduleVisibility) { display: grid; gap: 8px; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--color-border); }
+.root :global(.moduleVisibility) h3 { margin: 0; color: var(--color-text); font-size: 10px; }
+.root :global(.moduleVisibility) p { margin: 0; }
+.root :global(.moduleVisibility) label { display: flex; justify-content: space-between; align-items: center; min-height: 32px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 10px; }
+.root :global(.moduleVisibility) input { accent-color: var(--color-accent); }
+.root :global(.latestEvidence) { display: grid; gap: 4px; margin-top: 10px; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); }
+.root :global(.latestEvidence) span { color: var(--color-text-subtle); font-size: 9px; }
+.root :global(.latestEvidence) strong { color: var(--color-text); font-size: 10px; overflow-wrap: anywhere; }
+.root :global(.latestEvidence) small { color: var(--color-text-muted); font-size: 9px; }
+
+/* FEA/P&ID shells remain honest unavailable states until real data providers exist. */
+.root :global(.feaWorkspaceGrid) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.root :global(.feaInputGrid) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.root :global(.feaDisabledField) { display: grid; gap: 5px; min-width: 0; color: var(--color-text-subtle); font-size: 10px; }
+.root :global(.feaDisabledField) input, .root :global(.feaDisabledField) textarea { width: 100%; min-width: 0; min-height: 36px; padding: 8px 9px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text-subtle); font: inherit; resize: vertical; }
+.root :global(.feaDisabledField) input:disabled, .root :global(.feaDisabledField) textarea:disabled { opacity: .75; cursor: not-allowed; }
+.root :global(.feaFieldSlots) { display: grid; gap: 6px; }
+.root :global(.feaFieldSlot) { display: flex; min-height: 38px; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: 10px; }
+.root :global(.feaFieldSlot) input { accent-color: var(--color-accent); }
+.root :global(.feaFieldSlot) span { flex: 1; }
+.root :global(.feaLegendSlot) { display: grid; gap: 7px; margin: 14px 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); }
+.root :global(.feaLegendSlot) strong { color: var(--color-text); font-size: 10px; }
+.root :global(.feaLegendSlot) span, .root :global(.feaLegendSlot) small { color: var(--color-text-subtle); font-size: 9px; }
+.root :global(.feaLegendTrack) { height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--color-info), var(--color-accent), var(--color-warning), var(--color-danger)); opacity: .25; }
+.root :global(.pidWorkspaceGrid) { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.4fr) minmax(200px, .9fr); gap: 12px; min-width: 0; }
+.root :global(.pidLayerList) { display: grid; gap: 7px; }
+.root :global(.pidLayerList) label { display: flex; min-height: 38px; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: 10px; }
+.root :global(.pidLayerList) label span { flex: 1; }
+.root :global(.pidLayerList) input { accent-color: var(--color-accent); }
+.root :global(.pidCanvasEmpty) { display: grid; min-height: 300px; place-items: center; border: 1px dashed var(--color-border); border-radius: var(--radius-md); background: radial-gradient(ellipse at center, var(--color-surface-raised), var(--color-bg)); }
+@media (max-width: 1180px) {
+  .root :global(.workbenchThreePane) { grid-template-columns: minmax(200px, .8fr) minmax(0, 1.4fr); }
+  .root :global(.workbenchInspector) { grid-column: 1 / -1; }
+  .root :global(.workbenchSide) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .root :global(.pidWorkspaceGrid) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+  .root :global(.pidWorkspaceGrid) > :last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .root :global(.workbenchThreePane), .root :global(.feaWorkspaceGrid), .root :global(.feaInputGrid), .root :global(.pidWorkspaceGrid) { grid-template-columns: minmax(0, 1fr); }
+  .root :global(.workbenchInspector), .root :global(.pidWorkspaceGrid) > :last-child { grid-column: auto; }
+  .root :global(.workbenchSide) { grid-template-columns: minmax(0, 1fr); }
+  .root :global(.revisionStateBanner) { flex-wrap: wrap; }
+  .root :global(.revisionStateBanner) > div { flex-basis: calc(100% - 46px); }
+  .root :global(.revisionStateBanner) > .moduleTextLink { margin-left: 42px; }
+  .root :global(.workbenchViewport) { grid-template-rows: auto minmax(260px, 1fr) auto; }
+  .root :global(.viewportScene), .root :global(.pidCanvasEmpty) { min-height: 260px; }
+}
