@@ -28,16 +28,17 @@ describe("public authentication redirect origin", () => {
   });
 
 
-  it("keeps authentication redirects on the active Vercel preview deployment", () => {
+  it("preserves the stable Vercel preview alias used by the browser", () => {
     vi.stubEnv("APP_BASE_URL", "");
     vi.stubEnv("RENDER_EXTERNAL_URL", "");
     vi.stubEnv("VERCEL_ENV", "preview");
-    vi.stubEnv("VERCEL_URL", "ai-mechanical-engineering-assistant-preview.vercel.app");
+    vi.stubEnv("VERCEL_URL", "ai-mechanical-engineering-assistant-deployment-123.vercel.app");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://ai-mechanical-engineering-assistan-git-production.vercel.app");
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "ai-mechanical-engineering-assistant.vercel.app");
 
-    const request = new Request("https://ai-mechanical-engineering-assistant-preview.vercel.app/api/auth/login");
-    expect(getPublicUrl("/", request).origin).toBe("https://ai-mechanical-engineering-assistant-preview.vercel.app");
+    const previewAlias = "https://ai-mechanical-engineering-assistant-m-git-3eb398-alphanerd-labs.vercel.app";
+    const request = new Request(previewAlias + "/api/auth/login");
+    expect(getPublicUrl("/", request).origin).toBe(previewAlias);
   });
 
   it("retains the configured canonical URL for Vercel production", () => {

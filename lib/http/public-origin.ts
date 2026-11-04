@@ -53,13 +53,32 @@ export function getPublicUrl(path: string, request: Pick<Request, "url" | "heade
     : undefined;
   const isVercelPreview = process.env.VERCEL_ENV === "preview";
 
-  // Preview deployments must keep authentication cookies on the exact host
-  // serving the request. NEXT_PUBLIC_SITE_URL may intentionally point at the
-  // production/stable site, so it must not override VERCEL_URL in previews.
+  let previewRequestOrigin: string | undefined;
+  if (isVercelPreview) {
+    try {
+      const requestUrl = new URL(request.url);
+      if (isKnownPlatformHost(requestUrl.hostname)) {
+        previewRequestOrigin = parseOrigin(requestUrl.origin) ?? undefined;
+      }
+    } catch {
+      // Try the trusted proxy host below.
+    }
+
+    if (!previewRequestOrigin) {
+      const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+      if (forwardedHost && isAllowedForwardedHost(forwardedHost)) {
+        previewRequestOrigin = parseOrigin("https://" + forwardedHost) ?? undefined;
+      }
+    }
+  }
+
+  // Preserve the exact preview host the browser visited. VERCEL_URL identifies
+  // the deployment, while a stable branch alias can be a different hostname;
+  // redirecting between them drops host-scoped Supabase cookies.
   const configuredOrigins = [
     process.env.APP_BASE_URL,
     process.env.RENDER_EXTERNAL_URL,
-    ...(isVercelPreview ? [vercelDeploymentOrigin] : []),
+    ...(isVercelPreview ? [previewRequestOrigin, vercelDeploymentOrigin] : []),
     process.env.NEXT_PUBLIC_SITE_URL,
     ...(!isVercelPreview ? [vercelDeploymentOrigin] : []),
     process.env.VERCEL_PROJECT_PRODUCTION_URL
