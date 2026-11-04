@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import StlViewport from "../workbench/StlViewport";
+import "./ProjectModuleWorkspace.module.css";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   Activity, AlertCircle, ArrowDownToLine, ArrowUpRight, Box,
