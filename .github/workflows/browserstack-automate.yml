@@ -37,7 +37,6 @@ concurrency:
 
 jobs:
   browserstack-automate:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'ci: trigger BrowserStack PR131 acceptance') }}
     name: Cross-browser and responsive UI acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 40
