@@ -35,8 +35,25 @@ function browserContextOptions(projectUse = {}) {
   return options;
 }
 
+async function settleWithin(operation, timeoutMs) {
+  let timeoutId;
+  try {
+    await Promise.race([
+      Promise.resolve(operation).catch(() => undefined),
+      new Promise((resolve) => {
+        timeoutId = setTimeout(resolve, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 function browserStackCommand(page, command) {
-  return page.evaluate(() => {}, "browserstack_executor: " + JSON.stringify(command));
+  return settleWithin(
+    page.evaluate(() => {}, "browserstack_executor: " + JSON.stringify(command)),
+    5_000
+  );
 }
 
 export function isBrowserStackIOS(testInfo) {
@@ -63,7 +80,7 @@ export const test = base.extend({
     try {
       await provide(browser);
     } finally {
-      await browser.close().catch(() => undefined);
+      await settleWithin(browser.close(), 10_000);
     }
   },
   context: async ({ testBrowser }, provide, testInfo) => {
@@ -71,7 +88,7 @@ export const test = base.extend({
     try {
       await provide(context);
     } finally {
-      await context.close().catch(() => undefined);
+      await settleWithin(context.close(), 10_000);
     }
   },
   page: async ({ context }, provide, testInfo) => {
