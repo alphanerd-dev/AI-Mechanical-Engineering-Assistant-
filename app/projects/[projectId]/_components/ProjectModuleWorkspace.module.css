@@ -1,9 +1,9 @@
-:global(.moduleWorkspace) {
+.root {
   width: min(100%, 1600px);
   min-width: 0;
   padding-top: 20px;
 }
-:global(.moduleWorkspace) :global(.moduleBreadcrumb) {
+.root :global(.moduleBreadcrumb) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -13,9 +13,9 @@
   color: var(--color-text-subtle);
   font-size: 12px;
 }
-:global(.moduleWorkspace) :global(.moduleBreadcrumb) a { color: var(--color-text-muted); text-decoration: none; }
-:global(.moduleWorkspace) :global(.moduleBreadcrumb) a:hover { color: var(--color-accent); }
-:global(.moduleWorkspace) :global(.modulePageHeader) {
+.root :global(.moduleBreadcrumb) a { color: var(--color-text-muted); text-decoration: none; }
+.root :global(.moduleBreadcrumb) a:hover { color: var(--color-accent); }
+.root :global(.modulePageHeader) {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -23,11 +23,11 @@
   min-width: 0;
   margin-bottom: 20px;
 }
-:global(.moduleWorkspace) :global(.modulePageHeader) > div:first-child { min-width: 0; }
-:global(.moduleWorkspace) :global(.modulePageHeader) h1 { margin: 5px 0 8px; }
-:global(.moduleWorkspace) :global(.moduleLead) { max-width: 760px; margin: 0; font-size: 14px; }
-:global(.moduleWorkspace) :global(.moduleHeaderActions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
-:global(.moduleWorkspace) :global(.moduleTabs) {
+.root :global(.modulePageHeader) > div:first-child { min-width: 0; }
+.root :global(.modulePageHeader) h1 { margin: 5px 0 8px; }
+.root :global(.moduleLead) { max-width: 760px; margin: 0; font-size: 14px; }
+.root :global(.moduleHeaderActions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
+.root :global(.moduleTabs) {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -41,7 +41,7 @@
   background: var(--color-surface);
   scrollbar-width: thin;
 }
-:global(.moduleWorkspace) :global(.moduleTabs) a {
+.root :global(.moduleTabs) a {
   display: inline-flex;
   min-height: 36px;
   align-items: center;
@@ -56,35 +56,35 @@
   text-decoration: none;
   white-space: nowrap;
 }
-:global(.moduleWorkspace) :global(.moduleTabs) a:hover { background: var(--color-surface-raised); color: var(--color-text); }
-:global(.moduleWorkspace) :global(.moduleTabs) a[aria-current="page"] {
+.root :global(.moduleTabs) a:hover { background: var(--color-surface-raised); color: var(--color-text); }
+.root :global(.moduleTabs) a[aria-current="page"] {
   border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
   background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-raised));
   color: var(--color-accent);
 }
-:global(.moduleWorkspace) :global(.moduleContent) { min-width: 0; }
-:global(.moduleWorkspace) :global(.moduleStack) { display: grid; gap: 16px; min-width: 0; }
-:global(.moduleWorkspace) :global(.moduleMetrics) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-width: 0; }
-:global(.moduleWorkspace) :global(.moduleMetric) {
+.root :global(.moduleContent) { min-width: 0; }
+.root :global(.moduleStack) { display: grid; gap: 16px; min-width: 0; }
+.root :global(.moduleMetrics) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.root :global(.moduleMetric) {
   min-width: 0;
   padding: 15px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: linear-gradient(145deg, var(--color-surface-raised), var(--color-surface));
 }
-:global(.moduleWorkspace) :global(.moduleMetric) > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--color-text-muted); font-size: 11px; }
-:global(.moduleWorkspace) :global(.moduleMetric) > div svg { color: var(--color-accent); flex: 0 0 auto; }
-:global(.moduleWorkspace) :global(.moduleMetric) > strong { display: block; margin-top: 12px; color: var(--color-text); font-size: clamp(20px, 2vw, 26px); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-:global(.moduleWorkspace) :global(.moduleMetric) > small { display: block; margin-top: 6px; color: var(--color-text-subtle); font-size: 11px; line-height: 1.45; }
-:global(.moduleWorkspace) :global(.moduleTwoColumn) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; min-width: 0; }
-:global(.moduleWorkspace) :global(.modulePanel) {
+.root :global(.moduleMetric) > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--color-text-muted); font-size: 11px; }
+.root :global(.moduleMetric) > div svg { color: var(--color-accent); flex: 0 0 auto; }
+.root :global(.moduleMetric) > strong { display: block; margin-top: 12px; color: var(--color-text); font-size: clamp(20px, 2vw, 26px); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.root :global(.moduleMetric) > small { display: block; margin-top: 6px; color: var(--color-text-subtle); font-size: 11px; line-height: 1.45; }
+.root :global(.moduleTwoColumn) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; min-width: 0; }
+.root :global(.modulePanel) {
   min-width: 0;
   padding: 17px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
-:global(.moduleWorkspace) :global(.modulePanelHeader) {
+.root :global(.modulePanelHeader) {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -93,9 +93,9 @@
   padding-bottom: 12px;
   border-bottom: 1px solid var(--color-border);
 }
-:global(.moduleWorkspace) :global(.modulePanelHeader) h2 { margin: 0; font-size: 14px; }
-:global(.moduleWorkspace) :global(.modulePanelHeader) p { margin: 5px 0 0; color: var(--color-text-subtle); font-size: 11px; line-height: 1.5; }
-:global(.moduleWorkspace) :global(.moduleState) {
+.root :global(.modulePanelHeader) h2 { margin: 0; font-size: 14px; }
+.root :global(.modulePanelHeader) p { margin: 5px 0 0; color: var(--color-text-subtle); font-size: 11px; line-height: 1.5; }
+.root :global(.moduleState) {
   display: inline-flex;
   min-height: 22px;
   align-items: center;
@@ -110,11 +110,11 @@
   letter-spacing: .035em;
   white-space: nowrap;
 }
-:global(.moduleWorkspace) :global(.moduleState[data-tone="success"]) { border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border)); color: var(--color-success); }
-:global(.moduleWorkspace) :global(.moduleState[data-tone="warning"]) { border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border)); color: var(--color-warning); }
-:global(.moduleWorkspace) :global(.moduleState[data-tone="danger"]) { border-color: color-mix(in srgb, var(--color-danger) 40%, var(--color-border)); color: var(--color-danger); }
-:global(.moduleWorkspace) :global(.moduleState[data-tone="info"]) { border-color: color-mix(in srgb, var(--color-info) 40%, var(--color-border)); color: var(--color-info); }
-:global(.moduleWorkspace) :global(.moduleEmptyState) {
+.root :global(.moduleState[data-tone="success"]) { border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border)); color: var(--color-success); }
+.root :global(.moduleState[data-tone="warning"]) { border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border)); color: var(--color-warning); }
+.root :global(.moduleState[data-tone="danger"]) { border-color: color-mix(in srgb, var(--color-danger) 40%, var(--color-border)); color: var(--color-danger); }
+.root :global(.moduleState[data-tone="info"]) { border-color: color-mix(in srgb, var(--color-info) 40%, var(--color-border)); color: var(--color-info); }
+.root :global(.moduleEmptyState) {
   display: flex;
   min-height: 190px;
   flex-direction: column;
@@ -124,10 +124,10 @@
   padding: 24px;
   text-align: center;
 }
-:global(.moduleWorkspace) :global(.moduleEmptyIcon) { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-raised); color: var(--color-accent); }
-:global(.moduleWorkspace) :global(.moduleEmptyState) strong { color: var(--color-text); font-size: 13px; }
-:global(.moduleWorkspace) :global(.moduleEmptyState) p { max-width: 440px; margin: 0; color: var(--color-text-subtle); font-size: 12px; line-height: 1.6; }
-:global(.moduleWorkspace) :global(.moduleLoading), :global(.moduleWorkspace) :global(.moduleError), :global(.moduleWorkspace) :global(.moduleNotice) {
+.root :global(.moduleEmptyIcon) { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-raised); color: var(--color-accent); }
+.root :global(.moduleEmptyState) strong { color: var(--color-text); font-size: 13px; }
+.root :global(.moduleEmptyState) p { max-width: 440px; margin: 0; color: var(--color-text-subtle); font-size: 12px; line-height: 1.6; }
+.root :global(.moduleLoading), .root :global(.moduleError), .root :global(.moduleNotice) {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -139,19 +139,19 @@
   font-size: 12px;
   line-height: 1.55;
 }
-:global(.moduleWorkspace) :global(.moduleError) { border-color: color-mix(in srgb, var(--color-danger) 40%, var(--color-border)); }
-:global(.moduleWorkspace) :global(.moduleError) strong { color: var(--color-text); }
-:global(.moduleWorkspace) :global(.moduleError) p { margin: 4px 0 0; }
-:global(.moduleWorkspace) :global(.moduleNotice) { background: color-mix(in srgb, var(--color-info) 6%, var(--color-surface)); }
-:global(.moduleWorkspace) :global(.moduleSpin) { animation: module-spin 1.2s linear infinite; }
+.root :global(.moduleError) { border-color: color-mix(in srgb, var(--color-danger) 40%, var(--color-border)); }
+.root :global(.moduleError) strong { color: var(--color-text); }
+.root :global(.moduleError) p { margin: 4px 0 0; }
+.root :global(.moduleNotice) { background: color-mix(in srgb, var(--color-info) 6%, var(--color-surface)); }
+.root :global(.moduleSpin) { animation: module-spin 1.2s linear infinite; }
 @keyframes module-spin { to { transform: rotate(360deg); } }
-:global(.moduleWorkspace) :global(.workflowStrip) {
+.root :global(.workflowStrip) {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 16px;
 }
-:global(.moduleWorkspace) :global(.workflowStep) {
+.root :global(.workflowStep) {
   display: flex;
   min-width: 0;
   align-items: flex-start;
@@ -161,78 +161,78 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
-:global(.moduleWorkspace) :global(.workflowStepNumber) { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: var(--radius-sm); background: var(--color-surface-raised); color: var(--color-accent); font: 700 10px var(--font-mono); }
-:global(.moduleWorkspace) :global(.workflowStep) > div { flex: 1; min-width: 0; }
-:global(.moduleWorkspace) :global(.workflowStep) strong { display: block; color: var(--color-text); font-size: 11px; }
-:global(.moduleWorkspace) :global(.workflowStep) small { display: block; margin-top: 5px; color: var(--color-text-subtle); font-size: 10px; line-height: 1.45; }
-:global(.moduleWorkspace) :global(.workflowStep) .moduleState { margin-top: 8px; }
-:global(.moduleWorkspace) :global(.workflowBoundaryNote) { margin: 10px 0 16px; padding: 10px 12px; border-left: 2px solid var(--color-warning); background: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface)); color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
-:global(.moduleWorkspace) :global(.moduleKeyValue) { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--color-border); font-size: 12px; }
-:global(.moduleWorkspace) :global(.moduleKeyValue) span { color: var(--color-text-subtle); }
-:global(.moduleWorkspace) :global(.moduleKeyValue) strong { color: var(--color-text); text-align: right; overflow-wrap: anywhere; }
-:global(.moduleWorkspace) :global(.moduleMono) { font-family: var(--font-mono); font-size: 10px; }
-:global(.moduleWorkspace) :global(.modulePill) { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-muted); font: 650 10px var(--font-mono); }
-:global(.moduleWorkspace) :global(.moduleTextLink) { color: var(--color-accent); font-size: 12px; text-decoration: none; }
-:global(.moduleWorkspace) :global(.moduleTextLink:hover) { text-decoration: underline; }
-:global(.moduleWorkspace) :global(.moduleVisibility) { display: flex; flex-wrap: wrap; gap: 8px; }
-:global(.moduleWorkspace) :global(.moduleVisibility) label { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: 11px; }
-:global(.moduleWorkspace) :global(.moduleSmallNote) { color: var(--color-text-subtle); font-size: 11px; line-height: 1.6; }
-:global(.moduleWorkspace) :global(.moduleRequirementList) { display: grid; gap: 9px; margin: 0; padding-left: 18px; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
-:global(.moduleWorkspace) :global(.moduleTableWrap) { width: 100%; overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
-:global(.moduleWorkspace) :global(.moduleTable) { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 11px; text-align: left; }
-:global(.moduleWorkspace) :global(.moduleTable) th { padding: 10px 12px; background: var(--color-surface-raised); color: var(--color-text-subtle); font-size: 10px; font-weight: 750; white-space: nowrap; }
-:global(.moduleWorkspace) :global(.moduleTable) td { padding: 11px 12px; border-top: 1px solid var(--color-border); color: var(--color-text-muted); vertical-align: middle; }
-:global(.moduleWorkspace) :global(.moduleTable) td strong, :global(.moduleWorkspace) :global(.moduleTable) td small { display: block; }
-:global(.moduleWorkspace) :global(.moduleTable) td strong { color: var(--color-text); font-size: 11px; }
-:global(.moduleWorkspace) :global(.moduleTable) td small { margin-top: 4px; color: var(--color-text-subtle); font-size: 10px; }
-:global(.moduleWorkspace) :global(.moduleSimpleList) { display: grid; gap: 0; }
-:global(.moduleWorkspace) :global(.moduleListRow) { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); }
-:global(.moduleWorkspace) :global(.moduleListRow) > div { flex: 1; min-width: 0; }
-:global(.moduleWorkspace) :global(.moduleListRow) strong, :global(.moduleWorkspace) :global(.moduleListRow) small { display: block; overflow-wrap: anywhere; }
-:global(.moduleWorkspace) :global(.moduleListRow) strong { color: var(--color-text); font-size: 12px; }
-:global(.moduleWorkspace) :global(.moduleListRow) small { margin-top: 4px; color: var(--color-text-subtle); font: 10px var(--font-mono); }
-:global(.moduleWorkspace) :global(.moduleTimeline) { display: grid; gap: 0; }
-:global(.moduleWorkspace) :global(.moduleTimelineItem) { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 10px; padding: 0 0 18px; }
-:global(.moduleWorkspace) :global(.moduleTimelineDot) { width: 9px; height: 9px; margin-top: 5px; border: 2px solid var(--color-accent); border-radius: 50%; background: var(--color-surface); }
-:global(.moduleWorkspace) :global(.moduleTimelineDot[data-kind="task"]) { border-color: var(--color-info); }
-:global(.moduleWorkspace) :global(.moduleTimelineHead) { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; }
-:global(.moduleWorkspace) :global(.moduleTimelineHead) strong { color: var(--color-text); font-size: 12px; }
-:global(.moduleWorkspace) :global(.moduleTimelineHead) small { color: var(--color-text-subtle); font-size: 10px; }
-:global(.moduleWorkspace) :global(.moduleTimelineItem) p { margin: 5px 0 0; font-size: 11px; }
-:global(.moduleWorkspace) :global(.moduleReportPreview) { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); }
-:global(.moduleWorkspace) :global(.moduleReportPreview) > div { flex: 1; min-width: 0; }
-:global(.moduleWorkspace) :global(.moduleReportPreview) strong, :global(.moduleWorkspace) :global(.moduleReportPreview) small { display: block; overflow-wrap: anywhere; }
-:global(.moduleWorkspace) :global(.moduleReportPreview) strong { color: var(--color-text); font-size: 12px; }
-:global(.moduleWorkspace) :global(.moduleReportPreview) small { margin-top: 4px; color: var(--color-text-subtle); font: 10px var(--font-mono); }
-:global(.moduleWorkspace) :global(.moduleReportStats) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
-:global(.moduleWorkspace) :global(.moduleReportStats) > div { padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); }
-:global(.moduleWorkspace) :global(.moduleReportStats) strong, :global(.moduleWorkspace) :global(.moduleReportStats) span { display: block; }
-:global(.moduleWorkspace) :global(.moduleReportStats) strong { color: var(--color-text); font-size: 17px; font-variant-numeric: tabular-nums; }
-:global(.moduleWorkspace) :global(.moduleReportStats) span { margin-top: 3px; color: var(--color-text-subtle); font-size: 10px; }
-:global(.moduleWorkspace) :global(.moduleSettingsForm) { display: grid; gap: 10px; }
-:global(.moduleWorkspace) :global(.moduleSettingsForm) label { color: var(--color-text-muted); font-size: 11px; font-weight: 700; }
-:global(.moduleWorkspace) :global(.moduleSettingsForm) input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); }
-:global(.moduleWorkspace) :global(.moduleSettingsForm) input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-:global(.moduleWorkspace) :global(.moduleSuccessMessage) { color: var(--color-success); font-size: 11px; }
-:global(.moduleWorkspace) :global(.moduleFormError) { color: var(--color-danger); font-size: 11px; }
-:global(.moduleWorkspace) :global(:global(.moduleWorkspace)) a:focus-visible, :global(.moduleWorkspace) button:focus-visible, :global(.moduleWorkspace) input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.root :global(.workflowStepNumber) { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: var(--radius-sm); background: var(--color-surface-raised); color: var(--color-accent); font: 700 10px var(--font-mono); }
+.root :global(.workflowStep) > div { flex: 1; min-width: 0; }
+.root :global(.workflowStep) strong { display: block; color: var(--color-text); font-size: 11px; }
+.root :global(.workflowStep) small { display: block; margin-top: 5px; color: var(--color-text-subtle); font-size: 10px; line-height: 1.45; }
+.root :global(.workflowStep) .moduleState { margin-top: 8px; }
+.root :global(.workflowBoundaryNote) { margin: 10px 0 16px; padding: 10px 12px; border-left: 2px solid var(--color-warning); background: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface)); color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
+.root :global(.moduleKeyValue) { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--color-border); font-size: 12px; }
+.root :global(.moduleKeyValue) span { color: var(--color-text-subtle); }
+.root :global(.moduleKeyValue) strong { color: var(--color-text); text-align: right; overflow-wrap: anywhere; }
+.root :global(.moduleMono) { font-family: var(--font-mono); font-size: 10px; }
+.root :global(.modulePill) { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-muted); font: 650 10px var(--font-mono); }
+.root :global(.moduleTextLink) { color: var(--color-accent); font-size: 12px; text-decoration: none; }
+.root :global(.moduleTextLink:hover) { text-decoration: underline; }
+.root :global(.moduleVisibility) { display: flex; flex-wrap: wrap; gap: 8px; }
+.root :global(.moduleVisibility) label { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: 11px; }
+.root :global(.moduleSmallNote) { color: var(--color-text-subtle); font-size: 11px; line-height: 1.6; }
+.root :global(.moduleRequirementList) { display: grid; gap: 9px; margin: 0; padding-left: 18px; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
+.root :global(.moduleTableWrap) { width: 100%; overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.root :global(.moduleTable) { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 11px; text-align: left; }
+.root :global(.moduleTable) th { padding: 10px 12px; background: var(--color-surface-raised); color: var(--color-text-subtle); font-size: 10px; font-weight: 750; white-space: nowrap; }
+.root :global(.moduleTable) td { padding: 11px 12px; border-top: 1px solid var(--color-border); color: var(--color-text-muted); vertical-align: middle; }
+.root :global(.moduleTable) td strong, .root :global(.moduleTable) td small { display: block; }
+.root :global(.moduleTable) td strong { color: var(--color-text); font-size: 11px; }
+.root :global(.moduleTable) td small { margin-top: 4px; color: var(--color-text-subtle); font-size: 10px; }
+.root :global(.moduleSimpleList) { display: grid; gap: 0; }
+.root :global(.moduleListRow) { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); }
+.root :global(.moduleListRow) > div { flex: 1; min-width: 0; }
+.root :global(.moduleListRow) strong, .root :global(.moduleListRow) small { display: block; overflow-wrap: anywhere; }
+.root :global(.moduleListRow) strong { color: var(--color-text); font-size: 12px; }
+.root :global(.moduleListRow) small { margin-top: 4px; color: var(--color-text-subtle); font: 10px var(--font-mono); }
+.root :global(.moduleTimeline) { display: grid; gap: 0; }
+.root :global(.moduleTimelineItem) { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 10px; padding: 0 0 18px; }
+.root :global(.moduleTimelineDot) { width: 9px; height: 9px; margin-top: 5px; border: 2px solid var(--color-accent); border-radius: 50%; background: var(--color-surface); }
+.root :global(.moduleTimelineDot[data-kind="task"]) { border-color: var(--color-info); }
+.root :global(.moduleTimelineHead) { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; }
+.root :global(.moduleTimelineHead) strong { color: var(--color-text); font-size: 12px; }
+.root :global(.moduleTimelineHead) small { color: var(--color-text-subtle); font-size: 10px; }
+.root :global(.moduleTimelineItem) p { margin: 5px 0 0; font-size: 11px; }
+.root :global(.moduleReportPreview) { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); }
+.root :global(.moduleReportPreview) > div { flex: 1; min-width: 0; }
+.root :global(.moduleReportPreview) strong, .root :global(.moduleReportPreview) small { display: block; overflow-wrap: anywhere; }
+.root :global(.moduleReportPreview) strong { color: var(--color-text); font-size: 12px; }
+.root :global(.moduleReportPreview) small { margin-top: 4px; color: var(--color-text-subtle); font: 10px var(--font-mono); }
+.root :global(.moduleReportStats) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+.root :global(.moduleReportStats) > div { padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); }
+.root :global(.moduleReportStats) strong, .root :global(.moduleReportStats) span { display: block; }
+.root :global(.moduleReportStats) strong { color: var(--color-text); font-size: 17px; font-variant-numeric: tabular-nums; }
+.root :global(.moduleReportStats) span { margin-top: 3px; color: var(--color-text-subtle); font-size: 10px; }
+.root :global(.moduleSettingsForm) { display: grid; gap: 10px; }
+.root :global(.moduleSettingsForm) label { color: var(--color-text-muted); font-size: 11px; font-weight: 700; }
+.root :global(.moduleSettingsForm) input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); }
+.root :global(.moduleSettingsForm) input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.root :global(.moduleSuccessMessage) { color: var(--color-success); font-size: 11px; }
+.root :global(.moduleFormError) { color: var(--color-danger); font-size: 11px; }
+.root :global(.root) a:focus-visible, .root button:focus-visible, .root input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 @media (max-width: 1100px) {
-  :global(.moduleWorkspace) :global(.workflowStrip) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  :global(.moduleWorkspace) :global(.moduleMetrics) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .root :global(.workflowStrip) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .root :global(.moduleMetrics) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
-  :global(.moduleWorkspace) { padding: 14px 12px calc(88px + env(safe-area-inset-bottom)); }
-  :global(.moduleWorkspace) :global(.modulePageHeader) { display: grid; align-items: start; gap: 12px; }
-  :global(.moduleWorkspace) :global(.moduleHeaderActions) { width: 100%; }
-  :global(.moduleWorkspace) :global(.moduleHeaderActions) .button { flex: 1; justify-content: center; }
-  :global(.moduleWorkspace) :global(.moduleTabs) { margin-right: -12px; padding-right: 12px; }
-  :global(.moduleWorkspace) :global(.moduleTwoColumn) { grid-template-columns: minmax(0, 1fr); }
-  :global(.moduleWorkspace) :global(.workflowStrip) { grid-template-columns: minmax(0, 1fr); }
-  :global(.moduleWorkspace) :global(.workflowStep) { align-items: center; }
-  :global(.moduleWorkspace) :global(.moduleReportStats) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  :global(.moduleWorkspace) :global(.modulePanel) { padding: 13px; }
-  :global(.moduleWorkspace) :global(.moduleTable) { min-width: 700px; }
+  .root { padding: 14px 12px calc(88px + env(safe-area-inset-bottom)); }
+  .root :global(.modulePageHeader) { display: grid; align-items: start; gap: 12px; }
+  .root :global(.moduleHeaderActions) { width: 100%; }
+  .root :global(.moduleHeaderActions) .button { flex: 1; justify-content: center; }
+  .root :global(.moduleTabs) { margin-right: -12px; padding-right: 12px; }
+  .root :global(.moduleTwoColumn) { grid-template-columns: minmax(0, 1fr); }
+  .root :global(.workflowStrip) { grid-template-columns: minmax(0, 1fr); }
+  .root :global(.workflowStep) { align-items: center; }
+  .root :global(.moduleReportStats) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .root :global(.modulePanel) { padding: 13px; }
+  .root :global(.moduleTable) { min-width: 700px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  :global(.moduleWorkspace) :global(.moduleSpin) { animation: none; }
+  .root :global(.moduleSpin) { animation: none; }
 }
