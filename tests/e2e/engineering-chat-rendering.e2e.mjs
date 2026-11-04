@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/browserstack-test.mjs";
 
 async function signIn(page, email, password) {
   await page.goto("/login");
