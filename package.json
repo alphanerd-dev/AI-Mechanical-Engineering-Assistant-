@@ -14,7 +14,8 @@
     "worker:execution": "tsx scripts/execution-worker.ts",
     "smoke:cad-live": "tsx scripts/cad-workspace-live-smoke.ts",
     "architecture:graph": "tsx scripts/architecture-graph.ts",
-    "architecture:graph:json": "tsx scripts/architecture-graph.ts --json"
+    "architecture:graph:json": "tsx scripts/architecture-graph.ts --json",
+    "test:browserstack": "browserstack-node-sdk playwright test"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
