@@ -1,0 +1,37 @@
+# BrowserStack Automate configuration for PR #131.
+# Credentials are intentionally supplied through BROWSERSTACK_USERNAME and
+# BROWSERSTACK_ACCESS_KEY environment variables. Never commit credentials.
+
+framework: playwright
+
+projectName: AI_Mechanical_Engineering_Assistant_PR131
+buildName: PR131_CrossBrowser_Responsive
+buildIdentifier: ${BUILD_NUMBER}
+
+platforms:
+  # Chromium desktop baseline.
+  - os: Windows
+    osVersion: "11"
+    browserName: chrome
+    browserVersion: latest
+
+  # Firefox engine coverage.
+  - os: Linux
+    browserName: playwright-firefox
+    browserVersion: latest
+
+  # Real iOS Safari coverage (not desktop device emulation).
+  - browserName: safari
+    osVersion: "17"
+    deviceName: "iPhone 15 Pro Max"
+
+parallelsPerPlatform: 1
+
+# The PR preview is internet-accessible; do not start an unnecessary Local tunnel.
+browserstackLocal: false
+
+testObservability: true
+debug: true
+video: true
+networkLogs: true
+consoleLogs: info
