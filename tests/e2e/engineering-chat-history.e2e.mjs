@@ -131,6 +131,44 @@ test("streamed engineering chat restores after refresh and recovers a missing br
 
     recoveredSessionId = await page.evaluate((key) => window.localStorage.getItem(key), sessionKey);
     expect(recoveredSessionId, "latest server-side chat lookup should restore the browser session key").toBe(originalSessionId);
+    // Create a second durable thread, then prove switching restores each transcript independently.
+    const activeSessionKey = "engineering-chat-active-session:" + projectId;
+    const historyNav = page.getByRole("navigation", { name: "Saved project conversations" });
+    await page.getByRole("button", { name: "New chat" }).click();
+    await expect.poll(
+      () => page.evaluate((key) => window.localStorage.getItem(key), activeSessionKey),
+      { timeout: 30_000, message: "new chat should become the active durable thread" },
+    ).not.toBe(originalSessionId);
+    const secondSessionId = await page.evaluate((key) => window.localStorage.getItem(key), activeSessionKey);
+    expect(secondSessionId).toMatch(/^engineering-chat-/);
+
+    const secondPrompt = "Reply with exactly CHAT_HISTORY_E2E_SECOND and no other text.";
+    await composer.fill(secondPrompt);
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(chatPanel.getByText(secondPrompt, { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E_SECOND", { exact: true })).toBeVisible({ timeout: 90_000 });
+
+    const firstThreadButton = historyNav.getByRole("button").filter({ hasText: "CHAT_HISTORY_E2E" }).first();
+    await firstThreadButton.click();
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), activeSessionKey))
+      .toBe(originalSessionId);
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E_SECOND", { exact: true })).toHaveCount(0);
+
+    const secondThreadButton = historyNav.getByRole("button").filter({ hasText: "CHAT_HISTORY_E2E_SECOND" }).first();
+    await secondThreadButton.click();
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(activeSessionKey)))
+      .toBe(secondSessionId);
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E_SECOND", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true })).toHaveCount(0);
+
+    await page.reload();
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E_SECOND", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await secondThreadButton.click();
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E_SECOND", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await firstThreadButton.click();
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true })).toBeVisible({ timeout: 30_000 });
+
     await expect(page.getByText(/Chat history issue:/)).toHaveCount(0);
     expect(diagnostics.pageErrors, "no uncaught browser errors during chat restoration").toEqual([]);
     expect(diagnostics.serverErrors, "no HTTP 5xx responses during chat restoration").toEqual([]);
