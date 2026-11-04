@@ -8,9 +8,9 @@ async function signIn(page, email, password) {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
-  await expect(page.getByText("Loading projects…")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent projects" })).toBeVisible();
+  await expect(page.getByText("Loading persisted projects…")).toHaveCount(0);
   await expect(page.getByText("Engineering role required")).toHaveCount(0);
   await expect(page.locator('.projectError[role="alert"]')).toHaveCount(0);
   await expect(
