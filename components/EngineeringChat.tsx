@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -9,6 +9,11 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  InMemoryThreadListAdapter,
+  useAui,
+  useRemoteThreadListRuntime,
+  type RemoteThreadListAdapter,
+  type RuntimeAdapters,
 } from "@assistant-ui/react";
 import { StreamdownTextPrimitive } from "@assistant-ui/react-streamdown";
 import { preprocessEngineeringMath } from "../src/chat/engineering-markdown.js";
@@ -84,6 +89,7 @@ function createEngineeringChatHistoryAdapter(
   projectId: string,
   onError: (message: string | undefined) => void,
   selectedSessionId?: string,
+  getRemoteSessionId?: () => string | undefined,
 ): ThreadHistoryAdapter {
   const state: {
     sessionId?: string;
@@ -174,7 +180,7 @@ function createEngineeringChatHistoryAdapter(
   }
 
   async function initializeDemoSession(key: string, savedId: string | null): Promise<void> {
-    const demoSessionId = selectedSessionId || savedId || createSessionId();
+    const demoSessionId = getRemoteSessionId?.() ?? selectedSessionId ?? savedId ?? createSessionId();
     state.sessionId = demoSessionId;
     if (!savedId) {
       try {
@@ -191,7 +197,10 @@ function createEngineeringChatHistoryAdapter(
   }
 
   async function resolveRegisteredSession(savedId: string | null): Promise<{ body: SessionResponse; expectedSessionId?: string }> {
-    const savedChatId = selectedSessionId ?? (savedId?.startsWith("engineering-chat-") ? savedId : undefined);
+    // The remote thread-list identity is authoritative. A localStorage fallback
+    // is retained only for legacy single-thread mounts and demo migration.
+    const remoteSessionId = getRemoteSessionId?.() ?? selectedSessionId;
+    const savedChatId = remoteSessionId ?? (savedId?.startsWith("engineering-chat-") ? savedId : undefined);
     let body: SessionResponse | undefined;
     let expectedSessionId = savedChatId;
 
@@ -199,12 +208,12 @@ function createEngineeringChatHistoryAdapter(
       state.sessionId = savedChatId;
       body = await readSession(savedChatId);
     }
-    if (!body && !selectedSessionId) {
+    if (!body && !remoteSessionId) {
       expectedSessionId = undefined;
       body = await readLatestChatSession();
       if (body?.sessionId) state.sessionId = body.sessionId;
     }
-    if (!body && selectedSessionId) {
+    if (!body && remoteSessionId) {
       throw new Error("The selected conversation could not be restored. Refresh the chat list and select it again.");
     }
     if (!body) {
@@ -573,6 +582,106 @@ async function createProjectChatSession(projectId: string): Promise<ChatSessionS
   };
 }
 
+async function fetchProjectChatThreadMetadata(projectId: string, sessionId: string) {
+  if (projectId === "demo") {
+    const sessionIds = listDemoConversationIds(window.localStorage);
+    if (!sessionIds.includes(sessionId)) {
+      throw new Error("The selected demo conversation is no longer available.");
+    }
+    const conversation = loadDemoConversation(window.localStorage, sessionId);
+    const updatedAt = conversation.at(-1)?.at ?? new Date(0).toISOString();
+    const summary = summarizeEngineeringChatSession({ sessionId, conversation, updatedAt });
+    return {
+      status: "regular" as const,
+      remoteId: sessionId,
+      title: summary.title,
+      lastMessageAt: new Date(updatedAt),
+    };
+  }
+
+  const query = new URLSearchParams({ projectId, sessionId });
+  const response = await fetch("/api/engineering/intent?" + query.toString(), {
+    method: "GET",
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+  const body: unknown = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(responseError(body, "The selected project conversation could not be loaded."));
+  }
+  if (
+    !body || typeof body !== "object" || Array.isArray(body) ||
+    (body as Record<string, unknown>).projectId !== projectId ||
+    (body as Record<string, unknown>).sessionId !== sessionId ||
+    !Array.isArray((body as Record<string, unknown>).conversation) ||
+    typeof (body as Record<string, unknown>).updatedAt !== "string"
+  ) {
+    throw new Error("The selected project conversation returned an invalid thread identity.");
+  }
+  const session = body as SessionResponse & { updatedAt: string };
+  const summary = summarizeEngineeringChatSession({
+    sessionId,
+    conversation: session.conversation,
+    updatedAt: session.updatedAt,
+  });
+  return {
+    status: "regular" as const,
+    remoteId: sessionId,
+    title: summary.title,
+    lastMessageAt: new Date(session.updatedAt),
+  };
+}
+
+async function listProjectChatThreadMetadata(projectId: string) {
+  if (projectId === "demo") {
+    return listDemoConversationIds(window.localStorage).map(sessionId => {
+      const conversation = loadDemoConversation(window.localStorage, sessionId);
+      const updatedAt = conversation.at(-1)?.at ?? new Date(0).toISOString();
+      const summary = summarizeEngineeringChatSession({ sessionId, conversation, updatedAt });
+      return {
+        status: "regular" as const,
+        remoteId: sessionId,
+        title: summary.title,
+        lastMessageAt: new Date(updatedAt),
+      };
+    });
+  }
+
+  const sessions = await fetchProjectChatSessions(projectId);
+  return sessions.map(session => ({
+    status: "regular" as const,
+    remoteId: session.sessionId,
+    title: session.title,
+    lastMessageAt: new Date(session.updatedAt),
+  }));
+}
+
+function createProjectChatThreadListAdapter(
+  projectId: string,
+  useThreadAdapters: () => RuntimeAdapters,
+): RemoteThreadListAdapter {
+  const adapter = new InMemoryThreadListAdapter();
+
+  // The existing project-session API remains the source of truth. The remote
+  // ID is the durable engineering-chat session ID, not assistant-ui's draft ID.
+  adapter.list = async () => ({
+    threads: await listProjectChatThreadMetadata(projectId),
+  });
+  adapter.fetch = async (remoteId) =>
+    fetchProjectChatThreadMetadata(projectId, remoteId);
+  adapter.initialize = async () => {
+    if (projectId === "demo") {
+      const sessionId = createSessionId();
+      rememberDemoConversationId(window.localStorage, sessionId);
+      return { remoteId: sessionId };
+    }
+    const created = await createProjectChatSession(projectId);
+    return { remoteId: created.sessionId };
+  };
+  adapter.unstable_useAdapters = useThreadAdapters;
+  return adapter;
+}
+
 function formatSessionDate(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "Date unavailable";
@@ -594,9 +703,32 @@ function EngineeringChatThread({
 }) {
   const [historyError, setHistoryError] = useState<string>();
   const [chatError, setChatError] = useState<string>();
-  const history = useMemo(
-    () => createEngineeringChatHistoryAdapter(projectId, setHistoryError, sessionId),
-    [projectId, sessionId],
+  const onConversationSavedRef = useRef(onConversationSaved);
+  useEffect(() => {
+    onConversationSavedRef.current = onConversationSaved;
+  }, [onConversationSaved]);
+
+  // assistant-ui invokes this hook inside the selected remote thread's scope.
+  // The history adapter resolves its session ID from threadListItem.remoteId.
+  const useProjectThreadAdapters = useMemo(() => {
+    return function useProjectThreadAdapters(): RuntimeAdapters {
+      const aui = useAui();
+      const history = useMemo(
+        () => createEngineeringChatHistoryAdapter(
+          projectId,
+          setHistoryError,
+          undefined,
+          () => aui.threadListItem.getState().remoteId,
+        ),
+        [aui, projectId],
+      );
+      return useMemo(() => ({ history }), [history]);
+    };
+  }, [projectId]);
+
+  const threadListAdapter = useMemo(
+    () => createProjectChatThreadListAdapter(projectId, useProjectThreadAdapters),
+    [projectId, useProjectThreadAdapters],
   );
   const transport = useMemo(
     () => new DefaultChatTransport({
@@ -604,24 +736,30 @@ function EngineeringChatThread({
     }),
     [projectId],
   );
-  const runtime = useChatRuntime({
-    // Keep the AI SDK chat identity aligned with the durable project session.
-    id: sessionId,
-    transport,
-    // scopeId identifies the owning project/workspace; id identifies its chat.
-    scopeId: projectId,
-    adapters: { history },
-    joinStrategy: "none",
-    onError: (error) => {
-      const detail = error instanceof Error && error.message.trim()
-        ? error.message.trim().slice(0, 220)
-        : "Unknown streaming transport error.";
-      setChatError("Assistant request failed: " + detail);
-    },
-    onFinish: () => {
-      setChatError(undefined);
-      onConversationSaved();
-    },
+  const runtimeHook = useMemo(() => {
+    return function useEngineeringChatRuntime() {
+      return useChatRuntime({
+        transport,
+        joinStrategy: "none",
+        onError: (error) => {
+          const detail = error instanceof Error && error.message.trim()
+            ? error.message.trim().slice(0, 220)
+            : "Unknown streaming transport error.";
+          setChatError("Assistant request failed: " + detail);
+        },
+        onFinish: () => {
+          setChatError(undefined);
+          onConversationSavedRef.current();
+        },
+      });
+    };
+  }, [transport]);
+  const runtime = useRemoteThreadListRuntime({
+    adapter: threadListAdapter,
+    // The session is supplied as a remote thread ID, so the runtime cannot
+    // begin on an uninitialized in-memory draft and silently skip history load.
+    initialThreadId: sessionId,
+    runtimeHook,
   });
 
   return (
