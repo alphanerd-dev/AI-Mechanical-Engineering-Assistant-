@@ -191,8 +191,8 @@ describe("engineering intent session stores", () => {
       session_id: "engineering-chat-session-1",
       interpretation,
       conversation: [{ role: "engineer", text: "Design a pump bracket" }],
-      chat_title: "Design a pump bracket",
-      message_count: 1,
+      chat_title: "Stale cached title",
+      message_count: 12,
       schema_version: ENGINEERING_INTENT_SESSION_SCHEMA_VERSION,
       snapshot_revision: 3,
       updated_at: "2026-10-31T10:00:00.000Z",
@@ -210,7 +210,12 @@ describe("engineering intent session stores", () => {
     const store = new SupabaseEngineeringIntentSessionStore(client as never);
 
     const listed = await store.listChatSessions("project-1", 500);
-    expect(listed.map(session => session.sessionId)).toEqual(["engineering-chat-session-1"]);
+    expect(listed).toEqual([{
+      sessionId: "engineering-chat-session-1",
+      title: "Design a pump bracket",
+      updatedAt: "2026-10-31T10:00:00.000Z",
+      messageCount: 1,
+    }]);
     expect(client.from).toHaveBeenCalledWith("engineering_intent_sessions");
     expect(query.limit).toHaveBeenCalledWith(100);
   });
