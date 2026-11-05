@@ -326,7 +326,9 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
     let result: QueryResult;
     try {
       const query = this.table()
-        .select("project_id,session_id,chat_title,message_count,updated_at")
+        // Derive sidebar metadata from the authoritative snapshot. Cached title/count
+        // columns can be stale after older client versions wrote the conversation.
+        .select("project_id,session_id,conversation,updated_at")
         .eq("project_id", projectId)
         .like("session_id", `${ENGINEERING_CHAT_SESSION_ID_PREFIX}%`)
         .order("updated_at", { ascending: false })
@@ -347,20 +349,19 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
         row.project_id !== projectId ||
         typeof row.session_id !== "string" ||
         !row.session_id.startsWith(ENGINEERING_CHAT_SESSION_ID_PREFIX) ||
-        typeof row.chat_title !== "string" ||
-        !row.chat_title.trim() || row.chat_title.length > 62 ||
-        typeof row.message_count !== "number" || !Number.isInteger(row.message_count) ||
-        row.message_count < 0 || row.message_count > MAX_CONVERSATION_MESSAGES ||
         typeof row.updated_at !== "string" || Number.isNaN(Date.parse(row.updated_at))
       ) {
         throw new Error("Stored engineering chat session summary is invalid.");
       }
-      return {
-        sessionId: row.session_id,
-        title: row.chat_title,
-        updatedAt: row.updated_at,
-        messageCount: row.message_count,
-      };
+      try {
+        return summarizeEngineeringChatSession({
+          sessionId: row.session_id,
+          conversation: parseConversation(row.conversation),
+          updatedAt: row.updated_at,
+        });
+      } catch {
+        throw new Error("Stored engineering chat session summary is invalid.");
+      }
     });
   }
 
