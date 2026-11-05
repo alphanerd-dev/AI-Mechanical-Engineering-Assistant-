@@ -98,10 +98,35 @@ test("streamed engineering chat restores after refresh and recovers a missing br
         JSON.stringify(body.conversation).includes("CHAT_HISTORY_E2E");
     }, { timeout: 30_000 }).toBe(true);
 
+    const firstSnapshotResponse = await page.request.get(historyUrl);
+    expect(firstSnapshotResponse.status()).toBe(200);
+    const firstSnapshot = await firstSnapshotResponse.json();
+    const firstRows = firstSnapshot.conversation.map((entry) => JSON.parse(entry.text));
+    expect(firstRows).toHaveLength(2);
+    expect(firstRows[0].parent_id).toBeNull();
+    expect(firstRows[1].parent_id).toBe(firstRows[0].id);
+
     await testInfo.attach("engineering-chat-session-metadata.json", {
       body: Buffer.from(JSON.stringify({ projectId, sessionIdPresent: true, savedMessageCount: 2 })),
       contentType: "application/json",
     });
+
+    // A second turn must extend the same message chain rather than create a
+    // disconnected root that assistant-ui can hide when it selects a branch.
+    const followUpPrompt = "Reply with exactly CHAT_HISTORY_E2E_FOLLOWUP and no other text.";
+    await composer.fill(followUpPrompt);
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(chatPanel.getByText(followUpPrompt, { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E_FOLLOWUP", { exact: true })).toBeVisible({ timeout: 90_000 });
+    await expect.poll(async () => {
+      const response = await page.request.get(historyUrl);
+      if (!response.ok()) return false;
+      const body = await response.json();
+      if (!Array.isArray(body.conversation) || body.conversation.length !== 4) return false;
+      const rows = body.conversation.map((entry) => JSON.parse(entry.text));
+      return rows[0].parent_id === null &&
+        rows.slice(1).every((row, index) => row.parent_id === rows[index].id);
+    }, { timeout: 30_000, message: "every later message should point to the preceding message in the linear chat" }).toBe(true);
 
     // First prove ordinary reload restores from the saved browser identity.
     await page.reload();
