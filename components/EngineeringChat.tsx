@@ -660,7 +660,7 @@ function createProjectChatThreadListAdapter(
   projectId: string,
   useThreadAdapters: () => RuntimeAdapters,
 ): RemoteThreadListAdapter {
-  const adapter = new InMemoryThreadListAdapter();
+  const adapter: RemoteThreadListAdapter = new InMemoryThreadListAdapter();
 
   // The existing project-session API remains the source of truth. The remote
   // ID is the durable engineering-chat session ID, not assistant-ui's draft ID.
