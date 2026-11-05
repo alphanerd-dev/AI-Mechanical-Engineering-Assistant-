@@ -128,6 +128,33 @@ test("streamed engineering chat restores after refresh and recovers a missing br
         rows.slice(1).every((row, index) => row.parent_id === rows[index].id);
     }, { timeout: 30_000, message: "every later message should point to the preceding message in the linear chat" }).toBe(true);
 
+    // Simulate a legacy snapshot written by the previous adapter: the second
+    // user turn is accidentally disconnected from the preceding assistant turn.
+    const currentSnapshotResponse = await page.request.get(historyUrl);
+    expect(currentSnapshotResponse.status()).toBe(200);
+    const currentSnapshot = await currentSnapshotResponse.json();
+    const legacyConversation = [...currentSnapshot.conversation];
+    const disconnectedRow = JSON.parse(legacyConversation[2].text);
+    disconnectedRow.parent_id = null;
+    legacyConversation[2] = {
+      ...legacyConversation[2],
+      text: JSON.stringify(disconnectedRow),
+    };
+    const legacyWrite = await page.request.put("/api/engineering/intent", {
+      data: {
+        projectId,
+        sessionId: originalSessionId,
+        expectedRevision: currentSnapshot.snapshotRevision,
+        conversation: legacyConversation,
+      },
+    });
+    expect(legacyWrite.status(), "legacy fixture should be stored with revision protection").toBe(200);
+    await page.reload();
+    await expect(chatPanel.getByText(prompt, { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(chatPanel.getByText(followUpPrompt, { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(chatPanel.getByText("CHAT_HISTORY_E2E_FOLLOWUP", { exact: true })).toBeVisible({ timeout: 30_000 });
+
     // First prove ordinary reload restores from the saved browser identity.
     await page.reload();
     await expect(userMessage).toBeVisible({ timeout: 30_000 });
