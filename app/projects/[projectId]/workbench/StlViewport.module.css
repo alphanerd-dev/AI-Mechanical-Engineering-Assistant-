@@ -1,0 +1,68 @@
+.viewportRoot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+}
+.viewportCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  touch-action: none;
+  outline-offset: var(--space-1);
+}
+.viewportStatus {
+  position: absolute;
+  inset: var(--space-3);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+}
+.viewportMeta {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.viewportMetaBadge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-bg) 82%, transparent);
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.viewportControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.viewportControls button { min-height: 32px; padding: var(--space-1) var(--space-2); font-size: 9px; }
+.viewportHint {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  color: var(--color-text-subtle);
+  font-size: 9px;
+  pointer-events: none;
+}
+@media (max-width: 560px) {
+  .viewportMeta { align-items: flex-start; flex-direction: column; }
+  .viewportControls { width: 100%; }
+  .viewportControls button { flex: 1; }
+  .viewportHint { top: var(--space-2); left: var(--space-3); right: auto; }
+}

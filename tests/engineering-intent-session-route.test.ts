@@ -166,6 +166,67 @@ describe("GET /api/engineering/intent latest chat restore", () => {
     expect(query.limit).toHaveBeenCalledWith(1);
   });
 
+  it("lists project chat summaries without returning transcript content", async () => {
+    const rows = [{
+      project_id: "project-1",
+      session_id: "engineering-chat-session-1",
+      interpretation: {
+        raw: "", goal: "engineering task", extractedInputs: {}, missingInputs: [],
+        confidence: "LOW", ambiguity: "HIGH", contextUsed: [], assumptions: [],
+      },
+      conversation: [{
+        role: "engineer",
+        text: JSON.stringify({
+          id: "message-1",
+          parent_id: null,
+          format: "ai-sdk/v6",
+          content: { role: "user", parts: [{ type: "text", text: "Design a safer pump bracket" }] },
+        }),
+      }],
+      chat_title: "Stale cached title",
+      message_count: 12,
+      schema_version: 1,
+      snapshot_revision: 3,
+      updated_at: "2026-10-31T10:00:00.000Z",
+    }];
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      like: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      then: (resolve: (value: { data: typeof rows; error: null }) => unknown) =>
+        Promise.resolve({ data: rows, error: null }).then(resolve),
+    };
+    const from = vi.fn().mockReturnValue(query);
+    mocks.createClient.mockResolvedValue({ from });
+
+    const response = await GET(restoreRequest("projectId=project-1&list=chat"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      projectId: "project-1",
+      limit: 50,
+      sessions: [{
+        sessionId: "engineering-chat-session-1",
+        title: "Design a safer pump bracket",
+        updatedAt: "2026-10-31T10:00:00.000Z",
+        messageCount: 1,
+      }],
+    });
+    expect(body.sessions[0]).not.toHaveProperty("conversation");
+    expect(mocks.authorize).toHaveBeenCalledWith("PROJECT.READ", "project-1");
+    expect(query.select).toHaveBeenCalledWith("project_id,session_id,conversation,updated_at");
+    expect(query.like).toHaveBeenCalledWith("session_id", "engineering-chat-%");
+    expect(query.limit).toHaveBeenCalledWith(50);
+  });
+
+  it("rejects a chat-list query combined with a selected session", async () => {
+    const response = await GET(restoreRequest("projectId=project-1&list=chat&sessionId=engineering-chat-1"));
+    expect(response.status).toBe(400);
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
   it("returns 404 rather than creating a session when no saved chat exists", async () => {
     const query = {
       select: vi.fn().mockReturnThis(),

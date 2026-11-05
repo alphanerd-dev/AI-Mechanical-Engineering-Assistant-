@@ -54,3 +54,32 @@ export function saveDemoConversation(storage: BrowserStoragePort, sessionId: str
   try { storage.setItem(storageKey(sessionId), JSON.stringify(validated)); }
   catch { throw new Error("Demo chat could not be saved in this browser tab. Check browser storage and available space, then retry."); }
 }
+
+const DEMO_INDEX_KEY = "engineering-chat-index:demo";
+const DEMO_SESSION_PREFIX = "engineering-chat-";
+
+/** Returns the bounded demo-session index without silently repairing corrupt browser data. */
+export function listDemoConversationIds(storage: BrowserStoragePort): string[] {
+  const raw = storage.getItem(DEMO_INDEX_KEY);
+  if (raw === null) return [];
+  let value: unknown;
+  try { value = JSON.parse(raw); }
+  catch { throw new Error("Saved demo conversation index is unreadable; it was not overwritten."); }
+  if (!Array.isArray(value) || value.length > 50 || !value.every(item =>
+    typeof item === "string" && item.startsWith(DEMO_SESSION_PREFIX) && item.length <= 128,
+  )) {
+    throw new Error("Saved demo conversation index has an unsupported shape; it was not overwritten.");
+  }
+  return [...new Set(value as string[])];
+}
+
+/** Adds a demo conversation to the local index; older IDs remain available up to the 50-chat cap. */
+export function rememberDemoConversationId(storage: BrowserStoragePort, sessionId: string): string[] {
+  if (!sessionId.startsWith(DEMO_SESSION_PREFIX) || sessionId.length > 128) {
+    throw new Error("The demo chat session ID is invalid.");
+  }
+  const next = [sessionId, ...listDemoConversationIds(storage).filter(id => id !== sessionId)].slice(0, 50);
+  try { storage.setItem(DEMO_INDEX_KEY, JSON.stringify(next)); }
+  catch { throw new Error("Demo conversation index could not be saved in this browser."); }
+  return next;
+}

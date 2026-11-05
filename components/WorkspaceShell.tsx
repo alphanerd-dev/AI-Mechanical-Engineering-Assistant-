@@ -4,7 +4,64 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthNavigation from "./AuthNavigation";
+import {
+  Activity,
+  BookOpen,
+  Bot,
+  BrainCircuit,
+  Calculator,
+  ChevronRight,
+  ChevronDown,
+  CheckCircle2,
+  AlertTriangle,
+  CircleDot,
+  Plus,
+  ClipboardList,
+  DraftingCompass,
+  FileText,
+  Files,
+  FolderKanban,
+  GitBranch,
+  History,
+  Home,
+  LayoutDashboard,
+  Menu,
+  MessageSquare,
+  PanelsTopLeft,
+  Search,
+  Settings,
+  Settings2,
+  Sigma,
+  SlidersHorizontal,
+  UserRound,
+  Workflow as WorkflowIcon,
+  Box,
+  ChartNoAxesCombined,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { getWorkspaceNavigation, isWorkspaceItemActive, type WorkspaceNavItem } from "../src/ui/workspace-navigation";
+
+const workspaceIcons: Record<string, LucideIcon> = {
+  "layout-dashboard": LayoutDashboard, "folder-kanban": FolderKanban, bot: Bot,
+  "panels-top-left": PanelsTopLeft, "clipboard-list": ClipboardList,
+  "brain-circuit": BrainCircuit, calculator: Calculator,
+  "drafting-compass": DraftingCompass, "shield-check": ShieldCheck, search: Search,
+  activity: Activity, "book-open": BookOpen, box: Box, files: Files, history: History,
+  "git-branch": GitBranch, "file-text": FileText, settings: Settings,
+  "user-round": UserRound, "sliders-horizontal": SlidersHorizontal, "settings-2": Settings2,
+  "chart-no-axes-combined": ChartNoAxesCombined, workflow: WorkflowIcon, sigma: Sigma,
+};
+
+type WorkspaceProjectSummary = { id: string; name: string; stage: string; status: "ACTIVE" | "BLOCKED" | "COMPLETE"; revision: number };
+
+function isWorkspaceProject(value: unknown): value is WorkspaceProjectSummary {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === "string" && typeof row.name === "string" && typeof row.stage === "string"
+    && (row.status === "ACTIVE" || row.status === "BLOCKED" || row.status === "COMPLETE")
+    && typeof row.revision === "number" && Number.isInteger(row.revision);
+}
 
 export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() || "/";
@@ -14,7 +71,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [hash, setHash] = useState("");
-  const [loadedProjectName, setLoadedProjectName] = useState<{ projectId: string; name: string } | null>(null);
+  const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProjectSummary[]>([]);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchDialog = useRef<HTMLElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -29,25 +86,17 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const selectedProjectId = navigation.projectId;
-    if (!selectedProjectId || selectedProjectId === "demo") return;
-
     let active = true;
-    void fetch("/api/projects", { cache: "no-store" })
+    void fetch("/api/projects", { cache: "no-store", headers: { accept: "application/json" } })
       .then(async (response) => response.ok ? response.json() : null)
       .then((body: unknown) => {
         if (!active || !body || typeof body !== "object" || !("projects" in body)) return;
-        const projects = (body as { projects?: unknown }).projects;
-        if (!Array.isArray(projects)) return;
-        const project = projects.find((item) =>
-          item && typeof item === "object" &&
-          "id" in item && item.id === selectedProjectId &&
-          "name" in item && typeof item.name === "string"
-        ) as { id: string; name: string } | undefined;
-        if (project && active) setLoadedProjectName({ projectId: project.id, name: project.name });
+        const rows = (body as { projects?: unknown }).projects;
+        if (Array.isArray(rows)) setWorkspaceProjects(rows.filter(isWorkspaceProject));
       })
-      .catch(() => undefined);
-
+      .catch(() => {
+        if (active) setWorkspaceProjects([]);
+      });
     return () => { active = false; };
   }, [navigation.projectId]);
 
@@ -101,7 +150,10 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     if (searchOpen) searchInput.current?.focus();
   }, [searchOpen]);
 
-  const allItems = useMemo(() => [...navigation.globalItems, ...navigation.projectItems], [navigation]);
+  const allItems = useMemo(() => [
+    ...navigation.globalItems, ...navigation.projectItems,
+    ...navigation.engineeringItems, ...navigation.preferenceItems
+  ], [navigation]);
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return allItems;
@@ -115,8 +167,9 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     closeSearch();
   }
 
-  function renderLink(item: WorkspaceNavItem, context = "global") {
+  function renderLink(item: WorkspaceNavItem) {
     const active = isWorkspaceItemActive(pathname, item, hash);
+    const ItemIcon = workspaceIcons[item.icon] ?? Search;
     return <Link
       key={item.id}
       href={item.href}
@@ -125,23 +178,35 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       onClick={() => setSidebarOpen(false)}
       title={item.description}
     >
-      <span className="workspaceNavIcon" aria-hidden="true">{item.icon}</span>
+      <span className="workspaceNavIcon" aria-hidden="true"><ItemIcon size={17} strokeWidth={1.8} /></span>
       <span>{item.label}</span>
-      {context === "global" && item.id === "assistant" && !navigation.projectId && <span className="workspaceNavSubtext">Demo</span>}
     </Link>;
   }
 
   if (navigation.isAuthRoute) return <div className="authLayout">{children}</div>;
 
-  const currentProjectLabel = loadedProjectName && loadedProjectName.projectId === navigation.projectId
-    ? loadedProjectName.name
-    : navigation.projectLabel;
-  const assistantHref = navigation.globalItems.find((item) => item.id === "assistant")?.href ?? "/projects/demo/engineering";
-  const cadHref = navigation.projectId ? "/projects/" + navigation.projectId + "/cad" : "/projects/demo/cad";
+  const currentProject = workspaceProjects.find((project) => project.id === navigation.projectId);
+  const currentProjectLabel = currentProject?.name ?? navigation.projectLabel ?? "Select project";
+  const projectStatusLabel = currentProject?.status === "BLOCKED" ? "Blocked"
+    : currentProject?.status === "COMPLETE" ? "Complete"
+    : currentProject ? "Active" : navigation.projectId === "demo" ? "Demo" : "Unavailable";
+  const ProjectStatusIcon = currentProject?.status === "BLOCKED" ? AlertTriangle
+    : currentProject?.status === "COMPLETE" ? CheckCircle2 : CircleDot;
+  const assistantHref = "/assistant";
+  const workbenchHref = navigation.projectId ? "/projects/" + navigation.projectId + "/workbench" : "/projects";
+  const filesHref = navigation.projectId ? "/projects/" + navigation.projectId + "/files" : "/projects";
   const overviewHref = navigation.projectId ? "/projects/" + navigation.projectId : "/";
-  const requirementsHref = navigation.projectId ? "/projects/" + navigation.projectId + "/requirements" : "/projects/demo/requirements";
+  function switchProject(nextProjectId: string) {
+    if (!nextProjectId) {
+      router.push("/");
+      return;
+    }
+    const currentPrefix = navigation.projectId ? "/projects/" + encodeURIComponent(navigation.projectId) : "";
+    const suffix = currentPrefix && pathname.startsWith(currentPrefix) ? pathname.slice(currentPrefix.length) : "";
+    router.push("/projects/" + encodeURIComponent(nextProjectId) + suffix);
+  }
 
-  return <div className={"workspaceApp" + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
+  return <div className={"workspaceApp" + (pathname === "/projects" ? " workspaceApp--projects-index" : "") + (sidebarOpen ? " workspaceApp--sidebar-open" : "")}>
     <button type="button" className="workspaceMobileScrim" aria-label="Close navigation menu" onClick={() => closeSidebar(true)} tabIndex={sidebarOpen ? 0 : -1} />
     <aside ref={sidebarRef} className="workspaceSidebar" id="workspace-sidebar" aria-label="Workspace navigation" onKeyDown={(event) => {
       if (!sidebarOpen || event.key !== "Tab") return;
@@ -158,7 +223,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       }
     }}>
       <Link href="/" className="workspaceBrand" onClick={() => setSidebarOpen(false)} aria-label="Forge workspace home">
-        <span className="workspaceBrandMark" aria-hidden="true">F</span>
+        <span className="workspaceBrandMark" aria-hidden="true"><WorkflowIcon size={18} strokeWidth={2.2} /></span>
         <span><span className="workspaceBrandName">FORGE</span><span className="workspaceBrandSubtitle">ENGINEERING OS</span></span>
       </Link>
 
@@ -167,20 +232,29 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
         {navigation.globalItems.map((item) => renderLink(item))}
       </nav>
 
-      {navigation.projectId && <nav className="workspaceNavGroup" aria-label="Current project">
-        <p className="workspaceNavHeading">Project workspace</p>
-        <div className="workspaceProjectLabel"><span className="workspaceProjectDot" aria-hidden="true" />{currentProjectLabel}</div>
-        {navigation.projectItems.map((item) => renderLink(item, "project"))}
-      </nav>}
-
-      <div className="workspacePlannedGroup">
-        <p className="workspaceNavHeading">Planned modules</p>
-        <div className="workspacePlannedList">
-          {navigation.plannedItems.map((label) => <div className="workspacePlannedItem" key={label} aria-label={label + ", planned"}>
-            <span>{label}</span><small>PLANNED</small>
-          </div>)}
-        </div>
-      </div>
+      {navigation.projectId && <>
+        <nav className="workspaceNavGroup" aria-label="Current project">
+          <p className="workspaceNavHeading">Current project</p>
+          <div className="workspaceProjectContextCard">
+            <span className="workspaceProjectContextIcon" aria-hidden="true"><Box size={17} /></span>
+            <span className="workspaceProjectContextCopy">
+              <strong>{currentProjectLabel}</strong>
+              <small>{currentProject ? `Project ${currentProject.id.slice(0, 8).toUpperCase()} · ${currentProject.stage.replaceAll("_", " ")}` : "Illustrative demo context · not persisted"}</small>
+            </span>
+            <span className="workspaceProjectContextRevision">{currentProject ? `R${currentProject.revision}` : "DEMO"}</span>
+            <span className="workspaceProjectContextStatus" data-status={currentProject?.status ?? "DEMO"}><ProjectStatusIcon size={12} aria-hidden="true" />{projectStatusLabel}</span>
+          </div>
+          {navigation.projectItems.map((item) => renderLink(item))}
+        </nav>
+        <nav className="workspaceNavGroup workspaceEngineeringNav" aria-label="Engineering modules">
+          <p className="workspaceNavHeading">Engineering</p>
+          {navigation.engineeringItems.map((item) => renderLink(item))}
+        </nav>
+      </>}
+      <nav className="workspaceNavGroup workspacePreferencesNav" aria-label="Preferences">
+        <p className="workspaceNavHeading">Preferences</p>
+        {navigation.preferenceItems.map((item) => renderLink(item))}
+      </nav>
 
       <div className="workspaceSidebarSpacer" />
       {navigation.projectId && <div className="workspaceSidebarNote">
@@ -195,17 +269,42 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     <div className="workspaceMain">
       <header className="workspaceTopbar">
         <div className="workspaceTopbarLeft">
-          <button ref={sidebarToggleRef} type="button" className="workspaceSidebarToggle" aria-label="Open workspace navigation" aria-controls="workspace-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>☰</button>
+          <button ref={sidebarToggleRef} type="button" className="workspaceSidebarToggle" aria-label="Open workspace navigation" aria-controls="workspace-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}><Menu size={18} /></button>
           <Link href="/" className="workspaceMobileBrand">FORGE <span>ENGINEERING OS</span></Link>
-          <nav className="workspaceBreadcrumb" aria-label="Current page">
-            <span>WORKSPACE</span><span aria-hidden="true">/</span><strong>{navigation.pageTitle}</strong>
+          <nav className="workspaceBreadcrumb" aria-label="Breadcrumb">
+            {navigation.projectId ? <>
+              <Link href="/">Workspace</Link>
+              <ChevronRight size={13} aria-hidden="true" />
+              <Link href={overviewHref} title={currentProjectLabel}>{currentProjectLabel}</Link>
+              <ChevronRight size={13} aria-hidden="true" />
+              <strong aria-current="page">{navigation.pageTitle}</strong>
+            </> : <>
+              <Link href="/">Workspace</Link>
+              <ChevronRight size={13} aria-hidden="true" />
+              <strong aria-current="page">{navigation.pageTitle}</strong>
+            </>}
           </nav>
         </div>
         <div className="workspaceTopbarRight">
-          <span className="workspaceContextBadge"><span className="workspaceContextDot" aria-hidden="true" />{navigation.projectId ? <>PROJECT · <span className="workspaceCurrentProjectName" title={currentProjectLabel}>{currentProjectLabel}</span></> : "WORKSPACE"}</span>
+          <label className="workspaceProjectSwitcher">
+            <FolderKanban size={15} aria-hidden="true" />
+            <span className="workspaceProjectSwitcherCopy"><small>Current project</small>
+              <select aria-label="Switch current project" value={navigation.projectId ?? ""} onChange={(event) => switchProject(event.target.value)}>
+                <option value="">Select project</option>
+                {navigation.projectId && navigation.projectId !== "demo" && !workspaceProjects.some((project) => project.id === navigation.projectId) && <option value={navigation.projectId}>{currentProjectLabel}</option>}
+                {workspaceProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                <option value="demo">Demo sandbox · illustrative</option>
+              </select>
+            </span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </label>
           <button type="button" className="workspaceSearchButton" onClick={openSearch} aria-label="Search workspace" aria-haspopup="dialog" aria-expanded={searchOpen}>
-            <span aria-hidden="true">⌕</span><span className="workspaceSearchLabel">Search workspace</span><kbd>Ctrl K</kbd>
+            <Search size={15} aria-hidden="true" /><span className="workspaceSearchLabel">Search projects, chats, artifacts</span><kbd>Ctrl K</kbd>
           </button>
+          <Link href="/#create-project" className="workspaceNewProjectButton"><Plus size={14} aria-hidden="true" /><span>New project</span></Link>
+          {navigation.projectId === "demo" ? <span className="workspaceContextBadge workspaceDemoStatus"><CircleDot size={11} aria-hidden="true" />DEMO DATA · no solver connected</span>
+            : currentProject ? <span className="workspaceContextBadge" data-status={currentProject.status}><ProjectStatusIcon size={11} aria-hidden="true" />{projectStatusLabel} project</span>
+            : <span className="workspaceContextBadge">Workspace</span>}
           <div className="workspaceAccount"><AuthNavigation /></div>
         </div>
       </header>
@@ -213,10 +312,19 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
       <main className="workspacePageArea">{children}</main>
 
       <nav className="workspaceBottomNav" aria-label="Quick navigation">
-        <Link href={overviewHref} aria-current={pathname === overviewHref ? "page" : undefined}><span aria-hidden="true">⌂</span>Overview</Link>
-        <Link href={assistantHref} aria-current={pathname === assistantHref ? "page" : undefined}><span aria-hidden="true">✳</span>Chat</Link>
-        <Link href={cadHref} aria-current={pathname === cadHref ? "page" : undefined}><span aria-hidden="true">◇</span>CAD</Link>
-        <Link href={requirementsHref} aria-current={pathname === requirementsHref ? "page" : undefined}><span aria-hidden="true">≡</span>Requirements</Link>
+        <Link href={overviewHref} aria-current={pathname === overviewHref ? "page" : undefined}><Home size={17} aria-hidden="true" />Overview</Link>
+        <Link href={assistantHref} aria-current={pathname === assistantHref ? "page" : undefined}><MessageSquare size={17} aria-hidden="true" />Chat</Link>
+        {navigation.projectId ? (
+          <>
+            <Link href={workbenchHref} aria-current={pathname === workbenchHref || pathname.startsWith(workbenchHref + "/") ? "page" : undefined}><Box size={17} aria-hidden="true" />Workbench</Link>
+            <Link href={filesHref} aria-current={pathname === filesHref || pathname.startsWith(filesHref + "/") ? "page" : undefined}><Files size={17} aria-hidden="true" />Files</Link>
+          </>
+        ) : (
+          <>
+            <Link href="/projects" aria-current={pathname === "/projects" ? "page" : undefined}><FolderKanban size={17} aria-hidden="true" />Projects</Link>
+            <Link href="/activity" aria-current={pathname === "/activity" ? "page" : undefined}><Activity size={17} aria-hidden="true" />Activity</Link>
+          </>
+        )}
       </nav>
     </div>
 

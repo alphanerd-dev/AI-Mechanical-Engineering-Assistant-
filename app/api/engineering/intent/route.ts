@@ -65,12 +65,63 @@ async function createSessionStore() {
   }
 }
 
+type GetSessionQuery = {
+  latest: string | null;
+  list: string | null;
+  sessionId: string | undefined;
+  projectId: string | undefined;
+};
+
+function validateLatestQuery(latest: string | null): string | null {
+  if (latest === null) return null;
+  return latest === "chat" ? null : "latest must be chat when provided.";
+}
+
+function validateListQuery(list: string | null): string | null {
+  if (list === null) return null;
+  return list === "chat" ? null : "list must be chat when provided.";
+}
+
+function validateListMode(query: GetSessionQuery): string | null {
+  if (query.list !== "chat") return null;
+  if (query.latest !== null) return "Provide list=chat without sessionId or latest.";
+  if (query.sessionId) return "Provide list=chat without sessionId or latest.";
+  return null;
+}
+
+function validateLatestMode(query: GetSessionQuery): string | null {
+  if (query.latest !== "chat") return null;
+  if (query.sessionId) return "Provide either sessionId or latest=chat, not both.";
+  return null;
+}
+
+function validateProjectId(projectId: string | undefined): string | null {
+  return projectId ? null : "projectId is required.";
+}
+
+function validateSessionSelector(query: GetSessionQuery): string | null {
+  if (query.sessionId) return null;
+  if (query.latest === "chat") return null;
+  if (query.list === "chat") return null;
+  return "sessionId is required.";
+}
+
+function validateGetSessionQuery(query: GetSessionQuery): string | null {
+  return validateLatestQuery(query.latest)
+    ?? validateListQuery(query.list)
+    ?? validateListMode(query)
+    ?? validateLatestMode(query)
+    ?? validateProjectId(query.projectId)
+    ?? validateSessionSelector(query);
+}
+
 /** Restore a durable engineering intent session. Never creates a session. */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   let sessionId: string | undefined;
   let projectId: string | undefined;
   const latest = url.searchParams.get("latest");
+  const list = url.searchParams.get("list");
   try {
     sessionId = parseSessionId(url.searchParams.get("sessionId"));
     projectId = parseProjectId(url.searchParams.get("projectId"));
@@ -78,14 +129,9 @@ export async function GET(request: Request) {
     return jsonError(error instanceof Error ? error.message : "Invalid session identifiers.", 400);
   }
 
-  if (latest !== null && latest !== "chat") {
-    return jsonError("latest must be chat when provided.", 400);
-  }
-  if (latest === "chat" && sessionId) {
-    return jsonError("Provide either sessionId or latest=chat, not both.", 400);
-  }
+  const validationError = validateGetSessionQuery({ latest, list, sessionId, projectId });
+  if (validationError) return jsonError(validationError, 400);
   if (!projectId) return jsonError("projectId is required.", 400);
-  if (!sessionId && latest !== "chat") return jsonError("sessionId is required.", 400);
 
   let authorization;
   try {
@@ -97,6 +143,14 @@ export async function GET(request: Request) {
 
   try {
     const store = await createSessionStore();
+    if (list === "chat") {
+      const sessions = await store.listChatSessions(projectId, 50);
+      return NextResponse.json({
+        projectId,
+        sessions,
+        limit: 50,
+      }, { headers: { "cache-control": "no-store" } });
+    }
     const session = latest === "chat"
       ? await store.getLatestChatSession(projectId)
       : await store.get(sessionId!, projectId);
