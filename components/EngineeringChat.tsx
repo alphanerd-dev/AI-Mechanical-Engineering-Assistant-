@@ -720,7 +720,7 @@ function EngineeringChatThread({
           undefined,
           () => aui.threadListItem.getState().remoteId,
         ),
-        [aui, projectId],
+        [aui],
       );
       return useMemo(() => ({ history }), [history]);
     };
