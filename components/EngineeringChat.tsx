@@ -302,6 +302,16 @@ function createEngineeringChatHistoryAdapter(
     return run;
   }
 
+  function storedRowId(entry: StoredConversationMessage | undefined): string | undefined {
+    if (!entry) return undefined;
+    try {
+      const row = JSON.parse(entry.text) as { id?: unknown };
+      return typeof row.id === "string" && row.id ? row.id : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   return {
     scopeId: projectId,
     async load() {
@@ -309,15 +319,6 @@ function createEngineeringChatHistoryAdapter(
     },
     async append() {},
     withFormat: (format) => ({
-      function storedRowId(entry: StoredConversationMessage | undefined): string | undefined {
-        if (!entry) return undefined;
-        try {
-          const row = JSON.parse(entry.text) as { id?: unknown };
-          return typeof row.id === "string" && row.id ? row.id : undefined;
-        } catch {
-          return undefined;
-        }
-      },
       async load() {
         await initialize();
         const rows: Array<Parameters<typeof format.decode>[0] & { id: string; parent_id: string | null }> = [];
