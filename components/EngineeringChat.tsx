@@ -309,18 +309,49 @@ function createEngineeringChatHistoryAdapter(
     },
     async append() {},
     withFormat: (format) => ({
+      function storedRowId(entry: StoredConversationMessage | undefined): string | undefined {
+        if (!entry) return undefined;
+        try {
+          const row = JSON.parse(entry.text) as { id?: unknown };
+          return typeof row.id === "string" && row.id ? row.id : undefined;
+        } catch {
+          return undefined;
+        }
+      },
       async load() {
         await initialize();
-        const messages = [];
+        const rows: Array<Parameters<typeof format.decode>[0] & { id: string; parent_id: string | null }> = [];
+        const seenIds = new Set<string>();
         let skipped = 0;
+
+        // This product exposes a linear conversation, not a branch picker. Older
+        // snapshots can contain multiple roots because earlier writes persisted a
+        // null parent_id for later turns. Reconnect only those disconnected roots
+        // (or dangling parents) to the immediately preceding valid message. Valid
+        // explicit parent links are preserved, including intentional edit branches.
         for (const entry of state.conversation) {
           try {
-            const row = JSON.parse(entry.text) as Parameters<typeof format.decode>[0];
-            messages.push(format.decode(row));
+            const parsed = JSON.parse(entry.text) as Record<string, unknown>;
+            if (typeof parsed.id !== "string" || !parsed.id || seenIds.has(parsed.id)) {
+              skipped += 1;
+              continue;
+            }
+            const previousId = rows.length ? rows[rows.length - 1].id : undefined;
+            const storedParent = typeof parsed.parent_id === "string" ? parsed.parent_id : null;
+            const parentId = storedParent && seenIds.has(storedParent)
+              ? storedParent
+              : previousId ?? null;
+            const row = { ...parsed, parent_id: parentId } as Parameters<typeof format.decode>[0] & {
+              id: string;
+              parent_id: string | null;
+            };
+            rows.push(row);
+            seenIds.add(parsed.id);
           } catch {
             skipped += 1;
           }
         }
+        const messages = rows.map(row => format.decode(row));
         if (skipped > 0 && messages.length === 0) {
           const message = "Saved chat history could not be decoded; it was not overwritten.";
           onError(message);
@@ -339,7 +370,7 @@ function createEngineeringChatHistoryAdapter(
           const role = getSupportedRole(item.message);
           const row = {
             id: format.getId(item.message),
-            parent_id: item.parentId,
+            parent_id: item.parentId ?? storedRowId(state.conversation[state.conversation.length - 1]) ?? null,
             format: format.format,
             content: format.encode(item),
           };
@@ -373,9 +404,22 @@ function createEngineeringChatHistoryAdapter(
             }
           });
           const role = getSupportedRole(item.message);
+          const existingRow = existingIndex >= 0
+            ? (() => {
+                try {
+                  return JSON.parse(state.conversation[existingIndex].text) as { parent_id?: unknown };
+                } catch {
+                  return undefined;
+                }
+              })()
+            : undefined;
+          const previousId = existingIndex > 0
+            ? storedRowId(state.conversation[existingIndex - 1])
+            : null;
+          const existingParent = typeof existingRow?.parent_id === "string" ? existingRow.parent_id : null;
           const row = {
             id,
-            parent_id: item.parentId,
+            parent_id: item.parentId ?? existingParent ?? previousId ?? null,
             format: format.format,
             content: format.encode(item),
           };
