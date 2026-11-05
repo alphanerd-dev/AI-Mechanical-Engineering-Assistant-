@@ -174,8 +174,17 @@ describe("GET /api/engineering/intent latest chat restore", () => {
         raw: "", goal: "engineering task", extractedInputs: {}, missingInputs: [],
         confidence: "LOW", ambiguity: "HIGH", contextUsed: [], assumptions: [],
       },
-      chat_title: "Design a safer pump bracket",
-      message_count: 2,
+      conversation: [{
+        role: "engineer",
+        text: JSON.stringify({
+          id: "message-1",
+          parent_id: null,
+          format: "ai-sdk/v6",
+          content: { role: "user", parts: [{ type: "text", text: "Design a safer pump bracket" }] },
+        }),
+      }],
+      chat_title: "Stale cached title",
+      message_count: 12,
       schema_version: 1,
       snapshot_revision: 3,
       updated_at: "2026-10-31T10:00:00.000Z",
@@ -202,12 +211,12 @@ describe("GET /api/engineering/intent latest chat restore", () => {
         sessionId: "engineering-chat-session-1",
         title: "Design a safer pump bracket",
         updatedAt: "2026-10-31T10:00:00.000Z",
-        messageCount: 2,
+        messageCount: 1,
       }],
     });
     expect(body.sessions[0]).not.toHaveProperty("conversation");
     expect(mocks.authorize).toHaveBeenCalledWith("PROJECT.READ", "project-1");
-    expect(query.select).toHaveBeenCalledWith("project_id,session_id,chat_title,message_count,updated_at");
+    expect(query.select).toHaveBeenCalledWith("project_id,session_id,conversation,updated_at");
     expect(query.like).toHaveBeenCalledWith("session_id", "engineering-chat-%");
     expect(query.limit).toHaveBeenCalledWith(50);
   });
