@@ -49,6 +49,36 @@ export function createShaftDesignWorkspaceState(input: {
   };
 }
 
+const LEGACY_ASME_LABEL = "ASME_ELLIPTIC_STATIC_YIELD";
+const LEGACY_ASME_ASSUMPTION = "With axial force neglected, this equivalent-stress sizing equation is the ASME elliptic static-yield criterion for the stated solid circular shaft model.";
+const CURRENT_VON_MISES_ASSUMPTION = "The von Mises distortion-energy criterion is used for static yielding; the ASME elliptic criterion is not implemented or claimed.";
+
+export function hasLegacyMislabelledShaftCriterion(value: unknown): boolean {
+  const state = value as { result?: { criterion?: unknown } } | null | undefined;
+  return String(state?.result?.criterion ?? "") === LEGACY_ASME_LABEL;
+}
+
+/**
+ * PR #132 corrected a historical metadata bug without changing the numeric
+ * calculation. Accept only the exact pre-fix result shape so immutable
+ * persisted artifacts remain readable; arbitrary result drift still fails.
+ */
+function matchesLegacyMislabelledResult(
+  input: ShaftStaticDesignInput,
+  storedResult: ShaftStaticDesignResult,
+  recomputed: ShaftStaticDesignResult
+): boolean {
+  if (Math.abs(input.axialLoadN) > 1e-12 || String(storedResult.criterion) !== LEGACY_ASME_LABEL) return false;
+  const legacyExpected: ShaftStaticDesignResult = {
+    ...recomputed,
+    criterion: LEGACY_ASME_LABEL as unknown as ShaftStaticDesignResult["criterion"],
+    assumptions: recomputed.assumptions.map((assumption) =>
+      assumption === CURRENT_VON_MISES_ASSUMPTION ? LEGACY_ASME_ASSUMPTION : assumption
+    )
+  };
+  return sha256Json(legacyExpected) === sha256Json(storedResult);
+}
+
 /** Recompute on load so persisted design state cannot silently drift from its declared inputs. */
 export function validateShaftDesignWorkspaceState(value: unknown): string[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return ["Shaft design state must be an object."];
@@ -70,9 +100,13 @@ export function validateShaftDesignWorkspaceState(value: unknown): string[] {
   try {
     if (sha256Json(state.input) !== state.inputSha256) errors.push("Persisted shaft design inputs do not match inputSha256.");
     if (sha256Json(state.result) !== state.resultSha256) errors.push("Persisted shaft design result does not match resultSha256.");
-    const recomputed = calculateShaftStaticDesign(state.input as ShaftStaticDesignInput);
-    if (sha256Json(recomputed) !== state.resultSha256) errors.push("Persisted shaft design result does not match deterministic recomputation.");
+    const shaftInput = state.input as ShaftStaticDesignInput;
     const result = state.result as ShaftStaticDesignResult;
+    const recomputed = calculateShaftStaticDesign(shaftInput);
+    if (sha256Json(recomputed) !== state.resultSha256 &&
+        !matchesLegacyMislabelledResult(shaftInput, result, recomputed)) {
+      errors.push("Persisted shaft design result does not match deterministic recomputation.");
+    }
     if (result.input && sha256Json(result.input) !== state.inputSha256) errors.push("Shaft design result input does not match the persisted design input.");
     if (Number(state.sourceWorkspaceRevision) >= Number(state.workspaceRevision)) errors.push("sourceWorkspaceRevision must be earlier than workspaceRevision.");
   } catch (error) {

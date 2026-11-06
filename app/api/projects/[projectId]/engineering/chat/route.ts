@@ -7,7 +7,10 @@ import {
   parseEngineeringChatHistory,
   resolveEngineeringChatTimeout,
 } from "../../../../../../src/chat/request";
-import { validateShaftDesignWorkspaceState } from "../../../../../../src/workspace/shaft-design-state";
+import {
+  hasLegacyMislabelledShaftCriterion,
+  validateShaftDesignWorkspaceState
+} from "../../../../../../src/workspace/shaft-design-state";
 import { validateEngineeringWorkspaceSnapshot } from "../../../../../../src/workspace/validation";
 import type { EngineeringWorkspaceSnapshot } from "../../../../../../src/workspace/types";
 
@@ -26,6 +29,7 @@ const SYSTEM_PROMPT = "You are the conversational assistant inside an engineerin
 type PersistedShaftDesignContext = {
   available: boolean;
   stale: boolean;
+  legacyCriterionLabel?: boolean;
   workspaceRevision?: number;
   designRevision?: number;
   state?: Record<string, unknown>;
@@ -58,11 +62,20 @@ async function loadPersistedShaftDesignContext(projectId: string, demoProject: b
   if (validationErrors.length || !hasArtifact) {
     throw new Error("The persisted shaft design state failed integrity checks and cannot be supplied to chat.");
   }
+  return buildPersistedShaftDesignContext(state, Number(data.revision));
+}
+
+function buildPersistedShaftDesignContext(
+  state: Record<string, unknown>,
+  workspaceRevision: number
+): PersistedShaftDesignContext {
+  const legacyCriterionLabel = hasLegacyMislabelledShaftCriterion(state);
   const stateWorkspaceRevision = Number(state.workspaceRevision);
   return {
     available: true,
-    stale: stateWorkspaceRevision !== Number(data.revision),
-    workspaceRevision: Number(data.revision),
+    stale: stateWorkspaceRevision !== workspaceRevision || legacyCriterionLabel,
+    legacyCriterionLabel,
+    workspaceRevision,
     designRevision: Number(state.designRevision),
     state
   };
@@ -76,9 +89,11 @@ function systemInstructionsWithDesignState(context: PersistedShaftDesignContext,
         return "\\u0026";
       })
     : "No durable shaft design state has been saved for this project.";
-  const freshness = context.stale
-    ? "The saved shaft design is STALE relative to the current project workspace revision. Treat it as historical context only until recalculated."
-    : context.available
+  const freshness = context.legacyCriterionLabel
+    ? "The saved shaft design contains a LEGACY MISLABELLED criterion field: ASME_ELLIPTIC_STATIC_YIELD. Its stored numeric calculation uses von Mises stress; do not repeat or rely on the old ASME label. Treat this state as historical context until recalculated."
+    : context.stale
+      ? "The saved shaft design is STALE relative to the current project workspace revision. Treat it as historical context only until recalculated."
+      : context.available
       ? "The saved shaft design matches the current project workspace revision."
       : "No structured persisted shaft design is available; do not invent one.";
   return SYSTEM_PROMPT + "\n\nPERSISTED PROJECT SHAFT DESIGN CONTEXT (SERVER-LOADED, READ-ONLY)\n" +
