@@ -3,7 +3,8 @@ import { NumericalAnalysisProvider } from "../src/providers/numerical.js";
 import { DeterministicShaftIntentInterpreter } from "../src/intent/shaft.js";
 import {
   calculateShaftStaticDesign,
-  type ShaftStaticDesignInput
+  type ShaftStaticDesignInput,
+  type ShaftStaticDesignResult
 } from "../src/engineering/shaft-static-design.js";
 import {
   createShaftDesignWorkspaceState,
@@ -106,6 +107,47 @@ describe("deterministic shaft static-yield design", () => {
 });
 
 describe("persistent shaft design state", () => {
+  it("keeps hash-valid pre-fix shaft states readable while rejecting numeric drift", () => {
+    const currentResult = calculateShaftStaticDesign({ ...referenceInput, axialLoadN: 0 });
+    const legacyResult = {
+      ...currentResult,
+      criterion: "ASME_ELLIPTIC_STATIC_YIELD",
+      assumptions: currentResult.assumptions.map((assumption) =>
+        assumption === "The von Mises distortion-energy criterion is used for static yielding; the ASME elliptic criterion is not implemented or claimed."
+          ? "With axial force neglected, this equivalent-stress sizing equation is the ASME elliptic static-yield criterion for the stated solid circular shaft model."
+          : assumption
+      )
+    } as unknown as ShaftStaticDesignResult;
+    const legacyState = createShaftDesignWorkspaceState({
+      designRevision: 1,
+      sourceWorkspaceRevision: 4,
+      workspaceRevision: 5,
+      updatedAt: "2026-11-01T12:00:00.000Z",
+      updatedBy: "test-user",
+      idempotencyKey: "shaft-design-legacy-1",
+      artifactId: "artifact-shaft-legacy-1",
+      shaftInput: { ...referenceInput, axialLoadN: 0 },
+      result: legacyResult
+    });
+    expect(validateShaftDesignWorkspaceState(legacyState)).toEqual([]);
+
+    const tamperedLegacyResult = { ...legacyResult, torqueNm: legacyResult.torqueNm + 1 };
+    const tamperedState = createShaftDesignWorkspaceState({
+      designRevision: 1,
+      sourceWorkspaceRevision: 4,
+      workspaceRevision: 5,
+      updatedAt: "2026-11-01T12:00:00.000Z",
+      updatedBy: "test-user",
+      idempotencyKey: "shaft-design-legacy-tampered",
+      artifactId: "artifact-shaft-legacy-tampered",
+      shaftInput: { ...referenceInput, axialLoadN: 0 },
+      result: tamperedLegacyResult
+    });
+    expect(validateShaftDesignWorkspaceState(tamperedState)).toContain(
+      "Persisted shaft design result does not match deterministic recomputation."
+    );
+  });
+
   it("binds the state to exact inputs, deterministic outputs and workspace revisions", () => {
     const result = calculateShaftStaticDesign(referenceInput);
     const state = createShaftDesignWorkspaceState({
