@@ -1,3 +1,4 @@
+import { getShaftDesignDisplayAssumptions } from "../src/workspace/shaft-design-presentation";
 import { describe, expect, it } from "vitest";
 import { NumericalAnalysisProvider } from "../src/providers/numerical.js";
 import { DeterministicShaftIntentInterpreter } from "../src/intent/shaft.js";
@@ -8,7 +9,6 @@ import {
 } from "../src/engineering/shaft-static-design.js";
 import {
   createShaftDesignWorkspaceState,
-  getShaftDesignDisplayAssumptions,
   hasLegacyMislabelledShaftCriterion,
   validateShaftDesignWorkspaceState
 } from "../src/workspace/shaft-design-state.js";
