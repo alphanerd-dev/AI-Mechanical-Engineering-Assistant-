@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { isCalculationArtifactStale } from "../../../../src/artifacts/calculation-freshness";
-import {
-  getShaftDesignDisplayAssumptions,
-  type ShaftDesignWorkspaceState
-} from "../../../../src/workspace/shaft-design-state";
+import type { ShaftDesignWorkspaceState } from "../../../../src/workspace/shaft-design-state";
+import { getShaftDesignDisplayAssumptions } from "../../../../src/workspace/shaft-design-presentation";
 
 type EngineeringEvent = { id: string; timestamp: string; actor: string; action: string; input?: unknown; output?: unknown; evidence?: string[]; artifactIds?: string[] };
 type Requirement = { name: string; value?: number | string; unit?: string };
