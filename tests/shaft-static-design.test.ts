@@ -45,8 +45,17 @@ describe("deterministic shaft static-yield design", () => {
     expect(result.vonMisesStressMpa).toBeCloseTo(122.32767, 4);
     expect(result.achievedYieldFactorOfSafety).toBeCloseTo(3.39253, 4);
     expect(result.passesStaticYield).toBe(true);
+    expect(result.criterion).toBe("VON_MISES_STATIC_YIELD");
+    expect(result.assumptions.some((item) => item.includes("ASME elliptic criterion is not implemented or claimed"))).toBe(true);
     expect(result.assumptions.some((item) => item.includes("fatigue factors"))).toBe(true);
     expect(result.limitations.some((item) => item.includes("Fatigue under rotating bending"))).toBe(true);
+  });
+
+  it("never labels the von Mises implementation as the ASME elliptic criterion when axial load is zero", () => {
+    const result = calculateShaftStaticDesign({ ...referenceInput, axialLoadN: 0 });
+    expect(result.criterion).toBe("VON_MISES_STATIC_YIELD");
+    expect(result.equations.stress).toContain("sigma_VM");
+    expect(result.assumptions.some((item) => item.includes("ASME elliptic criterion is not implemented or claimed"))).toBe(true);
   });
 
   it("recalculates all downstream results when corrected power changes", () => {
