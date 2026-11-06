@@ -58,6 +58,7 @@ export function hasLegacyMislabelledShaftCriterion(value: unknown): boolean {
   return String(state?.result?.criterion ?? "") === LEGACY_ASME_LABEL;
 }
 
+
 /**
  * PR #132 corrected a historical metadata bug without changing the numeric
  * calculation. Accept only the exact pre-fix result shape so immutable

@@ -1,3 +1,4 @@
+import { getShaftDesignDisplayAssumptions } from "../src/workspace/shaft-design-presentation";
 import { describe, expect, it } from "vitest";
 import { NumericalAnalysisProvider } from "../src/providers/numerical.js";
 import { DeterministicShaftIntentInterpreter } from "../src/intent/shaft.js";
@@ -132,6 +133,10 @@ describe("persistent shaft design state", () => {
     });
     expect(validateShaftDesignWorkspaceState(legacyState)).toEqual([]);
     expect(hasLegacyMislabelledShaftCriterion(legacyState)).toBe(true);
+    const legacyDisplayAssumptions = getShaftDesignDisplayAssumptions(legacyResult);
+    expect(legacyDisplayAssumptions.join(" ")).not.toContain("ASME elliptic static-yield criterion");
+    expect(legacyDisplayAssumptions.some((assumption) => assumption.includes("not an ASME elliptic assessment"))).toBe(true);
+    expect(getShaftDesignDisplayAssumptions(currentResult)).toEqual(currentResult.assumptions);
     expect(hasLegacyMislabelledShaftCriterion(createShaftDesignWorkspaceState({
       designRevision: 2,
       sourceWorkspaceRevision: 5,

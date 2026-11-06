@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { isCalculationArtifactStale } from "../../../../src/artifacts/calculation-freshness";
 import type { ShaftDesignWorkspaceState } from "../../../../src/workspace/shaft-design-state";
+import { getShaftDesignDisplayAssumptions } from "../../../../src/workspace/shaft-design-presentation";
 
 type EngineeringEvent = { id: string; timestamp: string; actor: string; action: string; input?: unknown; output?: unknown; evidence?: string[]; artifactIds?: string[] };
 type Requirement = { name: string; value?: number | string; unit?: string };
@@ -32,6 +33,14 @@ function seededNumber(requirements: Requirement[], test: RegExp, unit: string): 
   const parsed = Number(item.value);
   return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
 }
+function getShaftDesignPresentation(shaftDesign: ShaftDesignWorkspaceState | undefined) {
+  const isLegacy = String(shaftDesign?.result.criterion ?? "") === "ASME_ELLIPTIC_STATIC_YIELD";
+  return {
+    isLegacy,
+    assumptions: shaftDesign ? getShaftDesignDisplayAssumptions(shaftDesign.result) : []
+  };
+}
+
 function readCalculation(event: EngineeringEvent | undefined): Calculation | undefined {
   if (!event || typeof event.output !== "object" || event.output === null) return undefined;
   const value = event.output as Partial<Calculation>;
@@ -77,6 +86,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
   const [notice, setNotice] = useState("");
   const demo = projectId === "demo";
 
+  const shaftDesignPresentation = getShaftDesignPresentation(shaftDesign);
   const lastPumpArtifact = [...artifacts].reverse().find((artifact) => artifact.capability === "ANALYSIS.PUMP_HYDRAULIC_POWER");
   const lastPumpArtifactStale = Boolean(lastPumpArtifact) && isCalculationArtifactStale(lastPumpArtifact!, revision);
 
@@ -320,13 +330,16 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
     </section>
     {shaftDesign && <section className="panel shaftDesignPanel">
       <div className="projectListHeader">
-        <div><p className="eyebrow">VERSIONED SHAFT DESIGN STATE · REVISION {shaftDesign.designRevision}</p><h2>Current Design State</h2></div>
+        <div><p className="eyebrow">{shaftDesignPresentation.isLegacy ? "LEGACY HISTORICAL SHAFT SNAPSHOT" : "VERSIONED SHAFT DESIGN STATE"} · REVISION {shaftDesign.designRevision}</p><h2>{shaftDesignPresentation.isLegacy ? "Historical Design Snapshot" : "Current Design State"}</h2></div>
         <div className="projectArtifactStatus">
-          <span className={shaftDesign.result.passesStaticYield ? "projectState projectState-active" : "projectState projectState-blocked"}>{shaftDesign.result.passesStaticYield ? "STATIC YIELD PASS" : "STATIC YIELD FAIL"}</span>
+          {shaftDesignPresentation.isLegacy
+            ? <span className="projectState projectState-blocked">HISTORICAL · RECALCULATE</span>
+            : <span className={shaftDesign.result.passesStaticYield ? "projectState projectState-active" : "projectState projectState-blocked"}>{shaftDesign.result.passesStaticYield ? "STATIC YIELD PASS" : "STATIC YIELD FAIL"}</span>}
           {shaftDesignDirty && <span className="projectState projectState-blocked">UNSAVED DRAFT</span>}
           {shaftDesign.workspaceRevision !== revision && <span className="projectState projectState-blocked">STALE</span>}
         </div>
       </div>
+      {shaftDesignPresentation.isLegacy && <p className="projectNotice projectNoticeWarning" role="status">This immutable snapshot predates the criterion-label correction. Its stored numerical calculation used von Mises stress, but its old metadata incorrectly named the ASME elliptic criterion. The historical artifact is preserved for auditability; recalculate to create a current result. It is not an ASME elliptic assessment.</p>}
       <div className="metrics">
         <div className="metric"><span>Torque</span><strong>{shaftDesign.result.torqueNm.toFixed(3)} N·m</strong></div>
         <div className="metric"><span>Resultant gear force</span><strong>{shaftDesign.result.resultantTransverseForceN.toFixed(2)} N</strong></div>
@@ -352,7 +365,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
       </div>
       {shaftDesignDirty && <p className="projectNotice projectNoticeWarning" role="status">The form contains unsaved input changes. The results below still describe the last persisted design revision; run the calculation again to update them.</p>}
       {shaftDesign.workspaceRevision !== revision && <p className="projectNotice projectNoticeWarning" role="status">This saved design was calculated at workspace revision {shaftDesign.workspaceRevision}; the current workspace is revision {revision}. Treat the result as historical until rerun against the current revision.</p>}
-      <ul className="workspaceSimpleList">{shaftDesign.result.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul>
+      <ul className="workspaceSimpleList">{shaftDesignPresentation.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul>
       <ul className="workspaceSimpleList">{shaftDesign.result.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul>
       <p className="projectNotice projectNoticeWarning">A passing result only validates this stated static-yield model. It is not fatigue verification, independent engineering verification, human approval, or design release.</p>
     </section>}
