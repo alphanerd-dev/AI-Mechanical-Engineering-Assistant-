@@ -115,6 +115,22 @@ describe("POST engineering chat provider and project authorization", () => {
     expect(mocks.streamText).not.toHaveBeenCalled();
   });
 
+  it("continues streaming when persisted design context cannot be loaded", async () => {
+    mocks.workspaceQuery.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: "workspace read unavailable" }
+    });
+    const response = await POST(request(REGISTERED_PROJECT), {
+      params: Promise.resolve({ projectId: REGISTERED_PROJECT })
+    });
+    expect(response.status).toBe(200);
+    expect(mocks.authorize).toHaveBeenCalledWith("TASK.EXECUTE", REGISTERED_PROJECT);
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText.mock.calls[0][0].instructions).toContain(
+      "No durable shaft design state has been saved for this project."
+    );
+  });
+
   it("returns a configuration error when the API key is absent", async () => {
     vi.stubEnv("ENGINEERING_REASONING_MODEL_API_KEY", "");
     const response = await POST(request("demo"), { params: Promise.resolve({ projectId: "demo" }) });

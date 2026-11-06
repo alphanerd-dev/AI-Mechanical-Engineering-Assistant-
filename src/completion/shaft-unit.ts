@@ -178,6 +178,8 @@ function buildCompletionReport(
       { key: "minimumDiameterMm", value: result.minimumDiameterMm, unit: "mm" },
       { key: "preferredDiameterMm", value: result.preferredDiameterMm, unit: "mm" },
       { key: "vonMisesStressMpa", value: result.vonMisesStressMpa, unit: "MPa" },
+      { key: "principalStress1Mpa", value: result.principalStress1Mpa, unit: "MPa" },
+      { key: "principalStress2Mpa", value: result.principalStress2Mpa, unit: "MPa" },
       { key: "achievedYieldFactorOfSafety", value: result.achievedYieldFactorOfSafety, unit: "—" }
     ],
     project,

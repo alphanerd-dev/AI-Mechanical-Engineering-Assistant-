@@ -643,7 +643,7 @@ test("engineering conversation and decision restore after full browser reload", 
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    
+
   }
 });
 
@@ -730,7 +730,7 @@ test("provider outage is shown and the failed turn remains recoverable after rel
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    
+
   }
 });
 
@@ -821,7 +821,7 @@ test("existing session restore outage preserves identity and does not start a re
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    
+
   }
 });
 
@@ -873,7 +873,7 @@ test("initial session persistence outage fails closed without dispatching engine
       body: Buffer.from(JSON.stringify({ intentPostCount }, null, 2)),
       contentType: "application/json",
     });
-    
+
   }
 });
 
@@ -982,7 +982,7 @@ test("CAD needs-input completion persists a correlated durable audit event witho
       body: Buffer.from(JSON.stringify({ projectId, modelIdentityId, completionId, cleanupStatus }, null, 2)),
       contentType: "application/json",
     });
-    
+
   }
 });
 
@@ -1360,7 +1360,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
           completionWarnings: diagnostics.completionWarnings,
         }),
       ).toBe(201);
-  
+
     }
     expect(completion).toMatchObject({
       id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
@@ -1547,7 +1547,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    
+
   }
   });
 });
@@ -1633,7 +1633,7 @@ test("axe WCAG 2.1/2.2 AA scan covers login, project list, and project engineeri
         });
       }
     }
-    
+
     await testInfo.attach("axe-accessibility-audit-diagnostics.json", {
       body: Buffer.from(JSON.stringify(report, null, 2)),
       contentType: "application/json",

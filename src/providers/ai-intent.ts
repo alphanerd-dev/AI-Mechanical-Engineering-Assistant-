@@ -102,7 +102,10 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
       ? this.completionUnits.resolve(interpretation.completionUnit)
       : undefined;
 
-    const contextMissing = unit?.requiredInputs
+    const requiredInputs = unit
+      ? (unit.getRequiredInputs?.(interpretation.extractedInputs) ?? unit.requiredInputs)
+      : [];
+    const contextMissing = requiredInputs
       .filter(({ key }) => {
         const value = interpretation.extractedInputs[key] ?? effectiveContext.knownInputs?.[key];
         return typeof value !== "number" && typeof value !== "string";
@@ -213,6 +216,7 @@ export class AIEngineeringIntentProvider implements CapabilityProvider {
       completion = await unit.execute({
         projectId: effectiveProjectId,
         inputs: interpretation.extractedInputs,
+        assumptions: interpretation.assumptions,
         approval: input.approval,
       }, this.router);
     } catch (error) {

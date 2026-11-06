@@ -229,6 +229,6 @@ test("streamed engineering chat restores after refresh and recovers a missing br
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    
+
   }
 });

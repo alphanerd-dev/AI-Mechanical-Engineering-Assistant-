@@ -70,7 +70,9 @@ describe("V2.0.20 domain-neutral completion routing",()=>{
     expect(result.success).toBe(true);
     const output=result.output as unknown as RoutedCompletionTestOutput;
     expect(output.completion.completionUnit).toBe("ENGINEERING.COMPLETE_SHAFT");
-    expect(output.completion.decisionMetrics).toHaveLength(8);
+    expect(output.completion.decisionMetrics).toHaveLength(10);
+    expect(output.completion.decisionMetrics.map(({ key }) => key)).toContain("principalStress1Mpa");
+    expect(output.completion.decisionMetrics.map(({ key }) => key)).toContain("principalStress2Mpa");
     expect(output.decision.metrics).toEqual(output.completion.decisionMetrics);
   });
 

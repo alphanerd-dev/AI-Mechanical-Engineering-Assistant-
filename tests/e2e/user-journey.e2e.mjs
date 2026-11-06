@@ -120,7 +120,7 @@ test("sign-in and sign-out are labelled and keyboard-operable", async ({ testBro
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/login(?:\?.*)?$/);
   } finally {
-    
+
   }
 });
 
