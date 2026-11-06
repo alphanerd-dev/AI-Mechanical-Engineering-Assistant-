@@ -1,4 +1,5 @@
 import type { EngineeringIntentDecision, EngineeringIntentInterpretation } from "./types.js";
+import { summarizeEngineeringChatSession, type EngineeringChatSessionSummary } from "../chat/session-summary.js";
 
 export const ENGINEERING_INTENT_SESSION_SCHEMA_VERSION = 1 as const;
 export const MAX_CONVERSATION_MESSAGES = 200;
@@ -39,6 +40,7 @@ export class EngineeringIntentSessionConflictError extends Error {
 export interface EngineeringIntentSessionStore {
   get(sessionId: string, projectId: string): Promise<EngineeringIntentSession | undefined>;
   getLatestChatSession(projectId: string): Promise<EngineeringIntentSession | undefined>;
+  listChatSessions(projectId: string, limit?: number): Promise<EngineeringChatSessionSummary[]>;
   save(session: EngineeringIntentSession, options?: SessionSaveOptions): Promise<void>;
   delete(sessionId: string, projectId: string): Promise<void>;
 }
@@ -213,6 +215,8 @@ interface SessionRow {
   schema_version?: unknown;
   snapshot_revision?: unknown;
   updated_at: string;
+  chat_title?: unknown;
+  message_count?: unknown;
 }
 
 function rowToSession(row: Partial<SessionRow>, sessionId: string, projectId: string): EngineeringIntentSession {
@@ -317,6 +321,50 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
     }
   }
 
+  async listChatSessions(projectId: string, limit = 50): Promise<EngineeringChatSessionSummary[]> {
+    const boundedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 50;
+    let result: QueryResult;
+    try {
+      const query = this.table()
+        // Derive sidebar metadata from the authoritative snapshot. Cached title/count
+        // columns can be stale after older client versions wrote the conversation.
+        .select("project_id,session_id,conversation,updated_at")
+        .eq("project_id", projectId)
+        .like("session_id", `${ENGINEERING_CHAT_SESSION_ID_PREFIX}%`)
+        .order("updated_at", { ascending: false })
+        .limit(boundedLimit);
+      result = await (query as unknown as PromiseLike<QueryResult>);
+    } catch {
+      throw new EngineeringIntentSessionPersistenceError("read");
+    }
+    if (result.error) throw new EngineeringIntentSessionPersistenceError("read");
+    if (!Array.isArray(result.data)) {
+      if (result.data === null || result.data === undefined) return [];
+      throw new Error("Stored engineering chat session list is invalid.");
+    }
+    return result.data.map((value) => {
+      if (!isRecord(value)) throw new Error("Stored engineering chat session summary is invalid.");
+      const row = value as Partial<SessionRow>;
+      if (
+        row.project_id !== projectId ||
+        typeof row.session_id !== "string" ||
+        !row.session_id.startsWith(ENGINEERING_CHAT_SESSION_ID_PREFIX) ||
+        typeof row.updated_at !== "string" || Number.isNaN(Date.parse(row.updated_at))
+      ) {
+        throw new Error("Stored engineering chat session summary is invalid.");
+      }
+      try {
+        return summarizeEngineeringChatSession({
+          sessionId: row.session_id,
+          conversation: parseConversation(row.conversation),
+          updatedAt: row.updated_at,
+        });
+      } catch {
+        throw new Error("Stored engineering chat session summary is invalid.");
+      }
+    });
+  }
+
   async save(
     session: EngineeringIntentSession,
     options?: SessionSaveOptions,
@@ -338,11 +386,14 @@ export class SupabaseEngineeringIntentSessionStore implements EngineeringIntentS
       ...cloneSession(session),
       snapshotRevision,
     };
+    const chatSummary = summarizeEngineeringChatSession(next);
     const values: Record<string, unknown> = {
       project_id: next.projectId,
       session_id: next.sessionId,
       interpretation: next.interpretation,
       conversation: next.conversation,
+      chat_title: chatSummary.title,
+      message_count: chatSummary.messageCount,
       schema_version: next.schemaVersion,
       snapshot_revision: next.snapshotRevision,
       updated_at: next.updatedAt,
@@ -418,6 +469,15 @@ export class InMemoryEngineeringIntentSessionStore implements EngineeringIntentS
       )
       .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
     return latest ? cloneSession(latest) : undefined;
+  }
+
+  async listChatSessions(projectId: string, limit = 50): Promise<EngineeringChatSessionSummary[]> {
+    const boundedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 50;
+    return [...this.sessions.values()]
+      .filter((session) => session.projectId === projectId && session.sessionId.startsWith(ENGINEERING_CHAT_SESSION_ID_PREFIX))
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+      .slice(0, boundedLimit)
+      .map(summarizeEngineeringChatSession);
   }
 
   async save(

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect } from "@playwright/test";
+import { test, expect, isBrowserStackIOS } from "./fixtures/browserstack-test.mjs";
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -99,9 +99,9 @@ async function signIn(page, email, password) {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
-  await expect(page.getByText("Loading projects…")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent projects" })).toBeVisible();
+  await expect(page.getByText("Loading persisted projects…")).toHaveCount(0);
   await expect(page.getByText("Engineering role required")).toHaveCount(0);
   await expect(page.locator(".projectError[role=\"alert\"]")).toHaveCount(0);
   await expect(
@@ -109,7 +109,8 @@ async function signIn(page, email, password) {
   ).toBeVisible();
 }
 
-test("durable workspace writes, intent decisions, session restore, and direct API ownership", async ({ browser }, testInfo) => {
+test("durable workspace writes, intent decisions, session restore, and direct API ownership", async ({ testBrowser: browser }, testInfo) => {
+  test.skip(isBrowserStackIOS(testInfo), "Owner-isolation acceptance requires two simultaneous contexts; BrowserStack iOS supports one context per session.");
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -564,13 +565,13 @@ test("durable workspace writes, intent decisions, session restore, and direct AP
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    if (contextB) await contextB.close().catch(() => undefined);
-    if (contextA) await contextA.close().catch(() => undefined);
+
+
   }
 });
 
 
-test("engineering conversation and decision restore after full browser reload", async ({ browser }, testInfo) => {
+test("engineering conversation and decision restore after full browser reload", async ({ testBrowser: browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -642,12 +643,12 @@ test("engineering conversation and decision restore after full browser reload", 
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    await context.close().catch(() => undefined);
+
   }
 });
 
 
-test("provider outage is shown and the failed turn remains recoverable after reload", async ({ browser }, testInfo) => {
+test("provider outage is shown and the failed turn remains recoverable after reload", async ({ testBrowser: browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -729,12 +730,12 @@ test("provider outage is shown and the failed turn remains recoverable after rel
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    await context.close().catch(() => undefined);
+
   }
 });
 
 
-test("existing session restore outage preserves identity and does not start a replacement session", async ({ browser }, testInfo) => {
+test("existing session restore outage preserves identity and does not start a replacement session", async ({ testBrowser: browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -820,11 +821,11 @@ test("existing session restore outage preserves identity and does not start a re
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    await context.close().catch(() => undefined);
+
   }
 });
 
-test("initial session persistence outage fails closed without dispatching engineering work", async ({ browser }, testInfo) => {
+test("initial session persistence outage fails closed without dispatching engineering work", async ({ testBrowser: browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -872,12 +873,12 @@ test("initial session persistence outage fails closed without dispatching engine
       body: Buffer.from(JSON.stringify({ intentPostCount }, null, 2)),
       contentType: "application/json",
     });
-    await context.close().catch(() => undefined);
+
   }
 });
 
 
-test("CAD needs-input completion persists a correlated durable audit event without executing CAD", async ({ browser }, testInfo) => {
+test("CAD needs-input completion persists a correlated durable audit event without executing CAD", async ({ testBrowser: browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -981,11 +982,12 @@ test("CAD needs-input completion persists a correlated durable audit event witho
       body: Buffer.from(JSON.stringify({ projectId, modelIdentityId, completionId, cleanupStatus }, null, 2)),
       contentType: "application/json",
     });
-    await context.close().catch(() => undefined);
+
   }
 });
 
-test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ browser }, testInfo) => {
+test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ testBrowser: browser }, testInfo) => {
+  test.skip(isBrowserStackIOS(testInfo), "Owner-isolation acceptance requires two simultaneous contexts; BrowserStack iOS supports one context per session.");
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -1181,8 +1183,8 @@ test("project GET/PATCH/DELETE are owner scoped and revision guarded", async ({ 
         }).catch(() => undefined);
       }
     }
-    if (contextB) await contextB.close().catch(() => undefined);
-    if (contextA) await contextA.close().catch(() => undefined);
+
+
     if (cleanupFailure) throw new Error("Disposable CRUD project cleanup could not be confirmed.");
   }
 });
@@ -1193,7 +1195,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
   // Only the idempotent readiness GET below may be retried.
   test.describe.configure({ retries: 0 });
 
-  test("OPT-IN live accepted CAD completion persists artifacts and independently verifiable atomic audit correlation", async ({ browser }, testInfo) => {
+  test("OPT-IN live accepted CAD completion persists artifacts and independently verifiable atomic audit correlation", async ({ testBrowser: browser }, testInfo) => {
   test.skip(
     process.env.E2E_RUN_ACCEPTED_CAD_SMOKE !== "true",
     "Opt-in only: exercises a real CAD worker and writes then removes disposable artifacts in the dedicated E2E project.",
@@ -1358,7 +1360,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
           completionWarnings: diagnostics.completionWarnings,
         }),
       ).toBe(201);
-  
+
     }
     expect(completion).toMatchObject({
       id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
@@ -1545,13 +1547,13 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json",
     });
-    await context.close().catch(() => undefined);
+
   }
   });
 });
 
 
-test("axe WCAG 2.1/2.2 AA scan covers login, project list, and project engineering workspace", async ({ browser }, testInfo) => {
+test("axe WCAG 2.1/2.2 AA scan covers login, project list, and project engineering workspace", async ({ testBrowser: browser }, testInfo) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -1631,7 +1633,7 @@ test("axe WCAG 2.1/2.2 AA scan covers login, project list, and project engineeri
         });
       }
     }
-    await context.close().catch(() => undefined);
+
     await testInfo.attach("axe-accessibility-audit-diagnostics.json", {
       body: Buffer.from(JSON.stringify(report, null, 2)),
       contentType: "application/json",

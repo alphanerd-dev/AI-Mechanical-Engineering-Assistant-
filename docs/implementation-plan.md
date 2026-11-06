@@ -108,3 +108,9 @@ Physical perception remains a separately staged roadmap path: the current Open3D
 - Do not claim user productivity, time savings, accuracy or ROI without matched real-world measurement.
 
 See [Architecture](architecture.md), [Engineering Capabilities](engineering-capabilities.md), [Playwright Runbook](playwright-e2e.md) and [Product Doctrine](product-doctrine.md).
+
+## Chat context and geometry-based shaft intent repair — 1 November 2026
+
+Production request logs showed long-running project chat submissions being rejected at the fixed 24,000-character context limit before the model provider was called. The chat route now retains a recent bounded history, removes oldest complete turns (and trims oversized older messages with an omission marker), preserves the latest user message, and logs the omitted counts. A too-large newest message is still rejected explicitly. The model is told when older history was compacted.
+
+The Engineering Core shaft completion contract now accepts bearing span, gear position, pitch diameter and pressure angle and derives the gear forces and maximum bending moment. It no longer requires a user-supplied bending moment. Material strengths and design factor are explicit. The implemented deterministic criterion remains the preliminary von Mises static-yield pilot, not the ASME elliptic criterion requested in some prompts. It does not produce verified evidence or human approval. Regression tests cover the screenshot's shaft geometry scenario and long-history chat requests.

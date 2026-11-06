@@ -1,0 +1,172 @@
+name: BrowserStack Automate — PR 131
+
+on:
+  # Keep this automated run scoped to BrowserStack configuration or E2E spec changes.
+  push:
+    branches:
+      - feat/engineering-os-v11-foundation
+    paths:
+      - .github/workflows/browserstack-automate.yml
+      - playwright.config.mjs
+      - tests/e2e/**
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: HTTPS URL of the dedicated non-production E2E deployment
+        required: true
+        type: string
+      suite:
+        description: Select the test scope
+        required: true
+        type: choice
+        options:
+          - full
+          - public-ui-smoke
+        default: full
+      confirm_isolated_environment:
+        description: Confirm a dedicated E2E Supabase project and disposable test accounts (never production/shared data)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  browserstack-automate:
+    name: Cross-browser and responsive UI acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: e2e-staging
+    env:
+      E2E_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || vars.E2E_CANONICAL_BASE_URL }}
+      E2E_SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'full' }}
+      CONFIRM_ISOLATED_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_isolated_environment || (github.event_name == 'push' && vars.E2E_CONFIRM_ISOLATED_ENVIRONMENT == 'true') }}
+      E2E_RUN_ACCEPTED_CAD_SMOKE: "false"
+      E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
+      E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
+      E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
+      PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.PRODUCTION_SUPABASE_PROJECT_REF }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
+      E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
+      E2E_USER_B_EMAIL: ${{ secrets.E2E_USER_B_EMAIL }}
+      E2E_USER_B_PASSWORD: ${{ secrets.E2E_USER_B_PASSWORD }}
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Validate isolated target and credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRM_ISOLATED_ENVIRONMENT" = "true" || {
+            echo "::error::Refusing to run without explicit isolated-environment confirmation."
+            exit 1
+          }
+
+          node <<'NODE'
+          const url = new URL(process.env.E2E_BASE_URL);
+          const suite = process.env.E2E_SUITE || "full";
+          if (!["full", "public-ui-smoke"].includes(suite)) throw new Error("Unsupported E2E suite.");
+          if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+            throw new Error("E2E_BASE_URL must be a clean HTTPS URL.");
+          }
+          const canonicalValue = (process.env.E2E_CANONICAL_BASE_URL || "").trim();
+          if (!canonicalValue) throw new Error("E2E_CANONICAL_BASE_URL is required.");
+          const canonical = new URL(canonicalValue);
+          if (canonical.protocol !== "https:" || canonical.username || canonical.password || canonical.search || canonical.hash) {
+            throw new Error("E2E_CANONICAL_BASE_URL must be a clean HTTPS URL.");
+          }
+          if (url.origin !== canonical.origin && suite !== "public-ui-smoke") {
+            throw new Error("Authenticated E2E target must match E2E_CANONICAL_BASE_URL origin.");
+          }
+          const allowedHosts = (process.env.E2E_ALLOWED_HOSTS || "")
+            .split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
+          if (!allowedHosts.includes(url.host.toLowerCase())) {
+            throw new Error("E2E target host is not in E2E_ALLOWED_HOSTS.");
+          }
+          const projectPattern = /^[a-z0-9]{20}$/;
+          const e2eProject = (process.env.E2E_SUPABASE_PROJECT_REF || "").trim();
+          const productionProject = (process.env.PRODUCTION_SUPABASE_PROJECT_REF || "").trim();
+          if (!projectPattern.test(e2eProject) || !projectPattern.test(productionProject)) {
+            throw new Error("Both E2E and production Supabase project refs must be configured.");
+          }
+          if (e2eProject === productionProject) {
+            throw new Error("Refusing to run against the production Supabase project.");
+          }
+          const required = [
+            "BROWSERSTACK_USERNAME", "BROWSERSTACK_ACCESS_KEY",
+            "VERCEL_AUTOMATION_BYPASS_SECRET"
+          ];
+          if (suite === "full") required.push(
+            "E2E_USER_A_EMAIL", "E2E_USER_A_PASSWORD",
+            "E2E_USER_B_EMAIL", "E2E_USER_B_PASSWORD"
+          );
+          for (const key of required) {
+            if (!(process.env[key] || "").trim()) throw new Error("Missing required GitHub Actions secret: " + key);
+          }
+          console.log("Validated isolated non-production target, allowlisted host, and required credentials.");
+          NODE
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked application dependencies
+        run: npm ci
+
+      - name: Install Playwright E2E helpers and BrowserStack SDK
+        run: npm install --no-save --package-lock=false @playwright/test@1.63.0 @axe-core/playwright@4.13.0 browserstack-node-sdk@latest
+
+      - name: Run selected suite across BrowserStack platforms
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$E2E_SUITE" == "public-ui-smoke" ]]; then
+            npm run test:browserstack -- tests/e2e/public-workspace-smoke.e2e.mjs tests/e2e/auth-responsive-layout.e2e.mjs
+          else
+            npm run test:browserstack
+          fi
+
+      - name: Remove session-bearing Playwright traces and videos
+        id: sanitize-evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for evidence_dir in test-results playwright-report; do
+            if [[ -d "$evidence_dir" ]]; then
+              find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -print -delete
+            fi
+          done
+          for evidence_dir in test-results playwright-report; do
+            if [[ -d "$evidence_dir" ]] && find "$evidence_dir" -type f \( -name '*.zip' -o -name '*.webm' \) -print -quit | grep -q .; then
+              echo "::error::Refusing to upload raw Playwright traces or videos."
+              exit 1
+            fi
+          done
+
+      - name: Upload sanitized Playwright evidence
+        if: always() && steps.sanitize-evidence.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browserstack-pr131-evidence
+          path: |
+            playwright-report/
+            test-results/
+            !playwright-report/**/*.zip
+            !playwright-report/**/*.webm
+            !test-results/**/*.zip
+            !test-results/**/*.webm
+          if-no-files-found: warn
+          retention-days: 14

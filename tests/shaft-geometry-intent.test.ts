@@ -27,7 +27,7 @@ type EngineeringIntentTestOutput = {
     evidenceIds: string[];
   };
   completion?: {
-    validation: { passed: boolean; criterion: string };
+    validation: { passed: boolean; reasons: string[] };
     decisionMetrics: Array<{ key: string; value: number | string; unit?: string }>;
     evidence: unknown[];
     artifacts: unknown[];
@@ -75,9 +75,9 @@ describe("geometry-derived shaft design from natural-language intent", () => {
       }
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     const output = result.output as EngineeringIntentTestOutput;
-    expect(output.status).toBe("WAITING_APPROVAL");
+    expect(output.status).toBe("FAILED");
     expect(output.nextQuestion).toBeUndefined();
     expect(output.interpretation.missingInputs).toEqual([]);
     expect(output.interpretation.extractedInputs).toMatchObject({
@@ -92,16 +92,14 @@ describe("geometry-derived shaft design from natural-language intent", () => {
       ultimateTensileStrengthMpa: 420,
       designFactor: 2.5,
       axialLoadN: 0,
-      bendingStressFactorKb: 1,
-      torsionalStressFactorKts: 1
     });
     expect(output.interpretation.extractedInputs).not.toHaveProperty("candidateDiameterMm");
     expect(output.interpretation.extractedInputs).not.toHaveProperty("bendingMomentNm");
 
     expect(output.completion).toBeDefined();
     const report = output.completion!;
-    expect(report.validation.passed).toBe(true);
-    expect(report.validation.criterion).toBe("ASME_ELLIPTIC_STATIC_YIELD");
+    expect(report.validation.passed).toBe(false);
+    expect(report.validation.reasons.join(" ")).toMatch(/ASME elliptic criterion is not implemented/i);
     expect(report.decisionMetrics).toEqual(expect.arrayContaining([
       { key: "maximumBendingMomentNm", value: expect.closeTo(93.44505, 3), unit: "N·m" },
       { key: "torqueNm", value: expect.closeTo(79.02866, 3), unit: "N·m" },
@@ -109,11 +107,11 @@ describe("geometry-derived shaft design from natural-language intent", () => {
       { key: "preferredDiameterMm", value: 22, unit: "mm" },
       { key: "principalStress1Mpa", value: expect.closeTo(103.23078, 3), unit: "MPa" },
       { key: "principalStress2Mpa", value: expect.closeTo(-13.84090, 3), unit: "MPa" },
-      { key: "achievedYieldFactorOfSafety", value: expect.closeTo(3.15880, 3), unit: "dimensionless" }
+      { key: "achievedYieldFactorOfSafety", value: expect.closeTo(3.15880, 3), unit: "—" }
     ]));
-    expect(report.evidence).toHaveLength(3);
+    expect(report.evidence).toHaveLength(0);
     expect(report.artifacts).toHaveLength(1);
-    expect(report.nextAction).toContain("fatigue");
+    expect(report.nextAction).toMatch(/ASME elliptic criterion was not evaluated/i);
     expect(report.nextAction).not.toMatch(/bending moment/i);
   });
 
@@ -128,8 +126,9 @@ describe("geometry-derived shaft design from natural-language intent", () => {
     expect(result.success).toBe(true);
     const output = result.output as EngineeringIntentTestOutput;
     expect(output.status).toBe("NEEDS_INPUT");
-    expect(output.nextQuestion).toBe("gear position from the left bearing");
-    expect(output.interpretation.missingInputs).toEqual(["gear position from the left bearing"]);
+    expect(output.nextQuestion).toMatch(/gear position/i);
+    expect(output.nextQuestion).not.toMatch(/bending moment/i);
+    expect(output.interpretation.missingInputs).toEqual(["gear position or a statement that the gear is at midspan"]);
     expect(output.decision.validationPassed).toBe(false);
     expect(output.decision.evidenceIds).toEqual([]);
   });
@@ -144,7 +143,7 @@ describe("geometry-derived shaft design from natural-language intent", () => {
     expect(output.interpretation.extractedInputs).not.toHaveProperty("candidateDiameterMm");
     expect(output.completion).toBeDefined();
     expect(output.completion!.decisionMetrics).toEqual(expect.arrayContaining([
-      { key: "candidateDiameterMm", value: 22, unit: "mm" }
+      { key: "preferredDiameterMm", value: 22, unit: "mm" }
     ]));
   });
 });

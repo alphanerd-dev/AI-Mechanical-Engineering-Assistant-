@@ -1,49 +1,42 @@
-import {CapabilityProvider} from "../capabilities/registry";
-import {CapabilityRequest,CapabilityResult} from "../core/types";
-import {CapabilityRouter} from "../capabilities/router";
-import {ShaftEngineeringCompletionRequest} from "../completion/types";
-import {completeShaftEngineeringUnit} from "../completion/shaft";
-import {completeShaftStaticDesignUnit, type ShaftStaticDesignCompletionRequest} from "../completion/shaft-static";
+import { CapabilityProvider } from "../capabilities/registry.js";
+import { CapabilityRequest, CapabilityResult } from "../core/types.js";
+import { CapabilityRouter } from "../capabilities/router.js";
+import { ShaftEngineeringCompletionUnit } from "../completion/shaft-unit.js";
 
-export class EngineeringCompletionProvider implements CapabilityProvider{
-  id="engineering-completion";
-  capabilities=["ENGINEERING.COMPLETE_SHAFT"];
+export class EngineeringCompletionProvider implements CapabilityProvider {
+  id = "engineering-completion";
+  capabilities = ["ENGINEERING.COMPLETE_SHAFT"];
 
-  constructor(private readonly router:CapabilityRouter){}
+  constructor(private readonly router: CapabilityRouter) {}
 
-  async execute(request:CapabilityRequest):Promise<CapabilityResult>{
-    if(request.capability!=="ENGINEERING.COMPLETE_SHAFT"){
-      return {capability:request.capability,provider:this.id,success:false,error:"Unsupported engineering completion capability."};
+  async execute(request: CapabilityRequest): Promise<CapabilityResult> {
+    if (request.capability !== "ENGINEERING.COMPLETE_SHAFT") {
+      return { capability: request.capability, provider: this.id, success: false, error: "Unsupported engineering completion capability." };
     }
-    try{
-      const input = request.input as Record<string, unknown>;
-      const geometryBased = typeof input.bearingSpanMm === "number" &&
-        typeof input.pitchDiameterMm === "number" &&
-        typeof input.materialGrade === "string";
-      const report = geometryBased
-        ? await completeShaftStaticDesignUnit(
-            input as unknown as ShaftStaticDesignCompletionRequest,
-            this.router
-          )
-        : await completeShaftEngineeringUnit(
-            request.input as unknown as ShaftEngineeringCompletionRequest,
-            this.router
-          );
+    const { projectId, approval, ...inputs } = request.input as Record<string, unknown>;
+    if (typeof projectId !== "string" || !projectId.trim()) {
+      return { capability: request.capability, provider: this.id, success: false, error: "projectId is required." };
+    }
+    try {
+      const report = await new ShaftEngineeringCompletionUnit().execute({
+        projectId,
+        inputs: inputs as Record<string, number | string>,
+        ...(approval && typeof approval === "object" ? { approval: approval as never } : {})
+      }, this.router);
       return {
-        capability:request.capability,
-        provider:this.id,
-        success:report.status==="COMPLETE"||report.status==="WAITING_APPROVAL"||report.status==="BLOCKED",
-        output:report,
-        error:report.status==="FAILED"?report.nextAction:undefined,
-        evidenceIds:report.lineage.evidenceIds,
-        artifactIds:report.lineage.artifactIds
+        capability: request.capability,
+        provider: this.id,
+        success: report.status !== "FAILED",
+        output: report,
+        error: report.status === "FAILED" ? report.nextAction : undefined,
+        artifactIds: report.lineage.artifactIds
       };
-    }catch(error){
+    } catch (error) {
       return {
-        capability:request.capability,
-        provider:this.id,
-        success:false,
-        error:error instanceof Error?error.message:"Engineering completion failed."
+        capability: request.capability,
+        provider: this.id,
+        success: false,
+        error: error instanceof Error ? error.message : "Engineering completion failed."
       };
     }
   }

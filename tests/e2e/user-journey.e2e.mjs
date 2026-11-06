@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, isBrowserStackIOS } from "./fixtures/browserstack-test.mjs";
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -29,6 +29,37 @@ function watchPage(page, label, diagnostics) {
   });
 }
 
+async function assertWorkbenchPanels(page) {
+  await expect(page.getByRole("heading", { name: "Engineering workbench" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workbench views" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Artifact explorer" })).toBeVisible();
+  await expect(page.locator("main.workbenchViewportPane")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Workbench inspector" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Revision state" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Independent workflow states" })).toBeVisible();
+}
+
+async function assertNoHorizontalOverflow(page) {
+  const dimensions = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+}
+
+async function assertResponsiveWorkbench(page, projectId) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const response = await page.goto("/projects/" + projectId + "/workbench");
+  expect(response?.status()).toBe(200);
+  await assertWorkbenchPanels(page);
+  await assertNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await assertWorkbenchPanels(page);
+  await assertNoHorizontalOverflow(page);
+}
+
 async function signIn(page, email, password) {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
@@ -36,12 +67,12 @@ async function signIn(page, email, password) {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent projects" })).toBeVisible();
 
   // The heading can render before the initial projects request finishes. Wait for
   // that request's UI state before asserting the user's authorization is valid.
-  await expect(page.getByText("Loading projects…")).toHaveCount(0);
+  await expect(page.getByText("Loading persisted projects…")).toHaveCount(0);
   await expect(page.getByText("Engineering role required")).toHaveCount(0);
   // Scope this check to the app's actual error component; Next.js's hidden route
   // announcer also exposes role="alert" and should not make a successful login fail.
@@ -51,7 +82,7 @@ async function signIn(page, email, password) {
   ).toBeVisible();
 }
 
-test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser }) => {
+test("sign-in and sign-out are labelled and keyboard-operable", async ({ testBrowser: browser }) => {
   const baseURL = requiredEnv("E2E_BASE_URL");
   const emailAddress = requiredEnv("E2E_USER_A_EMAIL");
   const passwordValue = requiredEnv("E2E_USER_A_PASSWORD");
@@ -76,9 +107,9 @@ test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser
     await expect(password).toBeFocused();
     await page.keyboard.press("Enter");
 
-    await expect(page.getByRole("heading", { name: "Engineering Workspace" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
-    await expect(page.getByText("Loading projects…")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recent projects" })).toBeVisible();
+    await expect(page.getByText("Loading persisted projects…")).toHaveCount(0);
     await expect(page.locator('.projectError[role="alert"]')).toHaveCount(0);
 
     const account = page.getByRole("navigation", { name: "Account" });
@@ -89,11 +120,12 @@ test("sign-in and sign-out are labelled and keyboard-operable", async ({ browser
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/login(?:\?.*)?$/);
   } finally {
-    await context.close();
+
   }
 });
 
-test("sign-in, project persistence, sign-out, and cross-user isolation", async ({ browser }, testInfo) => {
+test("sign-in, project persistence, sign-out, and cross-user isolation", async ({ testBrowser: browser }, testInfo) => {
+  test.skip(isBrowserStackIOS(testInfo), "Cross-user isolation requires two simultaneous contexts; BrowserStack iOS supports one context per session.");
   const baseURL = requiredEnv("E2E_BASE_URL");
   const userAEmail = requiredEnv("E2E_USER_A_EMAIL");
   const userAPassword = requiredEnv("E2E_USER_A_PASSWORD");
@@ -146,12 +178,61 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       await pageA.reload();
       await expect(pageA).toHaveURL(/\/projects\/[0-9a-f-]{36}\/engineering$/i);
       await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
-      await pageA.goto(`/projects/${projectId}`);
+      await pageA.goto("/projects/" + projectId);
       await expect(pageA.getByRole("heading", { name: projectName })).toBeVisible();
       await expect(pageA.getByText("PERSISTED ENGINEERING PROJECT")).toBeVisible();
 
+      await test.step("Verify Project Overview tabs remain usable on mobile", async () => {
+        await pageA.setViewportSize({ width: 390, height: 844 });
+        const overviewResponse = await pageA.goto("/projects/" + projectId);
+        expect(overviewResponse?.status()).toBe(200);
+        const sections = pageA.getByRole("navigation", { name: "Project sections" });
+        await expect(sections).toBeVisible();
+
+        const geometry = await pageA.evaluate(() => {
+          const nav = document.querySelector('nav[aria-label="Project sections"]');
+          if (!nav) throw new Error("Project section navigation is missing.");
+          return {
+            viewportWidth: window.innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            navWidth: nav.getBoundingClientRect().width,
+            navClientWidth: nav.clientWidth,
+            navScrollWidth: nav.scrollWidth,
+          };
+        });
+        expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+        expect(geometry.navWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+        expect(geometry.navScrollWidth).toBeGreaterThan(geometry.navClientWidth);
+
+        const filesLink = sections.getByRole("link", { name: "Files", exact: true });
+        await filesLink.scrollIntoViewIfNeeded();
+        const filesLinkVisible = await filesLink.evaluate((node) => {
+          const nav = node.closest("nav");
+          if (!nav) return false;
+          const item = node.getBoundingClientRect();
+          const bounds = nav.getBoundingClientRect();
+          return item.left >= bounds.left - 1 && item.right <= bounds.right + 1;
+        });
+        expect(filesLinkVisible, "the end of the tab strip should be reachable by horizontal scrolling").toBe(true);
+
+        const aiChatLink = sections.getByRole("link", { name: "AI chat", exact: true });
+        await aiChatLink.scrollIntoViewIfNeeded();
+        await aiChatLink.click();
+        await expect(pageA).toHaveURL(new RegExp("/projects/" + projectId + "/engineering$"));
+        await expect(pageA.getByRole("heading", { name: "Engineering interaction" })).toBeVisible();
+        const pageWidth = await pageA.evaluate(() => ({
+          viewport: window.innerWidth,
+          document: document.documentElement.scrollWidth,
+        }));
+        expect(pageWidth.document).toBeLessThanOrEqual(pageWidth.viewport);
+      });
+
+      await test.step("Verify the engineering workbench at desktop and mobile widths", () =>
+        assertResponsiveWorkbench(pageA, projectId)
+      );
+
       await pageA.goto("/");
-      await expect(pageA.getByRole("heading", { name: "Your engineering projects" })).toBeVisible();
+      await expect(pageA.getByRole("heading", { name: "Recent projects" })).toBeVisible();
       const projectCard = pageA.getByRole("link").filter({ hasText: projectName });
       await expect(projectCard).toBeVisible();
     });
@@ -186,7 +267,7 @@ test("sign-in, project persistence, sign-out, and cross-user isolation", async (
       body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
       contentType: "application/json"
     });
-    if (contextB) await contextB.close().catch(() => undefined);
-    if (contextA) await contextA.close().catch(() => undefined);
+
+
   }
 });

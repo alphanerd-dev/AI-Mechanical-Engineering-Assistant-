@@ -1,6 +1,7 @@
 import {describe,it,expect} from "vitest";
 import {OpenAICompatibleEngineeringIntentGenerator,createConfiguredEngineeringIntentGenerator} from "../src/intent/http-model-generator.js";
 import {createEngineeringIntentInterpreterFromEnvironment} from "../src/intent/runtime-interpreter.js";
+import {buildModelIntentInstructions} from "../src/intent/model-adapter.js";
 import type {ModelIntentGenerationRequest} from "../src/intent/model-adapter.js";
 const rawIntent="Design a shaft that transmits 5 kW at 1500 rpm.";
 const modelOutput={
@@ -9,7 +10,7 @@ const modelOutput={
   {name:"powerKw",value:5,unit:"kW",source:"USER",sourceText:"5 kW"},
   {name:"speedRpm",value:1500,unit:"rpm",source:"USER",sourceText:"1500 rpm"}
  ],
- missingInputs:["bending moment","allowable shear stress","proposed shaft diameter"],
+ missingInputs:["bearing span","gear position","gear pitch diameter","gear pressure angle","material grade","yield strength Sy","ultimate tensile strength Sut","design factor"],
  requestedCapabilities:["ENGINEERING.COMPLETE_SHAFT"],confidence:"HIGH",ambiguity:"MEDIUM",assumptions:[]
 };
 function request():ModelIntentGenerationRequest{return {rawIntent,context:{projectId:"project-1",projectStage:"DESIGN",knownInputs:{material:"steel",powerKw:5,nested:{secret:"drop"}},recentArtifacts:["artifact-secret"]},instructions:"Return JSON only."};}
@@ -40,6 +41,18 @@ describe("OpenAI-compatible engineering intent transport",()=>{
   const oversized=new OpenAICompatibleEngineeringIntentGenerator({endpoint:"https://models.example/chat/completions",model:"m",fetchImpl:async()=>new Response("x".repeat(1_000_001),{status:200})});
   await expect(oversized.generate(request())).rejects.toMatchObject({name:"EngineeringIntentTransportError",code:"INTENT_MODEL_INVALID_RESPONSE"});
  });
+ it("instructs model intent extraction to derive geometry inputs and never request bending moment",()=>{
+  const instructions=buildModelIntentInstructions();
+  expect(instructions).toContain("bearingSpanMm");
+  expect(instructions).toContain("gearPositionFromLeftMm");
+  expect(instructions).toContain("pitchDiameterMm");
+  expect(instructions).toContain("pressureAngleDeg");
+  expect(instructions).toContain("derives bending moment");
+  expect(instructions).toContain("Do not map shock/impact service factors");
+  expect(instructions).toContain("Never emit torqueNm");
+  expect(instructions).toContain("requestedCriterion=ASME_ELLIPTIC");
+  expect(instructions).toContain("all three: bendingMomentNm, allowableShearStressMpa and proposedDiameterMm");
+ });
  it("uses deterministic interpretation when no model is configured",async()=>{
   const output=await createEngineeringIntentInterpreterFromEnvironment({}).interpret(rawIntent,{projectId:"project-1"});
   expect(output.interpretationSource).toBe("DETERMINISTIC");expect(output.extractedInputs).toMatchObject({powerKw:5,speedRpm:1500});
@@ -47,7 +60,7 @@ describe("OpenAI-compatible engineering intent transport",()=>{
  it("uses validated model interpretation when configured",async()=>{
   const interpreter=createEngineeringIntentInterpreterFromEnvironment({ENGINEERING_INTENT_MODEL_URL:"https://models.example/v1/chat/completions",ENGINEERING_INTENT_MODEL_NAME:"intent-model",ENGINEERING_INTENT_MODEL_API_KEY:"server-token"},async()=>responseFor(modelOutput));
   const output=await interpreter.interpret(rawIntent,{projectId:"project-1"});
-  expect(output.interpretationSource).toBe("MODEL");expect(output.extractedInputs).toMatchObject({powerKw:5,speedRpm:1500});expect(output.missingInputs).toContain("bending moment");
+  expect(output.interpretationSource).toBe("MODEL");expect(output.extractedInputs).toMatchObject({powerKw:5,speedRpm:1500});expect(output.missingInputs).toContain("bearing span");
  });
  it("falls back to deterministic interpretation on transport or provenance failures",async()=>{
   const unavailable=createEngineeringIntentInterpreterFromEnvironment({ENGINEERING_INTENT_MODEL_URL:"https://models.example/v1/chat/completions",ENGINEERING_INTENT_MODEL_NAME:"intent-model"},async()=>{throw new Error("network down");});

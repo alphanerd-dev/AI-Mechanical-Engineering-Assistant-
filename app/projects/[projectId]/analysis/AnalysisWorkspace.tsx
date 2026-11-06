@@ -343,6 +343,7 @@ export default function AnalysisWorkspace({ projectId }: { projectId: string }) 
         <div><span>Material / strengths</span><strong>{shaftDesign.input.materialGrade} · Sy {shaftDesign.input.yieldStrengthMpa} MPa · Sut {shaftDesign.input.ultimateTensileStrengthMpa} MPa</strong></div>
         <div><span>Design factor / stress multipliers</span><strong>nd {shaftDesign.input.designFactor} · Kb {shaftDesign.input.bendingStressFactorKb} · Kts {shaftDesign.input.torsionalStressFactorKts}</strong></div>
         <div><span>Stress components</span><strong>Axial {shaftDesign.result.axialStressMpa.toFixed(2)} MPa · bending {shaftDesign.result.bendingStressMpa.toFixed(2)} MPa · torsion {shaftDesign.result.torsionalShearStressMpa.toFixed(2)} MPa</strong></div>
+        <div><span>Principal stresses</span><strong>σ₁ {shaftDesign.result.principalStress1Mpa.toFixed(2)} MPa · σ₂ {shaftDesign.result.principalStress2Mpa.toFixed(2)} MPa</strong></div>
         <div><span>Candidate diameter / bending location</span><strong>{shaftDesign.result.candidateDiameterMm} mm / x = {shaftDesign.result.bendingMomentLocationMm} mm</strong></div>
         <div><span>Artifact ID</span><code>{shaftDesign.artifactId}</code></div>
         <div><span>Workspace source / saved revision</span><strong>{shaftDesign.sourceWorkspaceRevision} / {shaftDesign.workspaceRevision}</strong></div>

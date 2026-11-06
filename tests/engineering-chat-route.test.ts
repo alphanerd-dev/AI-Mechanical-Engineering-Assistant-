@@ -83,6 +83,28 @@ describe("POST engineering chat provider and project authorization", () => {
     }));
   });
 
+  it("compacts long project chat history and still starts a response for the latest user turn", async () => {
+    const messages = [
+      { role: "user", parts: [{ type: "text", text: "Original shaft brief " + "A".repeat(5_400) }] },
+      { role: "assistant", parts: [{ type: "text", text: "Earlier calculation " + "B".repeat(5_400) }] },
+      { role: "user", parts: [{ type: "text", text: "Corrected design input " + "C".repeat(5_400) }] },
+      { role: "assistant", parts: [{ type: "text", text: "Earlier response " + "D".repeat(5_400) }] },
+      { role: "user", parts: [{ type: "text", text: "Now derive bending moment from the gear geometry. " + "E".repeat(5_400) }] }
+    ];
+    const response = await POST(request("demo", { messages }), {
+      params: Promise.resolve({ projectId: "demo" })
+    });
+    expect(response.status).toBe(200);
+    const modelRequest = mocks.streamText.mock.calls[0][0];
+    expect(modelRequest.messages.at(-1)).toEqual({
+      role: "user",
+      content: "Now derive bending moment from the gear geometry. " + "E".repeat(5_400)
+    });
+    expect(modelRequest.messages.reduce((sum: number, message: { content: string }) => sum + message.content.length, 0))
+      .toBeLessThanOrEqual(24_000);
+    expect(modelRequest.instructions).toContain("Older conversation history was compacted to fit the server context budget.");
+  });
+
   it("rejects every client-controlled provider setting before contacting Gemini", async () => {
     const context = { params: Promise.resolve({ projectId: "demo" }) };
     for (const field of ["system", "tools", "model", "provider"]) {
