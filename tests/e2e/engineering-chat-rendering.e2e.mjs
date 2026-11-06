@@ -37,16 +37,4 @@ const markdownResponse = [
   "| Quantity | Symbol | SI unit |",
   "| --- | --- | --- |",
   "| Torque | T | NÂ·m |",
-  "| Angular speed | Ï‰ | rad/s |",
-  "| Power | P | W |",
-].join("\n");
-
-function uiMessageStream(text) {
-  const textId = "engineering-chat-renderer-text";
-  const parts = [
-    { type: "start", messageId: "engineering-chat-renderer-message" },
-    { type: "start-step" },
-    { type: "text-start", id: textId },
-    { type: "text-delta", id: textId, delta: text.slice(0, 92) },
-    { type: "text-delta", id: textId, delta: text.slice(92, 210) },
-    { type: "text-delta", id: textId, delta: text.slice(210) }...[truncated]
+  "| An¶»§q«^

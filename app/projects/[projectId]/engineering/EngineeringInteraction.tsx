@@ -37,15 +37,4 @@ function storageKey(projectId: string): string {
 }
 
 function createSessionId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `engineering-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function isAssistantResponse(value: unknown): value is AssistantResponse {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<AssistantResponse>;
-  const decision = candidate.decision as Partial<Decision> | undefined;
-  return typeof candidate.status === "string"
-    && typeof candidate.decisionSummary === "string"
-    && !!decision
-    && typeof decision.status =...[truncated]
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.ran¶»§q«^

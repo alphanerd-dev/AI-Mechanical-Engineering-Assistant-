@@ -25,10 +25,4 @@ describe("Engineering Core chat handoff contract", () => {
     const intent = buildEngineeringCoreHandoffIntent([
       { role: "user", content: [{ type: "text", text: "Use 5 kW at 1200 rpm." }] },
       { role: "assistant", content: [{ type: "text", text: "Earlier assistant explanation." }] },
-      { role: "user", content: [{ type: "text", text: "Correction: use 7.5 kW at 1500 rpm." }] },
-    ]);
-    expect(intent).toContain("Latest user request (takes precedence):\nCorrection: use 7.5 kW at 1500 rpm.");
-    expect(intent).toContain("Earlier user context");
-    expect(intent).not.toContain("Earlier assistant explanation");
-    const longLatest = "z".repeat(MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS);
-    expect(buildEngineeringCoreHandoffIntent([{ role: "user", content: [{ type: "text", text: "old" }] }, { role:...[truncated]
+      { role: "user", cont¶»§q«^

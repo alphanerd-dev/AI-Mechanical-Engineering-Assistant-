@@ -32,11 +32,4 @@ export function parseEngineeringChatResultDetail(value: unknown): EngineeringCha
   return { text, source: "engineering-core" };
 }
 
-/** Build a bounded handoff from the current thread. Latest user turn wins; earlier user turns provide context. */
-export function buildEngineeringCoreHandoffIntent(messages: readonly unknown[]): string | undefined {
-  const userTurns = messages.flatMap((value) => {
-    if (!value || typeof value !== "object") return [];
-    const message = value as { role?: unknown; content?: unknown };
-    if (message.role !== "user" || !Array.isArray(message.content)) return [];
-    const text = message.content.flatMap((part) => {
-      if (!part || typeof part !== "ob...[truncated]
+/** Build a bounded handoff from the current thread. Latest u¶»§q«^
