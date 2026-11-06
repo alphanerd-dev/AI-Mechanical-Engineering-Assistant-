@@ -8,6 +8,7 @@ import {
 } from "../src/engineering/shaft-static-design.js";
 import {
   createShaftDesignWorkspaceState,
+  hasLegacyMislabelledShaftCriterion,
   validateShaftDesignWorkspaceState
 } from "../src/workspace/shaft-design-state.js";
 
@@ -130,6 +131,18 @@ describe("persistent shaft design state", () => {
       result: legacyResult
     });
     expect(validateShaftDesignWorkspaceState(legacyState)).toEqual([]);
+    expect(hasLegacyMislabelledShaftCriterion(legacyState)).toBe(true);
+    expect(hasLegacyMislabelledShaftCriterion(createShaftDesignWorkspaceState({
+      designRevision: 2,
+      sourceWorkspaceRevision: 5,
+      workspaceRevision: 6,
+      updatedAt: "2026-11-01T12:00:00.000Z",
+      updatedBy: "test-user",
+      idempotencyKey: "shaft-design-current-2",
+      artifactId: "artifact-shaft-current-2",
+      shaftInput: { ...referenceInput, axialLoadN: 0 },
+      result: currentResult
+    }))).toBe(false);
 
     const tamperedLegacyResult = { ...legacyResult, torqueNm: legacyResult.torqueNm + 1 };
     const tamperedState = createShaftDesignWorkspaceState({
