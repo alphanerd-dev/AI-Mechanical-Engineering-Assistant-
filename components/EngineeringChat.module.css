@@ -514,3 +514,8 @@
   .mobileHistoryBar button { flex: 1; justify-content: center; }
   .contextSidebar { padding:var(--space-3); }
 }
+
+.headerActions{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-3);min-width:0}.handoffButton{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:7px 11px;color:var(--color-accent-foreground);background:var(--color-accent);border:1px solid color-mix(in srgb,var(--color-accent) 75%,white);border-radius:var(--radius-md);font:inherit;font-size:.72rem;font-weight:750;white-space:nowrap;cursor:pointer;transition:filter 140ms ease,transform 140ms ease}.handoffButton:hover{filter:brightness(1.06);transform:translateY(-1px)}.handoffButton:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px}.handoffButton:active{transform:translateY(0)}
+@media(max-width:720px){.headerActions{gap:var(--space-2)}.handoffButton{min-height:34px;padding:6px 8px;font-size:.64rem;gap:5px}.status{font-size:0;gap:0}.status svg{width:14px;height:14px}}
+@media(prefers-reduced-motion:reduce){.handoffButton{transition:none}.handoffButton:hover{transform:none}}
+.coreResultNotice{flex:0 0 auto;margin:0;padding:8px 16px;color:var(--color-text);background:color-mix(in srgb,var(--color-accent) 10%,var(--color-surface));border-bottom:1px solid var(--chat-border);font-size:.76rem}

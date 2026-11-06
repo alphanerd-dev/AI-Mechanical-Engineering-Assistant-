@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -26,6 +26,7 @@ import type { ThreadHistoryAdapter } from "@assistant-ui/react";
 import styles from "./EngineeringChat.module.css";
 import { listDemoConversationIds, loadDemoConversation, rememberDemoConversationId, saveDemoConversation } from "../src/chat/demo-history.js";
 import { summarizeEngineeringChatSession } from "../src/chat/session-summary.js";
+import { ENGINEERING_CORE_HANDOFF_EVENT, ENGINEERING_CHAT_RESULT_EVENT, buildEngineeringCoreHandoffIntent, parseEngineeringChatResultDetail } from "../src/chat/engineering-core-handoff.js";
 
 type StoredConversationMessage = {
   role: "engineer" | "assistant";
@@ -692,6 +693,38 @@ function formatSessionDate(value: string): string {
     : parsed.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function EngineeringCoreHandoffAction({ available }: { available: boolean }) {
+  const aui = useAui();
+  if (!available) return null;
+  return <button type="button" className={styles.handoffButton} onClick={() => {
+    const intent = buildEngineeringCoreHandoffIntent(aui.thread.getState().messages);
+    if (!intent) return;
+    const panel = document.getElementById("engineering-core-panel");
+    if (panel instanceof HTMLDetailsElement) {
+      panel.open = true;
+      panel.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+    }
+    window.dispatchEvent(new CustomEvent(ENGINEERING_CORE_HANDOFF_EVENT, { detail: { intent, source: "chat" } }));
+  }}>
+    <Workflow size={14} aria-hidden="true" />Prepare in Engineering Core<ArrowUpRight size={13} aria-hidden="true" />
+  </button>;
+}
+
+function EngineeringCoreResultReceiver({ onReceived }: { onReceived: () => void }) {
+  const aui = useAui();
+  useEffect(() => {
+    function receiveResult(event: Event) {
+      const detail = parseEngineeringChatResultDetail((event as CustomEvent<unknown>).detail);
+      if (!detail) return;
+      aui.composer.setText(detail.text, { origin: "external" });
+      onReceived();
+    }
+    window.addEventListener(ENGINEERING_CHAT_RESULT_EVENT, receiveResult);
+    return () => window.removeEventListener(ENGINEERING_CHAT_RESULT_EVENT, receiveResult);
+  }, [aui, onReceived]);
+  return null;
+}
+
 function EngineeringChatThread({
   projectId,
   sessionId,
@@ -703,6 +736,8 @@ function EngineeringChatThread({
 }) {
   const [historyError, setHistoryError] = useState<string>();
   const [chatError, setChatError] = useState<string>();
+  const [handoffAvailable, setHandoffAvailable] = useState(false);
+  const [coreResultNotice, setCoreResultNotice] = useState<string>();
   const onConversationSavedRef = useRef(onConversationSaved);
   useEffect(() => {
     onConversationSavedRef.current = onConversationSaved;
@@ -747,8 +782,9 @@ function EngineeringChatThread({
             : "Unknown streaming transport error.";
           setChatError("Assistant request failed: " + detail);
         },
-        onFinish: () => {
+        onFinish: ({ isAbort }) => {
           setChatError(undefined);
+          if (!isAbort) setHandoffAvailable(true);
           onConversationSavedRef.current();
         },
       });
@@ -762,8 +798,13 @@ function EngineeringChatThread({
     runtimeHook,
   });
 
+  const handleCoreResultReceived = useCallback(() => {
+    setCoreResultNotice("Engineering Core result added to the chat composer. Review it and send when you are ready.");
+  }, []);
+
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <EngineeringCoreResultReceiver onReceived={handleCoreResultReceived} />
       <section className={styles.panel} aria-labelledby="engineering-assistant-title">
         <header className={styles.header}>
           <div className={styles.headerIdentity}>
@@ -773,10 +814,13 @@ function EngineeringChatThread({
               <p>Project conversation · Saved automatically</p>
             </div>
           </div>
-          <span className={styles.status}>
-            <ShieldCheck size={13} aria-hidden="true" />
-            Guidance only
-          </span>
+          <div className={styles.headerActions}>
+            {projectId !== "demo" && <EngineeringCoreHandoffAction available={handoffAvailable} />}
+            <span className={styles.status}>
+              <ShieldCheck size={13} aria-hidden="true" />
+              Guidance only
+            </span>
+          </div>
         </header>
 
         {historyError && (
@@ -784,6 +828,9 @@ function EngineeringChatThread({
         )}
         {chatError && (
           <p className={styles.error} role="alert">{chatError}</p>
+        )}
+        {coreResultNotice && (
+          <p className={styles.coreResultNotice} role="status">{coreResultNotice}</p>
         )}
 
         <ThreadPrimitive.Root className={styles.thread}>
@@ -851,7 +898,7 @@ function EngineeringChatThread({
             </ThreadPrimitive.Messages>
 
             <ThreadPrimitive.ViewportFooter className={styles.footer}>
-              <ComposerPrimitive.Root className={styles.composer}>
+              <ComposerPrimitive.Root className={styles.composer} onSubmitCapture={() => setHandoffAvailable(false)}>
                 <ComposerPrimitive.Input
                   className={styles.input}
                   placeholder="Message the Engineering Assistant…"
