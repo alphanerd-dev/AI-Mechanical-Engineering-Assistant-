@@ -46,4 +46,31 @@ const HISTORY_LIMIT = 200;
 const MAX_ENCODED_MESSAGE_CHARS = 60_000;
 
 function responseError(body: unknown, fallback: string): string {
-  if (body && typeof body === "object...[truncated]
+  if (body && typeof body === "object...[truncated]dPrimitive.Suggestion prompt="Explain how a hydraulic excavator system works, from the pump to the actuators." send className={styles.suggestion}>
+                    <strong>Understand a system</strong>
+                    <span>Trace how a machine or mechanism works</span>
+                  </ThreadPrimitive.Suggestion>
+                  <ThreadPrimitive.Suggestion prompt="Build a systematic troubleshooting procedure for an excavator with low hydraulic power." send className={styles.suggestion}>
+                    <strong>Troubleshoot a failure</strong>
+                    <span>Work from symptoms to diagnostic checks</span>
+                  </ThreadPrimitive.Suggestion>
+                  <ThreadPrimitive.Suggestion prompt="Derive the pump shaft power equation and explain each variable with SI units." send className={styles.suggestion}>
+                    <strong>Work through an equation</strong>
+                    <span>Understand derivations, units, and assumptions</span>
+                  </ThreadPrimitive.Suggestion>
+                  <ThreadPrimitive.Suggestion prompt="Compare two mechanical design options using performance, reliability, manufacturability, and cost." send className={styles.suggestion}>
+                    <strong>Compare design options</strong>
+                    <span>Make trade-offs explicit and traceable</span>
+                  </ThreadPrimitive.Suggestion>
+                </div>
+              </div>
+            </AuiIf>
+
+            <ThreadPrimitive.Messages>
+              {({ message }) => {
+                if (message.role === "user") {
+                  return (
+                    <MessagePrimitive.Root className={styles.userMessage}>
+                      <div className={styles.userBubble}><MessagePrimitive.Parts /></div>
+                      <ActionBarPrimitive.Root className={styles.userActions} hideWhenRunning autohide="not-last">
+                        <ActionBarPrimitive.Edit className={styles.actionButton}>Edit</ActionB...[truncated]
