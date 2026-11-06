@@ -26,6 +26,7 @@ const SYSTEM_PROMPT = "You are the conversational assistant inside an engineerin
 type PersistedShaftDesignContext = {
   available: boolean;
   stale: boolean;
+  legacyCriterionLabel?: boolean;
   workspaceRevision?: number;
   designRevision?: number;
   state?: Record<string, unknown>;
@@ -59,9 +60,12 @@ async function loadPersistedShaftDesignContext(projectId: string, demoProject: b
     throw new Error("The persisted shaft design state failed integrity checks and cannot be supplied to chat.");
   }
   const stateWorkspaceRevision = Number(state.workspaceRevision);
+  const result = state.result as Record<string, unknown> | undefined;
+  const legacyCriterionLabel = result?.criterion === "ASME_ELLIPTIC_STATIC_YIELD";
   return {
     available: true,
-    stale: stateWorkspaceRevision !== Number(data.revision),
+    stale: stateWorkspaceRevision !== Number(data.revision) || legacyCriterionLabel,
+    legacyCriterionLabel,
     workspaceRevision: Number(data.revision),
     designRevision: Number(state.designRevision),
     state
@@ -76,9 +80,11 @@ function systemInstructionsWithDesignState(context: PersistedShaftDesignContext,
         return "\\u0026";
       })
     : "No durable shaft design state has been saved for this project.";
-  const freshness = context.stale
-    ? "The saved shaft design is STALE relative to the current project workspace revision. Treat it as historical context only until recalculated."
-    : context.available
+  const freshness = context.legacyCriterionLabel
+    ? "The saved shaft design contains a LEGACY MISLABELLED criterion field: ASME_ELLIPTIC_STATIC_YIELD. Its stored numeric calculation uses von Mises stress; do not repeat or rely on the old ASME label. Treat this state as historical context until recalculated."
+    : context.stale
+      ? "The saved shaft design is STALE relative to the current project workspace revision. Treat it as historical context only until recalculated."
+      : context.available
       ? "The saved shaft design matches the current project workspace revision."
       : "No structured persisted shaft design is available; do not invent one.";
   return SYSTEM_PROMPT + "\n\nPERSISTED PROJECT SHAFT DESIGN CONTEXT (SERVER-LOADED, READ-ONLY)\n" +
