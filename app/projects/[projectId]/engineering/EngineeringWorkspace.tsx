@@ -27,7 +27,6 @@ export default function EngineeringWorkspace({ projectId }: { projectId: string 
   }, [activeView]);
 
   useEffect(() => {
-    setActiveView("chat");
     if (projectId === "demo") return;
 
     const showCore = () => {
