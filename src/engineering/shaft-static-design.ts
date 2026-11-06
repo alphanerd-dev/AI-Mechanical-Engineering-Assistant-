@@ -46,7 +46,7 @@ export interface ShaftStaticDesignResult {
   principalStress1Mpa: number;
   principalStress2Mpa: number;
   maximumShearStressMpa: number;
-  criterion: "ASME_ELLIPTIC_STATIC_YIELD" | "VON_MISES_STATIC_YIELD";
+  criterion: "VON_MISES_STATIC_YIELD";
   passesStaticYield: boolean;
   equations: {
     torque: string;
@@ -214,9 +214,7 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
     principalStress1Mpa: candidateStress.principalStress1Mpa,
     principalStress2Mpa: candidateStress.principalStress2Mpa,
     maximumShearStressMpa: candidateStress.maximumShearStressMpa,
-    criterion: Math.abs(input.axialLoadN) <= 1e-12
-      ? "ASME_ELLIPTIC_STATIC_YIELD"
-      : "VON_MISES_STATIC_YIELD",
+    criterion: "VON_MISES_STATIC_YIELD",
     passesStaticYield: candidateDiameterMm >= minimumDiameterMm &&
       candidateStress.vonMisesStressMpa <= allowableVonMisesStressMpa * (1 + 1e-10),
     equations: {
@@ -235,9 +233,7 @@ export function calculateShaftStaticDesign(input: ShaftStaticDesignInput): Shaft
       "Axial and bending normal-stress magnitudes are conservatively added at the critical surface because the axial load direction is not resolved.",
       "Kb and Kts are user-supplied static stress multipliers; they are not fatigue factors and are not inferred from keyway geometry.",
       "The design factor is applied to material yield strength for a von Mises static-yield check.",
-      Math.abs(input.axialLoadN) <= 1e-12
-        ? "With axial force neglected, this equivalent-stress sizing equation is the ASME elliptic static-yield criterion for the stated solid circular shaft model."
-        : "Because axial force is included, the generalized von Mises stress-space check is used rather than the no-axial ASME elliptic rearrangement.",
+      "The von Mises distortion-energy criterion is used for static yielding; the ASME elliptic criterion is not implemented or claimed.",
       "Sut is recorded as material context but is not used by this static-yield criterion; fatigue assessment requires a separate method.",
       "The preferred diameter is selected from this calculation module’s configured preliminary size series, not a complete standards-based shaft, fit or bearing selection."
     ],
