@@ -58,15 +58,6 @@ export function hasLegacyMislabelledShaftCriterion(value: unknown): boolean {
   return String(state?.result?.criterion ?? "") === LEGACY_ASME_LABEL;
 }
 
-export function getShaftDesignDisplayAssumptions(
-  result: Pick<ShaftStaticDesignResult, "criterion" | "assumptions">
-): string[] {
-  if (String(result.criterion) !== LEGACY_ASME_LABEL) return result.assumptions;
-  return [
-    ...result.assumptions.filter((assumption) => !assumption.includes("ASME elliptic static-yield criterion")),
-    "Historical metadata correction: this stored result used the von Mises static-yield calculation; it was not an ASME elliptic assessment. Recalculate to create a current result."
-  ];
-}
 
 /**
  * PR #132 corrected a historical metadata bug without changing the numeric
