@@ -46,4 +46,4 @@ describe("Engineering Core chat handoff contract", () => {
       intent: "x".repeat(MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS + 1),
     })).toBeUndefined();
   });
-}
+});

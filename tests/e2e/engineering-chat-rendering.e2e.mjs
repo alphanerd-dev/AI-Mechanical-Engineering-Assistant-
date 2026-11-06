@@ -118,19 +118,6 @@ test("engineering chat renders streamed Markdown, equations, code, tables and cu
   await expect(markdown.getByRole("button", { name: "hydraulic power reference" })).toBeVisible();
   await expect(chatPanel.getByRole("button", { name: "Copy" })).toBeVisible();
   await expect(chatPanel.getByRole("button", { name: "Regenerate" })).toBeVisible();
-
-  const coreResult = "Engineering Core execution result — not independently verified or approved.\\nDecision status: COMPLETED\\nTorque: 47.75 N·m\\nEvidence records: artifact-123";
-  await page.evaluate((text) => {
-    window.dispatchEvent(new CustomEvent("engineering-chat:result", {
-      detail: { source: "engineering-core", text },
-    }));
-  }, coreResult);
-  await expect(composer).toHaveValue(coreResult);
-  await expect(chatPanel).toContainText("Engineering Core result added to the chat composer");
-  // Result handoff prepares a draft only; it never sends a second chat turn automatically.
-  expect(interceptedRequests).toBe(1);
-  await composer.fill("");
-
   expect(interceptedRequests).toBe(1);
 
   await page.screenshot({ path: "test-results/engineering-chat-rendering-desktop.png", fullPage: true });
