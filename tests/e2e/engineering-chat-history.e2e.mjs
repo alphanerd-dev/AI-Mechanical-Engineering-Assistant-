@@ -57,15 +57,49 @@ test("streamed engineering chat restores after refresh and recovers a missing br
     const chatPanel = page.locator('section[aria-labelledby="engineering-assistant-title"]');
     await expect(chatPanel).toBeVisible();
 
-    const corePanel = page.locator("details").filter({ hasText: "Engineering Core" });
-    await expect(corePanel).toBeVisible();
-    expect(await corePanel.evaluate((element) => element.open)).toBe(false);
-    await corePanel.locator("summary").click();
-    await expect(corePanel.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
-    expect(await corePanel.evaluate((element) => element.open)).toBe(true);
-    await corePanel.locator("summary").click();
-    expect(await corePanel.evaluate((element) => element.open)).toBe(false);
+    const chatTab = page.getByRole("tab", { name: /Chat/ });
+    const coreTab = page.getByRole("tab", { name: /Engineering Core/ });
+    const chatPanelView = page.getByRole("tabpanel", { name: "Chat guidance workspace" });
+    const corePanelView = page.getByRole("tabpanel", { name: "Engineering Core" });
+    await expect(chatTab).toHaveAttribute("aria-selected", "true");
+    await expect(chatPanelView).toBeVisible();
+    await expect(corePanelView).toBeHidden();
+
+    await coreTab.click();
+    await expect(coreTab).toHaveAttribute("aria-selected", "true");
+    await expect(corePanelView).toBeVisible();
+    await expect(corePanelView.getByRole("heading", { name: "From engineering intent to a checked result" })).toBeVisible();
+    await chatTab.click();
+    await expect(chatTab).toHaveAttribute("aria-selected", "true");
+    await expect(chatPanelView).toBeVisible();
     await expect(chatPanel.getByRole("textbox", { name: "Message the engineering assistant" })).toBeVisible();
+
+    // The explicit handoff events switch views and transfer drafts, but never auto-submit.
+    let chatPostCount = 0;
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/engineering/chat")) chatPostCount += 1;
+    });
+    const coreRequest = "Explain a simple shaft torque calculation; do not execute a solver.";
+    await page.evaluate((intent) => window.dispatchEvent(new CustomEvent("engineering-core:handoff", {
+      detail: { source: "chat", intent },
+    })), coreRequest);
+    await expect(coreTab).toHaveAttribute("aria-selected", "true");
+    await expect(corePanelView.getByRole("textbox", { name: "Engineering request" })).toHaveValue(coreRequest);
+
+    const resultDraft = "Engineering Core execution result — discussion only.\\nDecision status: NEEDS_INPUT\\nEvidence records: None recorded";
+    await page.evaluate((text) => window.dispatchEvent(new CustomEvent("engineering-chat:result", {
+      detail: { source: "engineering-core", text },
+    })), resultDraft);
+    await expect(chatTab).toHaveAttribute("aria-selected", "true");
+    await expect(chatPanel.getByRole("textbox", { name: "Message the engineering assistant" })).toHaveValue(resultDraft);
+    expect(chatPostCount, "handoff events only prepare drafts and must not auto-send a chat message").toBe(0);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(chatTab).toBeVisible();
+    await expect(coreTab).toBeVisible();
+    const mobileDimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
+    expect(mobileDimensions.document).toBeLessThanOrEqual(mobileDimensions.viewport);
+    await page.setViewportSize({ width: 1440, height: 1000 });
 
     const prompt = "Reply with exactly CHAT_HISTORY_E2E and no other text.";
     const composer = page.getByRole("textbox", { name: "Message the engineering assistant" });

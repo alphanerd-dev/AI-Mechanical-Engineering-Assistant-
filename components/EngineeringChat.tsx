@@ -830,7 +830,7 @@ function EngineeringChatThread({
           <p className={styles.error} role="alert">{chatError}</p>
         )}
         {coreResultNotice && (
-          <p className={styles.coreResultNotice} role="status">{coreResultNotice}</p>
+          <p id="engineering-core-result-notice" className={styles.coreResultNotice} role="status">{coreResultNotice}</p>
         )}
 
         <ThreadPrimitive.Root className={styles.thread}>
@@ -898,11 +898,18 @@ function EngineeringChatThread({
             </ThreadPrimitive.Messages>
 
             <ThreadPrimitive.ViewportFooter className={styles.footer}>
-              <ComposerPrimitive.Root className={styles.composer} onSubmitCapture={() => setHandoffAvailable(false)}>
+              <ComposerPrimitive.Root
+                className={coreResultNotice ? `${styles.composer} ${styles.composerResultDraft}` : styles.composer}
+                onSubmitCapture={() => {
+                  setHandoffAvailable(false);
+                  setCoreResultNotice(undefined);
+                }}
+              >
                 <ComposerPrimitive.Input
                   className={styles.input}
                   placeholder="Message the Engineering Assistant…"
                   aria-label="Message the engineering assistant"
+                  aria-describedby={coreResultNotice ? "engineering-core-result-notice" : undefined}
                   rows={1}
                   submitMode="enter"
                   unstable_insertNewlineOnTouchEnter
