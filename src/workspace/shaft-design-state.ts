@@ -53,6 +53,12 @@ const LEGACY_ASME_LABEL = "ASME_ELLIPTIC_STATIC_YIELD";
 const LEGACY_ASME_ASSUMPTION = "With axial force neglected, this equivalent-stress sizing equation is the ASME elliptic static-yield criterion for the stated solid circular shaft model.";
 const CURRENT_VON_MISES_ASSUMPTION = "The von Mises distortion-energy criterion is used for static yielding; the ASME elliptic criterion is not implemented or claimed.";
 
+export function hasLegacyMislabelledShaftCriterion(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const result = (value as Partial<ShaftDesignWorkspaceState>).result as { criterion?: unknown } | undefined;
+  return String(result?.criterion ?? "") === LEGACY_ASME_LABEL;
+}
+
 /**
  * PR #132 corrected a historical metadata bug without changing the numeric
  * calculation. Accept only the exact pre-fix result shape so immutable
