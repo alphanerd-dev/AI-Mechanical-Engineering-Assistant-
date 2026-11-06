@@ -54,9 +54,8 @@ const LEGACY_ASME_ASSUMPTION = "With axial force neglected, this equivalent-stre
 const CURRENT_VON_MISES_ASSUMPTION = "The von Mises distortion-energy criterion is used for static yielding; the ASME elliptic criterion is not implemented or claimed.";
 
 export function hasLegacyMislabelledShaftCriterion(value: unknown): boolean {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const result = (value as Partial<ShaftDesignWorkspaceState>).result as { criterion?: unknown } | undefined;
-  return String(result?.criterion ?? "") === LEGACY_ASME_LABEL;
+  const state = value as { result?: { criterion?: unknown } } | null | undefined;
+  return String(state?.result?.criterion ?? "") === LEGACY_ASME_LABEL;
 }
 
 /**
