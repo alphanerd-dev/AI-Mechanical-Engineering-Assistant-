@@ -7,7 +7,10 @@ import {
   parseEngineeringChatHistory,
   resolveEngineeringChatTimeout,
 } from "../../../../../../src/chat/request";
-import { validateShaftDesignWorkspaceState } from "../../../../../../src/workspace/shaft-design-state";
+import {
+  hasLegacyMislabelledShaftCriterion,
+  validateShaftDesignWorkspaceState
+} from "../../../../../../src/workspace/shaft-design-state";
 import { validateEngineeringWorkspaceSnapshot } from "../../../../../../src/workspace/validation";
 import type { EngineeringWorkspaceSnapshot } from "../../../../../../src/workspace/types";
 
@@ -59,14 +62,20 @@ async function loadPersistedShaftDesignContext(projectId: string, demoProject: b
   if (validationErrors.length || !hasArtifact) {
     throw new Error("The persisted shaft design state failed integrity checks and cannot be supplied to chat.");
   }
+  return buildPersistedShaftDesignContext(state, Number(data.revision));
+}
+
+function buildPersistedShaftDesignContext(
+  state: Record<string, unknown>,
+  workspaceRevision: number
+): PersistedShaftDesignContext {
+  const legacyCriterionLabel = hasLegacyMislabelledShaftCriterion(state);
   const stateWorkspaceRevision = Number(state.workspaceRevision);
-  const result = state.result as Record<string, unknown> | undefined;
-  const legacyCriterionLabel = result?.criterion === "ASME_ELLIPTIC_STATIC_YIELD";
   return {
     available: true,
-    stale: stateWorkspaceRevision !== Number(data.revision) || legacyCriterionLabel,
+    stale: stateWorkspaceRevision !== workspaceRevision || legacyCriterionLabel,
     legacyCriterionLabel,
-    workspaceRevision: Number(data.revision),
+    workspaceRevision,
     designRevision: Number(state.designRevision),
     state
   };
