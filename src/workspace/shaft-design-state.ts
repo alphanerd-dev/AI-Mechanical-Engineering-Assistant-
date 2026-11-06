@@ -63,7 +63,7 @@ function matchesLegacyMislabelledResult(
   storedResult: ShaftStaticDesignResult,
   recomputed: ShaftStaticDesignResult
 ): boolean {
-  if (Math.abs(input.axialLoadN) > 1e-12 || storedResult.criterion !== LEGACY_ASME_LABEL) return false;
+  if (Math.abs(input.axialLoadN) > 1e-12 || String(storedResult.criterion) !== LEGACY_ASME_LABEL) return false;
   const legacyExpected: ShaftStaticDesignResult = {
     ...recomputed,
     criterion: LEGACY_ASME_LABEL as unknown as ShaftStaticDesignResult["criterion"],
