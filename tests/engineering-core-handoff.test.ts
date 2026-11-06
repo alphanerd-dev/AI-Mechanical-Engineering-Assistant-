@@ -25,4 +25,25 @@ describe("Engineering Core chat handoff contract", () => {
     const intent = buildEngineeringCoreHandoffIntent([
       { role: "user", content: [{ type: "text", text: "Use 5 kW at 1200 rpm." }] },
       { role: "assistant", content: [{ type: "text", text: "Earlier assistant explanation." }] },
-      { role: "user", cont¶»§q«^
+      { role: "user", content: [{ type: "text", text: "Correction: use 7.5 kW at 1500 rpm." }] },
+    ]);
+    expect(intent).toContain("Latest user request (takes precedence):\nCorrection: use 7.5 kW at 1500 rpm.");
+    expect(intent).toContain("Earlier user context");
+    expect(intent).not.toContain("Earlier assistant explanation");
+    const longLatest = "z".repeat(MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS);
+    expect(buildEngineeringCoreHandoffIntent([{ role: "user", content: [{ type: "text", text: "old" }] }, { role: "user", content: [{ type: "text", text: longLatest }] }])).toBe(longLatest);
+  });
+
+  it("prepares a bounded Engineering Core result for chat", () => {
+    expect(parseEngineeringChatResultDetail({ source: "engineering-core", text: " Result summary " }))
+      .toEqual({ source: "engineering-core", text: "Result summary" });
+    expect(parseEngineeringChatResultDetail({ source: "chat", text: "Result summary" })).toBeUndefined();
+  });
+
+  it("rejects payloads that exceed the Engineering Core request limit", () => {
+    expect(parseEngineeringCoreHandoffDetail({
+      source: "chat",
+      intent: "x".repeat(MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS + 1),
+    })).toBeUndefined();
+  });
+}
