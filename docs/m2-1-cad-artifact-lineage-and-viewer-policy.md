@@ -39,7 +39,7 @@ src/cad/viewer-registry.ts is a presentation-policy registry, not an execution p
 | DRAWING | Download only | No drawing renderer or drafting-standard validation is registered. |
 | Unknown kind | Unsupported | Fail closed; do not infer a renderer from a filename or MIME type. |
 
-The registry does not receive or return validation, verification or approval state. Its only job is to classify presentation support. The current project workbench remains wired to the existing latest-accepted-STL preview; artifact selection and full registry-driven rendering are follow-on M2 work.
+The registry does not receive or return validation, verification or approval state. Its only job is to classify presentation support. The project workbench now selects stored artifacts across accepted CAD completions: STL uses the existing preview when an authorized signed URL is present, and registered download-only formats open through the signed URL returned by the existing API. This does not add format-specific geometry viewers.
 
 ## Security and runtime boundaries
 
@@ -53,7 +53,6 @@ The registry does not receive or return validation, verification or approval sta
 
 - A unified database artifact table spanning CAD, calculations and FEA.
 - Model-revision snapshots or automatic stale-artifact detection.
-- User selection across every artifact in a completion.
 - STEP, BREP, 3MF, drawing, FEA or point-cloud browser viewers.
 - Additional format-specific validators.
 - Changes to CAD execution, worker images, Supabase schema or storage policy.
