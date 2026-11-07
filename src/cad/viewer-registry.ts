@@ -87,8 +87,10 @@ const UNSUPPORTED: CADArtifactViewerRegistration = {
 export function resolveCADArtifactViewer(kind: unknown): CADArtifactViewerRegistration {
   if (typeof kind !== "string") return { ...UNSUPPORTED };
   const normalized = kind.trim().toUpperCase();
-  const registration = CAD_ARTIFACT_VIEWERS[normalized];
-  return registration ? { ...registration } : { ...UNSUPPORTED, artifactKind: normalized || "UNKNOWN" };
+  if (!Object.prototype.hasOwnProperty.call(CAD_ARTIFACT_VIEWERS, normalized)) {
+    return { ...UNSUPPORTED, artifactKind: normalized || "UNKNOWN" };
+  }
+  return { ...CAD_ARTIFACT_VIEWERS[normalized] };
 }
 
 /** Return a stable snapshot of registered CAD presentation policies for tests and diagnostics. */
