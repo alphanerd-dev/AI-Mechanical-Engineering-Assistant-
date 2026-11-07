@@ -100,4 +100,4 @@ For every candidate considered beyond research, record:
 
 ## Current decision
 
-No candidate in this initial registry is marked supported. The prior inventory is a triage input, not evidence that every repository, license, build, or engineering result has been independently verified. Start with the three controlled pilots in Priority 0 and do not add runtime dependencies until their gates are met.
+No candidate in this registry is marked supported. The prior inventory is a triage input, not evidence that every repository, license, build, or engineering result has been independently verified. Continue the existing controlled pilots in Priority 0. The Babylon.js/Three.js comparison is a documentation and benchmark-harness activity, not permission to add both engines as application dependencies. Do not add geometry bindings, renderers or visualization runtimes to production until their individual promotion gates are met.
