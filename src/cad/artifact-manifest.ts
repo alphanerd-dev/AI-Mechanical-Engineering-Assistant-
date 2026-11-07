@@ -39,6 +39,31 @@ function noArtifacts(warnings: string[], errors: string[]): CADArtifactManifest 
   return { artifacts: [], warnings, errors };
 }
 
+/**
+ * Bind each generated derivative to the nearest canonical artifact in the same
+ * execution. The validated BREP descends from the generated source; exchange
+ * and mesh formats descend from the BREP. This records lineage only and never
+ * copies validation or verification state onto a derivative.
+ */
+function linkArtifactLineage(artifacts: CADArtifact[]): void {
+  const source = artifacts.find((artifact) => artifact.kind === "SOURCE");
+  const solid = artifacts.find((artifact) => artifact.kind === "SOLID");
+
+  for (const artifact of artifacts) {
+    if (!artifact.provenance) continue;
+    const parent = artifact.kind === "SOLID"
+      ? source
+      : artifact.kind === "STEP" || artifact.kind === "STL" || artifact.kind === "THREE_MF"
+        ? solid
+        : undefined;
+    if (!parent) continue;
+    artifact.provenance = {
+      ...artifact.provenance,
+      sourceArtifactIds: [parent.id]
+    };
+  }
+}
+
 function buildProvenance(
   projectId: string,
   execution: CADExecutionResult,
@@ -166,6 +191,7 @@ export function normalizeCADExecutionResult(
     artifacts.push(artifact);
   }
 
+  linkArtifactLineage(artifacts);
   if (artifacts.length === 0) warnings.push("Worker reported success but supplied no supported artifact paths.");
   return { artifacts, warnings, errors, ...(provenance ? { provenance } : {}) };
 }
