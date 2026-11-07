@@ -23,7 +23,7 @@ describe("CAD artifact viewer registry", () => {
   });
 
   it("fails closed for malformed or unknown artifact kinds", () => {
-    for (const kind of [undefined, null, 12, {}, "IFC", "GLTF"]) {
+    for (const kind of [undefined, null, 12, {}, "IFC", "GLTF", "constructor", "toString", "__proto__"]) {
       expect(resolveCADArtifactViewer(kind)).toMatchObject({
         mode: "UNSUPPORTED",
         previewAvailable: false,
