@@ -2,7 +2,7 @@
 
 **Product direction:** AI-native Engineering Workspace evolving toward an Engineering Operating System  
 **Initial domain:** Mechanical Engineering  
-**Reviewed:** 1 November 2026
+**Reviewed:** 8 November 2026
 
 ## 1. Vision and promise
 
@@ -11,6 +11,8 @@ Turn engineering intent into usable, traceable outcomes with less avoidable manu
 An engineer should be able to describe a problem, discuss it with a conversational assistant, provide missing inputs, run an explicitly supported engineering task, and understand what was calculated, executed, checked and left for human decision.
 
 The product starts with Mechanical Engineering and uses provider-neutral engineering contracts so more domains can be added without replacing the core.
+
+**Product strategy:** an integrated, modular engineering workspace spanning engineering intelligence, CAD/geometry, CAE/simulation, physical perception, manufacturing/industrial systems and engineering data/lifecycle. These domains share identity, projects, capability contracts, artifact lineage, execution controls, validation and evidence; they do not need to ship simultaneously.
 
 **Core rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
 
@@ -77,14 +79,32 @@ Display derivatives must reference their canonical artifact and conversion prove
 
 Use existing project-scoped authorization, private storage and evidence mechanisms. Authorize artifact access server-side, expire signed access links and treat uploaded content and conversion inputs as untrusted.
 
-## 7. Visualization direction
+## 7. Geometry and visualization direction
 
-- **CAD:** interactive 3D viewing is planned. Three.js is a candidate rendering layer; canonical CAD remains authoritative.
-- **FEA:** field/mesh viewing is planned. VTK.js is a candidate; supported formats and conversion paths must be proven against fixtures.
-- **P&ID/PFD:** a typed diagram schema with SVG/canvas rendering is planned.
-- **Other artifacts:** tables, plots, drawings, PDFs, reports, BOMs and point clouds may join the registry after each format and access contract is defined.
+### Renderer decision
 
-A viewer does not run a solver. A rendered contour does not prove mesh convergence, physical-model adequacy or structural safety. A rendered CAD derivative does not validate the canonical model or export.
+The production 3D renderer is **not selected yet**. Benchmark Babylon.js and Three.js against identical engineering workloads before choosing one. Use WebGL 2 as the initial browser compatibility baseline; evaluate WebGPU as a later backend/upgrade when device support, stability and measured benefit justify it. Keep a renderer adapter so CAD parsing, geometry processing, artifact identity, validation and evidence are independent of the selected renderer. Do not ship both engines permanently unless a measured requirement demands it.
+
+The benchmark must cover single parts, dense meshes, assembly scale, picking/selection, measurements, section planes, exploded views, simulation-field overlays, browser/mobile stability, memory use, frame-time distribution, load time, context-loss recovery and maintainability. The scorecard and exit gates live in the [Implementation Plan](implementation-plan.md).
+
+### Geometry decision
+
+Adopt an **OCCT-first hybrid geometry foundation**:
+
+- OCCT is the initial geometry-kernel direction for exact BREP/topology operations, import and geometry processing, subject to exact-version, binding, license, packaging and runtime acceptance.
+- Retain the existing bounded build123d CAD generation path. Evaluate CadQuery, FreeCAD and Onshape as separate providers where there is a demonstrated workflow need.
+- Build a product-owned engineering geometry/artifact abstraction above kernel adapters. It owns stable engineering identity, revisions, units, coordinate frames, provenance, feature/operation metadata and validation relationships—not the kernel's geometric algorithms.
+- Keep canonical CAD artifacts separate from tessellated display derivatives. Every derivative carries source ID/revision/digest and conversion/tessellation metadata.
+- Do not develop a proprietary geometry kernel now. Alternative kernels require an evidenced gap, conformance tests, benchmarks and license/security review.
+
+### Visualization domains
+
+- **CAD 3D:** Babylon.js/Three.js benchmark; one production renderer selected after evidence.
+- **FEA/scientific fields:** evaluate VTK.js independently against supported Gmsh/CalculiX result fixtures. The CAE viewer need not share the CAD renderer.
+- **Drawings:** separate 2D rendering subsystem for PDF, SVG and DXF initially; DWG requires a separately reviewed route.
+- **Point clouds:** separate perception data model and Open3D processing path.
+
+A viewer does not execute a solver. Rendering is not geometry validation, numerical validation, mesh convergence, physical adequacy or approval. A display mesh is never silently promoted to canonical engineering geometry.
 
 ## 8. Trust and decision states
 
@@ -105,6 +125,21 @@ The primary economic metric is total cost per accepted engineering outcome, incl
 
 Time-to-first-accepted-result, net engineering time saved, cost per accepted outcome, validation completeness, recovery quality and repeat use should be measured on comparable real tasks. The repository's outcome baseline remains **NOT MEASURED** until matched real-user trials exist. Browser test duration and fixture values are not productivity evidence.
 
-## 10. Acceptance rule
+## 10. Product capability roadmap
+
+The hybrid strategy is phased. Cross-cutting delivery milestones M2–M5 in the [Implementation Plan](implementation-plan.md) define the artifact/viewer, CAD, CAE and diagram foundations; the following V2.x labels describe product capability evolution and are not claims of completed releases.
+
+| Product direction | Capability target | Intended technology direction |
+|---|---|---|
+| V2.0 | Bounded autonomous engineering workspace | Existing Engineering Core, typed plans, deterministic providers, artifact-aware orchestration, risk gates and human approval |
+| V2.1 | Multi-CAD interoperability | OCCT, build123d, CadQuery, FreeCAD and Onshape adapters |
+| V2.2 | Physical perception and Scan-to-CAD | Open3D, point-cloud inspection, registration and traceable geometry reconstruction |
+| V2.3 | Advanced CFD | OpenFOAM and independently validated simulation workflows |
+| V2.4 | Multibody dynamics and robotics | MuJoCo, Menagerie and evaluated dynamics providers |
+| V2.5 | Electromechanical systems | KiCad, SKiDL and SPICE integrations |
+
+M2's artifact and viewer foundations should precede broad multi-step autonomous workflows that rely on inspecting and linking engineering artifacts. V2.0 should expand in bounded, capability-specific increments rather than enabling unrestricted agent execution. Later V2.x integrations require provider licensing, runtime isolation, representative benchmarks, independent validators, evidence contracts, rollback and demonstrated user value.
+
+## 11. Acceptance rule
 
 A feature is ready only when its declared user task, supported scope, usability, security, failure recovery, validation/evidence boundary and economics have been assessed. Tests must prove only the guarantees they actually exercise. See [Product Doctrine](product-doctrine.md), [Architecture](architecture.md) and [Implementation Plan](implementation-plan.md).
