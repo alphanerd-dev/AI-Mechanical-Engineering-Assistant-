@@ -343,3 +343,24 @@
   .root :global(.workbenchViewport) { grid-template-rows: auto minmax(260px, 1fr) auto; }
   .root :global(.viewportScene), .root :global(.pidCanvasEmpty) { min-height: 260px; }
 }
+
+.root :global(.viewportToolbar) { align-items: center; }
+.root :global(.viewportArtifactSelector) { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; }
+.root :global(.viewportArtifactSelector) > span { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; color: var(--color-text-muted); }
+.root :global(.viewportArtifactSelector) > select {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: 10px var(--font-sans);
+}
+.root :global(.viewportArtifactSelector) > select:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.root :global(.viewportEmptyCopy) > a { margin-top: 5px; }
+@media (max-width: 760px) {
+  .root :global(.viewportToolbar) { flex-direction: column; align-items: stretch; }
+  .root :global(.viewportArtifactSelector) { width: 100%; }
+}
