@@ -81,6 +81,24 @@ The structured reasoning workbench produces advisory, schema-validated task/fram
 
 Research providers can retrieve source-backed findings, but source authority or model confidence does not automatically make a claim VERIFIED. Keep source IDs, source identity, publication/version context and verification method. Missing sources and unperformed checks remain visible.
 
+## Visualization, geometry and artifact maturity
+
+**Current state:** the bounded CAD path uses deterministic build123d generation, a separate worker and independent OCCT BREP validation. This is not a general-purpose browser CAD viewer or a complete multi-format geometry service. The repository does not yet have the shared artifact/viewer registry or interactive CAD/FEA/P&ID viewers described in the roadmap.
+
+**Accepted architectural direction (not yet an implementation claim):**
+
+- Geometry foundation: OCCT-first hybrid. OCCT is the initial kernel direction; the product-owned engineering geometry layer and stable artifact contracts sit above kernel-specific adapters. Existing build123d authoring remains a bounded provider. CadQuery, FreeCAD and Onshape remain candidates for separately justified workflows.
+- Renderer: benchmark Babylon.js against Three.js. No production renderer is selected by the decision. WebGL 2 is the initial browser compatibility baseline; WebGPU remains a future evaluation.
+- Scientific visualization: evaluate VTK.js independently for mesh and result fields. Do not assume the CAD renderer is the correct scientific field renderer.
+- Drawings: separate 2D subsystem for PDF, SVG and DXF initially; DWG requires a separately licensed and validated route.
+- Custom geometry kernel: not approved. Prefer OCCT and adapters until a demonstrated capability/business gap justifies a separate kernel.
+
+**Non-negotiable representation boundary:** canonical CAD/source bytes remain authoritative. Tessellated meshes are display derivatives only and must include source artifact ID, source revision and digest, converter/kernel identity and version, tessellation settings, units and coordinate frame. A display derivative must not silently become a canonical artifact. Picking a displayed face/edge maps to a persistent CAD topology reference only when the conversion process emits and validates that mapping.
+
+**Renderer benchmark acceptance:** identical source tessellation, visual quality, browser/device, camera and interaction scripts for both candidates. Cover single parts, dense meshes, assembly scale, face/edge selection, measurement overlays, section planes, exploded views, simulation fields, Android/mobile stability, frame-time distribution, memory growth, load time, picking latency/accuracy and context-loss recovery. Select one engine after review; do not retain both as permanent dependencies without a measured reason.
+
+**Viewer status vocabulary:** PLANNED means no user-facing supported viewer exists. A renderer benchmark prototype does not make the CAD viewer production-ready. Successful rendering does not change geometry validation, solver execution, mesh convergence, verification or approval state. Viewer and conversion failures must leave canonical artifact validation state unchanged.
+
 ## Physical perception / point clouds
 
 The repository includes an isolated one-shot Open3D worker prototype for PLY, PCD and XYZ inspection and ICP registration. Units and coordinate-frame IDs are explicit; input path, file size, point count, request size, iteration count and source digests are bounded.
