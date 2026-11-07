@@ -32,27 +32,33 @@ export function parseEngineeringChatResultDetail(value: unknown): EngineeringCha
   return { text, source: "engineering-core" };
 }
 
-/** Build a bounded handoff from the current thread. Latest user turn wins; earlier user turns provide context. */
-export function buildEngineeringCoreHandoffIntent(messages: readonly unknown[]): string | undefined {
-  const userTurns = messages.flatMap((value) => {
-    if (!value || typeof value !== "object") return [];
-    const message = value as { role?: unknown; content?: unknown };
-    if (message.role !== "user" || !Array.isArray(message.content)) return [];
-    const text = message.content.flatMap((part) => {
-      if (!part || typeof part !== "object") return [];
-      const item = part as { type?: unknown; text?: unknown };
-      return item.type === "text" && typeof item.text === "string" ? [item.text] : [];
-    }).join("\n").trim();
-    return text ? [text] : [];
-  });
-  const latest = userTurns.at(-1);
-  if (!latest || latest.length > MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS) return undefined;
-  const earlier = userTurns.slice(0, -1).join("\n\n");
+function readTextContentPart(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const part = value as { type?: unknown; text?: unknown };
+  return part.type === "text" && typeof part.text === "string" ? part.text : undefined;
+}
+
+function readUserTurn(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const message = value as { role?: unknown; content?: unknown };
+  if (message.role !== "user" || !Array.isArray(message.content)) return undefined;
+  const text = message.content.map(readTextContentPart).filter(Boolean).join("\n").trim();
+  return text || undefined;
+}
+
+function buildBoundedContext(latest: string, earlier: string): string {
   if (!earlier) return latest;
   const prefix = "Latest user request (takes precedence):\n";
   const contextHeader = "\n\nEarlier user context (older turns; use only where not superseded):\n";
-  if (prefix.length + latest.length + contextHeader.length >= MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS) return latest;
   const available = MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS - prefix.length - latest.length - contextHeader.length;
-  const context = available > 0 ? earlier.slice(-available) : "";
-  return `${prefix}${latest}${context ? `${contextHeader}${context}` : ""}`;
+  if (available <= 0) return latest;
+  return `${prefix}${latest}${contextHeader}${earlier.slice(-available)}`;
+}
+
+/** Build a bounded handoff from the current thread. Latest user turn wins; earlier user turns provide context. */
+export function buildEngineeringCoreHandoffIntent(messages: readonly unknown[]): string | undefined {
+  const userTurns = messages.map(readUserTurn).filter((turn): turn is string => Boolean(turn));
+  const latest = userTurns.at(-1);
+  if (!latest || latest.length > MAX_ENGINEERING_CORE_HANDOFF_CHARACTERS) return undefined;
+  return buildBoundedContext(latest, userTurns.slice(0, -1).join("\n\n"));
 }
