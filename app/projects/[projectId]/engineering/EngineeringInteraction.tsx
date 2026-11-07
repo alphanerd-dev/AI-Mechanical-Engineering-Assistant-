@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getEngineeringDecisionPresentation } from "../../../../src/intent/decision-presentation.js";
 import { getEngineeringIntentRetryGuidance } from "../../../../src/intent/retry-guidance.js";
+import { ENGINEERING_CORE_HANDOFF_EVENT, ENGINEERING_CHAT_RESULT_EVENT, parseEngineeringCoreHandoffDetail } from "../../../../src/chat/engineering-core-handoff.js";
 
 type DecisionMetric = { key: string; value: number | string; unit?: string };
 type Decision = {
@@ -75,6 +76,35 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
   const [sessionConflict, setSessionConflict] = useState(false);
   const [restoreState, setRestoreState] = useState<RestoreState>("loading");
   const [restoreDetail, setRestoreDetail] = useState<string>();
+  const [handoffNotice, setHandoffNotice] = useState<string>();
+  const pendingHandoffRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    function receiveHandoff(event: Event) {
+      const detail = parseEngineeringCoreHandoffDetail((event as CustomEvent<unknown>).detail);
+      if (!detail) {
+        setHandoffNotice("The chat handoff was invalid or exceeded the Engineering Core input limit. Shorten the request and try again.");
+        return;
+      }
+      pendingHandoffRef.current = detail.intent;
+      if (restoreState === "ready") {
+        setDraft(detail.intent);
+        pendingHandoffRef.current = undefined;
+        setHandoffNotice("Request prepared from chat. Review the transferred task and inputs, then run it when ready.");
+      } else {
+        setHandoffNotice("Request received from chat. It will be prepared when the Engineering Core session is ready.");
+      }
+    }
+    window.addEventListener(ENGINEERING_CORE_HANDOFF_EVENT, receiveHandoff);
+    return () => window.removeEventListener(ENGINEERING_CORE_HANDOFF_EVENT, receiveHandoff);
+  }, [restoreState]);
+
+  useEffect(() => {
+    if (restoreState !== "ready" || !pendingHandoffRef.current) return;
+    setDraft(pendingHandoffRef.current);
+    pendingHandoffRef.current = undefined;
+    setHandoffNotice("Request prepared from chat. Review the transferred task and inputs, then run it when ready.");
+  }, [restoreState]);
 
   const lastDecision = useMemo(
     () => [...messages].reverse().find((message) => message.decision)?.decision,
@@ -398,7 +428,27 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
     </section>;
   }
 
-  return <section className="interaction">
+    function sendDecisionToChat() {
+    if (!lastDecision) return;
+    const latestSummary = [...messages].reverse().find((message) => message.role === "assistant")?.text;
+    const lines = [
+      "Engineering Core execution result — shared for discussion, not an independent verification or design approval.",
+      latestSummary ? `Decision summary: ${latestSummary}` : "",
+      `Decision status: ${lastDecision.status}`,
+      `Capability checks: ${lastDecision.validationPassed ? "PASS" : "NOT CONFIRMED"}`,
+      "Metrics:",
+      ...lastDecision.metrics.map((metric) => `- ${metric.key}: ${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`),
+      `Evidence records: ${lastDecision.evidenceIds.length ? lastDecision.evidenceIds.join(", ") : "None recorded"}`,
+      lastDecision.nextQuestion ? `Required input: ${lastDecision.nextQuestion}` : "",
+      lastDecision.nextAction ? `Next action: ${lastDecision.nextAction}` : "",
+    ].filter(Boolean);
+    window.dispatchEvent(new CustomEvent(ENGINEERING_CHAT_RESULT_EVENT, {
+      detail: { source: "engineering-core", text: lines.join("\n") },
+    }));
+    setHandoffNotice("Result prepared for discussion in the chat composer. Review it there and send when ready.");
+  }
+
+return <section className="interaction">
     <div className="interactionHeader">
       <div>
         <p className="eyebrow">ENGINEERING INTERACTION</p>
@@ -436,8 +486,10 @@ export default function EngineeringInteraction({ projectId }: { projectId: strin
       <p className="muted">{decisionPresentation.evidenceMessage}</p>
       {lastDecision.nextQuestion && <div className="decisionFollowUp"><strong>Required input</strong><p>{lastDecision.nextQuestion}</p></div>}
       {!lastDecision.nextQuestion && lastDecision.nextAction && <div className="decisionFollowUp"><strong>Next action</strong><p>{lastDecision.nextAction}</p></div>}
+      <div className="composerFooter"><button className="button" type="button" onClick={sendDecisionToChat}>Discuss this result in chat</button></div>
     </div>}
 
+    {handoffNotice && <div className="notice" role="status">{handoffNotice}</div>}
     {error && <div className="notice" role="alert">{error}</div>}
     {persistError && <div className="notice" role="status">{persistError}</div>}
     {sessionConflict && <div className="composerFooter">
