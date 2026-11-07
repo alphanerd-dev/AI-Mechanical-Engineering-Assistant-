@@ -5,8 +5,6 @@ import { MessageSquare, Workflow } from "lucide-react";
 import type { WorkspaceView } from "./useEngineeringWorkspaceNavigation";
 import styles from "./EngineeringPage.module.css";
 
-const VIEW_ORDER: WorkspaceView[] = ["chat", "core"];
-
 function nextWorkspaceView(current: WorkspaceView, key: string): WorkspaceView | undefined {
   if (key === "ArrowRight") return current === "chat" ? "core" : "chat";
   if (key === "ArrowLeft") return current === "core" ? "chat" : "core";

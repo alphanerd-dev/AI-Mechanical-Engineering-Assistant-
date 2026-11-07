@@ -21,8 +21,8 @@ async function signIn(page, email, password) {
 async function verifyEngineeringWorkspaceHandoffs(page) {
 const chatTab = page.getByRole("tab", { name: /Chat/ });
 const coreTab = page.getByRole("tab", { name: /Engineering Core/ });
-const chatPanelView = page.getByRole("tabpanel", { name: "Chat guidance workspace" });
-const corePanelView = page.getByRole("tabpanel", { name: "Engineering Core" });
+const chatPanelView = page.getByRole("tabpanel", { name: "Chat Guidance" });
+const corePanelView = page.getByRole("tabpanel", { name: "Engineering Core Execution" });
 await expect(chatTab).toHaveAttribute("aria-selected", "true");
 await expect(chatPanelView).toBeVisible();
 await expect(corePanelView).toBeHidden();
