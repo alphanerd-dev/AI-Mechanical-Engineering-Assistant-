@@ -112,6 +112,9 @@ A feature that merely adds an AI model, provider, tool, dashboard or configurati
 - Treat models and agents as contributors to interpretation and explanation—not sources of engineering truth, trusted provider identity, validation status or evidence IDs.
 - Prefer existing task, provider, audit, artifact and evidence seams before introducing new queues, databases or orchestration frameworks.
 - Keep support boundaries visible. An adapter or interface does not imply an installed, licensed, configured, reachable or production-verified runtime.
+- Build an integrated but modular engineering workspace: capability domains share project identity, typed task contracts, artifact lineage, authorization, validation, evidence and approval, but are promoted independently against real workflows.
+- Keep geometry kernels and renderers replaceable behind adapters. Canonical engineering artifacts remain authoritative; tessellated/display derivatives are traceable projections and never become engineering truth merely because they render successfully.
+- Treat visualization as an inspection and interaction surface, not as execution, validation, verification or approval. Keep CAD geometry processing, scientific result visualization and 2D drawing rendering as distinct capabilities where their data semantics differ.
 - Separate conversational explanation from registered deterministic execution and formal validation.
 
 ## Decision rule
