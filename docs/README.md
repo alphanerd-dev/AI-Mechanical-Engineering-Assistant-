@@ -11,6 +11,14 @@ This index points to the current product and operational contracts. It also dist
 - [Product doctrine](product-doctrine.md) — product promise, result states and feature acceptance rules.
 - [Outcome baseline](outcome-baseline.md) — methodology for measuring accepted outcomes; do not infer savings from tests or fixtures.
 
+## Architecture decision records
+
+- [ADR — Renderer benchmark and abstraction](architecture/adr-2026-11-08-renderer-benchmark.md) — Babylon.js vs Three.js benchmark; WebGL 2 baseline; no production renderer selected yet.
+- [ADR — OCCT-first hybrid geometry foundation](architecture/adr-2026-11-08-hybrid-geometry-foundation.md) — OCCT-first kernel direction, product-owned geometry contracts, provider adapters and no proprietary kernel project at this stage.
+- [ADR — Integrated engineering workspace strategy](architecture/adr-2026-11-08-integrated-engineering-workspace.md) — modular CAD/CAE/perception/manufacturing/lifecycle domains under shared engineering contracts.
+
+These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above.
+
 ## Application, chat and acceptance
 
 - [Next.js Engineering Workspace](nextjs-workspace.md) — routes, UI composition, dependency boundaries and development commands.
