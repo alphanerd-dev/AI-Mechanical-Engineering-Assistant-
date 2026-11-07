@@ -18,6 +18,52 @@ describe("CAD artifact manifest",()=>{
     expect(result.artifacts.every(a=>a.validationStatus==="UNVALIDATED"&&!a.provenance)).toBe(true);
   });
 
+  it("links the canonical BREP to source code and exchange derivatives to the BREP without copying trust status",()=>{
+    const result=normalizeCADExecutionResult("project-1",{
+      success:true,
+      backend:"build123d",
+      sourceArtifactPath:"/artifacts/part.py",
+      solidArtifactPath:"/artifacts/part.brep",
+      stepArtifactPath:"/artifacts/part.step",
+      stlArtifactPath:"/artifacts/part.stl",
+      threeMfArtifactPath:"/artifacts/part.3mf",
+      warnings:[]
+    },{
+      modelIdentity:{
+        id:"cad-model-1",
+        projectId:"project-1",
+        name:"Test shaft",
+        nativeReferences:[],
+        createdAt:"2026-11-07T10:00:00.000Z",
+        updatedAt:"2026-11-07T10:00:00.000Z"
+      },
+      request:{
+        id:"execution-1",
+        backend:"build123d",
+        source:"from build123d import Cylinder",
+        filename:"part.py",
+        timeoutMs:30000
+      },
+      providerId:"cad.build123d",
+      generatedAt:"2026-11-07T10:01:00.000Z"
+    });
+
+    expect(result.errors).toEqual([]);
+    const source=result.artifacts.find((artifact)=>artifact.kind==="SOURCE")!;
+    const solid=result.artifacts.find((artifact)=>artifact.kind==="SOLID")!;
+    const step=result.artifacts.find((artifact)=>artifact.kind==="STEP")!;
+    const stl=result.artifacts.find((artifact)=>artifact.kind==="STL")!;
+    const threeMf=result.artifacts.find((artifact)=>artifact.kind==="THREE_MF")!;
+
+    expect(solid.provenance?.sourceArtifactIds).toEqual([source.id]);
+    for (const derivative of [step,stl,threeMf]) {
+      expect(derivative.provenance?.sourceArtifactIds).toEqual([solid.id]);
+      expect(derivative.validationStatus).toBe("UNVALIDATED");
+      expect(derivative.informationStatus).toBe("CALCULATED");
+      expect(derivative.evidenceIds).toEqual([]);
+    }
+  });
+
   it("does not register artifact paths from a failed worker execution",()=>{
     const result=normalizeCADExecutionResult("project-1",{
       success:false,
