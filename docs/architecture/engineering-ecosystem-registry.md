@@ -1,7 +1,7 @@
 # Engineering Ecosystem Registry
 
 **Status:** initial canonical triage; not an approval to install or execute a candidate.  
-**Last reviewed:** 2026-10-13  
+**Last reviewed:** 2026-11-08  
 **Source of candidate names:** prior research inventory supplied in the architecture-review discussion.  
 **Evidence standard:** a candidate remains `unverified` until its canonical repository, reviewed commit/release, license file and license obligations, maintenance status, security posture, and reproducible acceptance evidence are recorded.
 
@@ -69,6 +69,21 @@
 | Additive manufacturing | PrusaSlicer, CuraEngine, OctoPrint | Distribution-license review; toolpath checks; machine actions disabled absent explicit authorization |
 | Digital twins | Eclipse Ditto | Identity, telemetry freshness, command authorization, replay protection and auditability |
 | Physics-ML / surrogates | DeepXDE, NeuralOperator, AutoCFD | Dataset/checkpoint licensing, domain applicability, calibration, out-of-distribution checks and validated-solver fallback |
+
+## Visualization and geometry infrastructure candidates
+
+These candidates are added for evaluation under the accepted renderer-benchmark and OCCT-first hybrid-geometry decisions. All remain **research candidates**, not approved production dependencies.
+
+| Candidate | Canonical URL | Role | Status | Acceptance evidence |
+|---|---|---|---|---|
+| Babylon.js | https://github.com/BabylonJS/Babylon.js | Primary CAD 3D renderer candidate | research | Run the same pre-tessellated CAD fixtures and interaction scripts as Three.js; record frame-time distribution, assembly scaling, picking correctness/latency, memory, Android stability, context-loss recovery, bundle impact and maintenance effort |
+| Three.js | https://github.com/mrdoob/three.js | Primary CAD 3D renderer candidate | research | Same benchmark fixtures, rendering quality, devices and scripts as Babylon.js; record the same performance, correctness, stability and maintenance evidence |
+| OpenCascade.js | https://github.com/donalffons/opencascade.js | Browser/WASM OCCT binding candidate | research | Confirm upstream maintenance, exact OCCT revision, license and notices, browser/WASM compatibility, import/topology/tessellation coverage, memory/timeout behaviour and geometry conformance fixtures |
+| VTK.js | https://github.com/Kitware/vtk-js | Scientific mesh and result-field visualization candidate | research | Validate supported mesh/result formats, scalar/vector field fidelity, units, legends, large-mesh performance, browser/mobile limits and known-answer fixtures independently of the CAD renderer |
+
+The renderer decision is specifically a **benchmark decision**, not a request to install Babylon.js and Three.js together. The benchmark must use identical display geometry so the rendering comparison does not accidentally compare different CAD parsers or tessellators. WebGL 2 is the initial compatibility baseline; WebGPU is a future evaluation, not a launch requirement.
+
+OCCT remains the initial geometry-kernel direction. This registry does not approve a new OCCT binding/runtime or broaden the current bounded CAD implementation. Review each exact release, license, dependency tree, packaging target and security posture before promotion. Keep canonical geometry and display derivatives separate.
 
 ## Required promotion record
 
