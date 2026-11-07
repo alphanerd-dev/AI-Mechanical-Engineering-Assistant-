@@ -1,7 +1,7 @@
 # Implementation Plan and Milestones
 
-**Updated:** 1 November 2026  
-**Status:** M0 is complete with its stated limitation. The M1 conversational chat foundation is implemented and browser-accepted on the tested revision. M2 and later viewer/integration milestones remain planned.
+**Updated:** 8 November 2026  
+**Status:** M0 is complete with its stated limitation. The M1 conversational chat foundation is implemented and browser-accepted on the tested revision. M2 — shared artifact infrastructure and interactive CAD visualization — is the next priority and remains planned; no production 3D renderer has been selected.
 
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
 
@@ -21,6 +21,7 @@ Preserve the existing Next.js/React/TypeScript control plane, Supabase project/w
 | Engineering task interaction | Separate Engineering Core panel for existing registered deterministic workflows and decision states. | It is not an LLM tool-call executor. A capability must be explicitly implemented and validated before it is exposed. |
 | Deterministic calculations | Shaft torque, pump-power and a new solid-shaft static-yield pilot with explicit gear geometry, axial force, deterministic diameter solve, revisioned state, digests and validation receipt. | The shaft pilot is preliminary static yield only; it is not fatigue, complete shaft design, ASME compliance or design approval. |
 | CAD | Explicit cylindrical/shaft generation using deterministic build123d code, separate remote worker, artifact registration and independent OCCT BREP checks. | Do not infer general CAD/assembly support or automatic validation of every exported format. |
+| Visualization | No shared artifact/viewer registry or complete interactive CAD/FEA/P&ID viewer. Babylon.js and Three.js are candidates for a controlled renderer benchmark; VTK.js is a separate scientific-visualization candidate. | Candidate evaluation is not dependency adoption. Canonical artifacts, conversion derivatives and viewer state must remain distinct. |
 | FEA | Reference Gmsh/CalculiX cantilever benchmark worker and related adapter contracts. | Pilot/reference scope; no general FEA mesh/result viewer or broad structural certification. |
 | Physical perception | Isolated Open3D inspection/ICP registration prototype. | No public scan upload, persistent artifact registry integration or production perception claim. |
 | CI and browser evidence | Core CI includes tests, worker checks, security analysis and production build. The isolated Playwright public UI suite includes the authenticated chat-rendering test. | Each run proves only the assertions that ran on its exact SHA and environment. |
@@ -67,21 +68,121 @@ Acceptance still requires CI on the exact pull-request SHA, authenticated previe
 
 | ID | Milestone | Status | Main exit gate |
 |---|---|---|---|
-| M2 | Shared artifact contract/viewer registry and interactive CAD visualization | NEXT / PLANNED | Supported canonical CAD artifacts and display derivatives render with source lineage, authorization and stale-revision handling; CAD viewer failure cannot change validation state. |
+| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | NEXT / PLANNED | Selected renderer passes the documented benchmark; supported canonical artifacts and display derivatives render with source lineage, authorization and stale-revision handling; viewer failure cannot change canonical validation state. |
 | M3 | FEA mesh and result-field visualization | PLANNED | Supported mesh/field fixtures render with correct source values, units and legends; malformed or incomplete data fails closed; convergence and engineering review remain distinct. |
 | M4 | Typed P&ID/PFD data model and viewer | PLANNED | Diagram IDs and connectivity round-trip; references are authorized; unsupported symbols/invalid connections are explicit. |
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | DEFERRED | A concrete user need, measured outcome, provider/license review, benchmark, independent validator, runtime isolation and rollback plan exist. |
 
+## Geometry foundation and kernel-adapter direction
+
+Adopt an **OCCT-first hybrid**:
+
+- OCCT is the initial geometry-kernel direction for exact BREP and topology operations, geometry import/inspection and tessellation. The existing OCCT validator remains a narrow, independently controlled validation provider; it does not imply complete import/export coverage.
+- Retain build123d as the current bounded authoring provider. Evaluate CadQuery, FreeCAD and Onshape as independent providers only where specific user workflows justify them.
+- Put a product-owned engineering geometry/domain model above kernel adapters. It owns engineering identity, revisions, provenance, units, coordinate frames, feature/operation metadata, constraints and relationships to requirements, artifacts and validation.
+- Define kernel conformance fixtures for import/export round trips, topology validity, dimensions, volume, units, tolerances, coordinate transforms and stable reference mapping.
+- Review exact source revision, bindings, licenses, notices, maintenance, packaging and deployment constraints before adopting OCCT.js/OCP or another binding in a runtime.
+- Do not build a proprietary geometry kernel now. Consider an alternative or proprietary kernel only after a demonstrated gap, an economic case and a separate accepted ADR.
+
+Canonical geometry is distinct from renderer-facing tessellation. Display derivatives carry source ID/revision/digest, conversion provider/version and tessellation parameters. Geometry validation must identify the exact bytes tested. STEP/STL/3MF exports are not validated merely because a related BREP passed a check.
+
+## Integrated engineering workspace strategy
+
+The product is a modular workspace across six connected capability domains:
+
+1. **Engineering intelligence:** intent, reasoning, bounded planning and project context.
+2. **CAD and geometry:** part/assembly workflows, interchange, topology and design constraints.
+3. **CAE and simulation:** structural, thermal, fluid and multibody analyses.
+4. **Physical perception:** point clouds, inspection and Scan-to-CAD.
+5. **Manufacturing and industrial systems:** DFM, process planning, quality, maintenance and reliability.
+6. **Engineering data and lifecycle:** artifacts, BOMs, revisions, requirements, evidence and approvals.
+
+They share project identity, authorization, typed capabilities, task state, artifact contracts, execution boundaries, validation and evidence. Each domain remains modular and is added only after workflow-specific acceptance; this is not a commitment to implement all domains in parallel.
+
+### Product capability roadmap (V2.x)
+
+| Version direction | Capability target | Main technology candidates |
+|---|---|---|
+| V2.0 | Bounded autonomous engineering workspace | Existing Engineering Core, typed task plans, deterministic providers, artifact-aware orchestration, risk gates and human approval |
+| V2.1 | Multi-CAD interoperability | OCCT, build123d, CadQuery, FreeCAD and Onshape adapters |
+| V2.2 | Physical perception and Scan-to-CAD | Open3D, point-cloud inspection, registration and traceable geometry reconstruction |
+| V2.3 | Advanced CFD | OpenFOAM and independently validated simulation workflows |
+| V2.4 | Multibody dynamics and robotics | MuJoCo, Menagerie and evaluated dynamics providers |
+| V2.5 | Electromechanical systems | KiCad, SKiDL and SPICE integrations |
+
+M2 artifact/viewer foundations are a prerequisite for workflows that must inspect, relate and reuse engineering artifacts. V2.0 expands existing bounded orchestration; it must not become unrestricted model-driven execution. V2.1–V2.5 remain target directions, not implementation or release claims.
+
 Physical perception remains a separately staged roadmap path: the current Open3D worker is a one-shot prototype. Before product integration it needs authenticated upload, private project storage, known-transform/noise/outlier fixtures, provenance, limits and human review.
 
-## M2 — CAD visualization work
+## M2 — Shared artifact and CAD visualization foundation (NEXT)
 
-1. Define a versioned artifact/viewer contract for artifact ID, type/format, project/source revision, checksum, originating operation, provider/runtime, units/coordinate frame, validation receipt and limitations.
-2. Add a viewer registry that selects a renderer only from trusted artifact metadata. Unknown formats must produce a clear unsupported/conversion/download state.
-3. Integrate a 3D renderer only after supported canonical formats and display derivatives are defined and tested on representative models.
-4. Keep canonical CAD bytes authoritative; bind every display derivative to its source ID, revision, digest and conversion metadata.
-5. Preserve private Supabase Storage, server-side authorization, short-lived access and safe failure states.
-6. Re-run the bounded CAD/OCCT acceptance suite for each release; do not widen the supported geometry scope by implication.
+**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. This milestone adds the shared viewer foundation without changing the existing Engineering Core execution/validation boundaries.
+
+### M2 work sequence
+
+1. **Audit existing contracts.** Reconcile current CAD model/completion records, artifact bridge, storage metadata, execution records, evidence receipts and project workspace types. Reuse or evolve existing contracts; do not create a parallel artifact identity or registry.
+2. **Define the artifact/display-derivative relationship.** Identify artifact ID/type/format/schema, project and source-object identity, source revision and digest, producer/provider and runtime version, units, coordinate frame, storage key, validation receipt, limitations and conversion lineage. Add derivative kind, source digest, converter/kernel version and tessellation settings where relevant.
+3. **Define a trusted viewer registry.** Resolve renderer/reader choice from server-approved artifact metadata and supported-format policy, never a browser-supplied MIME type or file extension alone. Unknown, malformed, stale or unsupported formats must return explicit safe states.
+4. **Define renderer adapter contract.** Keep scene lifecycle, camera/navigation, object visibility, selection, clipping, material/field overlays and resource disposal behind a renderer-neutral interface. Do not expose Babylon.js or Three.js types to canonical artifact, Engineering Core or validation contracts.
+5. **Benchmark Babylon.js vs Three.js.** Build equivalent prototypes using the same pre-tessellated datasets, visual quality, browser/device, camera and interaction scripts. WebGL 2 is the initial compatibility baseline. Treat WebGPU as a separately measured future backend, not a WebGPU-only launch requirement.
+6. **Define the OCCT geometry adapter.** Reuse the existing OCCT validation boundary; evaluate exact-version OCCT/OCP bindings for import, topology access and tessellation. Verify licensing, packaging, WASM/native runtime compatibility, worker isolation, memory/time limits and deterministic fixtures before promoting a binding/runtime.
+7. **Build the CAD MVP.** Begin with bounded, known-good BREP/STEP/STL fixtures and generated display derivatives. Add 3MF only after object/material/build metadata handling is tested. Add assembly hierarchy and stable face/edge-to-topology mapping only where the source converter can preserve reliable references.
+8. **Add the separate 2D drawing path.** Define independent PDF, SVG and DXF readers, layers, coordinate units, annotations and measurement semantics. DWG is out of scope until an appropriately licensed and validated route is selected.
+9. **Complete secure artifact access.** Keep storage private, perform server-side project authorization, use short-lived signed URLs, validate file size/content, isolate conversion workers and prevent path/network escape. Viewer or conversion errors must not mutate canonical artifact validation state.
+10. **Prove stale-state behavior.** When a source model revision changes, mark its derivatives, dependent meshes and simulation results stale; never silently present an earlier result as current.
+
+### M2 exit gates
+
+- One canonical artifact identity and project authorization path is reused; no duplicate registry is introduced.
+- Canonical bytes are checksum-bound and remain immutable for a given artifact revision.
+- Every display derivative is bound to the exact source ID/revision/digest and conversion settings.
+- Unsupported, malformed, oversized and malicious inputs fail safely with no forged or promoted validation state.
+- The selected renderer meets the benchmark thresholds on the same fixtures and devices; the scorecard, raw runs and decision are retained.
+- Core navigation, selection and visibility work on target desktop and representative Android browsers, including resource disposal and context-loss recovery.
+- Engineering-grade measurements are computed from canonical geometry or another declared deterministic authority, not guessed from display triangles.
+- Authenticated browser acceptance uses the dedicated non-production project and exact candidate revision.
+- Existing CAD/OCCT regression and evidence acceptance still pass.
+
+
+
+## Renderer benchmark protocol
+
+The benchmark selects one primary CAD 3D renderer; it does not select a geometry kernel or a scientific field renderer.
+
+### Equivalent test workloads
+
+- **Parts and meshes:** single BREP-derived parts, STL meshes and dense triangulations at multiple sizes.
+- **Assemblies:** increasing component counts and repeated instances (target fixture tiers such as 100, 500, 1,000 and 5,000 where the fixture and device make the tier meaningful).
+- **CAD interaction:** orbit/pan/zoom, fit-to-view, object visibility, face/edge picking, selection highlighting, clipping/section planes, exploded-state display and measurement overlays.
+- **CAE overlays:** displacement and scalar/vector field fixtures to test interoperability, not to assume the CAD renderer is the final CAE renderer.
+- **Mobile:** representative Android Chromium/browser devices, memory pressure, long-session stability, touch interaction, page visibility changes and GPU-context loss/recovery.
+
+Both implementations must receive identical already-tessellated input and equivalent rendering settings. Do not include STEP parsing in one renderer's timing and exclude it from the other's. Geometry conversion time is measured separately.
+
+### Measurements and scorecard
+
+| Criterion | Weight |
+|---|---:|
+| Large-assembly frame-time stability and throughput | 20% |
+| Android/mobile stability and recovery | 20% |
+| Picking/selection correctness and latency | 15% |
+| Memory growth and resource disposal | 15% |
+| Visual quality and clipping/material parity | 10% |
+| Initial bundle impact and first-render/load time | 10% |
+| Maintainability, testability and required CAD integration effort | 10% |
+| **Total** | **100%** |
+
+Record device/browser/OS/GPU, engine and dependency versions, test fixture digest, rendering settings, warm/cold conditions, frame-time distributions (including high-percentile values), memory observations, picking accuracy, load timings, errors, context-loss recovery and repeated-run variance. Publish raw results and explain unavailable metrics rather than inventing them.
+
+Thresholds must be declared before scoring. Weighting is a decision aid, not a substitute for minimum gates: correctness, no data leakage, bounded resource use, responsive interaction and reliable recovery are mandatory. A renderer that fails a minimum gate is not selected even if its weighted score is higher. If the scores are close, prefer the lower-maintenance engine with the strongest required integration fit. Do not keep both as permanent application dependencies without a demonstrated need.
+
+### Benchmark deliverables
+
+- Isolated side-by-side prototype or equivalent harness.
+- Identical model fixtures and replayable interaction scripts.
+- Reproducible run instructions and device matrix.
+- Raw measurements, scorecard and limitations.
+- Accepted renderer ADR update naming the selected engine and version range, or a recorded decision to defer selection.
 
 ## M3 — FEA visualization work
 
