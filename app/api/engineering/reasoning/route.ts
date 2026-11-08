@@ -280,6 +280,56 @@ function getInputRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function parseSkillBinding(body: Record<string, unknown>): { id: string; version: string } | undefined {
+  if (body.skillId !== undefined && typeof body.skillId !== "string") {
+    throw new ApiError(400, "skillId must be a string when supplied.");
+  }
+  if (body.skillVersion !== undefined && typeof body.skillVersion !== "string") {
+    throw new ApiError(400, "skillVersion must be a string when supplied.");
+  }
+  const id = typeof body.skillId === "string" ? body.skillId.trim() : "";
+  const version = typeof body.skillVersion === "string" ? body.skillVersion.trim() : "";
+  if (Boolean(id) !== Boolean(version)) {
+    throw new ApiError(400, "skillId and skillVersion must be supplied together.");
+  }
+  return id && version ? { id, version } : undefined;
+}
+
+function createTaskWorkspace(
+  loaded: LoadedWorkspace,
+  body: Record<string, unknown>,
+  frameworkRegistry: ReturnType<typeof createDefaultReasoningFrameworkRegistry>,
+  skillRegistry: ReturnType<typeof createDefaultSkillManifestRegistry>
+): { workspace: EngineeringWorkspaceSnapshot; taskId: string } {
+  const skill = parseSkillBinding(body);
+  const input = body.input === undefined ? {} : getInputRecord(body.input);
+  try {
+    const result = createWorkspaceReasoningTask(loaded.snapshot, {
+      taskId: randomUUID(),
+      name: body.name as string,
+      goal: body.goal as string,
+      taskType: body.taskType as string,
+      risk: body.risk as EngineeringTask["risk"],
+      uncertainty: body.uncertainty as "LOW" | "MEDIUM" | "HIGH",
+      requestedFramework: body.frameworkId as string,
+      requestedFrameworkVersion: body.frameworkVersion as string,
+      input,
+      approvalRequired: body.approvalRequired as boolean | undefined,
+      evidenceRequired: body.evidenceRequired as boolean | undefined
+    }, { frameworkRegistry });
+    const taskGraph = skill
+      ? assignTaskSkillManifest(result.workspace.taskGraph, result.task.id, skill.id, skill.version, skillRegistry)
+      : result.workspace.taskGraph;
+    return {
+      workspace: { ...result.workspace, taskGraph },
+      taskId: result.task.id
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(422, error instanceof Error ? error.message : "The task could not be created.");
+  }
+}
+
 function taskResponse(taskGraph: EngineeringWorkspaceSnapshot["taskGraph"], taskId?: string) {
   const task = taskId ? taskGraph.tasks.find((item) => item.id === taskId) : undefined;
   return { taskGraph, ...(task ? { task } : {}) };
@@ -343,54 +393,10 @@ export async function POST(request: Request) {
     const skillRegistry = createDefaultSkillManifestRegistry();
 
     if (action === "CREATE_TASK") {
-      const risk = body.risk;
-      const uncertainty = body.uncertainty;
-      const input = body.input === undefined ? {} : getInputRecord(body.input);
-      if (body.skillId !== undefined && typeof body.skillId !== "string") {
-        throw new ApiError(400, "skillId must be a string when supplied.");
-      }
-      if (body.skillVersion !== undefined && typeof body.skillVersion !== "string") {
-        throw new ApiError(400, "skillVersion must be a string when supplied.");
-      }
-      const skillId = typeof body.skillId === "string" && body.skillId.trim() ? body.skillId.trim() : undefined;
-      const skillVersion = typeof body.skillVersion === "string" && body.skillVersion.trim() ? body.skillVersion.trim() : undefined;
-      if (Boolean(skillId) !== Boolean(skillVersion)) {
-        throw new ApiError(400, "skillId and skillVersion must be supplied together.");
-      }
-      let result: ReturnType<typeof createWorkspaceReasoningTask>;
-      let workspace = loaded.snapshot;
-      try {
-        result = createWorkspaceReasoningTask(loaded.snapshot, {
-          taskId: randomUUID(),
-          name: body.name as string,
-          goal: body.goal as string,
-          taskType: body.taskType as string,
-          risk: risk as EngineeringTask["risk"],
-          uncertainty: uncertainty as "LOW" | "MEDIUM" | "HIGH",
-          requestedFramework: body.frameworkId as string,
-          requestedFrameworkVersion: body.frameworkVersion as string,
-          input,
-          approvalRequired: body.approvalRequired as boolean | undefined,
-          evidenceRequired: body.evidenceRequired as boolean | undefined
-        }, { frameworkRegistry: registry });
-        if (skillId && skillVersion) {
-          const taskGraph = assignTaskSkillManifest(
-            result.workspace.taskGraph,
-            result.task.id,
-            skillId,
-            skillVersion,
-            skillRegistry
-          );
-          workspace = { ...result.workspace, taskGraph };
-        } else {
-          workspace = result.workspace;
-        }
-      } catch (error) {
-        throw new ApiError(422, error instanceof Error ? error.message : "The task could not be created.");
-      }
-      const saved = await saveWorkspace(loaded, workspace);
+      const created = createTaskWorkspace(loaded, body, registry, skillRegistry);
+      const saved = await saveWorkspace(loaded, created.workspace);
       return NextResponse.json({
-        ...taskResponse(saved.taskGraph, result.task.id),
+        ...taskResponse(saved.taskGraph, created.taskId),
         workspaceRevision: saved.revision,
         storageMode: loaded.storageMode,
         persisted: loaded.storageMode === "DURABLE"
