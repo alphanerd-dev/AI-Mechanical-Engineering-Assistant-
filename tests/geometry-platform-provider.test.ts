@@ -106,7 +106,8 @@ describe("CADCompletionGeometryProvider", () => {
         projectId: "geometry-project",
         modelIdentity: identity,
         units: "mm",
-        coordinateFrame: "WORLD_Z_AXIS"
+        coordinateFrame: "WORLD_Z_AXIS",
+        tolerancePolicyId: "CYLINDER_DIMENSION_0_01_MM"
       },
       parameters: { diameter: 30, length: 200 }
     });
@@ -119,7 +120,8 @@ describe("CADCompletionGeometryProvider", () => {
         projectId: "geometry-project",
         modelIdentity: identity,
         units: "mm",
-        coordinateFrame: "WORLD_Z_AXIS"
+        coordinateFrame: "WORLD_Z_AXIS",
+        tolerancePolicyId: "CYLINDER_DIMENSION_0_01_MM"
       },
       parameters: { diameter: -1, length: 200 }
     });
@@ -134,7 +136,8 @@ describe("CADCompletionGeometryProvider", () => {
         projectId: "geometry-project",
         modelIdentity: identity,
         units: "inch",
-        coordinateFrame: "WORLD_Z_AXIS"
+        coordinateFrame: "WORLD_Z_AXIS",
+        tolerancePolicyId: "CYLINDER_DIMENSION_0_01_MM"
       },
       parameters: { diameter: 30, length: 200 }
     } as unknown as import("../src/geometry-platform/contracts.js").GeometryOperationRequest);
@@ -148,7 +151,8 @@ describe("CADCompletionGeometryProvider", () => {
         projectId: "geometry-project",
         modelIdentity: identity,
         units: "mm",
-        coordinateFrame: "CUSTOM_FRAME"
+        coordinateFrame: "CUSTOM_FRAME",
+        tolerancePolicyId: "CYLINDER_DIMENSION_0_01_MM"
       },
       parameters: { diameter: 30, length: 200 }
     } as unknown as import("../src/geometry-platform/contracts.js").GeometryOperationRequest);
