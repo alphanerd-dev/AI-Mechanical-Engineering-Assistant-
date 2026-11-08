@@ -299,46 +299,57 @@ export function buildAgentActionInstructions(
   ].join(" ");
 }
 
+function resolvePlannerCapabilities(request:AgentActionPlannerRequest):CapabilityDefinition[]{
+  const allowed=request.limits.allowedCapabilities;
+  if(request.limits.requireCapabilityAllowlist!==true||!allowed?.length)
+    throw new Error("Model-backed planning requires a non-empty, host-enforced capability allowlist.");
+  if(new Set(allowed).size!==allowed.length)
+    throw new Error("The host capability allowlist cannot contain duplicate ids.");
+  const definitions=new Map(request.registeredCapabilities.map(definition=>[definition.id,definition]));
+  return allowed.map(id=>{
+    const definition=definitions.get(id);
+    if(!definition) throw new Error("One or more host-authorized capabilities are not registered: "+id+".");
+    return structuredClone(definition);
+  });
+}
+
+function buildModelPlanningRequest(
+  request:AgentActionPlannerRequest,
+  capabilities:readonly CapabilityDefinition[]
+){
+  return {
+    instructions:buildAgentActionInstructions(request.limits,capabilities),
+    input:{
+      runId:request.runId,
+      projectId:request.taskGraph.projectId,
+      taskGraph:structuredClone(request.taskGraph),
+      registeredCapabilityContracts:capabilities,
+      hostPolicy:{
+        maxSteps:request.limits.maxSteps,
+        maxTaskExecutions:request.limits.maxTaskExecutions,
+        maxDelegations:request.limits.maxDelegations,
+        maxRisk:request.limits.maxRisk,
+        allowedCapabilities:[...(request.limits.allowedCapabilities??[])],
+        allowedSpecialists:[...(request.limits.allowedSpecialists??[])],
+        allowTaskCreation:request.limits.allowTaskCreation===true,
+        allowTaskUpdates:request.limits.allowTaskUpdates===true
+      }
+    },
+    maxOutputTokens:3_500
+  };
+}
+
 export class ModelBackedAgentActionPlanner implements AgentActionPlanner {
-  constructor(private readonly generator: StructuredModelGenerator) {
-    if (!generator || typeof generator.generateStructured !== "function") {
+  constructor(private readonly generator:StructuredModelGenerator) {
+    if(!generator||typeof generator.generateStructured!=="function")
       throw new Error("A structured model generator is required for bounded agent planning.");
-    }
   }
 
-  async plan(request: AgentActionPlannerRequest): Promise<AgentActionPlan> {
-    if (!request?.taskGraph || !request.limits) throw new Error("A task graph and host-owned run policy are required.");
-    if (request.limits.requireCapabilityAllowlist !== true ||
-        !request.limits.allowedCapabilities ||
-        request.limits.allowedCapabilities.length === 0) {
-      throw new Error("Model-backed planning requires a non-empty, host-enforced capability allowlist.");
-    }
-    const capabilities = request.registeredCapabilities
-      .filter((definition) => request.limits.allowedCapabilities!.includes(definition.id))
-      .map((definition) => structuredClone(definition));
-    if (capabilities.length !== request.limits.allowedCapabilities.length) {
-      throw new Error("One or more host-authorized capabilities are not registered.");
-    }
-    const raw = await this.generator.generateStructured({
-      instructions: buildAgentActionInstructions(request.limits, capabilities),
-      input: {
-        runId: request.runId,
-        projectId: request.taskGraph.projectId,
-        taskGraph: structuredClone(request.taskGraph),
-        registeredCapabilityContracts: capabilities,
-        hostPolicy: {
-          maxSteps: request.limits.maxSteps,
-          maxTaskExecutions: request.limits.maxTaskExecutions,
-          maxDelegations: request.limits.maxDelegations,
-          maxRisk: request.limits.maxRisk,
-          allowedCapabilities: [...request.limits.allowedCapabilities],
-          allowedSpecialists: [...(request.limits.allowedSpecialists ?? [])],
-          allowTaskCreation: request.limits.allowTaskCreation === true,
-          allowTaskUpdates: request.limits.allowTaskUpdates === true
-        }
-      },
-      maxOutputTokens: 3_500
-    });
-    return parseAgentActionPlan(raw, request.limits, request.limits.allowedCapabilities);
+  async plan(request:AgentActionPlannerRequest):Promise<AgentActionPlan>{
+    if(!request?.taskGraph||!request.limits)
+      throw new Error("A task graph and host-owned run policy are required.");
+    const capabilities=resolvePlannerCapabilities(request);
+    const raw=await this.generator.generateStructured(buildModelPlanningRequest(request,capabilities));
+    return parseAgentActionPlan(raw,request.limits,request.limits.allowedCapabilities??[]);
   }
 }
