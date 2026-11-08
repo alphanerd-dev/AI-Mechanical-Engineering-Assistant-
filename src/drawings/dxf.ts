@@ -93,9 +93,16 @@ function readArc(groups: GroupPair[], warnings: string[]): DXFEntity | null {
   return null;
 }
 
+function hasValidPolylineVertices(xs: number[], ys: number[]): boolean {
+  if (xs.length < 2) return false;
+  if (xs.length !== ys.length) return false;
+  if (!xs.every(finite)) return false;
+  return ys.every(finite);
+}
+
 function readPolyline(groups: GroupPair[], warnings: string[]): DXFEntity | null {
   const xs = allNumbers(groups, 10), ys = allNumbers(groups, 20);
-  if (xs.length < 2 || xs.length !== ys.length || !xs.every(finite) || !ys.every(finite)) {
+  if (!hasValidPolylineVertices(xs, ys)) {
     warnings.push("Skipped an LWPOLYLINE entity with incomplete vertices.");
     return null;
   }
