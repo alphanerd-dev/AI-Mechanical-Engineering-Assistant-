@@ -240,6 +240,8 @@ Current real-world economic outcomes remain **NOT MEASURED** until matched user 
 - PR #139 G1 API remains open and draft.
 - GitHub Actions run [42431160559](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/42431160559), associated with G1 head `0fd9ddacc3f759db6c5b83feb41ab872a03a3f60`, completed successfully. Its job included `npm ci`, `npm test`, architecture dependency checks, Python worker tests, build123d runtime checks, OCCT validator and CAD end-to-end smoke tests, open FEA runtime tests, and `npm run build`.
 - This CI result verifies that commit and the checks listed in that run. It does not by itself prove PR review approval, browser acceptance, production deployment, live provider availability or G1 merge readiness.
-- Existing M2 remains the next cross-cutting implementation priority in the canonical Implementation Plan.
+- PR #140 is an open, unmerged candidate for M2.2–M2.6 CAD artifact/viewer work. Its earlier CI run passed, but subsequent maintainability refactors require fresh exact-head verification; its latest Vercel status reported a build-rate-limit failure. It is not merge-ready.
+- PR #142 is an open, unmerged candidate for the first WS-A Engineering AI increment: an optional, version-pinned Engineering R&D skill profile with a MEDIUM risk ceiling, capability allowlist and mandatory approval. Its exact-head verification is in progress; no production behavior has changed.
+- The main branch remains authoritative. These PR candidates do not change the current shipped capability status until reviewed, verified and merged.
 
 Update this section only when new evidence changes the recorded state. The Implementation Plan and Engineering Capabilities document remain the authoritative sources for current product maturity.
