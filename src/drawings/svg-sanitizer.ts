@@ -8,16 +8,33 @@ const ALLOWED_ATTRIBUTES = new Set([
   "transform", "font-size", "text-anchor", "dominant-baseline"
 ]);
 
-function safeAttribute(name: string, value: string): boolean {
+function isSafeAttributeName(name: string): boolean {
   const lower = name.toLowerCase();
-  if (!ALLOWED_ATTRIBUTES.has(name) || lower.startsWith("on") || lower === "style" ||
-      lower === "href" || lower.endsWith(":href")) return false;
-  if (/url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) return false;
-  if (name === "fill" || name === "stroke") {
-    return /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
-  }
-  if (name === "transform" || name === "d") return /^[a-z0-9(),.+\-\s]+$/i.test(value);
-  return value.length <= 10000;
+  return ALLOWED_ATTRIBUTES.has(name) && !lower.startsWith("on") &&
+    lower !== "style" && lower !== "href" && !lower.endsWith(":href");
+}
+
+function isSafeReferenceFreeValue(value: string): boolean {
+  return !/url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value);
+}
+
+function isSafePaintValue(name: string, value: string): boolean {
+  return (name !== "fill" && name !== "stroke") ||
+    /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
+}
+
+function isSafeGeometryValue(name: string, value: string): boolean {
+  const needsGeometrySyntax = name === "transform" || name === "d";
+  return needsGeometrySyntax
+    ? /^[a-z0-9(),.+\\-\\s]+$/i.test(value)
+    : value.length <= 10000;
+}
+
+function safeAttribute(name: string, value: string): boolean {
+  return isSafeAttributeName(name) &&
+    isSafeReferenceFreeValue(value) &&
+    isSafePaintValue(name, value) &&
+    isSafeGeometryValue(name, value);
 }
 
 function sanitizeAttributes(element: Element): void {
