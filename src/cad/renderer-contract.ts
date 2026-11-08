@@ -49,26 +49,38 @@ export interface CADViewportAdapter {
   mount(canvas: HTMLCanvasElement): Promise<CADViewportSession>;
 }
 
+type UnknownRecord = Record<string, unknown>;
+
+function hasRequiredIdentity(mesh: UnknownRecord): boolean {
+  return typeof mesh.artifactId === "string" && mesh.artifactId.length > 0 &&
+    typeof mesh.sourceArtifactId === "string" && mesh.sourceArtifactId.length > 0 &&
+    typeof mesh.sourceArtifactSha256 === "string" && /^[a-f0-9]{64}$/.test(mesh.sourceArtifactSha256) &&
+    typeof mesh.units === "string" && mesh.units.length > 0 &&
+    typeof mesh.coordinateFrame === "string" && mesh.coordinateFrame.length > 0;
+}
+
+function validPositions(value: unknown): value is Float32Array {
+  return value instanceof Float32Array && value.length >= 9 &&
+    value.length % 3 === 0 && value.every(Number.isFinite);
+}
+
+function validNormals(value: unknown, positionCount: number): boolean {
+  return value === undefined || (
+    value instanceof Float32Array && value.length === positionCount && value.every(Number.isFinite)
+  );
+}
+
+function validIndices(value: unknown, vertexCount: number): boolean {
+  return value === undefined || (
+    value instanceof Uint32Array && value.length >= 3 && value.length % 3 === 0 &&
+    value.every((index) => Number.isSafeInteger(index) && index < vertexCount)
+  );
+}
+
 export function isCADDisplayMesh(value: unknown): value is CADDisplayMesh {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const mesh = value as Record<string, unknown>;
+  const mesh = value as UnknownRecord;
   const positions = mesh.positions;
-  const normals = mesh.normals;
-  const indices = mesh.indices;
-  if (typeof mesh.artifactId !== "string" || !mesh.artifactId ||
-      typeof mesh.sourceArtifactId !== "string" || !mesh.sourceArtifactId ||
-      typeof mesh.sourceArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(mesh.sourceArtifactSha256) ||
-      !(positions instanceof Float32Array) || positions.length < 9 || positions.length % 3 !== 0 ||
-      !positions.every(Number.isFinite) ||
-      (normals !== undefined &&
-        (!(normals instanceof Float32Array) || normals.length !== positions.length ||
-         !normals.every(Number.isFinite))) ||
-      (indices !== undefined &&
-        (!(indices instanceof Uint32Array) || indices.length < 3 || indices.length % 3 !== 0 ||
-         !indices.every((index) => Number.isSafeInteger(index) && index < positions.length / 3))) ||
-      typeof mesh.units !== "string" || !mesh.units ||
-      typeof mesh.coordinateFrame !== "string" || !mesh.coordinateFrame) {
-    return false;
-  }
-  return true;
+  if (!hasRequiredIdentity(mesh) || !validPositions(positions)) return false;
+  return validNormals(mesh.normals, positions.length) && validIndices(mesh.indices, positions.length / 3);
 }
