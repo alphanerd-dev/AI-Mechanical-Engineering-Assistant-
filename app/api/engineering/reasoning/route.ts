@@ -280,19 +280,19 @@ function getInputRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function readOptionalBodyString(body: Record<string, unknown>, key: string): string {
+  const value = body[key];
+  if (value === undefined) return "";
+  if (typeof value !== "string") throw new ApiError(400, key + " must be a string when supplied.");
+  return value.trim();
+}
+
 function parseSkillBinding(body: Record<string, unknown>): { id: string; version: string } | undefined {
-  if (body.skillId !== undefined && typeof body.skillId !== "string") {
-    throw new ApiError(400, "skillId must be a string when supplied.");
-  }
-  if (body.skillVersion !== undefined && typeof body.skillVersion !== "string") {
-    throw new ApiError(400, "skillVersion must be a string when supplied.");
-  }
-  const id = typeof body.skillId === "string" ? body.skillId.trim() : "";
-  const version = typeof body.skillVersion === "string" ? body.skillVersion.trim() : "";
-  if (Boolean(id) !== Boolean(version)) {
-    throw new ApiError(400, "skillId and skillVersion must be supplied together.");
-  }
-  return id && version ? { id, version } : undefined;
+  const id = readOptionalBodyString(body, "skillId");
+  const version = readOptionalBodyString(body, "skillVersion");
+  if (!id && !version) return undefined;
+  if (!id || !version) throw new ApiError(400, "skillId and skillVersion must be supplied together.");
+  return { id, version };
 }
 
 function createTaskWorkspace(
