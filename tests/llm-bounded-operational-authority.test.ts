@@ -267,6 +267,42 @@ describe("LLM bounded operational authority", () => {
     }, policy, ["ANALYSIS.SHAFT_TORQUE"])).toThrow(/host-authorized capability allowlist/);
   });
 
+  it("re-gates a READY task when approval is requested before execution", async () => {
+    const router = setup();
+    const report = await runBoundedAutonomy({
+      runId: "RUN-READY-APPROVAL",
+      taskGraph: graph([task({ status: "READY" })]),
+      limits: limits(),
+      now: stamp,
+      actions: [{
+        kind: "REQUEST_APPROVAL",
+        taskId: "T-1",
+        reason: "A human review is required before execution."
+      }]
+    }, router);
+
+    expect(report.status).toBe("WAITING_APPROVAL");
+    expect(report.taskExecutions).toBe(0);
+    expect(report.finalGraph.revision).toBe(2);
+    expect(report.finalGraph.tasks[0].status).toBe("PROPOSED");
+    expect(report.finalGraph.tasks[0].approvalRequired).toBe(true);
+    expect(report.finalGraph.tasks[0].approvalGranted).toBeUndefined();
+  });
+
+  it("rejects control-plane capabilities even when present in the model host allowlist", () => {
+    expect(() => parseAgentActionPlan({
+      baseGraphRevision: 1,
+      actions: [{
+        kind: "CREATE_TASK",
+        name: "Recursive agent task",
+        goal: "Attempt to invoke bounded autonomy as an engineering task.",
+        capability: "AGENT.RUN_BOUNDED",
+        risk: "HIGH",
+        input: {}
+      }]
+    }, limits({ maxRisk: "HIGH" }), ["AGENT.RUN_BOUNDED"])).toThrow(/control-plane capability/);
+  });
+
   it("requires a host-owned, non-empty capability allowlist before model planning", async () => {
     const generator: StructuredModelGenerator = {
       generateStructured: vi.fn(async () => ({ baseGraphRevision: 1, actions: [{ kind: "STOP", reason: "stop" }] }))
