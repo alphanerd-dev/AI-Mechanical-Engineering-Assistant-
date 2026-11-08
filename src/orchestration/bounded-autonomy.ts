@@ -234,6 +234,9 @@ function validateCreateTaskAction(
 function validateUpdatePatchShape(patch:unknown,task:EngineeringTask):string[]{
   if(!isPlainRecord(patch)) return ["Task update patch must be a plain object."];
   const errors:string[]=[];
+  const allowedKeys=["name","goal","capability","risk","input","dependsOn","requiredRequirementIds"];
+  const extraKeys=Object.keys(patch).filter(key=>!allowedKeys.includes(key));
+  if(extraKeys.length) errors.push("Task update patch contains unsupported fields: "+extraKeys.join(", ")+".");
   if(Object.keys(patch).length===0) errors.push("Task update patch must change at least one permitted field.");
   if(patch.name!==undefined&&(typeof patch.name!=="string"||!patch.name.trim()||patch.name.length>160))
     errors.push("Updated task name must contain 1-160 characters.");
