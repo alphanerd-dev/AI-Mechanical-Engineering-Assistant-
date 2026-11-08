@@ -9,6 +9,7 @@ import type {
 } from "./contracts.js";
 
 const PROVIDER_ID = "geometry-platform.cad-completion";
+const SUPPORTED_CYLINDER_NAMES = new Set(["shaft", "cylinder"]);
 
 function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -62,10 +63,9 @@ function validateDimensions(request: GeometryOperationRequest): string[] {
 
 function validateOptionalName(request: GeometryOperationRequest): string[] {
   const name = request.parameters?.name;
-  if (name === undefined) return [];
-  if (name === "shaft") return [];
-  if (name === "cylinder") return [];
-  return ["name must be shaft or cylinder."];
+  return name === undefined || SUPPORTED_CYLINDER_NAMES.has(name)
+    ? []
+    : ["name must be shaft or cylinder."];
 }
 
 function validateRequest(request: GeometryOperationRequest): string[] {
