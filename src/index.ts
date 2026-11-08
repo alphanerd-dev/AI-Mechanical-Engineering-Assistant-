@@ -84,6 +84,7 @@ export * from "./agents/langgraph-adapter.js";
 export * from "./agents/action-planner.js";
 export * from "./orchestration/specialist-delegation.js";
 export * from "./orchestration/bounded-autonomy.js";
+export * from "./orchestration/model-directed-autonomy.js";
 export * from "./auth/index.js";
 export * from "./audit/index.js";
 export * from "./benchmarks/index.js";
