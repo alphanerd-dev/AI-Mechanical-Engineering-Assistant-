@@ -479,238 +479,384 @@ function executionResultFromCapability(output:unknown):TaskGraphExecutionResult|
   return value as TaskGraphExecutionResult;
 }
 
-export async function runBoundedAutonomy(
-  request:BoundedAutonomyRequest,
-  router:CapabilityRouter
-):Promise<BoundedAutonomyReport>{
-  const graphErrors=validateEngineeringTaskGraph(request.taskGraph);
-  const limitErrors=validateLimits(request.limits);
-  const initial={
+interface BoundedRunState{
+  graph:EngineeringTaskGraph;
+  taskExecutions:number;
+  delegations:number;
+  actions:BoundedAutonomyActionResult[];
+  evidenceIds:string[];
+  artifactIds:string[];
+}
+
+interface BoundedRunContext{
+  request:BoundedAutonomyRequest;
+  router:CapabilityRouter;
+  state:BoundedRunState;
+  initial:Omit<BoundedAutonomyReport,"finalGraph"|"status"|"steps"|"taskExecutions"|"delegations"|"actions"|"evidenceIds"|"artifactIds"|"stopReason">;
+  hostTimestamp:string;
+}
+
+interface ActionProcessResult{
+  terminalStatus?:BoundedAutonomyReport["status"];
+  stopReason?:string;
+}
+
+function buildInitialReport(request:BoundedAutonomyRequest):BoundedAutonomyReport{
+  return {
     runId:request.runId,
     projectId:request.taskGraph.projectId,
     initialGraphRevision:request.taskGraph.revision,
     finalGraph:structuredClone(request.taskGraph),
-    status:"INCOMPLETE" as const,
+    status:"INCOMPLETE",
     steps:0,
     taskExecutions:0,
     delegations:0,
-    actions:[] as BoundedAutonomyActionResult[],
-    evidenceIds:[] as string[],
-    artifactIds:[] as string[]
+    actions:[],
+    evidenceIds:[],
+    artifactIds:[]
   };
-  if(graphErrors.length||limitErrors.length)
-    return {...initial,status:"FAILED",stopReason:[...graphErrors,...limitErrors].join(" ")};
+}
 
-  if(request.actions.length===0)
-    return {...initial,status:"INCOMPLETE",stopReason:"Bounded agent action list must contain at least one action."};
+function buildState(graph:EngineeringTaskGraph):BoundedRunState{
+  return {
+    graph:structuredClone(graph),
+    taskExecutions:0,
+    delegations:0,
+    actions:[],
+    evidenceIds:[],
+    artifactIds:[]
+  };
+}
 
+function finishReport(
+  context:BoundedRunContext,
+  status:BoundedAutonomyReport["status"],
+  stopReason?:string
+):BoundedAutonomyReport{
+  const state=context.state;
+  return {
+    ...context.initial,
+    finalGraph:state.graph,
+    status,
+    steps:state.actions.length,
+    taskExecutions:state.taskExecutions,
+    delegations:state.delegations,
+    actions:state.actions,
+    evidenceIds:[...new Set(state.evidenceIds)],
+    artifactIds:[...new Set(state.artifactIds)],
+    ...(stopReason?{stopReason}:{})
+  };
+}
+
+function appendAction(context:BoundedRunContext,result:BoundedAutonomyActionResult):void{
+  context.state.actions.push(result);
+}
+
+function failureOutcome(
+  context:BoundedRunContext,
+  result:BoundedAutonomyActionResult,
+  reason:string
+):ActionProcessResult{
+  appendAction(context,result);
+  return context.request.limits.stopOnFailure
+    ?{terminalStatus:"FAILED",stopReason:reason}
+    :{};
+}
+
+function actionFailure(
+  context:BoundedRunContext,
+  index:number,
+  action:AgentActionProposal,
+  reason:string,
+  capability?:string,
+  output?:unknown
+):ActionProcessResult{
+  return failureOutcome(context,{
+    index,action,status:"FAILED",reason,
+    ...(capability?{capability}:{}),
+    ...(action.kind!=="STOP"&&action.kind!=="CREATE_TASK"?{taskId:action.taskId}:{}),
+    ...(output===undefined?{}:{output})
+  },reason);
+}
+
+function validateActionOrBlock(
+  context:BoundedRunContext,
+  index:number,
+  action:AgentActionProposal
+):ActionProcessResult|undefined{
+  const errors=validateActionShape(
+    context.state.graph,action,context.request.limits,context.router,context.request.createTaskId
+  );
+  if(!errors.length) return undefined;
+  const reason=errors.join(" ");
+  appendAction(context,{index,action,status:"BLOCKED",reason});
+  return context.request.limits.stopOnFailure
+    ?{terminalStatus:"FAILED",stopReason:"Bounded agent action rejected by core policy: "+reason}
+    :{};
+}
+
+function processCreateTask(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>
+):ActionProcessResult{
+  try{
+    const created=applyCreateTask(context.state.graph,action,{
+      ...context.request,now:context.hostTimestamp
+    },context.router);
+    context.state.graph=created.graph;
+    appendAction(context,{
+      index,action,status:"SUCCESS",taskId:created.task.id,
+      reason:"Task created in PROPOSED state by the backend; readiness and approval remain separate."
+    });
+    return {};
+  }catch(error){
+    return actionFailure(context,index,action,error instanceof Error?error.message:"Task creation failed.");
+  }
+}
+
+function processUpdateTask(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"UPDATE_TASK"}>
+):ActionProcessResult{
+  try{
+    context.state.graph=applyUpdateTask(context.state.graph,action,{
+      ...context.request,now:context.hostTimestamp
+    },context.router);
+    appendAction(context,{
+      index,action,status:"SUCCESS",taskId:action.taskId,
+      reason:"Task updated; previous reasoning and approval grants were invalidated."
+    });
+    return {};
+  }catch(error){
+    return actionFailure(context,index,action,error instanceof Error?error.message:"Task update failed.");
+  }
+}
+
+function processReadinessRequest(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"REQUEST_READY"}>
+):ActionProcessResult{
+  const readiness=evaluateTaskReady(context.state.graph,action.taskId,context.request.project);
+  if(!readiness.ready){
+    const reason=readiness.reasons.join(" ");
+    const waitingApproval=readiness.reasons.some(item=>item.toLowerCase().includes("approval"));
+    appendAction(context,{
+      index,action,status:waitingApproval?"WAITING_APPROVAL":"BLOCKED",
+      taskId:action.taskId,reason
+    });
+    if(waitingApproval) return {terminalStatus:"WAITING_APPROVAL",stopReason:reason};
+    return context.request.limits.stopOnFailure?{terminalStatus:"FAILED",stopReason:reason}:{};
+  }
+  try{
+    context.state.graph=transitionTask(
+      context.state.graph,action.taskId,"READY",context.hostTimestamp
+    );
+    appendAction(context,{
+      index,action,status:"SUCCESS",taskId:action.taskId,
+      reason:"Backend task-readiness gates passed; task transitioned to READY."
+    });
+    return {};
+  }catch(error){
+    const reason=error instanceof Error?error.message:"Task readiness transition failed.";
+    return failureOutcome(context,{
+      index,action,status:"BLOCKED",taskId:action.taskId,reason
+    },reason);
+  }
+}
+
+function processApprovalRequest(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"REQUEST_APPROVAL"}>
+):ActionProcessResult{
+  const task=context.state.graph.tasks.find(item=>item.id===action.taskId);
+  if(!task) return actionFailure(context,index,action,"Approval target task was not found.");
+  if(!["PROPOSED","BLOCKED","FAILED","READY"].includes(task.status)){
+    const reason="Human approval can only be requested before task execution begins.";
+    appendAction(context,{index,action,status:"BLOCKED",taskId:task.id,reason});
+    return context.request.limits.stopOnFailure?{terminalStatus:"FAILED",stopReason:reason}:{};
+  }
+  const next=structuredClone(context.state.graph);
+  next.revision++;
+  const taskIndex=next.tasks.findIndex(item=>item.id===task.id);
+  const current=next.tasks[taskIndex];
+  next.tasks[taskIndex]={
+    ...current,
+    status:"PROPOSED",
+    approvalRequired:true,
+    approvalGranted:undefined,
+    reasoning:current.reasoning?{...current.reasoning,routingDecision:undefined,records:[]}:undefined,
+    updatedAt:context.hostTimestamp
+  };
+  context.state.graph=next;
+  const reason="Human approval was requested. The backend has added an approval gate; no approval was granted and no work was executed.";
+  appendAction(context,{index,action,status:"WAITING_APPROVAL",taskId:task.id,reason});
+  return {terminalStatus:"WAITING_APPROVAL",stopReason:action.reason};
+}
+
+function processDelegation(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"DELEGATE_SPECIALIST"}>
+):Promise<ActionProcessResult>{
+  if(context.state.delegations>=context.request.limits.maxDelegations){
+    const reason="Bounded agent delegation budget exhausted.";
+    appendAction(context,{index,action,status:"BLOCKED",reason});
+    return Promise.resolve(context.request.limits.stopOnFailure?{terminalStatus:"FAILED",stopReason:reason}:{});
+  }
+  return executeDelegation(context,index,action);
+}
+
+async function executeDelegation(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"DELEGATE_SPECIALIST"}>
+):Promise<ActionProcessResult>{
+  const result=await context.router.execute({
+    capability:"AGENT.DELEGATE_SPECIALIST",
+    risk:"HIGH",
+    input:{
+      taskGraph:context.state.graph,
+      taskId:action.taskId,
+      specialistId:action.specialistId,
+      stage:action.stage
+    }
+  });
+  if(!result.success){
+    return actionFailure(
+      context,index,action,result.error??"Specialist delegation failed.",
+      "AGENT.DELEGATE_SPECIALIST",result.output
+    );
+  }
+  context.state.delegations++;
+  appendAction(context,{
+    index,action,status:"SUCCESS",capability:"AGENT.DELEGATE_SPECIALIST",
+    taskId:action.taskId,output:result.output,
+    reason:"Specialist delegation accepted by the core."
+  });
+  return {};
+}
+
+function executionBudgetFailure(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"EXECUTE_TASK"}>
+):ActionProcessResult{
+  const reason="Bounded agent task-execution budget exhausted.";
+  appendAction(context,{index,action,status:"BLOCKED",reason});
+  return context.request.limits.stopOnFailure?{terminalStatus:"FAILED",stopReason:reason}:{};
+}
+
+async function processExecution(
+  context:BoundedRunContext,
+  index:number,
+  action:Extract<AgentActionProposal,{kind:"EXECUTE_TASK"}>
+):Promise<ActionProcessResult>{
+  if(context.state.taskExecutions>=context.request.limits.maxTaskExecutions)
+    return executionBudgetFailure(context,index,action);
+
+  const result=await context.router.execute({
+    capability:"TASK_GRAPH.EXECUTE_READY",
+    risk:"HIGH",
+    input:{
+      taskGraph:context.state.graph,
+      taskId:action.taskId,
+      stage:action.stage,
+      project:context.request.project
+    }
+  });
+  const execution=executionResultFromCapability(result.output);
+  if(execution){
+    const graphErrors=validateEngineeringTaskGraph(execution.graph);
+    if(graphErrors.length){
+      const reason="Task execution returned an invalid graph: "+graphErrors.join(" ");
+      return actionFailure(context,index,action,reason,"TASK_GRAPH.EXECUTE_READY",result.output);
+    }
+    context.state.graph=execution.graph;
+  }
+  if(!result.success){
+    return actionFailure(
+      context,index,action,result.error??"Bounded task execution failed.",
+      "TASK_GRAPH.EXECUTE_READY",result.output
+    );
+  }
+  context.state.taskExecutions++;
+  context.state.evidenceIds.push(...(result.evidenceIds??[]));
+  context.state.artifactIds.push(...(result.artifactIds??[]));
+  appendAction(context,{
+    index,action,status:"SUCCESS",capability:"TASK_GRAPH.EXECUTE_READY",
+    taskId:action.taskId,output:result.output,
+    reason:"READY task executed through the existing deterministic workflow boundary."
+  });
+  return {};
+}
+
+async function processAction(
+  context:BoundedRunContext,
+  index:number,
+  action:AgentActionProposal
+):Promise<ActionProcessResult>{
+  const blocked=validateActionOrBlock(context,index,action);
+  if(blocked) return blocked;
+  switch(action.kind){
+    case "STOP":
+      appendAction(context,{index,action,status:"STOPPED",reason:action.reason});
+      return {terminalStatus:"STOPPED",stopReason:action.reason};
+    case "CREATE_TASK": return processCreateTask(context,index,action);
+    case "UPDATE_TASK": return processUpdateTask(context,index,action);
+    case "REQUEST_READY": return processReadinessRequest(context,index,action);
+    case "REQUEST_APPROVAL": return processApprovalRequest(context,index,action);
+    case "DELEGATE_SPECIALIST": return processDelegation(context,index,action);
+    case "EXECUTE_TASK": return processExecution(context,index,action);
+    default: return {terminalStatus:"FAILED",stopReason:"Unsupported bounded agent action."};
+  }
+}
+
+function validateInitialRequest(
+  request:BoundedAutonomyRequest
+):{initial:BoundedAutonomyReport;error?:string}{
+  const initial=buildInitialReport(request);
+  const errors=[...validateEngineeringTaskGraph(request.taskGraph),...validateLimits(request.limits)];
+  if(errors.length) return {initial,error:errors.join(" ")};
+  if(request.actions.length===0) return {initial,error:"Bounded agent action list must contain at least one action."};
   if(request.project&&request.project.id!==request.taskGraph.projectId)
-    return {...initial,status:"FAILED",stopReason:"Agent project id does not match task graph project id."};
+    return {initial,error:"Agent project id does not match task graph project id."};
+  return {initial};
+}
 
-  let graph=structuredClone(request.taskGraph);
-  let taskExecutions=0;
-  let delegations=0;
-  const actions:BoundedAutonomyActionResult[]=[];
-  const evidenceIds:string[]=[];
-  const artifactIds:string[]=[];
+/** Executes only backend-validated actions against the single registered task graph and capability router. */
+export async function runBoundedAutonomy(
+  request:BoundedAutonomyRequest,
+  router:CapabilityRouter
+):Promise<BoundedAutonomyReport>{
+  const validated=validateInitialRequest(request);
+  if(validated.error) return {...validated.initial,status:"FAILED",stopReason:validated.error};
+
   const hostTimestamp=request.now??new Date().toISOString();
   if(Number.isNaN(Date.parse(hostTimestamp)))
-    return {...initial,status:"FAILED",stopReason:"Host execution timestamp is invalid."};
+    return {...validated.initial,status:"FAILED",stopReason:"Host execution timestamp is invalid."};
+
+  const context:BoundedRunContext={
+    request,
+    router,
+    state:buildState(request.taskGraph),
+    initial:{
+      runId:validated.initial.runId,
+      projectId:validated.initial.projectId,
+      initialGraphRevision:validated.initial.initialGraphRevision
+    },
+    hostTimestamp
+  };
 
   for(let index=0;index<request.actions.length;index++){
-    if(index>=request.limits.maxSteps){
-      return {
-        ...initial,finalGraph:graph,status:"STOPPED",steps:actions.length,
-        taskExecutions,delegations,actions,evidenceIds,artifactIds,
-        stopReason:"Bounded agent step budget exhausted."
-      };
-    }
-
-    const action=request.actions[index];
-    const shapeErrors=validateActionShape(graph,action,request.limits,router,request.createTaskId);
-    if(shapeErrors.length){
-      const blocked={index,action,status:"BLOCKED" as const,reason:shapeErrors.join(" ")};
-      actions.push(blocked);
-      if(request.limits.stopOnFailure)
-        return {
-          ...initial,finalGraph:graph,status:"FAILED",steps:actions.length,
-          taskExecutions,delegations,actions,evidenceIds,artifactIds,
-          stopReason:"Bounded agent action rejected by core policy: "+shapeErrors.join(" ")
-        };
-      continue;
-    }
-
-    if(action.kind==="STOP"){
-      actions.push({index,action,status:"STOPPED",reason:action.reason});
-      return {
-        ...initial,finalGraph:graph,status:"STOPPED",steps:actions.length,
-        taskExecutions,delegations,actions,evidenceIds,artifactIds,
-        stopReason:action.reason
-      };
-    }
-
-    if(action.kind==="CREATE_TASK"){
-      try{
-        const created=applyCreateTask(graph,action,{...request,now:hostTimestamp},router);
-        graph=created.graph;
-        actions.push({index,action,status:"SUCCESS",taskId:created.task.id,reason:"Task created in PROPOSED state by the backend; readiness and approval remain separate."});
-      }catch(error){
-        const reason=error instanceof Error?error.message:"Task creation failed.";
-        actions.push({index,action,status:"FAILED",reason});
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
-      }
-      continue;
-    }
-
-    if(action.kind==="UPDATE_TASK"){
-      try{
-        graph=applyUpdateTask(graph,action,{...request,now:hostTimestamp},router);
-        actions.push({index,action,status:"SUCCESS",taskId:action.taskId,reason:"Task updated; previous reasoning and approval grants were invalidated."});
-      }catch(error){
-        const reason=error instanceof Error?error.message:"Task update failed.";
-        actions.push({index,action,status:"FAILED",taskId:action.taskId,reason});
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
-      }
-      continue;
-    }
-
-    if(action.kind==="REQUEST_READY"){
-      const readiness=evaluateTaskReady(graph,action.taskId,request.project);
-      if(!readiness.ready){
-        const waitingApproval=readiness.reasons.some(reason=>reason.toLowerCase().includes("approval"));
-        const reason=readiness.reasons.join(" ");
-        actions.push({index,action,status:waitingApproval?"WAITING_APPROVAL":"BLOCKED",taskId:action.taskId,reason});
-        if(waitingApproval){
-          return {...initial,finalGraph:graph,status:"WAITING_APPROVAL",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
-        }
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
-        continue;
-      }
-      try{
-        graph=transitionTask(graph,action.taskId,"READY",hostTimestamp);
-        actions.push({index,action,status:"SUCCESS",taskId:action.taskId,reason:"Backend task-readiness gates passed; task transitioned to READY."});
-      }catch(error){
-        const reason=error instanceof Error?error.message:"Task readiness transition failed.";
-        actions.push({index,action,status:"BLOCKED",taskId:action.taskId,reason});
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
-      }
-      continue;
-    }
-
-    if(action.kind==="REQUEST_APPROVAL"){
-      const task=graph.tasks.find(item=>item.id===action.taskId)!;
-      if(!["PROPOSED","BLOCKED","FAILED","READY"].includes(task.status)){
-        const reason="Human approval can only be requested before task execution begins.";
-        actions.push({index,action,status:"BLOCKED",taskId:task.id,reason});
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
-        continue;
-      }
-      const next=structuredClone(graph);
-      next.revision++;
-      const taskIndex=next.tasks.findIndex(item=>item.id===task.id);
-      next.tasks[taskIndex]={
-        ...next.tasks[taskIndex],
-        status:"PROPOSED",
-        approvalRequired:true,
-        approvalGranted:undefined,
-        reasoning:next.tasks[taskIndex].reasoning?{
-          ...next.tasks[taskIndex].reasoning,
-          routingDecision:undefined,
-          records:[]
-        }:undefined,
-        updatedAt:hostTimestamp
-      };
-      graph=next;
-      actions.push({
-        index,action,status:"WAITING_APPROVAL",taskId:task.id,
-        reason:"Human approval was requested. The backend has added an approval gate; no approval was granted and no work was executed."
-      });
-      return {
-        ...initial,finalGraph:graph,status:"WAITING_APPROVAL",steps:actions.length,
-        taskExecutions,delegations,actions,evidenceIds,artifactIds,
-        stopReason:action.reason
-      };
-    }
-
-    if(action.kind==="DELEGATE_SPECIALIST"){
-      if(delegations>=request.limits.maxDelegations){
-        const blocked={index,action,status:"BLOCKED" as const,reason:"Bounded agent delegation budget exhausted."};
-        actions.push(blocked);
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:blocked.reason};
-        continue;
-      }
-      const result=await router.execute({
-        capability:"AGENT.DELEGATE_SPECIALIST",
-        risk:"HIGH",
-        input:{taskGraph:graph,taskId:action.taskId,specialistId:action.specialistId,stage:action.stage}
-      });
-      if(!result.success){
-        const failed={index,action,status:"FAILED" as const,capability:"AGENT.DELEGATE_SPECIALIST",reason:result.error??"Specialist delegation failed."};
-        actions.push(failed);
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:failed.reason};
-        continue;
-      }
-      delegations++;
-      actions.push({index,action,status:"SUCCESS",capability:"AGENT.DELEGATE_SPECIALIST",taskId:action.taskId,output:result.output,reason:"Specialist delegation accepted by the core."});
-      continue;
-    }
-
-    if(taskExecutions>=request.limits.maxTaskExecutions){
-      const blocked={index,action,status:"BLOCKED" as const,reason:"Bounded agent task-execution budget exhausted."};
-      actions.push(blocked);
-      if(request.limits.stopOnFailure)
-        return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:blocked.reason};
-      continue;
-    }
-
-    const result=await router.execute({
-      capability:"TASK_GRAPH.EXECUTE_READY",
-      risk:"HIGH",
-      input:{taskGraph:graph,taskId:action.taskId,stage:action.stage,project:request.project}
-    });
-    const execution=executionResultFromCapability(result.output);
-    if(execution){
-      const executionGraphErrors=validateEngineeringTaskGraph(execution.graph);
-      if(executionGraphErrors.length){
-        const reason="Task execution returned an invalid graph: "+executionGraphErrors.join(" ");
-        actions.push({index,action,status:"FAILED",capability:"TASK_GRAPH.EXECUTE_READY",output:result.output,reason});
-        if(request.limits.stopOnFailure)
-          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
-        continue;
-      }
-      graph=execution.graph;
-    }
-
-    if(!result.success){
-      const failed={index,action,status:"FAILED" as const,capability:"TASK_GRAPH.EXECUTE_READY",output:result.output,reason:result.error??"Bounded task execution failed."};
-      actions.push(failed);
-      if(request.limits.stopOnFailure)
-        return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:failed.reason};
-      continue;
-    }
-
-    taskExecutions++;
-    evidenceIds.push(...(result.evidenceIds??[]));
-    artifactIds.push(...(result.artifactIds??[]));
-    actions.push({index,action,status:"SUCCESS",capability:"TASK_GRAPH.EXECUTE_READY",taskId:action.taskId,output:result.output,reason:"READY task executed through the existing deterministic workflow boundary."});
+    if(index>=request.limits.maxSteps)
+      return finishReport(context,"STOPPED","Bounded agent step budget exhausted.");
+    const outcome=await processAction(context,index,request.actions[index]);
+    if(outcome.terminalStatus)
+      return finishReport(context,outcome.terminalStatus,outcome.stopReason);
   }
-
-  return {
-    ...initial,
-    finalGraph:graph,
-    status:"COMPLETED",
-    steps:actions.length,
-    taskExecutions,
-    delegations,
-    actions,
-    evidenceIds:[...new Set(evidenceIds)],
-    artifactIds:[...new Set(artifactIds)]
-  };
+  return finishReport(context,"COMPLETED");
 }
