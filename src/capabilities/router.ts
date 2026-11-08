@@ -64,9 +64,6 @@ export class CapabilityRouter {
     return this.registry.getDefinition(capability);
   }
 
-  listDefinitions() {
-    return this.registry.listDefinitions();
-  }
 
   hasExecutableProvider(capability: string): boolean {
     const definition = this.registry.getDefinition(capability);
