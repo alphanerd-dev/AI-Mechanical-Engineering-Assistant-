@@ -62,7 +62,9 @@ function validateDimensions(request: GeometryOperationRequest): string[] {
 
 function validateOptionalName(request: GeometryOperationRequest): string[] {
   const name = request.parameters?.name;
-  if (name === undefined || name === "shaft" || name === "cylinder") return [];
+  if (name === undefined) return [];
+  if (name === "shaft") return [];
+  if (name === "cylinder") return [];
   return ["name must be shaft or cylinder."];
 }
 
