@@ -1,4 +1,5 @@
 import type { ModelReasoningGenerationRequest, ModelReasoningGenerator } from "./model-adapter.js";
+import type { StructuredModelGenerationRequest, StructuredModelGenerator } from "../agents/runtime.js";
 
 export interface OpenAICompatibleGeneratorOptions {
   endpoint: string;
@@ -17,10 +18,7 @@ export type ModelTransportErrorCode =
   | "MODEL_INVALID_PROPOSAL_JSON";
 
 export class ModelTransportError extends Error {
-  constructor(
-    message: string,
-    readonly code: ModelTransportErrorCode
-  ) {
+  constructor(message: string, readonly code: ModelTransportErrorCode) {
     super(message);
     this.name = "ModelTransportError";
   }
@@ -29,8 +27,11 @@ export class ModelTransportError extends Error {
 /**
  * Server-side transport for OpenAI Chat Completions and native Gemini
  * generateContent endpoints. Provider credentials never come from request input.
+ *
+ * The structured generation method is deliberately generic. Callers still own
+ * their own strict output parser and backend authorization boundary.
  */
-export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGenerator {
+export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGenerator, StructuredModelGenerator {
   private readonly endpoint: string;
   private readonly model: string;
   private readonly apiKey?: string;
@@ -70,6 +71,37 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
   }
 
   async generate(request: ModelReasoningGenerationRequest): Promise<unknown> {
+    return this.generateStructured({
+      instructions: request.instructions,
+      input: {
+        task: request.task,
+        framework: request.framework,
+        inputs: request.inputs,
+        trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
+      },
+      maxOutputTokens: 1800
+    });
+  }
+
+  async generateStructured(request: StructuredModelGenerationRequest): Promise<unknown> {
+    if (!request || typeof request.instructions !== "string" || !request.instructions.trim()) {
+      throw new Error("Structured model instructions are required.");
+    }
+    const maxOutputTokens = request.maxOutputTokens ?? 1800;
+    if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 128 || maxOutputTokens > 8192) {
+      throw new Error("Structured model output limit must be an integer from 128 to 8192 tokens.");
+    }
+
+    let inputJson: string;
+    try {
+      inputJson = JSON.stringify(request.input);
+    } catch {
+      throw new Error("Structured model input must be JSON serializable.");
+    }
+    if (inputJson === undefined || inputJson.length > 256_000) {
+      throw new Error("Structured model input must be defined and no larger than 256 KB.");
+    }
+
     const headers: Record<string, string> = {
       "content-type": "application/json",
       accept: "application/json"
@@ -81,8 +113,8 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
     }
 
     const body = this.protocol === "gemini"
-      ? buildGeminiRequest(request)
-      : buildOpenAIRequest(this.model, request);
+      ? buildGeminiRequest(request.instructions, inputJson, maxOutputTokens)
+      : buildOpenAIRequest(this.model, request.instructions, inputJson, maxOutputTokens);
 
     const requestInit: RequestInit = {
       method: "POST",
@@ -123,10 +155,10 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       );
     }
 
-    const content = this.protocol === "gemini"
+    const responseContent = this.protocol === "gemini"
       ? extractGeminiContent(payload)
       : extractMessageContent(payload);
-    if (!content) {
+    if (!responseContent) {
       throw new ModelTransportError(
         "The configured reasoning model response did not contain a message.",
         "MODEL_MISSING_RESPONSE_CONTENT"
@@ -134,7 +166,7 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
     }
 
     try {
-      const parsed: unknown = JSON.parse(stripJsonCodeFence(content));
+      const parsed: unknown = JSON.parse(stripJsonCodeFence(responseContent));
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
         throw new Error("Expected a JSON object.");
       }
@@ -155,42 +187,29 @@ function isGeminiEndpoint(url: URL): boolean {
   return url.pathname.includes(":generateContent");
 }
 
-function buildOpenAIRequest(model: string, request: ModelReasoningGenerationRequest) {
+function buildOpenAIRequest(model: string, instructions: string, inputJson: string, maxOutputTokens: number) {
   return {
     model,
     temperature: 0.2,
-    max_tokens: 1800,
+    max_tokens: maxOutputTokens,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: request.instructions },
-      {
-        role: "user",
-        content: JSON.stringify({
-          task: request.task,
-          framework: request.framework,
-          inputs: request.inputs,
-          trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
-        })
-      }
+      { role: "system", content: instructions },
+      { role: "user", content: inputJson }
     ]
   };
 }
 
-function buildGeminiRequest(request: ModelReasoningGenerationRequest) {
+function buildGeminiRequest(instructions: string, inputJson: string, maxOutputTokens: number) {
   return {
-    systemInstruction: { parts: [{ text: request.instructions }] },
+    systemInstruction: { parts: [{ text: instructions }] },
     contents: [{
       role: "user",
-      parts: [{ text: JSON.stringify({
-        task: request.task,
-        framework: request.framework,
-        inputs: request.inputs,
-        trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
-      }) }]
+      parts: [{ text: inputJson }]
     }],
     generationConfig: {
       temperature: 0.2,
-      maxOutputTokens: 1800,
+      maxOutputTokens,
       responseMimeType: "application/json"
     }
   };
@@ -226,7 +245,7 @@ function extractGeminiContent(value: unknown): string | undefined {
 }
 
 function stripJsonCodeFence(content: string): string {
-  return content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  return content.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "").trim();
 }
 
 export function createConfiguredReasoningGenerator(
