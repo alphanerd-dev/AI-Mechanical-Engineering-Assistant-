@@ -278,7 +278,7 @@ function ProjectModuleWorkspaceInstance({ projectId, module }: { projectId: stri
   </div>;
 }
 
-type CADArtifactStaleness = "CURRENT" | "HISTORICAL" | "UNVERIFIABLE";
+type CADArtifactStaleness = "LATEST_ACCEPTED" | "HISTORICAL" | "UNVERIFIABLE";
 type CADArtifactViewEntry = {
   key: string;
   artifact: CadArtifactRecord;
@@ -298,7 +298,7 @@ function getSignedArtifactUrl(completion: CadCompletionRecord, artifact: CadArti
 
 /**
  * Historical accepted completions remain inspectable, but only the latest accepted
- * completion for a model is labelled CURRENT. This uses immutable completion lineage;
+ * completion for a model is labelled LATEST_ACCEPTED. This uses completion ordering;
  * the CAD model metadata revision is not misrepresented as a geometry revision.
  */
 function getCADArtifactViewEntries(completions: CadCompletionRecord[]): CADArtifactViewEntry[] {
@@ -440,10 +440,10 @@ function viewportEmptyDetail(
 function artifactRevisionLabel(selectedArtifact: CADArtifactViewEntry | null): string {
   if (!selectedArtifact) return "No source selected";
   const suffix = selectedArtifact.staleness === "HISTORICAL"
-    ? " · HISTORICAL REVISION"
+    ? " · HISTORICAL COMPLETION"
     : selectedArtifact.staleness === "UNVERIFIABLE"
-      ? " · REVISION UNVERIFIABLE"
-      : " · CURRENT";
+      ? " · MODEL LINK UNVERIFIABLE"
+      : " · LATEST ACCEPTED";
   return "Completion " + selectedArtifact.completion.id.slice(0, 8).toUpperCase() + suffix;
 }
 
@@ -489,10 +489,10 @@ function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifac
 }) {
   const revisionLabel = artifactRevisionLabel(selectedArtifact);
   const footerStatus = selectedArtifact?.staleness === "HISTORICAL"
-    ? "Historical revision: inspectable, but not the latest accepted model completion."
+    ? "Historical accepted completion: inspectable, but superseded by a later accepted completion for this model."
     : selectedArtifact?.staleness === "UNVERIFIABLE"
-      ? "Model revision lineage is unavailable; currentness cannot be established."
-      : "Viewer state cannot modify validation, evidence or approval records.";
+      ? "Model identity linkage is unavailable; completion ordering cannot be established."
+      : "Latest accepted completion by model. This is not a geometry-revision guarantee.";
   return <main className="workbenchViewportPane">
     <Panel title="CAD artifact viewer" detail={selectedArtifact ? selectedArtifact.viewer.description : "Read-only project artifact display."} action={<div className="moduleHeaderActions"><button type="button" className="button secondaryButton" onClick={onRefresh}>Refresh artifact access</button><Link href={"/projects/" + projectId + "/cad"} className="moduleTextLink">Open CAD registry <ArrowUpRight size={12} /></Link></div>}>
       <div className="workbenchViewport">
