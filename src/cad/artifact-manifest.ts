@@ -46,19 +46,32 @@ function noArtifacts(warnings: string[], errors: string[]): CADArtifactManifest 
  * The BREP ID is retained separately as the associated canonical geometry record.
  * This records lineage only and never copies validation or verification state.
  */
+const DERIVED_GEOMETRY_ARTIFACT_KINDS = new Set<CADArtifactKind>(["STEP", "STL", "THREE_MF"]);
+
+function withCanonicalGeometryLink(
+  provenance: CADExecutionProvenance,
+  artifactKind: CADArtifactKind,
+  solid: CADArtifact | undefined
+): CADExecutionProvenance {
+  if (!solid) return provenance;
+  if (!DERIVED_GEOMETRY_ARTIFACT_KINDS.has(artifactKind)) return provenance;
+  return { ...provenance, canonicalGeometryArtifactId: solid.id };
+}
+
+/**
+ * Records source and canonical-solid lineage without copying validation state.
+ * Exchange and display derivatives remain distinct from the canonical BREP.
+ */
 function linkArtifactLineage(artifacts: CADArtifact[]): void {
   const source = artifacts.find((artifact) => artifact.kind === "SOURCE");
   const solid = artifacts.find((artifact) => artifact.kind === "SOLID");
+  if (!source) return;
 
   for (const artifact of artifacts) {
-    if (!artifact.provenance || artifact.kind === "SOURCE" || !source) continue;
-    artifact.provenance = {
-      ...artifact.provenance,
-      sourceArtifactIds: [source.id],
-      ...(artifact.kind === "STEP" || artifact.kind === "STL" || artifact.kind === "THREE_MF"
-        ? (solid ? { canonicalGeometryArtifactId: solid.id } : {})
-        : {})
-    };
+    if (!artifact.provenance) continue;
+    if (artifact.kind === "SOURCE") continue;
+    const withSource = { ...artifact.provenance, sourceArtifactIds: [source.id] };
+    artifact.provenance = withCanonicalGeometryLink(withSource, artifact.kind, solid);
   }
 }
 
