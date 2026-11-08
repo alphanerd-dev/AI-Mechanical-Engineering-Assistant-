@@ -352,8 +352,11 @@ function validateDelegationAction(
   router:CapabilityRouter
 ):string[]{
   const errors:string[]=[];
-  if(!limits.allowedSpecialists?.includes(action.specialistId))
-    errors.push("Specialist is outside the host-authorized specialist allowlist: "+action.specialistId+".");
+  if(limits.requireSpecialistAllowlist===true&&
+      (!limits.allowedSpecialists||!limits.allowedSpecialists.includes(action.specialistId)))
+    errors.push("Specialist is outside the required host allowlist: "+action.specialistId+".");
+  else if(limits.allowedSpecialists?.length&&!limits.allowedSpecialists.includes(action.specialistId))
+    errors.push("Specialist is outside the bounded agent policy: "+action.specialistId+".");
   if(!task) return errors;
   if(task.capability) errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
   else errors.push("Task has no registered capability for specialist delegation.");
