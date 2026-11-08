@@ -96,10 +96,16 @@ function validateDigest(source: UnknownRecord): string[] {
     : ["sha256 must be a lowercase SHA-256 digest."];
 }
 
+function isBoundedGeometryBytes(value: unknown): value is Uint8Array {
+  if (!(value instanceof Uint8Array)) return false;
+  if (value.byteLength < 1) return false;
+  return value.byteLength <= 100 * 1024 * 1024;
+}
+
 function validateSourceBytes(source: UnknownRecord): string[] {
-  const bytes = source.bytes;
-  if (bytes instanceof Uint8Array && bytes.byteLength >= 1 && bytes.byteLength <= 100 * 1024 * 1024) return [];
-  return ["Geometry source bytes must contain 1 byte to 100 MiB."];
+  return isBoundedGeometryBytes(source.bytes)
+    ? []
+    : ["Geometry source bytes must contain 1 byte to 100 MiB."];
 }
 
 export function validateCADGeometrySource(value: unknown): string[] {
