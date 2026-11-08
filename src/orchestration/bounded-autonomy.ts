@@ -447,21 +447,18 @@ function applyCreateTask(
   return {graph:next,task};
 }
 
-function applyUpdateTask(
-  graph:EngineeringTaskGraph,
-  action:Extract<AgentActionProposal,{kind:"UPDATE_TASK"}>,
-  request:BoundedAutonomyRequest,
-  router:CapabilityRouter
-):EngineeringTaskGraph{
-  const index=graph.tasks.findIndex(task=>task.id===action.taskId);
-  if(index<0) throw new Error("Engineering task not found: "+action.taskId+".");
-  const current=graph.tasks[index];
-  const patch=action.patch;
-  const definition=router.getDefinition(patch.capability??current.capability??"");
-  if(!definition) throw new Error("Registered capability definition disappeared before task update.");
-  const updatedAt=request.now??new Date().toISOString();
-  if(Number.isNaN(Date.parse(updatedAt))) throw new Error("Host task timestamp is invalid.");
-  const nextTask:EngineeringTask={
+function taskUpdateReasoning(task:EngineeringTask):EngineeringTask["reasoning"]{
+  if(!task.reasoning) return undefined;
+  return {...task.reasoning,routingDecision:undefined,records:[]};
+}
+
+function buildUpdatedTask(
+  current:EngineeringTask,
+  patch:Extract<AgentActionProposal,{kind:"UPDATE_TASK"}>["patch"],
+  definition:CapabilityDefinition,
+  updatedAt:string
+):EngineeringTask{
+  return {
     ...structuredClone(current),
     ...(patch.name===undefined?{}:{name:patch.name}),
     ...(patch.goal===undefined?{}:{goal:patch.goal}),
@@ -473,23 +470,43 @@ function applyUpdateTask(
     approvalRequired:current.approvalRequired===true||forcedApproval(definition,patch.risk??current.risk),
     evidenceRequired:current.evidenceRequired===true||definition.status!=="VERIFIED"||definition.risk==="HIGH",
     approvalGranted:undefined,
-    reasoning:current.reasoning?{
-      ...current.reasoning,
-      routingDecision:undefined,
-      records:[]
-    }:undefined,
+    reasoning:taskUpdateReasoning(current),
     status:"PROPOSED",
     blockedReason:undefined,
     updatedAt
   };
-  if(current.status==="READY"||current.status==="RUNNING"||current.status==="COMPLETED"||current.status==="VERIFIED")
-    throw new Error("Task is no longer mutable by an agent after readiness or execution begins.");
+}
+
+function replaceTaskAndValidateGraph(
+  graph:EngineeringTaskGraph,
+  index:number,
+  task:EngineeringTask
+):EngineeringTaskGraph{
   const next=structuredClone(graph);
   next.revision++;
-  next.tasks[index]=nextTask;
-  const validation=validateEngineeringTaskGraph(next);
-  if(validation.length) throw new Error("Updated task failed graph validation: "+validation.join(" "));
+  next.tasks[index]=task;
+  const errors=validateEngineeringTaskGraph(next);
+  if(errors.length) throw new Error("Updated task failed graph validation: "+errors.join(" "));
   return next;
+}
+
+function applyUpdateTask(
+  graph:EngineeringTaskGraph,
+  action:Extract<AgentActionProposal,{kind:"UPDATE_TASK"}>,
+  request:BoundedAutonomyRequest,
+  router:CapabilityRouter
+):EngineeringTaskGraph{
+  const index=graph.tasks.findIndex(task=>task.id===action.taskId);
+  if(index<0) throw new Error("Engineering task not found: "+action.taskId+".");
+  const current=graph.tasks[index];
+  if(["READY","RUNNING","COMPLETED","VERIFIED"].includes(current.status))
+    throw new Error("Task is no longer mutable by an agent after readiness or execution begins.");
+  const definition=router.getDefinition(action.patch.capability??current.capability??"");
+  if(!definition) throw new Error("Registered capability definition disappeared before task update.");
+  const updatedAt=request.now??new Date().toISOString();
+  if(Number.isNaN(Date.parse(updatedAt))) throw new Error("Host task timestamp is invalid.");
+  const updated=buildUpdatedTask(current,action.patch,definition,updatedAt);
+  return replaceTaskAndValidateGraph(graph,index,updated);
 }
 
 function executionResultFromCapability(output:unknown):TaskGraphExecutionResult|undefined{
