@@ -51,11 +51,6 @@ function requiredText(value: unknown, label: string, maxLength = MAX_TEXT_LENGTH
   return value.trim();
 }
 
-function optionalText(value: unknown, label: string, maxLength = MAX_TEXT_LENGTH): string | undefined {
-  if (value === undefined) return undefined;
-  return requiredText(value, label, maxLength);
-}
-
 function parseRisk(value: unknown): CapabilityRisk {
   if (typeof value !== "string" || !RISK_VALUES.includes(value as CapabilityRisk)) {
     throw new Error("Task risk must be LOW, MEDIUM, HIGH, or CRITICAL.");
@@ -105,6 +100,11 @@ function parseInput(value: unknown, label: string): Record<string, unknown> {
 
 function parseCapability(value: unknown, allowed: ReadonlySet<string>, label: string): string {
   const capability = requiredText(value, label, 128);
+  if (/^(AGENT|TASK_GRAPH|WORKSPACE)\\./.test(capability) ||
+      capability === "ENGINEERING.ORCHESTRATE_WORKFLOW" ||
+      capability === "ENGINEERING.ENTER_FROM_INTENT") {
+    throw new Error(label + " cannot reference an orchestration/control-plane capability: " + capability + ".");
+  }
   if (!allowed.has(capability)) {
     throw new Error(label + " is not in the host-authorized capability allowlist: " + capability + ".");
   }
@@ -177,11 +177,8 @@ function parseAction(value: unknown, allowedCapabilities: ReadonlySet<string>, l
     case "DELEGATE_SPECIALIST": {
       exactKeys(action, ["kind", "taskId", "specialistId", "stage"], "DELEGATE_SPECIALIST");
       const specialistId = requiredText(action.specialistId, "Specialist id", 80);
-      if (limits.requireSpecialistAllowlist &&
-          (!limits.allowedSpecialists || !limits.allowedSpecialists.includes(specialistId))) {
-        throw new Error("Specialist is not in the host-authorized specialist allowlist: " + specialistId + ".");
-      }
-      if (limits.allowedSpecialists?.length && !limits.allowedSpecialists.includes(specialistId)) {
+      if (!limits.allowedSpecialists || limits.allowedSpecialists.length === 0 ||
+          !limits.allowedSpecialists.includes(specialistId)) {
         throw new Error("Specialist is not in the host-authorized specialist allowlist: " + specialistId + ".");
       }
       if (typeof action.stage !== "string" || !STAGES.includes(action.stage as EngineeringWorkflowStage)) {
