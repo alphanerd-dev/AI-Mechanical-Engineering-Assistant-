@@ -88,8 +88,9 @@ Start with:
 - [Product brief](docs/product-brief.md) — current user experience and product scope.
 - [Architecture and trust boundaries](docs/architecture.md) — control plane, chat, core, workers and evidence.
 - [Architecture decision records](docs/README.md#architecture-decision-records) — accepted renderer, geometry and integrated-workspace direction.
+- [Parallel development programme](docs/parallel-development-programme.md) — coordinated product and geometry workstreams.
 - [Geometry Platform Charter](docs/geometry-platform/README.md) — proprietary geometry platform strategy, kernel ownership boundaries and implementation gates.
-- [Engineering capabilities and maturity](docs/engineering-capabilities.md) — implemented, pilot and experimental capabilities.
+- [Engineering capabilities and maturity](docs/engineering-capabilities.md) — implemented, pilot, experimental and research-only capabilities.
 - [Implementation plan](docs/implementation-plan.md) — current milestone status, next priorities and exit gates.
 - [Documentation guide](docs/README.md) — canonical docs and historical records.
 - [Model/provider stack](docs/reasoning-model-provider-stack.md) — current chat provider and separate structured-reasoning transport.
@@ -104,4 +105,3 @@ Start with:
 - Do not execute generated CAD/solver code inside a Next.js request process.
 - Do not report an engineering result as verified unless its capability-specific validator passed and the retained evidence is bound to the exact artifact bytes and source/runtime lineage.
 - Mark unavailable, unsupported, unmeasured and untested behavior explicitly.
-
