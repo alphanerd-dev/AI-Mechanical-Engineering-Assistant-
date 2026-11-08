@@ -77,7 +77,7 @@ Other catalog entries cover OpenModelica simulations, parameter sweeps and sensi
 
 ## Research and reasoning
 
-The structured reasoning workbench produces advisory, schema-validated task/framework proposals through a separate server-side model transport. The built-in framework set is First-Principles Thinking, Weighted Decision Matrix and 5 Whys. PR #142 adds an optional, version-pinned Engineering R&D skill profile with a MEDIUM risk ceiling, an explicit existing-capability allowlist and mandatory human approval. The profile constrains the reasoning proposal; it does not execute capabilities, certify engineering results, or grant approval. The task graph retains the profile snapshot and reasoning records remain `NOT_PERFORMED` until the existing engineering validation path runs.
+The structured reasoning workbench produces advisory, schema-validated task/framework proposals through a separate server-side model transport. The built-in framework set is First-Principles Thinking, Weighted Decision Matrix and 5 Whys. PR #142 adds an optional, version-pinned Engineering R&D skill profile with a MEDIUM risk ceiling, an explicit existing-capability allowlist and mandatory human approval. The profile constrains the reasoning proposal; it does not execute capabilities, certify engineering results, or grant approval. The task graph retains the profile snapshot. Reasoning records always remain `NOT_PERFORMED`; engineering validation is a separate record and workflow.
 
 Research providers can retrieve source-backed findings, but source authority or model confidence does not automatically make a claim VERIFIED. Keep source IDs, source identity, publication/version context and verification method. Missing sources and unperformed checks remain visible.
 
