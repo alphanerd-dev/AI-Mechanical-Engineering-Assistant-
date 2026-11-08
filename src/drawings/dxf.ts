@@ -34,13 +34,15 @@ const allNumbers = (groups: GroupPair[], code: number): number[] =>
 const layerOf = (groups: GroupPair[]): string =>
   (groups.find((entry) => entry[0] === 8)?.[1] ?? "0").slice(0, 128);
 
+function isValidGroupCode(codeText: string, code: number): boolean {
+  return codeText.length > 0 && Number.isInteger(code) && code >= 0 && code <= 1071;
+}
+
 function parseGroupCode(value: string, lineNumber: number): number {
   const codeText = value.trim();
   const code = Number(codeText);
-  if (!codeText || !Number.isInteger(code) || code < 0 || code > 1071) {
-    throw new Error("DXF contains an invalid group code at line " + lineNumber + ".");
-  }
-  return code;
+  if (isValidGroupCode(codeText, code)) return code;
+  throw new Error("DXF contains an invalid group code at line " + lineNumber + ".");
 }
 
 function parsePairs(source: string): GroupPair[] {
