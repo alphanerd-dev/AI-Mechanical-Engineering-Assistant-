@@ -183,7 +183,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     if (busyAction) return;
     setError(undefined);
     setNotice(undefined);
-    let prepared;
+    let prepared: ReturnType<typeof prepareTaskCreation>;
     try {
       prepared = prepareTaskCreation(newInputsJson, selectedFramework, selectedSkill, risk);
     } catch (caught) {
