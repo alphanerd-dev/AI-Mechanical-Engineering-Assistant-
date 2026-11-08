@@ -51,6 +51,12 @@ export interface CADViewportAdapter {
 
 type UnknownRecord = Record<string, unknown>;
 
+function asRecord(value: unknown): UnknownRecord | null {
+  if (typeof value !== "object") return null;
+  if (value === null || Array.isArray(value)) return null;
+  return value as UnknownRecord;
+}
+
 function isNonEmptyString(value: unknown): boolean {
   return typeof value === "string" && value.length > 0;
 }
@@ -83,8 +89,8 @@ function validIndices(value: unknown, vertexCount: number): boolean {
 }
 
 export function isCADDisplayMesh(value: unknown): value is CADDisplayMesh {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const mesh = value as UnknownRecord;
+  const mesh = asRecord(value);
+  if (!mesh) return false;
   const positions = mesh.positions;
   if (!hasRequiredIdentity(mesh)) return false;
   if (!validPositions(positions)) return false;
