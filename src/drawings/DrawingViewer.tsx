@@ -24,6 +24,21 @@ function arcPath(entity: Extract<DXFEntity, { type: "ARC" }>): string {
   return "M " + sx + " " + sy + " A " + entity.radius + " " + entity.radius + " 0 " + large + " 1 " + ex + " " + ey;
 }
 
+function screenToDxfPoint(
+  event: React.MouseEvent<SVGSVGElement>,
+  svg: SVGSVGElement | null,
+  group: SVGGElement | null
+): [number, number] | null {
+  if (!svg || !group) return null;
+  const matrix = group.getScreenCTM();
+  if (!matrix) return null;
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const local = point.matrixTransform(matrix.inverse());
+  return [local.x, local.y];
+}
+
 function DxfPreview({ document }: { document: DXFDocument }) {
   const bounds = document.bounds;
   const width = Math.max(bounds.maxX - bounds.minX, 1e-6);
@@ -49,20 +64,15 @@ function DxfPreview({ document }: { document: DXFDocument }) {
   const unitLabel = document.units === "unitless" ? "drawing units" : document.units;
 
   const handleMeasureClick = (event: React.MouseEvent<SVGSVGElement>) => {
-    if (!measureMode || !svgRef.current || !groupRef.current) return;
-    const matrix = groupRef.current.getScreenCTM();
-    if (!matrix) return;
-    const point = svgRef.current.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
-    const local = point.matrixTransform(matrix.inverse());
-    const next: [number, number] = [local.x, local.y];
+    if (!measureMode) return;
+    const next = screenToDxfPoint(event, svgRef.current, groupRef.current);
+    if (!next) return;
     if (!measureStart || measureEnd) {
       setMeasureStart(next);
       setMeasureEnd(null);
-    } else {
-      setMeasureEnd(next);
+      return;
     }
+    setMeasureEnd(next);
   };
 
   return <div className={styles.drawingCanvas}>
@@ -117,14 +127,8 @@ function DxfPreview({ document }: { document: DXFDocument }) {
   </div>;
 }
 
-export default function DrawingViewer({ src, mediaType, label }: {
-  src: string;
-  mediaType: string;
-  label: string;
-}) {
+function useDrawingState(src: string, format: string): DrawingState {
   const [state, setState] = useState<DrawingState>({ src: "", svgUrl: null, dxf: null, error: null });
-  const format = useMemo(() => mediaType.toLowerCase(), [mediaType]);
-
   useEffect(() => {
     if (format === "application/pdf") return;
     const controller = new AbortController();
@@ -134,24 +138,30 @@ export default function DrawingViewer({ src, mediaType, label }: {
         const response = await fetch(src, { signal: controller.signal, cache: "no-store" });
         if (!response.ok) throw new Error("The authorized drawing artifact could not be loaded.");
         const buffer = await response.arrayBuffer();
+        if (controller.signal.aborted) return;
         if (buffer.byteLength < 1 || buffer.byteLength > 10 * 1024 * 1024) {
           throw new Error("Drawing artifact is empty or exceeds the 10 MiB preview limit.");
         }
         const source = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+        if (controller.signal.aborted) return;
         if (format === "image/svg+xml") {
           const safeSvg = sanitizeSVG(source);
           objectUrl = URL.createObjectURL(new Blob([safeSvg], { type: "image/svg+xml" }));
           setState({ src, svgUrl: objectUrl, dxf: null, error: null });
-        } else if (format === "application/dxf" || format === "image/vnd.dxf") {
-          setState({ src, svgUrl: null, dxf: parseDXF(source), error: null });
-        } else {
-          throw new Error("This drawing format has no registered browser preview.");
+          return;
         }
+        if (format === "application/dxf" || format === "image/vnd.dxf") {
+          setState({ src, svgUrl: null, dxf: parseDXF(source), error: null });
+          return;
+        }
+        throw new Error("This drawing format has no registered browser preview.");
       } catch (cause) {
-        if (!controller.signal.aborted) setState({
-          src, svgUrl: null, dxf: null,
-          error: cause instanceof Error ? cause.message : "Drawing preview failed."
-        });
+        if (!controller.signal.aborted) {
+          setState({
+            src, svgUrl: null, dxf: null,
+            error: cause instanceof Error ? cause.message : "Drawing preview failed."
+          });
+        }
       }
     })();
     return () => {
@@ -159,24 +169,39 @@ export default function DrawingViewer({ src, mediaType, label }: {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [src, format]);
+  return state;
+}
 
-  if (format === "application/pdf") {
-    return <div className={styles.drawingFrame}>
-      <iframe title={"PDF drawing preview of " + label} src={src} loading="lazy" referrerPolicy="no-referrer" />
-      <span>PDF preview · supplied by the browser&apos;s native PDF viewer · not a drafting validation</span>
-    </div>;
-  }
-  if (state.src !== src) return <div className={styles.drawingStatus} role="status">Loading drawing preview…</div>;
-  if (state.error) return <div className={styles.drawingStatus} role="alert">{state.error}</div>;
-  if (state.svgUrl) return <div className={styles.drawingCanvas}>
+function PdfDrawingPreview({ src, label }: { src: string; label: string }) {
+  return <div className={styles.drawingFrame}>
+    <iframe title={"PDF drawing preview of " + label} src={src} loading="lazy" referrerPolicy="no-referrer" />
+    <span>PDF preview · supplied by the browser&apos;s native PDF viewer · not a drafting validation</span>
+  </div>;
+}
+
+function SvgDrawingPreview({ src, label }: { src: string; label: string }) {
+  return <div className={styles.drawingCanvas}>
     <div
       className={styles.sanitizedSvgImage}
       role="img"
       aria-label={"Sanitized SVG drawing preview of " + label}
-      style={{ backgroundImage: "url(" + JSON.stringify(state.svgUrl) + ")" }}
+      style={{ backgroundImage: "url(" + JSON.stringify(src) + ")" }}
     />
     <footer>Sanitized SVG · preview only</footer>
   </div>;
+}
+
+export default function DrawingViewer({ src, mediaType, label }: {
+  src: string;
+  mediaType: string;
+  label: string;
+}) {
+  const format = mediaType.toLowerCase();
+  const state = useDrawingState(src, format);
+  if (format === "application/pdf") return <PdfDrawingPreview src={src} label={label} />;
+  if (state.src !== src) return <div className={styles.drawingStatus} role="status">Loading drawing preview…</div>;
+  if (state.error) return <div className={styles.drawingStatus} role="alert">{state.error}</div>;
+  if (state.svgUrl) return <SvgDrawingPreview src={state.svgUrl} label={label} />;
   if (state.dxf) return <DxfPreview key={src} document={state.dxf} />;
   return <div className={styles.drawingStatus} role="status">No drawing preview is available.</div>;
 }
