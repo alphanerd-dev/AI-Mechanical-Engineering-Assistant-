@@ -407,6 +407,77 @@ function ArtifactExplorer({ projectId, models, artifacts, completions }: {
   </aside>;
 }
 
+function viewportEmptyTitle(selectedArtifact: CADArtifactViewEntry | null, visibility: ViewVisibility): string {
+  if (!selectedArtifact) return "No accepted CAD artifacts available";
+  if (selectedArtifact.viewer.mode === "UNSUPPORTED") return "No viewer registered for this artifact";
+  if (selectedArtifact.viewer.mode === "STL_PREVIEW") {
+    return visibility.geometry ? "STL preview unavailable" : "Geometry preview is hidden";
+  }
+  if (selectedArtifact.viewer.mode === "DRAWING_PREVIEW") return "Drawing preview unavailable";
+  return "Preview not available for " + selectedArtifact.artifact.kind;
+}
+
+function viewportEmptyDetail(
+  selectedArtifact: CADArtifactViewEntry | null,
+  modelCount: number,
+  visibility: ViewVisibility
+): string {
+  if (!selectedArtifact) {
+    return modelCount > 0
+      ? "This project has model identities, but no accepted CAD completion with stored artifacts is available."
+      : "Create a CAD model and complete a supported part workflow before artifacts appear here.";
+  }
+  if (selectedArtifact.viewer.mode === "UNSUPPORTED") return selectedArtifact.viewer.description;
+  if (selectedArtifact.viewer.previewAvailable && !selectedArtifact.signedUrl) {
+    return "The authorized project API did not return a valid signed URL for this private drawing/geometry artifact. Refresh to request a fresh link.";
+  }
+  if (selectedArtifact.viewer.previewAvailable && !visibility.geometry) {
+    return "Enable geometry visibility to display this read-only preview.";
+  }
+  return selectedArtifact.viewer.description;
+}
+
+function artifactRevisionLabel(selectedArtifact: CADArtifactViewEntry | null): string {
+  if (!selectedArtifact) return "No source selected";
+  const suffix = selectedArtifact.staleness === "HISTORICAL"
+    ? " · HISTORICAL REVISION"
+    : selectedArtifact.staleness === "UNVERIFIABLE"
+      ? " · REVISION UNVERIFIABLE"
+      : " · CURRENT";
+  return "Completion " + selectedArtifact.completion.id.slice(0, 8).toUpperCase() + suffix;
+}
+
+function WorkbenchArtifactPreview({ selectedArtifact, models, visibility }: {
+  selectedArtifact: CADArtifactViewEntry | null;
+  models: CadModel[];
+  visibility: ViewVisibility;
+}) {
+  const previewUrl = selectedArtifact?.signedUrl;
+  const canPreview = Boolean(selectedArtifact?.viewer.previewAvailable && previewUrl && visibility.geometry);
+  if (canPreview && selectedArtifact?.viewer.mode === "STL_PREVIEW" && previewUrl) {
+    return <StlViewport src={previewUrl} label={selectedArtifact.artifact.name} />;
+  }
+  if (canPreview && selectedArtifact?.viewer.mode === "DRAWING_PREVIEW" && previewUrl) {
+    return <DrawingViewer
+      src={previewUrl}
+      mediaType={selectedArtifact.artifact.mediaType ?? ""}
+      label={selectedArtifact.artifact.name}
+    />;
+  }
+  const canDownload = Boolean(selectedArtifact?.signedUrl && selectedArtifact.viewer.downloadAvailable && !selectedArtifact.viewer.previewAvailable);
+  const accessUnavailable = Boolean(selectedArtifact?.viewer.downloadAvailable && !selectedArtifact.signedUrl);
+  return <div className="viewportEmptyCopy">
+    <Box size={28} aria-hidden="true" />
+    <strong>{viewportEmptyTitle(selectedArtifact, visibility)}</strong>
+    <p>{viewportEmptyDetail(selectedArtifact, models.length, visibility)}</p>
+    {canDownload && selectedArtifact?.signedUrl
+      ? <a className="button secondaryButton" href={selectedArtifact.signedUrl} target="_blank" rel="noopener noreferrer">Open / download {selectedArtifact.artifact.kind}</a>
+      : accessUnavailable
+        ? <p role="status">Private file access is unavailable. Refresh artifact access to request a new signed URL.</p>
+        : null}
+  </div>;
+}
+
 function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifact, onSelectArtifact, visibility, onRefresh }: {
   projectId: string;
   models: CadModel[];
@@ -416,31 +487,12 @@ function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifac
   visibility: ViewVisibility;
   onRefresh: () => void;
 }) {
-  const canPreviewStl = selectedArtifact?.viewer.mode === "STL_PREVIEW" && Boolean(selectedArtifact.signedUrl);
-  const canPreviewDrawing = selectedArtifact?.viewer.mode === "DRAWING_PREVIEW" && Boolean(selectedArtifact.signedUrl);
-  const showStl = canPreviewStl && visibility.geometry;
-  const showDrawing = canPreviewDrawing && visibility.geometry;
-  const emptyTitle = !selectedArtifact
-    ? "No accepted CAD artifacts available"
-    : selectedArtifact.viewer.mode === "UNSUPPORTED"
-      ? "No viewer registered for this artifact"
-      : selectedArtifact.viewer.mode === "STL_PREVIEW"
-        ? visibility.geometry ? "STL preview unavailable" : "Geometry preview is hidden"
-        : selectedArtifact.viewer.mode === "DRAWING_PREVIEW"
-          ? "Drawing preview unavailable"
-          : "Preview not available for " + selectedArtifact.artifact.kind;
-  const emptyDetail = !selectedArtifact
-    ? models.length
-      ? "This project has model identities, but no accepted CAD completion with stored artifacts is available."
-      : "Create a CAD model and complete a supported part workflow before artifacts appear here."
-    : selectedArtifact.viewer.mode === "UNSUPPORTED"
-      ? selectedArtifact.viewer.description
-      : selectedArtifact.viewer.previewAvailable && !selectedArtifact.signedUrl
-        ? "The authorized project API did not return a valid signed URL for this private drawing/geometry artifact. Refresh to request a fresh link."
-        : selectedArtifact.viewer.previewAvailable && !visibility.geometry
-          ? "Enable geometry visibility to display this read-only preview."
-          : selectedArtifact.viewer.description;
-
+  const revisionLabel = artifactRevisionLabel(selectedArtifact);
+  const footerStatus = selectedArtifact?.staleness === "HISTORICAL"
+    ? "Historical revision: inspectable, but not the latest accepted model completion."
+    : selectedArtifact?.staleness === "UNVERIFIABLE"
+      ? "Model revision lineage is unavailable; currentness cannot be established."
+      : "Viewer state cannot modify validation, evidence or approval records.";
   return <main className="workbenchViewportPane">
     <Panel title="CAD artifact viewer" detail={selectedArtifact ? selectedArtifact.viewer.description : "Read-only project artifact display."} action={<div className="moduleHeaderActions"><button type="button" className="button secondaryButton" onClick={onRefresh}>Refresh artifact access</button><Link href={"/projects/" + projectId + "/cad"} className="moduleTextLink">Open CAD registry <ArrowUpRight size={12} /></Link></div>}>
       <div className="workbenchViewport">
@@ -451,37 +503,16 @@ function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifac
               {artifactEntries.length === 0 ? <option value="">No accepted artifacts</option> : artifactEntries.map((entry) => <option key={entry.key} value={entry.key}>{entry.artifact.name} · {entry.artifact.kind} · {entry.completion.id.slice(0, 8)}</option>)}
             </select>
           </label>
-          <span>{selectedArtifact
-            ? "Completion " + selectedArtifact.completion.id.slice(0, 8).toUpperCase() +
-              (selectedArtifact.staleness === "HISTORICAL" ? " · HISTORICAL REVISION" :
-                selectedArtifact.staleness === "UNVERIFIABLE" ? " · REVISION UNVERIFIABLE" : " · CURRENT")
-            : "No source selected"}</span>
+          <span>{revisionLabel}</span>
         </div>
         <div className="viewportScene">
           <div className="viewportGridPattern" aria-hidden="true" />
           <div className="viewportAxis viewportAxisX">X</div><div className="viewportAxis viewportAxisY">Y</div><div className="viewportAxis viewportAxisZ">Z</div>
-          {showStl && selectedArtifact?.signedUrl
-            ? <StlViewport src={selectedArtifact.signedUrl} label={selectedArtifact.artifact.name} />
-            : showDrawing && selectedArtifact?.signedUrl
-              ? <DrawingViewer src={selectedArtifact.signedUrl} mediaType={selectedArtifact.artifact.mediaType ?? ""} label={selectedArtifact.artifact.name} />
-              : <div className="viewportEmptyCopy">
-                <Box size={28} aria-hidden="true" />
-                <strong>{emptyTitle}</strong>
-                <p>{emptyDetail}</p>
-                {selectedArtifact?.signedUrl && selectedArtifact.viewer.downloadAvailable && !selectedArtifact.viewer.previewAvailable
-                  ? <a className="button secondaryButton" href={selectedArtifact.signedUrl} target="_blank" rel="noopener noreferrer">Open / download {selectedArtifact.artifact.kind}</a>
-                  : selectedArtifact && selectedArtifact.viewer.downloadAvailable
-                    ? <p role="status">Private file access is unavailable. Refresh artifact access to request a new signed URL.</p>
-                    : null}
-              </div>}
+          <WorkbenchArtifactPreview selectedArtifact={selectedArtifact} models={models} visibility={visibility} />
         </div>
         <div className="viewportFooter">
           <span>{selectedArtifact ? selectedArtifact.viewer.trustBoundary : "No artifact is selected; no file has been opened."}</span>
-          <span>{selectedArtifact?.staleness === "HISTORICAL"
-            ? "Historical revision: inspectable, but not the latest accepted model completion."
-            : selectedArtifact?.staleness === "UNVERIFIABLE"
-              ? "Model revision lineage is unavailable; currentness cannot be established."
-              : "Viewer state cannot modify validation, evidence or approval records."}</span>
+          <span>{footerStatus}</span>
         </div>
       </div>
     </Panel>
