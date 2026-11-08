@@ -8,38 +8,38 @@ const ALLOWED_ATTRIBUTES = new Set([
   "transform", "font-size", "text-anchor", "dominant-baseline"
 ]);
 
-function isSafeAttributeName(name: string): boolean {
+function isSafeAttributeName({ name }: { name: string }): boolean {
   const lower = name.toLowerCase();
-  return ALLOWED_ATTRIBUTES.has(name) && !lower.startsWith("on") &&
-    lower !== "style" && lower !== "href" && !lower.endsWith(":href");
+  if (!ALLOWED_ATTRIBUTES.has(name)) return false;
+  if (lower.startsWith("on")) return false;
+  if (lower === "style" || lower === "href" || lower.endsWith(":href")) return false;
+  return true;
 }
 
-function isSafeReferenceFreeValue(value: string): boolean {
-  return !/url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value);
+function isSafeReferenceFreeValue({ value }: { value: string }): boolean {
+  return !/url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value);
 }
 
-function isSafePaintValue(name: string, value: string): boolean {
-  return (name !== "fill" && name !== "stroke") ||
-    /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
+function isSafePaintValue({ name, value }: { name: string; value: string }): boolean {
+  if (name !== "fill" && name !== "stroke") return true;
+  return /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
 }
 
-function isSafeGeometryValue(name: string, value: string): boolean {
-  const needsGeometrySyntax = name === "transform" || name === "d";
-  return needsGeometrySyntax
-    ? /^[a-z0-9(),.+\\-\\s]+$/i.test(value)
-    : value.length <= 10000;
+function isSafeGeometryValue({ name, value }: { name: string; value: string }): boolean {
+  if (name !== "transform" && name !== "d") return value.length <= 10000;
+  return /^[a-z0-9(),.+\-\s]+$/i.test(value);
 }
 
-function safeAttribute(name: string, value: string): boolean {
-  return isSafeAttributeName(name) &&
-    isSafeReferenceFreeValue(value) &&
-    isSafePaintValue(name, value) &&
-    isSafeGeometryValue(name, value);
+function safeAttribute({ name, value }: { name: string; value: string }): boolean {
+  if (!isSafeAttributeName({ name })) return false;
+  if (!isSafeReferenceFreeValue({ value })) return false;
+  if (!isSafePaintValue({ name, value })) return false;
+  return isSafeGeometryValue({ name, value });
 }
 
 function sanitizeAttributes(element: Element): void {
   for (const attribute of Array.from(element.attributes)) {
-    if (!safeAttribute(attribute.name, attribute.value)) element.removeAttribute(attribute.name);
+    if (!safeAttribute({ name: attribute.name, value: attribute.value })) element.removeAttribute(attribute.name);
   }
 }
 
@@ -54,17 +54,28 @@ function sanitizeChildren(element: Element): void {
   }
 }
 
-function parseSVGDocument(markup: string): XMLDocument {
+function assertBrowserXmlSupport(): void {
   if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
     throw new Error("SVG preview requires a browser XML parser.");
   }
+}
+
+function assertMarkupSize({ markup }: { markup: string }): void {
   if (!markup || new TextEncoder().encode(markup).byteLength > 10 * 1024 * 1024) {
     throw new Error("SVG must contain 1 byte to 10 MiB.");
   }
+}
+
+function isSvgDocument(document: XMLDocument): boolean {
+  const root = document.documentElement;
+  return !document.querySelector("parsererror") && root.localName.toLowerCase() === "svg";
+}
+
+function parseSVGDocument({ markup }: { markup: string }): XMLDocument {
+  assertBrowserXmlSupport();
+  assertMarkupSize({ markup });
   const document = new DOMParser().parseFromString(markup, "image/svg+xml");
-  if (document.querySelector("parsererror") || document.documentElement.localName.toLowerCase() !== "svg") {
-    throw new Error("The drawing is not well-formed SVG.");
-  }
+  if (!isSvgDocument(document)) throw new Error("The drawing is not well-formed SVG.");
   return document;
 }
 
@@ -73,7 +84,7 @@ function parseSVGDocument(markup: string): XMLDocument {
  * external resources and unknown elements are removed. This is not a general SVG editor.
  */
 export function sanitizeSVG(markup: string): string {
-  const document = parseSVGDocument(markup);
+  const document = parseSVGDocument({ markup });
   sanitizeAttributes(document.documentElement);
   sanitizeChildren(document.documentElement);
   document.documentElement.setAttribute("xmlns", "http://www.w3.org/2000/svg");
