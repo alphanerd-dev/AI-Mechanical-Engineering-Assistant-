@@ -116,10 +116,17 @@ function readPolyline(groups: GroupPair[], warnings: string[]): DXFEntity | null
   };
 }
 
+function isValidTextEntity(x: number, y: number, height: number, value: string): boolean {
+  if (!finite(x)) return false;
+  if (!finite(y)) return false;
+  if (!finite(height) || height <= 0) return false;
+  return value.length <= 512;
+}
+
 function readText(groups: GroupPair[], warnings: string[]): DXFEntity | null {
   const x = numberAt(groups, 10), y = numberAt(groups, 20), height = numberAt(groups, 40, 2.5);
   const value = groups.find((entry) => entry[0] === 1)?.[1] ?? "";
-  if ([x, y, height].every(finite) && height > 0 && value.length <= 512) {
+  if (isValidTextEntity(x, y, height, value)) {
     return { type: "TEXT", layer: layerOf(groups), x, y, height, value };
   }
   warnings.push("Skipped a TEXT entity with invalid position, height or content.");
