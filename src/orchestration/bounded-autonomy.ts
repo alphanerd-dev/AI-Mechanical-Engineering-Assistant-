@@ -152,6 +152,12 @@ function capabilityInputErrors(
   return [...new Set(errors)];
 }
 
+function isControlPlaneCapability(capability:string):boolean{
+  return /^(AGENT|TASK_GRAPH|WORKSPACE)\\./.test(capability)||
+    capability==="ENGINEERING.ORCHESTRATE_WORKFLOW"||
+    capability==="ENGINEERING.ENTER_FROM_INTENT";
+}
+
 function capabilityErrors(
   capability:string,
   risk:CapabilityRisk,
@@ -161,6 +167,9 @@ function capabilityErrors(
   requireAllInputs:boolean
 ):{definition?:CapabilityDefinition;errors:string[]}{
   const errors:string[]=[];
+  if(isControlPlaneCapability(capability)){
+    return {errors:["Task capability cannot target an orchestration/control-plane operation: "+capability+"."]};
+  }
   const definition=router.getDefinition(capability);
   if(!definition) return {errors:["Registered capability definition not found: "+capability+"."]};
   if(definition.status==="BLOCKED"||definition.status==="DEPRECATED")
