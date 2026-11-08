@@ -3,7 +3,7 @@ const VERSIONS = {
   three: "0.187.0"
 };
 const URLS = {
-  babylon: "https://cdn.jsdelivr.net/npm/@babylonjs/core@" + VERSIONS.babylon + "/index.js",
+  babylon: "https://esm.sh/@babylonjs/core@" + VERSIONS.babylon + "?bundle",
   three: "https://cdn.jsdelivr.net/npm/three@" + VERSIONS.three + "/build/three.module.js"
 };
 const byId = (id) => document.getElementById(id);
