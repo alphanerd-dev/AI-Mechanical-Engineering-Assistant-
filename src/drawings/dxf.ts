@@ -36,7 +36,7 @@ const layerOf = (groups: GroupPair[]): string =>
 
 function parsePairs(source: string): GroupPair[] {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
-  if (lines[lines.length - 1] === "") lines.pop();
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   if (lines.length % 2 !== 0) throw new Error("DXF contains an incomplete group-code pair.");
   const pairs: GroupPair[] = [];
   for (let index = 0; index < lines.length; index += 2) {
