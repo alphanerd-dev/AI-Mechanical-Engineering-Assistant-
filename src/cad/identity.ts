@@ -93,61 +93,78 @@ export function validateCADNativeModelReference(value: unknown): CADIdentityVali
   return { status: errors.length ? "FAIL" : "PASS", errors, warnings: [] };
 }
 
+function validateIdentityBaseFields(value: Record<string, unknown>): string[] {
+  return ["id", "projectId", "name"]
+    .filter((key) => !nonEmptyString(value[key]))
+    .map((key) => "CAD model identity " + key + " is required.");
+}
+
+function validateExpectedProject(value: Record<string, unknown>, expectedProjectId?: string): string[] {
+  if (expectedProjectId === undefined) return [];
+  if (!nonEmptyString(expectedProjectId)) return ["Expected project id must be a non-empty string."];
+  if (nonEmptyString(value.projectId) && value.projectId !== expectedProjectId) {
+    return ["CAD model identity belongs to a different project."];
+  }
+  return [];
+}
+
+function validateIdentityRevision(value: Record<string, unknown>): string[] {
+  if (value.revision === undefined) return [];
+  return Number.isSafeInteger(value.revision) && (value.revision as number) >= 1
+    ? []
+    : ["CAD model identity revision must be a positive safe integer when supplied."];
+}
+
+function validateIdentityTimestamps(value: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  const createdAtValid = validDate(value.createdAt);
+  const updatedAtValid = validDate(value.updatedAt);
+  if (!createdAtValid) errors.push("CAD model identity createdAt must be a valid date string.");
+  if (!updatedAtValid) errors.push("CAD model identity updatedAt must be a valid date string.");
+  if (createdAtValid && updatedAtValid && Date.parse(value.updatedAt as string) < Date.parse(value.createdAt as string)) {
+    errors.push("CAD model identity updatedAt cannot precede createdAt.");
+  }
+  return errors;
+}
+
+function validateNativeReferences(value: Record<string, unknown>): CADIdentityValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  if (!Array.isArray(value.nativeReferences)) {
+    errors.push("CAD model identity nativeReferences must be an array.");
+    return { status: "FAIL", errors, warnings };
+  }
+  const references = new Set<string>();
+  value.nativeReferences.forEach((reference, index) => {
+    const validation = validateCADNativeModelReference(reference);
+    for (const error of validation.errors) errors.push("nativeReferences[" + index + "]: " + error);
+    if (validation.status !== "PASS") return;
+    const key = nativeModelKey(normalizedReference(reference as CADNativeModelReference));
+    if (references.has(key)) errors.push("CAD model identity contains a duplicate native model reference.");
+    references.add(key);
+  });
+  if (value.nativeReferences.length === 0) {
+    warnings.push("CAD model identity has no linked native CAD provider reference yet.");
+  }
+  return { status: errors.length ? "FAIL" : "PASS", errors, warnings };
+}
+
 export function validateCADModelIdentity(
   value: unknown,
   expectedProjectId?: string
 ): CADIdentityValidation {
-  const errors: string[] = [];
-  const warnings: string[] = [];
   if (!isRecord(value)) {
-    return { status: "FAIL", errors: ["CAD model identity must be an object."], warnings };
+    return { status: "FAIL", errors: ["CAD model identity must be an object."], warnings: [] };
   }
-
-  for (const key of ["id", "projectId", "name"] as const) {
-    if (!nonEmptyString(value[key])) errors.push(`CAD model identity ${key} is required.`);
-  }
-  if (expectedProjectId !== undefined) {
-    if (!nonEmptyString(expectedProjectId)) errors.push("Expected project id must be a non-empty string.");
-    else if (nonEmptyString(value.projectId) && value.projectId !== expectedProjectId) {
-      errors.push("CAD model identity belongs to a different project.");
-    }
-  }
-
-  if (!validDate(value.createdAt)) errors.push("CAD model identity createdAt must be a valid date string.");
-  if (value.revision !== undefined &&
-      (!Number.isSafeInteger(value.revision) || (value.revision as number) < 1)) {
-    errors.push("CAD model identity revision must be a positive safe integer when supplied.");
-  }
-  if (!validDate(value.updatedAt)) errors.push("CAD model identity updatedAt must be a valid date string.");
-  if (
-    validDate(value.createdAt) &&
-    validDate(value.updatedAt) &&
-    Date.parse(value.updatedAt) < Date.parse(value.createdAt)
-  ) {
-    errors.push("CAD model identity updatedAt cannot precede createdAt.");
-  }
-
-  if (!Array.isArray(value.nativeReferences)) {
-    errors.push("CAD model identity nativeReferences must be an array.");
-  } else {
-    const references = new Set<string>();
-    value.nativeReferences.forEach((reference, index) => {
-      const validation = validateCADNativeModelReference(reference);
-      for (const error of validation.errors) {
-        errors.push(`nativeReferences[${index}]: ${error}`);
-      }
-      if (validation.status === "PASS") {
-        const key = nativeModelKey(normalizedReference(reference as CADNativeModelReference));
-        if (references.has(key)) errors.push("CAD model identity contains a duplicate native model reference.");
-        references.add(key);
-      }
-    });
-    if (value.nativeReferences.length === 0) {
-      warnings.push("CAD model identity has no linked native CAD provider reference yet.");
-    }
-  }
-
-  return { status: errors.length ? "FAIL" : "PASS", errors, warnings };
+  const nativeReferences = validateNativeReferences(value);
+  const errors = [
+    ...validateIdentityBaseFields(value),
+    ...validateExpectedProject(value, expectedProjectId),
+    ...validateIdentityRevision(value),
+    ...validateIdentityTimestamps(value),
+    ...nativeReferences.errors
+  ];
+  return { status: errors.length ? "FAIL" : "PASS", errors, warnings: nativeReferences.warnings };
 }
 
 /**
