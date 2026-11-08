@@ -201,57 +201,92 @@ async function runBabylon(B, canvas, count, durationMs) {
   return summary;
 }
 let nextFirstEngine = "babylon";
-async function run() {
+function resetBenchmarkUI() {
   byId("run").disabled = true;
   byId("export").disabled = true;
   byId("babylon-metrics").textContent = "Loading engine modules…";
   byId("three-metrics").textContent = "Loading engine modules…";
   setStatus("babylon", "Loading");
   setStatus("three", "Loading");
+}
+
+function assertWebGL2Available() {
+  const probe = document.createElement("canvas").getContext("webgl2");
+  if (!probe) throw new Error("This browser/device does not expose WebGL 2. Benchmark aborted.");
+}
+
+async function runEngine(engine, context) {
+  setStatus(engine, "Running");
+  const result = engine === "babylon"
+    ? await runBabylon(context.B, byId("babylon"), context.count, context.duration)
+    : await runThree(context.T, byId("three"), context.count, context.duration);
+  setStatus(engine, "Complete");
+  writeMetrics(engine, { ...result, sharedEngineImportMs: Number(context.importMs.toFixed(2)) });
+  return result;
+}
+
+async function runBothEngines(context) {
+  const firstEngine = nextFirstEngine;
+  const secondEngine = firstEngine === "babylon" ? "three" : "babylon";
+  nextFirstEngine = secondEngine;
+  const firstResult = await runEngine(firstEngine, context);
+  const secondResult = await runEngine(secondEngine, context);
+  return {
+    firstEngine,
+    secondEngine,
+    results: {
+      babylon: firstEngine === "babylon" ? firstResult : secondResult,
+      three: firstEngine === "three" ? firstResult : secondResult
+    }
+  };
+}
+
+function createBenchmarkResult(context, runResults) {
+  return {
+    schemaVersion: 1,
+    environment: environment(),
+    engineVersions: VERSIONS,
+    workload: context.count,
+    sampleDurationMs: context.duration,
+    importMs: context.importMs,
+    runOrder: [runResults.firstEngine, runResults.secondEngine],
+    results: [runResults.results.babylon, runResults.results.three]
+  };
+}
+
+function showBenchmarkFailure(error) {
+  const message = error instanceof Error ? error.message : "Benchmark failed.";
+  setStatus("babylon", "Failed");
+  setStatus("three", "Failed");
+  byId("babylon-metrics").textContent = message;
+  byId("three-metrics").textContent = message;
+}
+
+function showBenchmarkResult(result) {
+  byId("environment").textContent = "Environment: " + JSON.stringify(result.environment);
+  byId("export").disabled = false;
+}
+
+async function run() {
+  resetBenchmarkUI();
   try {
-    const probe = document.createElement("canvas").getContext("webgl2");
-    if (!probe) throw new Error("This browser/device does not expose WebGL 2. Benchmark aborted.");
-    const { B, T, importMs } = await importEngines();
-    const count = Number(byId("workload").value);
-    const duration = Number(byId("duration").value);
-    let babylon;
-    let three;
-    const firstEngine = nextFirstEngine;
-    nextFirstEngine = nextFirstEngine === "babylon" ? "three" : "babylon";
-    const runEngine = async (engine) => {
-      setStatus(engine, "Running");
-      const result = engine === "babylon"
-        ? await runBabylon(B, byId("babylon"), count, duration)
-        : await runThree(T, byId("three"), count, duration);
-      setStatus(engine, "Complete");
-      writeMetrics(engine, { ...result, sharedEngineImportMs: Number(importMs.toFixed(2)) });
-      if (engine === "babylon") babylon = result;
-      else three = result;
+    assertWebGL2Available();
+    const engines = await importEngines();
+    const context = {
+      ...engines,
+      count: Number(byId("workload").value),
+      duration: Number(byId("duration").value)
     };
-    await runEngine(firstEngine);
-    await runEngine(firstEngine === "babylon" ? "three" : "babylon");
-    lastResult = {
-      schemaVersion: 1,
-      environment: environment(),
-      engineVersions: VERSIONS,
-      workload: count,
-      sampleDurationMs: duration,
-      importMs,
-      runOrder: [firstEngine, firstEngine === "babylon" ? "three" : "babylon"],
-      results: [babylon, three]
-    };
-    byId("environment").textContent = "Environment: " + JSON.stringify(lastResult.environment);
-    byId("export").disabled = false;
+    const runResults = await runBothEngines(context);
+    lastResult = createBenchmarkResult(context, runResults);
+    showBenchmarkResult(lastResult);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Benchmark failed.";
-    setStatus("babylon", "Failed");
-    setStatus("three", "Failed");
-    byId("babylon-metrics").textContent = message;
-    byId("three-metrics").textContent = message;
+    showBenchmarkFailure(error);
   } finally {
     byId("run").disabled = false;
   }
 }
+
 byId("run").addEventListener("click", () => void run());
 byId("export").addEventListener("click", () => {
   if (!lastResult) return;
