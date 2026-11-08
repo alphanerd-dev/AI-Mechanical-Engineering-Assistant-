@@ -161,7 +161,7 @@ The first typed facade is implemented in the draft G1 pull request:
 - Execution and validation provider IDs remain distinct; artifacts are references to the existing CAD artifact model.
 - The adapter does not own execution, persistence, validation, identity, rendering or worker lifecycle.
 
-This is deliberately not yet a general geometry kernel. No native algorithms, general transforms, topology IDs, Boolean operations, assemblies or parametric history are claimed. Existing routes and production behavior are not switched to the new facade in G1.
+This is deliberately not yet a general geometry kernel. No native algorithms, general transforms, topology IDs, Boolean operations, assemblies or parametric history are claimed. The current CADModelIdentity remains a logical model identity; this adapter does not invent immutable geometry-revision semantics. A revision contract is still required before topology references or revision-based editing can be supported. Existing routes and production behavior are not switched to the new facade in G1.
 
 ## Remaining G1 exit gates
 
