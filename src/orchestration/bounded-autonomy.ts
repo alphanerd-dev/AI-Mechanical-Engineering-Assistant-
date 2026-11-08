@@ -65,19 +65,28 @@ function withinRiskLimit(risk:CapabilityRisk,limit:CapabilityRisk):boolean{
   return riskRank[risk]<=riskRank[limit];
 }
 
-function validateLimits(limits:AgentRunLimits):string[]{
+function validateCountLimits(limits:AgentRunLimits):string[]{
   const errors:string[]=[];
-  if(!Number.isInteger(limits.maxSteps)||limits.maxSteps<1) errors.push("Agent maxSteps must be a positive integer.");
-  if(!Number.isInteger(limits.maxTaskExecutions)||limits.maxTaskExecutions<0) errors.push("Agent maxTaskExecutions must be a non-negative integer.");
-  if(!Number.isInteger(limits.maxDelegations)||limits.maxDelegations<0) errors.push("Agent maxDelegations must be a non-negative integer.");
-  if(limits.maxSteps>BOUNDED_AUTONOMY_HARD_LIMITS.maxSteps)
-    errors.push(`Agent maxSteps exceeds hard limit ${BOUNDED_AUTONOMY_HARD_LIMITS.maxSteps}.`);
-  if(limits.maxTaskExecutions>BOUNDED_AUTONOMY_HARD_LIMITS.maxTaskExecutions)
-    errors.push(`Agent maxTaskExecutions exceeds hard limit ${BOUNDED_AUTONOMY_HARD_LIMITS.maxTaskExecutions}.`);
-  if(limits.maxDelegations>BOUNDED_AUTONOMY_HARD_LIMITS.maxDelegations)
-    errors.push(`Agent maxDelegations exceeds hard limit ${BOUNDED_AUTONOMY_HARD_LIMITS.maxDelegations}.`);
-  if(!withinRiskLimit(limits.maxRisk,BOUNDED_AUTONOMY_HARD_LIMITS.maxRisk))
-    errors.push(`Agent maxRisk ${limits.maxRisk} exceeds hard ceiling ${BOUNDED_AUTONOMY_HARD_LIMITS.maxRisk}.`);
+  const values=[
+    ["maxSteps",limits.maxSteps,1,BOUNDED_AUTONOMY_HARD_LIMITS.maxSteps],
+    ["maxTaskExecutions",limits.maxTaskExecutions,0,BOUNDED_AUTONOMY_HARD_LIMITS.maxTaskExecutions],
+    ["maxDelegations",limits.maxDelegations,0,BOUNDED_AUTONOMY_HARD_LIMITS.maxDelegations]
+  ] as const;
+  for(const [name,value,minimum,maximum] of values){
+    if(!Number.isInteger(value)||value<minimum) errors.push("Agent "+name+" must be an integer of at least "+minimum+".");
+    else if(value>maximum) errors.push("Agent "+name+" exceeds hard limit "+maximum+".");
+  }
+  return errors;
+}
+
+function validateRiskLimit(limits:AgentRunLimits):string[]{
+  return withinRiskLimit(limits.maxRisk,BOUNDED_AUTONOMY_HARD_LIMITS.maxRisk)
+    ?[]
+    :["Agent maxRisk "+limits.maxRisk+" exceeds hard ceiling "+BOUNDED_AUTONOMY_HARD_LIMITS.maxRisk+"."];
+}
+
+function validateAllowlistLimits(limits:AgentRunLimits):string[]{
+  const errors:string[]=[];
   if(limits.requireCapabilityAllowlist===true&&(!Array.isArray(limits.allowedCapabilities)||limits.allowedCapabilities.length===0))
     errors.push("A non-empty host capability allowlist is required for model-directed execution.");
   if(limits.requireSpecialistAllowlist===true&&(!Array.isArray(limits.allowedSpecialists)||limits.allowedSpecialists.length===0))
@@ -86,7 +95,15 @@ function validateLimits(limits:AgentRunLimits):string[]{
     errors.push("Agent capability allowlist cannot contain duplicate ids.");
   if(limits.allowedSpecialists&&new Set(limits.allowedSpecialists).size!==limits.allowedSpecialists.length)
     errors.push("Agent specialist allowlist cannot contain duplicate ids.");
-  return [...new Set(errors)];
+  return errors;
+}
+
+function validateLimits(limits:AgentRunLimits):string[]{
+  return [...new Set([
+    ...validateCountLimits(limits),
+    ...validateRiskLimit(limits),
+    ...validateAllowlistLimits(limits)
+  ])];
 }
 
 function isPlainRecord(value:unknown):value is Record<string,unknown>{
