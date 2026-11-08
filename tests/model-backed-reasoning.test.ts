@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ModelBackedTaskReasoningProposer,
   StaticModelReasoningGenerator,
-  createDefaultReasoningFrameworkRegistry
+  createDefaultReasoningFrameworkRegistry,
+  createDefaultSkillManifestRegistry
 } from "../src/reasoning-frameworks/index.js";
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
-import { routeTaskReasoning } from "../src/task-graph/reasoning.js";
+import { assignTaskSkillManifest, routeTaskReasoning } from "../src/task-graph/reasoning.js";
 import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
 import type { EngineeringTaskGraph } from "../src/task-graph/types.js";
 
@@ -70,6 +71,38 @@ describe("model-backed reasoning adapter", () => {
       validationStatus: "NOT_PERFORMED"
     });
     expect(result.graph.tasks[0].status).toBe("PROPOSED");
+  });
+
+  it("passes the pinned Engineering R&D skill policy into the model prompt without granting execution authority", async () => {
+    const skillRegistry = createDefaultSkillManifestRegistry();
+    const skill = skillRegistry.get("engineering-rd", "1.0.0");
+    expect(skill).toBeDefined();
+    const graph = assignTaskSkillManifest(
+      makeRoutedGraph(),
+      "task-1",
+      "engineering-rd",
+      "1.0.0",
+      skillRegistry,
+      NOW
+    );
+    const generate = vi.fn(async (_request: ModelReasoningGenerationRequest) => proposal);
+    const proposer = new ModelBackedTaskReasoningProposer({ generate });
+    const result = await executeTaskReasoning(graph, "task-1", proposer, {
+      now: NOW,
+      recordId: "reasoning-skill-1"
+    });
+
+    expect(generate.mock.calls[0][0].skillManifest).toMatchObject({
+      id: "engineering-rd",
+      version: "1.0.0",
+      maximumRisk: "MEDIUM",
+      requiresApproval: true
+    });
+    expect(generate.mock.calls[0][0].instructions).toContain("Allowed deterministic capabilities");
+    expect(generate.mock.calls[0][0].instructions).toContain("Do not execute or invoke any listed capability");
+    expect(result.graph.tasks[0].approvalRequired).toBe(true);
+    expect(result.graph.tasks[0].approvalGranted).toBeUndefined();
+    expect(result.record.validationStatus).toBe("NOT_PERFORMED");
   });
 
   it("keeps malformed or verification-claiming model output behind the execution validator", async () => {
