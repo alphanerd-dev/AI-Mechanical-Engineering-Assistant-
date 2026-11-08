@@ -14,7 +14,9 @@ This index points to the current product and operational contracts. It also dist
 ## Architecture decision records
 
 - [ADR — Renderer benchmark and abstraction](architecture/adr-2026-11-08-renderer-benchmark.md) — Babylon.js vs Three.js benchmark; WebGL 2 baseline; no production renderer selected yet.
-- [ADR — OCCT-first hybrid geometry foundation](architecture/adr-2026-11-08-hybrid-geometry-foundation.md) — OCCT-first kernel direction, product-owned geometry contracts, provider adapters and no proprietary kernel project at this stage.
+- [ADR — OCCT-first hybrid geometry foundation](architecture/adr-2026-11-08-hybrid-geometry-foundation.md) — initial OCCT provider, provider adapters and canonical/display geometry separation; remains valid for the initial provider direction.
+- [ADR — Proprietary geometry platform and progressive kernel ownership](architecture/adr-2026-11-08-proprietary-geometry-platform.md) — supersedes the earlier decision not to pursue a proprietary kernel; approves a product-owned platform and staged native algorithm development.
+- [Geometry Platform Charter](geometry-platform/README.md) — ownership boundaries, repository placement, conformance suite and G0–G6 delivery sequence.
 - [ADR — Integrated engineering workspace strategy](architecture/adr-2026-11-08-integrated-engineering-workspace.md) — modular CAD/CAE/perception/manufacturing/lifecycle domains under shared engineering contracts.
 
 These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above.
