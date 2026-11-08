@@ -256,7 +256,7 @@ function validateActionShape(
       if(patch.goal!==undefined&&(typeof patch.goal!=="string"||!patch.goal.trim()||patch.goal.length>2_000))
         errors.push("Updated task goal must contain 1-2000 characters.");
       if(patch.risk!==undefined){
-        if(!(patch.risk in taskRiskRank)) errors.push("Updated task risk is invalid.");
+        if(typeof patch.risk!=="string"||!(patch.risk in taskRiskRank)) errors.push("Updated task risk is invalid.");
         else if(taskRiskRank[patch.risk as CapabilityRisk]<taskRiskRank[task.risk])
           errors.push("Agent task updates cannot lower an existing task risk.");
       }
