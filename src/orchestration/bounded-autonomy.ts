@@ -194,6 +194,151 @@ function taskForAction(graph:EngineeringTaskGraph,action:AgentActionProposal):En
   return graph.tasks.find(task=>task.id===action.taskId);
 }
 
+function validateCreateDependencies(graph:EngineeringTaskGraph,action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>):string[]{
+  const errors:string[]=[];
+  if(action.dependsOn!==undefined&&!Array.isArray(action.dependsOn)) errors.push("New task dependencies must be an array.");
+  else for(const dependency of action.dependsOn??[]){
+    if(typeof dependency!=="string"||!dependency.trim()) errors.push("New task dependencies must be non-empty ids.");
+    else if(!graph.tasks.some(task=>task.id===dependency)) errors.push("New task dependency does not exist: "+dependency+".");
+  }
+  if(action.requiredRequirementIds!==undefined&&!Array.isArray(action.requiredRequirementIds))
+    errors.push("New task requirement ids must be an array.");
+  else for(const requirementId of action.requiredRequirementIds??[]){
+    if(typeof requirementId!=="string"||!requirementId.trim()) errors.push("New task requirement ids cannot be empty.");
+    else if(!/^[A-Za-z0-9._:-]{1,160}$/.test(requirementId)) errors.push("New task requirement id has an invalid format.");
+  }
+  return errors;
+}
+
+function validateCreateTaskAction(
+  graph:EngineeringTaskGraph,
+  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>,
+  limits:AgentRunLimits,
+  router:CapabilityRouter,
+  createTaskId?:()=>string
+):string[]{
+  const errors:string[]=[];
+  if(limits.allowTaskCreation!==true) errors.push("Task creation is not enabled by the host policy.");
+  if(!createTaskId) errors.push("A host-owned task id factory is required for task creation.");
+  if(graph.tasks.length>=BOUNDED_AUTONOMY_HARD_LIMITS.maxTaskGraphSize)
+    errors.push("Engineering task graph reached its hard size limit.");
+  if(typeof action.name!=="string"||!action.name.trim()||action.name.length>160)
+    errors.push("New task name must contain 1-160 characters.");
+  if(typeof action.goal!=="string"||!action.goal.trim()||action.goal.length>2_000)
+    errors.push("New task goal must contain 1-2000 characters.");
+  errors.push(...capabilityErrors(action.capability,action.risk,action.input,limits,router,false).errors);
+  errors.push(...validateCreateDependencies(graph,action));
+  return [...new Set(errors)];
+}
+
+function validateUpdatePatchShape(patch:unknown,task:EngineeringTask):string[]{
+  if(!isPlainRecord(patch)) return ["Task update patch must be a plain object."];
+  const errors:string[]=[];
+  if(Object.keys(patch).length===0) errors.push("Task update patch must change at least one permitted field.");
+  if(patch.name!==undefined&&(typeof patch.name!=="string"||!patch.name.trim()||patch.name.length>160))
+    errors.push("Updated task name must contain 1-160 characters.");
+  if(patch.goal!==undefined&&(typeof patch.goal!=="string"||!patch.goal.trim()||patch.goal.length>2_000))
+    errors.push("Updated task goal must contain 1-2000 characters.");
+  if(patch.capability!==undefined&&(typeof patch.capability!=="string"||!patch.capability.trim()))
+    errors.push("Updated task capability must be a non-empty registered capability id.");
+  if(patch.input!==undefined&&(!isPlainRecord(patch.input)||!isJsonValue(patch.input)))
+    errors.push("Updated task input must be a plain, finite JSON object.");
+  errors.push(...validateUpdateRisk(patch.risk,task.risk));
+  errors.push(...validateUpdatedStringList(patch.dependsOn,task.dependsOn??[],"dependencies"));
+  errors.push(...validateUpdatedStringList(patch.requiredRequirementIds,task.requiredRequirementIds??[],"requirement gates"));
+  return errors;
+}
+
+function validateUpdateRisk(value:unknown,currentRisk:CapabilityRisk):string[]{
+  if(value===undefined) return [];
+  if(typeof value!=="string"||!(value in taskRiskRank)) return ["Updated task risk is invalid."];
+  return taskRiskRank[value as CapabilityRisk]<taskRiskRank[currentRisk]
+    ?["Agent task updates cannot lower an existing task risk."]:[];
+}
+
+function validateUpdatedStringList(value:unknown,current:readonly string[],label:string):string[]{
+  if(value===undefined) return [];
+  if(!Array.isArray(value)||value.some(item=>typeof item!=="string"||!item.trim()))
+    return ["Updated "+label+" must be an array of non-empty strings."];
+  return current.some(id=>!value.includes(id))
+    ?["Agent task updates cannot remove existing "+label+"."]:[];
+}
+
+function validateUpdatedCapability(
+  task:EngineeringTask,
+  patch:Record<string,unknown>,
+  limits:AgentRunLimits,
+  router:CapabilityRouter
+):string[]{
+  const capability=typeof patch.capability==="string"?patch.capability:task.capability??"";
+  const risk=(typeof patch.risk==="string"?patch.risk:task.risk) as CapabilityRisk;
+  const input=isPlainRecord(patch.input)?patch.input:task.input;
+  if(!capability.trim()) return ["An updated task must retain a registered capability."];
+  const errors=capabilityErrors(capability,risk,input,limits,router,false).errors;
+  const skill=task.reasoning?.skillManifest;
+  if(skill&&!skill.allowedCapabilities.includes(capability))
+    errors.push("Updated task capability is outside its assigned skill allowlist.");
+  if(skill&&taskRiskRank[risk]>taskRiskRank[skill.maximumRisk])
+    errors.push("Updated task risk exceeds its assigned skill maximum.");
+  return errors;
+}
+
+function validateUpdateTaskAction(
+  action:Extract<AgentActionProposal,{kind:"UPDATE_TASK"}>,
+  task:EngineeringTask|undefined,
+  limits:AgentRunLimits,
+  router:CapabilityRouter
+):string[]{
+  const errors:string[]=[];
+  if(limits.allowTaskUpdates!==true) errors.push("Task updates are not enabled by the host policy.");
+  if(!task) return errors;
+  if(!["PROPOSED","BLOCKED","FAILED"].includes(task.status))
+    errors.push("Agent task updates are allowed only before readiness or after a blocked/failed result.");
+  if(!isPlainRecord(action.patch)) return [...errors,"Task update patch must be a plain object."];
+  errors.push(...validateUpdatePatchShape(action.patch,task));
+  errors.push(...validateUpdatedCapability(task,action.patch,limits,router));
+  return [...new Set(errors)];
+}
+
+function validateReadinessAction(task:EngineeringTask|undefined,limits:AgentRunLimits,router:CapabilityRouter):string[]{
+  if(!task) return [];
+  const errors:string[]=[];
+  if(!["PROPOSED","FAILED","BLOCKED"].includes(task.status))
+    errors.push("Only a PROPOSED, FAILED or BLOCKED task can request readiness.");
+  if(task.capability) errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
+  return errors;
+}
+
+function validateExecutionAction(
+  task:EngineeringTask|undefined,
+  limits:AgentRunLimits,
+  router:CapabilityRouter
+):string[]{
+  if(!task) return [];
+  const errors=task.capability
+    ?capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors
+    :["Task has no registered capability to execute."];
+  if(task.status!=="READY") errors.push("Task must be READY before bounded execution; current status is "+task.status+".");
+  return errors;
+}
+
+function validateDelegationAction(
+  action:Extract<AgentActionProposal,{kind:"DELEGATE_SPECIALIST"}>,
+  task:EngineeringTask|undefined,
+  limits:AgentRunLimits,
+  router:CapabilityRouter
+):string[]{
+  const errors:string[]=[];
+  if(!limits.allowedSpecialists?.includes(action.specialistId))
+    errors.push("Specialist is outside the host-authorized specialist allowlist: "+action.specialistId+".");
+  if(!task) return errors;
+  if(task.capability) errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
+  else errors.push("Task has no registered capability for specialist delegation.");
+  if(task.status!=="READY")
+    errors.push("Task must be READY before specialist delegation; current status is "+task.status+".");
+  return errors;
+}
+
 function validateActionShape(
   graph:EngineeringTaskGraph,
   action:AgentActionProposal,
@@ -201,119 +346,22 @@ function validateActionShape(
   router:CapabilityRouter,
   createTaskId?:()=>string
 ):string[]{
-  const errors:string[]=[];
-  if((action.kind==="DELEGATE_SPECIALIST"||action.kind==="EXECUTE_TASK")&&!validStages.includes(action.stage))
-    errors.push("Agent action stage is invalid.");
-
-  if(action.kind==="CREATE_TASK"){
-    if(limits.allowTaskCreation!==true) errors.push("Task creation is not enabled by the host policy.");
-    if(!createTaskId) errors.push("A host-owned task id factory is required for task creation.");
-    if(graph.tasks.length>=BOUNDED_AUTONOMY_HARD_LIMITS.maxTaskGraphSize)
-      errors.push("Engineering task graph reached its hard size limit.");
-    if(typeof action.name!=="string"||!action.name.trim()||action.name.length>160) errors.push("New task name must contain 1-160 characters.");
-    if(typeof action.goal!=="string"||!action.goal.trim()||action.goal.length>2_000) errors.push("New task goal must contain 1-2000 characters.");
-    const target=capabilityErrors(action.capability,action.risk,action.input,limits,router,false);
-    errors.push(...target.errors);
-    if(action.dependsOn!==undefined&&!Array.isArray(action.dependsOn)) errors.push("New task dependencies must be an array.");
-    else for(const dependency of action.dependsOn??[]){
-      if(typeof dependency!=="string"||!dependency.trim()) errors.push("New task dependencies must be non-empty ids.");
-      else if(!graph.tasks.some(task=>task.id===dependency)) errors.push("New task dependency does not exist: "+dependency+".");
-    }
-    if(action.requiredRequirementIds!==undefined&&!Array.isArray(action.requiredRequirementIds)) errors.push("New task requirement ids must be an array.");
-    else for(const requirementId of action.requiredRequirementIds??[]){
-      if(!requirementId.trim()) errors.push("New task requirement ids cannot be empty.");
-      if(limits && !(/^[A-Za-z0-9._:-]{1,160}$/).test(requirementId)) errors.push("New task requirement id has an invalid format.");
-    }
-    return [...new Set(errors)];
-  }
-
-  if(action.kind==="STOP") return errors;
-
+  if(action.kind==="CREATE_TASK") return validateCreateTaskAction(graph,action,limits,router,createTaskId);
+  if(action.kind==="STOP") return [];
   const task=taskForAction(graph,action);
+  const errors:string[]=[];
   if(!task) errors.push("Agent action references an unknown task: "+action.taskId+".");
   if(task&&action.expectedGraphRevision!==undefined&&action.expectedGraphRevision!==graph.revision)
-    errors.push(`Agent action graph revision is stale: expected ${action.expectedGraphRevision}, current ${graph.revision}.`);
-
-  if(action.kind==="REQUEST_APPROVAL"&&(typeof action.reason!=="string"||!action.reason.trim()))
-    errors.push("Agent approval request reason is required.");
-
-  if(action.kind==="UPDATE_TASK"){
-    if(limits.allowTaskUpdates!==true) errors.push("Task updates are not enabled by the host policy.");
-    if(task&& !["PROPOSED","BLOCKED","FAILED"].includes(task.status))
-      errors.push("Agent task updates are allowed only before readiness or after a blocked/failed result.");
-    const patch=action.patch as Record<string,unknown>;
-    const patchKeys=Object.keys(patch??{});
-    const allowedPatchKeys=["name","goal","capability","risk","input","dependsOn","requiredRequirementIds"];
-    if(!isPlainRecord(patch)||patchKeys.length===0||patchKeys.some(key=>!allowedPatchKeys.includes(key)))
-      errors.push("Task update contains an empty or unsupported patch.");
-    if(task&&isPlainRecord(patch)){
-      if(patch.name!==undefined&&(typeof patch.name!=="string"||!patch.name.trim()||patch.name.length>160))
-        errors.push("Updated task name must contain 1-160 characters.");
-      if(patch.capability!==undefined&&(typeof patch.capability!=="string"||!patch.capability.trim()))
-        errors.push("Updated task capability must be a non-empty registered capability id.");
-      if(patch.input!==undefined&&(!isPlainRecord(patch.input)||!isJsonValue(patch.input)))
-        errors.push("Updated task input must be a plain, finite JSON object.");
-      if(patch.goal!==undefined&&(typeof patch.goal!=="string"||!patch.goal.trim()||patch.goal.length>2_000))
-        errors.push("Updated task goal must contain 1-2000 characters.");
-      if(patch.risk!==undefined){
-        if(typeof patch.risk!=="string"||!(patch.risk in taskRiskRank)) errors.push("Updated task risk is invalid.");
-        else if(taskRiskRank[patch.risk as CapabilityRisk]<taskRiskRank[task.risk])
-          errors.push("Agent task updates cannot lower an existing task risk.");
-      }
-      if(patch.dependsOn!==undefined){
-        if(!Array.isArray(patch.dependsOn)||patch.dependsOn.some(item=>typeof item!=="string"||!item.trim()))
-          errors.push("Updated dependencies must be non-empty task ids.");
-        else if((task.dependsOn??[]).some(id=>!(patch.dependsOn as string[]).includes(id)))
-          errors.push("Agent task updates cannot remove existing dependencies.");
-      }
-      if(patch.requiredRequirementIds!==undefined){
-        if(!Array.isArray(patch.requiredRequirementIds)||patch.requiredRequirementIds.some(item=>typeof item!=="string"||!item.trim()))
-          errors.push("Updated requirement ids must be non-empty strings.");
-        else if((task.requiredRequirementIds??[]).some(id=>!(patch.requiredRequirementIds as string[]).includes(id)))
-          errors.push("Agent task updates cannot remove existing requirement gates.");
-      }
-      const nextCapability=typeof patch.capability==="string"?patch.capability:task.capability??"";
-      const nextRisk=(typeof patch.risk==="string"?patch.risk:task.risk) as CapabilityRisk;
-      const nextInput=isPlainRecord(patch.input)?patch.input:task.input;
-      if(!nextCapability.trim()) errors.push("An updated task must retain a registered capability.");
-      else{
-        const target=capabilityErrors(nextCapability,nextRisk,nextInput,limits,router,false);
-        errors.push(...target.errors);
-        const skill=task.reasoning?.skillManifest;
-        if(skill&& !skill.allowedCapabilities.includes(nextCapability))
-          errors.push("Updated task capability is outside its assigned skill allowlist.");
-        if(skill&&taskRiskRank[nextRisk]>taskRiskRank[skill.maximumRisk])
-          errors.push("Updated task risk exceeds its assigned skill maximum.");
-      }
-    }
+    errors.push("Agent action graph revision is stale: expected "+action.expectedGraphRevision+", current "+graph.revision+".");
+  switch(action.kind){
+    case "UPDATE_TASK": errors.push(...validateUpdateTaskAction(action,task,limits,router)); break;
+    case "REQUEST_READY": errors.push(...validateReadinessAction(task,limits,router)); break;
+    case "EXECUTE_TASK": errors.push(...validateExecutionAction(task,limits,router)); break;
+    case "DELEGATE_SPECIALIST": errors.push(...validateDelegationAction(action,task,limits,router)); break;
+    case "REQUEST_APPROVAL":
+      if(typeof action.reason!=="string"||!action.reason.trim()) errors.push("Agent approval request reason is required.");
+      break;
   }
-
-  if(action.kind==="REQUEST_READY"&&task){
-    if(!["PROPOSED","FAILED","BLOCKED"].includes(task.status))
-      errors.push("Only a PROPOSED, FAILED or BLOCKED task can request readiness.");
-    if(task.capability){
-      errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
-    }
-  }
-
-  if(action.kind==="EXECUTE_TASK"&&task?.capability){
-    errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
-    if(task.status!=="READY")
-      errors.push(`Task must be READY before bounded execution; current status is ${task.status}.`);
-  }
-
-  if(action.kind==="DELEGATE_SPECIALIST"){
-    if(limits.requireSpecialistAllowlist===true&&
-       (!limits.allowedSpecialists||!limits.allowedSpecialists.includes(action.specialistId)))
-      errors.push("Specialist is outside the required host allowlist: "+action.specialistId+".");
-    else if(limits.allowedSpecialists?.length&&!limits.allowedSpecialists.includes(action.specialistId))
-      errors.push("Specialist is outside the bounded agent policy: "+action.specialistId+".");
-    if(task?.capability)
-      errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
-    if(task&&task.status!=="READY")
-      errors.push(`Task must be READY before specialist delegation; current status is ${task.status}.`);
-  }
-
   return [...new Set(errors)];
 }
 
