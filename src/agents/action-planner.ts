@@ -248,27 +248,40 @@ function parseAction(
   }
 }
 
+function parseBaseGraphRevision(value:unknown):number{
+  if(!Number.isInteger(value)||(value as number)<1)
+    throw new Error("Agent plan baseGraphRevision must be a positive integer.");
+  return value as number;
+}
+
+function createCapabilityAllowlist(values:readonly string[]):ReadonlySet<string>{
+  if(!Array.isArray(values)||new Set(values).size!==values.length)
+    throw new Error("The host capability allowlist is invalid.");
+  return new Set(values);
+}
+
+function parsePlanActions(
+  value:unknown,
+  limits:AgentRunLimits,
+  allowed:ReadonlySet<string>
+):AgentActionProposal[]{
+  if(!Array.isArray(value)||value.length===0||value.length>limits.maxSteps)
+    throw new Error("Agent plan actions must contain between 1 and the configured maxSteps entries.");
+  return value.map(action=>parseAction(action,allowed,limits));
+}
+
 /** Strictly parses untrusted model output; task identity, status and approval fields are never accepted. */
 export function parseAgentActionPlan(
-  value: unknown,
-  limits: AgentRunLimits,
-  allowedCapabilities: readonly string[]
-): AgentActionPlan {
-  const plan = record(value, "Agent action plan");
-  exactKeys(plan, ["baseGraphRevision", "actions"], "Agent action plan");
-  if (!Number.isInteger(plan.baseGraphRevision) || (plan.baseGraphRevision as number) < 1) {
-    throw new Error("Agent plan baseGraphRevision must be a positive integer.");
-  }
-  if (!Array.isArray(plan.actions) || plan.actions.length === 0 || plan.actions.length > limits.maxSteps) {
-    throw new Error("Agent plan actions must contain between 1 and the configured maxSteps entries.");
-  }
-  if (!Array.isArray(allowedCapabilities) || new Set(allowedCapabilities).size !== allowedCapabilities.length) {
-    throw new Error("The host capability allowlist is invalid.");
-  }
-  const allowed = new Set(allowedCapabilities);
+  value:unknown,
+  limits:AgentRunLimits,
+  allowedCapabilities:readonly string[]
+):AgentActionPlan{
+  const plan=record(value,"Agent action plan");
+  exactKeys(plan,["baseGraphRevision","actions"],"Agent action plan");
+  const allowed=createCapabilityAllowlist(allowedCapabilities);
   return {
-    baseGraphRevision: plan.baseGraphRevision as number,
-    actions: plan.actions.map((action) => parseAction(action, allowed, limits))
+    baseGraphRevision:parseBaseGraphRevision(plan.baseGraphRevision),
+    actions:parsePlanActions(plan.actions,limits,allowed)
   };
 }
 
