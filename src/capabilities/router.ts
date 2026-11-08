@@ -64,6 +64,14 @@ export class CapabilityRouter {
     return this.registry.getDefinition(capability);
   }
 
+  listDefinitions() {
+    return this.registry.listDefinitions();
+  }
+
+  hasExecutableProvider(capability: string): boolean {
+    return this.registry.resolve(capability).length > 0;
+  }
+
   async execute(request: CapabilityRequest): Promise<CapabilityResult> {
     const definition = this.registry.getDefinition(request.capability);
     if (definition?.status === "BLOCKED" || definition?.status === "DEPRECATED") {
