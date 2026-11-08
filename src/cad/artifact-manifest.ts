@@ -62,16 +62,13 @@ function linkArtifactLineage(artifacts: CADArtifact[]): void {
   }
 }
 
-function buildProvenance(
+function validateProvenanceContext(
   projectId: string,
   execution: CADExecutionResult,
   context: CADArtifactManifestContext
-): { provenance?: CADExecutionProvenance; errors: string[] } {
-  const errors: string[] = [];
+): string[] {
+  const errors = validateCADModelIdentity(context.modelIdentity, projectId).errors;
   const request = context.request;
-  const identityCheck = validateCADModelIdentity(context.modelIdentity, projectId);
-  errors.push(...identityCheck.errors);
-
   if (!nonEmptyString(request?.id)) errors.push("CAD execution request id is required.");
   if (!nonEmptyString(request?.source)) errors.push("CAD execution source must be non-empty.");
   if (!nonEmptyString(request?.filename)) errors.push("CAD execution filename is required.");
@@ -82,29 +79,50 @@ function buildProvenance(
   if (request?.backend !== execution.backend) {
     errors.push("CAD execution request backend does not match the worker result backend.");
   }
+  return errors;
+}
 
+function modelRevisionProvenance(identity: CADModelIdentity): { modelRevision?: number } {
+  const revision = identity.revision;
+  if (Number.isSafeInteger(revision) && (revision as number) > 0) return { modelRevision: revision };
+  return {};
+}
+
+function createExecutionProvenance(
+  projectId: string,
+  execution: CADExecutionResult,
+  context: CADArtifactManifestContext,
+  generatedAt: string
+): CADExecutionProvenance {
+  const request = context.request;
+  return {
+    schemaVersion: 1,
+    sourceType: "CAD_EXECUTION",
+    projectId,
+    modelIdentityId: context.modelIdentity.id,
+    executionId: request.id,
+    providerId: context.providerId.trim(),
+    backend: request.backend,
+    sourceSha256: createCADSourceSha256(request.source),
+    sourceFilename: request.filename.trim(),
+    ...(nonEmptyString(execution.sourceArtifactPath) ? { sourceArtifactUri: execution.sourceArtifactPath.trim() } : {}),
+    generatedAt,
+    ...modelRevisionProvenance(context.modelIdentity)
+  };
+}
+
+function buildProvenance(
+  projectId: string,
+  execution: CADExecutionResult,
+  context: CADArtifactManifestContext
+): { provenance?: CADExecutionProvenance; errors: string[] } {
   const generatedAt = context.generatedAt ?? new Date().toISOString();
+  const errors = validateProvenanceContext(projectId, execution, context);
   if (!validDate(generatedAt)) errors.push("CAD provenance generatedAt must be a valid date string.");
   if (errors.length) return { errors };
-
   return {
     errors,
-    provenance: {
-      schemaVersion: 1,
-      sourceType: "CAD_EXECUTION",
-      projectId,
-      modelIdentityId: context.modelIdentity.id,
-      executionId: request.id,
-      providerId: context.providerId.trim(),
-      backend: request.backend,
-      sourceSha256: createCADSourceSha256(request.source),
-      sourceFilename: request.filename.trim(),
-      ...(nonEmptyString(execution.sourceArtifactPath) ? { sourceArtifactUri: execution.sourceArtifactPath.trim() } : {}),
-      generatedAt,
-      ...(Number.isSafeInteger(context.modelIdentity.revision) && (context.modelIdentity.revision as number) > 0
-        ? { modelRevision: context.modelIdentity.revision }
-        : {})
-    }
+    provenance: createExecutionProvenance(projectId, execution, context, generatedAt)
   };
 }
 
