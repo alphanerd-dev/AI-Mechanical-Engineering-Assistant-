@@ -151,7 +151,21 @@ describe("LLM bounded operational authority", () => {
         goal: "Size a shaft under bending and torsion.",
         capability: "ANALYSIS.SHAFT_STATIC_DESIGN",
         risk: "MEDIUM",
-        input: {}
+        input: {
+          powerKw: 5,
+          speedRpm: 1500,
+          bearingSpanMm: 300,
+          gearPositionFromLeftMm: 150,
+          pitchDiameterMm: 100,
+          pressureAngleDeg: 20,
+          axialLoadN: 0,
+          materialGrade: "STEEL",
+          yieldStrengthMpa: 250,
+          ultimateTensileStrengthMpa: 400,
+          designFactor: 2,
+          bendingStressFactorKb: 1,
+          torsionalStressFactorKts: 1
+        }
       }]
     }, router);
 
