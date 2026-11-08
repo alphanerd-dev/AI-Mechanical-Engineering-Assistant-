@@ -48,7 +48,7 @@ function makeRoutedGraph(): EngineeringTaskGraph {
 
 describe("model-backed reasoning adapter", () => {
   it("passes pinned framework context to the model and persists only a validated advisory record", async () => {
-    const generate = vi.fn(async (_request: ModelReasoningGenerationRequest) => proposal);
+    const generate = vi.fn(async () => proposal);
     const proposer = new ModelBackedTaskReasoningProposer({ generate });
     const result = await executeTaskReasoning(makeRoutedGraph(), "task-1", proposer, {
       now: NOW,
@@ -85,7 +85,7 @@ describe("model-backed reasoning adapter", () => {
       skillRegistry,
       NOW
     );
-    const generate = vi.fn(async (_request: ModelReasoningGenerationRequest) => proposal);
+    const generate = vi.fn(async () => proposal);
     const proposer = new ModelBackedTaskReasoningProposer({ generate });
     const result = await executeTaskReasoning(graph, "task-1", proposer, {
       now: NOW,
