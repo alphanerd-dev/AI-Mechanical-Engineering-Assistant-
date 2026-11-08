@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>CAD Renderer Benchmark — Babylon.js vs Three.js</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">AI MECHANICAL ENGINEERING ASSISTANT · M2.3</p>
+      <h1>CAD viewport renderer benchmark</h1>
+      <p>Equivalent pre-tessellated workloads, WebGL 2 only. This isolated harness does not load user files or modify the product renderer.</p>
+    </header>
+    <section class="controls">
+      <label>Workload
+        <select id="workload">
+          <option value="1">1 part</option>
+          <option value="100">100 instances</option>
+          <option value="500">500 instances</option>
+          <option value="1000">1,000 instances</option>
+          <option value="5000">5,000 instances</option>
+        </select>
+      </label>
+      <label>Sample duration
+        <select id="duration">
+          <option value="1200">1.2 seconds</option>
+          <option value="2500" selected>2.5 seconds</option>
+          <option value="5000">5 seconds</option>
+        </select>
+      </label>
+      <button id="run" type="button">Run both renderers</button>
+      <button id="export" type="button" disabled>Export results JSON</button>
+    </section>
+    <section class="panes">
+      <article>
+        <div class="pane-head"><h2>Babylon.js</h2><span id="babylon-state">Not run</span></div>
+        <canvas id="babylon" width="960" height="540"></canvas>
+        <pre id="babylon-metrics">No measurements captured.</pre>
+      </article>
+      <article>
+        <div class="pane-head"><h2>Three.js</h2><span id="three-state">Not run</span></div>
+        <canvas id="three" width="960" height="540"></canvas>
+        <pre id="three-metrics">No measurements captured.</pre>
+      </article>
+    </section>
+    <section class="notes">
+      <h2>Run discipline</h2>
+      <ul>
+        <li>Use the same browser, device, viewport, power mode, workload and warm/cold sequence for both engines.</li>
+        <li>Run at least five paired trials per workload. Close other GPU-heavy tabs and record device/OS/browser/GPU.</li>
+        <li>Renderer import/initialization and first render are timed separately from the steady-state frame sample.</li>
+        <li>This harness tests repeated box instances, orbit, visibility toggles and centre picking. It does not test STEP import, OCCT tessellation, stable BREP topology mapping or production memory limits.</li>
+        <li>Do not choose a production engine from one browser run. Record raw JSON and the device matrix with the decision.</li>
+      </ul>
+      <p id="environment"></p>
+      <p class="warning">Experimental benchmark. It does not prove CAD correctness, engineering validation, mobile stability on untested devices or production suitability.</p>
+    </section>
+  </main>
+  <script type="module" src="./benchmark.mjs"></script>
+</body>
+</html>

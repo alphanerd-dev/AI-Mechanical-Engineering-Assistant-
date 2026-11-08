@@ -1,7 +1,7 @@
 # Implementation Plan and Milestones
 
 **Updated:** 8 November 2026  
-**Status:** M0 is complete with its stated limitation. The M1 conversational chat foundation is implemented and browser-accepted on the tested revision. M2 — shared artifact infrastructure and interactive CAD visualization — is the next priority and remains planned; no production 3D renderer has been selected.
+**Status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested scope. M2.2–M2.6 foundation work is being delivered in a feature-branch release candidate; this does not close the milestone exit gates. The production renderer remains unselected, and general OCCT import/tessellation is not implemented by the current worker.
 
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
 
@@ -21,7 +21,7 @@ Preserve the existing Next.js/React/TypeScript control plane, Supabase project/w
 | Engineering task interaction | Separate Engineering Core panel for existing registered deterministic workflows and decision states. | It is not an LLM tool-call executor. A capability must be explicitly implemented and validated before it is exposed. |
 | Deterministic calculations | Shaft torque, pump-power and a new solid-shaft static-yield pilot with explicit gear geometry, axial force, deterministic diameter solve, revisioned state, digests and validation receipt. | The shaft pilot is preliminary static yield only; it is not fatigue, complete shaft design, ASME compliance or design approval. |
 | CAD | Explicit cylindrical/shaft generation using deterministic build123d code, separate remote worker, artifact registration and independent OCCT BREP checks. | Do not infer general CAD/assembly support or automatic validation of every exported format. |
-| Visualization | No shared artifact/viewer registry or complete interactive CAD/FEA/P&ID viewer. Babylon.js and Three.js are candidates for a controlled renderer benchmark; VTK.js is a separate scientific-visualization candidate. | Candidate evaluation is not dependency adoption. Canonical artifacts, conversion derivatives and viewer state must remain distinct. |
+| Visualization | Existing bounded STL preview; renderer-neutral contracts, pinned Babylon-vs-Three harness and bounded PDF/SVG/DXF drawing-preview path are in the M2.2–M2.6 candidate branch. | The renderer is not selected; the current OCCT worker is a BREP validator, not a general STEP/BREP importer or tessellator. Drawing preview requires an already-authorized artifact and trusted media type. |
 | FEA | Reference Gmsh/CalculiX cantilever benchmark worker and related adapter contracts. | Pilot/reference scope; no general FEA mesh/result viewer or broad structural certification. |
 | Physical perception | Isolated Open3D inspection/ICP registration prototype. | No public scan upload, persistent artifact registry integration or production perception claim. |
 | CI and browser evidence | Core CI includes tests, worker checks, security analysis and production build. The isolated Playwright public UI suite includes the authenticated chat-rendering test. | Each run proves only the assertions that ran on its exact SHA and environment. |
@@ -68,7 +68,7 @@ Acceptance still requires CI on the exact pull-request SHA, authenticated previe
 
 | ID | Milestone | Status | Main exit gate |
 |---|---|---|---|
-| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | NEXT / PLANNED | Selected renderer passes the documented benchmark; supported canonical artifacts and display derivatives render with source lineage, authorization and stale-revision handling; viewer failure cannot change canonical validation state. |
+| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | FOUNDATION IN PR; EXIT GATES OPEN | Renderer selected only after paired desktop/Android runs; authorized canonical artifacts and display derivatives render with source lineage and proven stale handling; viewer failure cannot change validation state. |
 | M3 | FEA mesh and result-field visualization | PLANNED | Supported mesh/field fixtures render with correct source values, units and legends; malformed or incomplete data fails closed; convergence and engineering review remain distinct. |
 | M4 | Typed P&ID/PFD data model and viewer | PLANNED | Diagram IDs and connectivity round-trip; references are authorized; unsupported symbols/invalid connections are explicit. |
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | DEFERRED | A concrete user need, measured outcome, provider/license review, benchmark, independent validator, runtime isolation and rollback plan exist. |
@@ -82,7 +82,10 @@ Adopt an **OCCT-first hybrid**:
 - Put a product-owned engineering geometry/domain model above kernel adapters. It owns engineering identity, revisions, provenance, units, coordinate frames, feature/operation metadata, constraints and relationships to requirements, artifacts and validation.
 - Define kernel conformance fixtures for import/export round trips, topology validity, dimensions, volume, units, tolerances, coordinate transforms and stable reference mapping.
 - Review exact source revision, bindings, licenses, notices, maintenance, packaging and deployment constraints before adopting OCCT.js/OCP or another binding in a runtime.
-- Do not build a proprietary geometry kernel now. Consider an alternative or proprietary kernel only after a demonstrated gap, an economic case and a separate accepted ADR.
+- Build a proprietary geometry platform with progressive kernel ownership. First complete G0: audit existing `src/cad`, `src/artifacts`, `src/providers`, `src/execution` and `worker/cad` contracts and tests. Do not add parallel artifact identity, persistence, viewer registry or CAD execution paths.
+- Retain OCCT as the initial exact-geometry provider and build123d as the bounded authoring provider. Develop native algorithms incrementally and promote each only after differential, numerical, adversarial, regression and resource conformance gates pass.
+- Keep the first implementation in this repository. Consider extraction only after stable APIs, independent versioning/CI, conformance coverage and a real external consumer exist.
+- See [Proprietary Geometry Platform ADR](architecture/adr-2026-11-08-proprietary-geometry-platform.md) and [Geometry Platform Charter](geometry-platform/README.md).
 
 Canonical geometry is distinct from renderer-facing tessellation. Display derivatives carry source ID/revision/digest, conversion provider/version and tessellation parameters. Geometry validation must identify the exact bytes tested. STEP/STL/3MF exports are not validated merely because a related BREP passed a check.
 
@@ -114,9 +117,9 @@ M2 artifact/viewer foundations are a prerequisite for workflows that must inspec
 
 Physical perception remains a separately staged roadmap path: the current Open3D worker is a one-shot prototype. Before product integration it needs authenticated upload, private project storage, known-transform/noise/outlier fixtures, provenance, limits and human review.
 
-## M2 — Shared artifact and CAD visualization foundation (NEXT)
+## M2 — Shared artifact and CAD visualization foundation (FOUNDATION IN PROGRESS)
 
-**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. This milestone adds the shared viewer foundation without changing the existing Engineering Core execution/validation boundaries.
+**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 foundation contracts and limited drawing readers are being introduced without changing the existing Engineering Core execution/validation boundaries. The candidate branch does not satisfy all M2 exit gates.
 
 ### M2 work sequence
 

@@ -16,6 +16,8 @@ export interface CADModelIdentity {
   name: string;
   /** Multiple provider references may point to this same canonical model. */
   nativeReferences: CADNativeModelReference[];
+  /** Database metadata revision. This is not a geometry revision or approval state. */
+  revision?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +114,13 @@ export function validateCADModelIdentity(
   }
 
   if (!validDate(value.createdAt)) errors.push("CAD model identity createdAt must be a valid date string.");
+  if (value.revision !== undefined &&
+      (!Number.isSafeInteger(value.revision) || (value.revision as number) < 1)) {
+    errors.push("CAD model identity revision must be a positive safe integer when supplied.");
+  }
+  if (value.revision === undefined) {
+    warnings.push("CAD model metadata revision was not supplied by this persistence boundary.");
+  }
   if (!validDate(value.updatedAt)) errors.push("CAD model identity updatedAt must be a valid date string.");
   if (
     validDate(value.createdAt) &&

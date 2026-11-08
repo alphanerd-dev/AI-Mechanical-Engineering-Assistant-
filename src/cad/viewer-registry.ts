@@ -7,6 +7,7 @@
  */
 export type CADArtifactViewerMode =
   | "STL_PREVIEW"
+  | "DRAWING_PREVIEW"
   | "DOWNLOAD_ONLY"
   | "UNSUPPORTED";
 
@@ -84,13 +85,30 @@ const UNSUPPORTED: CADArtifactViewerRegistration = {
  * Validation and evidence fields are deliberately not accepted as inputs:
  * viewer selection must never upgrade or alter engineering trust state.
  */
-export function resolveCADArtifactViewer(kind: unknown): CADArtifactViewerRegistration {
+export function resolveCADArtifactViewer(kind: unknown, mediaType?: unknown): CADArtifactViewerRegistration {
   if (typeof kind !== "string") return { ...UNSUPPORTED };
   const normalized = kind.trim().toUpperCase();
   if (!Object.prototype.hasOwnProperty.call(CAD_ARTIFACT_VIEWERS, normalized)) {
     return { ...UNSUPPORTED, artifactKind: normalized || "UNKNOWN" };
   }
-  return { ...CAD_ARTIFACT_VIEWERS[normalized] };
+  const registration = CAD_ARTIFACT_VIEWERS[normalized];
+  if (normalized === "DRAWING" && typeof mediaType === "string") {
+    const format = mediaType.trim().toLowerCase();
+    if (["application/pdf", "image/svg+xml", "application/dxf", "image/vnd.dxf"].includes(format)) {
+      return {
+        ...registration,
+        mode: "DRAWING_PREVIEW",
+        previewAvailable: true,
+        description: format === "application/pdf"
+          ? "Read-only PDF drawing preview using the browser's native PDF viewer."
+          : format === "image/svg+xml"
+            ? "Sanitized, image-only SVG drawing preview."
+            : "Bounded 2D DXF preview for LINE, CIRCLE, ARC, LWPOLYLINE and TEXT entities.",
+        trustBoundary: "Drawing preview is for inspection only; it does not validate dimensions, drafting standards, symbols or manufacturing suitability."
+      };
+    }
+  }
+  return { ...registration };
 }
 
 /** Return a stable snapshot of registered CAD presentation policies for tests and diagnostics. */

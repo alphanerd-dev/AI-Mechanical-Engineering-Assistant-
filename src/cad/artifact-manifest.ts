@@ -40,26 +40,24 @@ function noArtifacts(warnings: string[], errors: string[]): CADArtifactManifest 
 }
 
 /**
- * Bind each generated derivative to the nearest canonical artifact in the same
- * execution. The validated BREP descends from the generated source; exchange
- * and mesh formats descend from the BREP. This records lineage only and never
- * copies validation or verification state onto a derivative.
+ * These files are exported in parallel from the same in-memory build123d shape.
+ * The generated source is their common design input. STEP/STL/3MF are NOT produced
+ * by converting the persisted BREP, so their lineage must not claim that conversion.
+ * The BREP ID is retained separately as the associated canonical geometry record.
+ * This records lineage only and never copies validation or verification state.
  */
 function linkArtifactLineage(artifacts: CADArtifact[]): void {
   const source = artifacts.find((artifact) => artifact.kind === "SOURCE");
   const solid = artifacts.find((artifact) => artifact.kind === "SOLID");
 
   for (const artifact of artifacts) {
-    if (!artifact.provenance) continue;
-    const parent = artifact.kind === "SOLID"
-      ? source
-      : artifact.kind === "STEP" || artifact.kind === "STL" || artifact.kind === "THREE_MF"
-        ? solid
-        : undefined;
-    if (!parent) continue;
+    if (!artifact.provenance || artifact.kind === "SOURCE" || !source) continue;
     artifact.provenance = {
       ...artifact.provenance,
-      sourceArtifactIds: [parent.id]
+      sourceArtifactIds: [source.id],
+      ...(artifact.kind === "STEP" || artifact.kind === "STL" || artifact.kind === "THREE_MF"
+        ? (solid ? { canonicalGeometryArtifactId: solid.id } : {})
+        : {})
     };
   }
 }
@@ -102,7 +100,10 @@ function buildProvenance(
       sourceSha256: createCADSourceSha256(request.source),
       sourceFilename: request.filename.trim(),
       ...(nonEmptyString(execution.sourceArtifactPath) ? { sourceArtifactUri: execution.sourceArtifactPath.trim() } : {}),
-      generatedAt
+      generatedAt,
+      ...(Number.isSafeInteger(context.modelIdentity.revision) && (context.modelIdentity.revision as number) > 0
+        ? { modelRevision: context.modelIdentity.revision }
+        : {})
     }
   };
 }

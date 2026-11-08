@@ -18,7 +18,7 @@ describe("CAD artifact manifest",()=>{
     expect(result.artifacts.every(a=>a.validationStatus==="UNVALIDATED"&&!a.provenance)).toBe(true);
   });
 
-  it("links the canonical BREP to source code and exchange derivatives to the BREP without copying trust status",()=>{
+  it("records the actual common-source export lineage without claiming the parallel exports were converted from BREP",()=>{
     const result=normalizeCADExecutionResult("project-1",{
       success:true,
       backend:"build123d",
@@ -34,6 +34,7 @@ describe("CAD artifact manifest",()=>{
         projectId:"project-1",
         name:"Test shaft",
         nativeReferences:[],
+        revision:3,
         createdAt:"2026-11-07T10:00:00.000Z",
         updatedAt:"2026-11-07T10:00:00.000Z"
       },
@@ -56,8 +57,11 @@ describe("CAD artifact manifest",()=>{
     const threeMf=result.artifacts.find((artifact)=>artifact.kind==="THREE_MF")!;
 
     expect(solid.provenance?.sourceArtifactIds).toEqual([source.id]);
+    expect(result.provenance?.modelRevision).toBe(3);
+    expect(solid.provenance?.modelRevision).toBe(3);
     for (const derivative of [step,stl,threeMf]) {
-      expect(derivative.provenance?.sourceArtifactIds).toEqual([solid.id]);
+      expect(derivative.provenance?.sourceArtifactIds).toEqual([source.id]);
+      expect(derivative.provenance?.canonicalGeometryArtifactId).toBe(solid.id);
       expect(derivative.validationStatus).toBe("UNVALIDATED");
       expect(derivative.informationStatus).toBe("CALCULATED");
       expect(derivative.evidenceIds).toEqual([]);

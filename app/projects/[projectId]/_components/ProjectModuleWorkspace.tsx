@@ -13,15 +13,16 @@ import {
 import type { EngineeringWorkspaceSnapshot } from "../../../../src/workspace/types";
 import type { CalculationArtifact } from "../../../../src/artifacts/calculation-artifact";
 import { resolveCADArtifactViewer, type CADArtifactViewerRegistration } from "../../../../src/cad/viewer-registry.js";
+import DrawingViewer from "../../../../src/drawings/DrawingViewer";
 
 type ModuleKey = "workbench" | "fea" | "pid" | "calculations" | "files" | "history" | "revisions" | "reports" | "settings";
 type ProjectRecord = {
   id: string; name: string; stage: string; status: "ACTIVE" | "BLOCKED" | "COMPLETE";
   revision: number; created_at: string; updated_at: string;
 };
-type CadModel = { id: string; projectId: string; name: string; nativeReferences: unknown[]; createdAt: string; updatedAt: string };
-type CadArtifactRecord = { id: string; kind: string; name: string; uri?: string; validationStatus?: string; informationStatus?: string };
-type CadCompletionRecord = { id: string; status: string; created_at: string; artifact_records?: CadArtifactRecord[] | null; signedUrls?: Record<string, string> };
+type CadModel = { id: string; projectId: string; name: string; nativeReferences: unknown[]; revision?: number; createdAt: string; updatedAt: string };
+type CadArtifactRecord = { id: string; kind: string; name: string; uri?: string; mediaType?: string; validationStatus?: string; informationStatus?: string };
+type CadCompletionRecord = { id: string; model_identity_id?: string | null; status: string; created_at: string; artifact_records?: CadArtifactRecord[] | null; signedUrls?: Record<string, string> };
 type ApiState = { project: ProjectRecord | null; snapshot: EngineeringWorkspaceSnapshot | null; cadModels: CadModel[]; cadCompletions: CadCompletionRecord[]; loading: boolean; error: string | null };
 
 const projectTabs = [
@@ -277,12 +278,14 @@ function ProjectModuleWorkspaceInstance({ projectId, module }: { projectId: stri
   </div>;
 }
 
+type CADArtifactStaleness = "CURRENT" | "HISTORICAL" | "UNVERIFIABLE";
 type CADArtifactViewEntry = {
   key: string;
   artifact: CadArtifactRecord;
   completion: CadCompletionRecord;
   signedUrl: string | null;
   viewer: CADArtifactViewerRegistration;
+  staleness: CADArtifactStaleness;
 };
 type ViewVisibility = { geometry: boolean; annotations: boolean; labels: boolean };
 
@@ -293,18 +296,33 @@ function getSignedArtifactUrl(completion: CadCompletionRecord, artifact: CadArti
   return typeof url === "string" && url.startsWith("https://") ? url : null;
 }
 
-/** Only accepted, project-authorized completion records enter the read-only artifact selector. */
+/**
+ * Historical accepted completions remain inspectable, but only the latest accepted
+ * completion for a model is labelled CURRENT. This uses immutable completion lineage;
+ * the CAD model metadata revision is not misrepresented as a geometry revision.
+ */
 function getCADArtifactViewEntries(completions: CadCompletionRecord[]): CADArtifactViewEntry[] {
-  return completions
+  const accepted = completions
     .filter((completion) => completion.status === "ACCEPTED")
-    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .flatMap((completion) => (completion.artifact_records ?? []).map((artifact) => ({
-      key: completion.id + ":" + artifact.id,
-      artifact,
-      completion,
-      signedUrl: getSignedArtifactUrl(completion, artifact),
-      viewer: resolveCADArtifactViewer(artifact.kind)
-    })));
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const latestByModel = new Map<string, string>();
+  for (const completion of accepted) {
+    if (completion.model_identity_id && !latestByModel.has(completion.model_identity_id)) {
+      latestByModel.set(completion.model_identity_id, completion.id);
+    }
+  }
+  return accepted.flatMap((completion) => (completion.artifact_records ?? []).map((artifact) => ({
+    key: completion.id + ":" + artifact.id,
+    artifact,
+    completion,
+    signedUrl: getSignedArtifactUrl(completion, artifact),
+    viewer: resolveCADArtifactViewer(artifact.kind, artifact.mediaType),
+    staleness: !completion.model_identity_id
+      ? "UNVERIFIABLE" as const
+      : latestByModel.get(completion.model_identity_id) === completion.id
+        ? "CURRENT" as const
+        : "HISTORICAL" as const
+  })));
 }
 
 function getTaskExecutionState(tasks: number, completed: number, running: number, failed: number) {
@@ -324,7 +342,7 @@ function WorkbenchContent({ project, snapshot, tasks, artifacts, models, complet
   const latestArtifact = [...artifacts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
   const acceptedCompletions = completions.filter((completion) => completion.status === "ACCEPTED");
   const cadArtifactEntries = getCADArtifactViewEntries(completions);
-  const defaultArtifact = cadArtifactEntries.find((entry) => entry.viewer.mode === "STL_PREVIEW" && entry.signedUrl)
+  const defaultArtifact = cadArtifactEntries.find((entry) => entry.viewer.previewAvailable && entry.signedUrl)
     ?? cadArtifactEntries.find((entry) => entry.viewer.downloadAvailable && entry.signedUrl)
     ?? cadArtifactEntries[0]
     ?? null;
@@ -399,24 +417,28 @@ function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifac
   onRefresh: () => void;
 }) {
   const canPreviewStl = selectedArtifact?.viewer.mode === "STL_PREVIEW" && Boolean(selectedArtifact.signedUrl);
+  const canPreviewDrawing = selectedArtifact?.viewer.mode === "DRAWING_PREVIEW" && Boolean(selectedArtifact.signedUrl);
   const showStl = canPreviewStl && visibility.geometry;
+  const showDrawing = canPreviewDrawing && visibility.geometry;
   const emptyTitle = !selectedArtifact
     ? "No accepted CAD artifacts available"
     : selectedArtifact.viewer.mode === "UNSUPPORTED"
       ? "No viewer registered for this artifact"
       : selectedArtifact.viewer.mode === "STL_PREVIEW"
         ? visibility.geometry ? "STL preview unavailable" : "Geometry preview is hidden"
-        : "Preview not available for " + selectedArtifact.artifact.kind;
+        : selectedArtifact.viewer.mode === "DRAWING_PREVIEW"
+          ? "Drawing preview unavailable"
+          : "Preview not available for " + selectedArtifact.artifact.kind;
   const emptyDetail = !selectedArtifact
     ? models.length
       ? "This project has model identities, but no accepted CAD completion with stored artifacts is available."
       : "Create a CAD model and complete a supported part workflow before artifacts appear here."
     : selectedArtifact.viewer.mode === "UNSUPPORTED"
       ? selectedArtifact.viewer.description
-      : selectedArtifact.viewer.mode === "STL_PREVIEW" && !selectedArtifact.signedUrl
-        ? "The authorized project API did not return a valid signed URL for this private STL artifact. Refresh to request a fresh link."
-        : selectedArtifact.viewer.mode === "STL_PREVIEW" && !visibility.geometry
-          ? "Enable geometry visibility to display this read-only STL mesh preview."
+      : selectedArtifact.viewer.previewAvailable && !selectedArtifact.signedUrl
+        ? "The authorized project API did not return a valid signed URL for this private drawing/geometry artifact. Refresh to request a fresh link."
+        : selectedArtifact.viewer.previewAvailable && !visibility.geometry
+          ? "Enable geometry visibility to display this read-only preview."
           : selectedArtifact.viewer.description;
 
   return <main className="workbenchViewportPane">
@@ -429,18 +451,24 @@ function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifac
               {artifactEntries.length === 0 ? <option value="">No accepted artifacts</option> : artifactEntries.map((entry) => <option key={entry.key} value={entry.key}>{entry.artifact.name} · {entry.artifact.kind} · {entry.completion.id.slice(0, 8)}</option>)}
             </select>
           </label>
-          <span>{selectedArtifact ? "Completion " + selectedArtifact.completion.id.slice(0, 8).toUpperCase() : "No source selected"}</span>
+          <span>{selectedArtifact
+            ? "Completion " + selectedArtifact.completion.id.slice(0, 8).toUpperCase() +
+              (selectedArtifact.staleness === "HISTORICAL" ? " · HISTORICAL REVISION" :
+                selectedArtifact.staleness === "UNVERIFIABLE" ? " · REVISION UNVERIFIABLE" : " · CURRENT")
+            : "No source selected"}</span>
         </div>
         <div className="viewportScene">
           <div className="viewportGridPattern" aria-hidden="true" />
           <div className="viewportAxis viewportAxisX">X</div><div className="viewportAxis viewportAxisY">Y</div><div className="viewportAxis viewportAxisZ">Z</div>
           {showStl && selectedArtifact?.signedUrl
             ? <StlViewport src={selectedArtifact.signedUrl} label={selectedArtifact.artifact.name} />
-            : <div className="viewportEmptyCopy">
+            : showDrawing && selectedArtifact?.signedUrl
+              ? <DrawingViewer src={selectedArtifact.signedUrl} mediaType={selectedArtifact.artifact.mediaType ?? ""} label={selectedArtifact.artifact.name} />
+              : <div className="viewportEmptyCopy">
                 <Box size={28} aria-hidden="true" />
                 <strong>{emptyTitle}</strong>
                 <p>{emptyDetail}</p>
-                {selectedArtifact?.signedUrl && selectedArtifact.viewer.downloadAvailable
+                {selectedArtifact?.signedUrl && selectedArtifact.viewer.downloadAvailable && !selectedArtifact.viewer.previewAvailable
                   ? <a className="button secondaryButton" href={selectedArtifact.signedUrl} target="_blank" rel="noopener noreferrer">Open / download {selectedArtifact.artifact.kind}</a>
                   : selectedArtifact && selectedArtifact.viewer.downloadAvailable
                     ? <p role="status">Private file access is unavailable. Refresh artifact access to request a new signed URL.</p>
@@ -449,7 +477,11 @@ function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifac
         </div>
         <div className="viewportFooter">
           <span>{selectedArtifact ? selectedArtifact.viewer.trustBoundary : "No artifact is selected; no file has been opened."}</span>
-          <span>Viewer state cannot modify validation, evidence or approval records.</span>
+          <span>{selectedArtifact?.staleness === "HISTORICAL"
+            ? "Historical revision: inspectable, but not the latest accepted model completion."
+            : selectedArtifact?.staleness === "UNVERIFIABLE"
+              ? "Model revision lineage is unavailable; currentness cannot be established."
+              : "Viewer state cannot modify validation, evidence or approval records."}</span>
         </div>
       </div>
     </Panel>
@@ -481,7 +513,7 @@ function WorkbenchInspector({ models, artifacts, acceptedCount, artifactCount, s
         <div className="moduleKeyValue"><span>Selected artifact validation</span><StateLabel value={selectedArtifact?.artifact.validationStatus ?? "NOT_RECORDED"} /></div>
         {selectedArtifact ? <div className="latestEvidence"><span>Selected CAD artifact</span><strong>{selectedArtifact.artifact.name}</strong><small>{selectedArtifact.artifact.kind} · {selectedArtifact.artifact.validationStatus ?? "Validation not recorded"}</small></div> : <p className="moduleSmallNote">No accepted CAD artifact is available for inspection.</p>}
         <div className="moduleVisibility">
-          <h3>Temporary view preferences</h3><p className="moduleSmallNote">Preferences are local to this screen. Geometry visibility controls STL preview only; annotations and labels are not connected to persisted metadata.</p>
+          <h3>Temporary view preferences</h3><p className="moduleSmallNote">Preferences are local to this screen. Geometry visibility controls the selected STL or drawing preview; annotations and labels are not connected to persisted metadata.</p>
           {(["geometry", "annotations", "labels"] as const).map((key) => <label key={key}><span>{readable(key)}</span><input type="checkbox" checked={visibility[key]} disabled={key !== "geometry"} onChange={(event) => onVisibilityChange(key, event.target.checked)} /></label>)}
         </div>
       </Panel>

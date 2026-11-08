@@ -62,6 +62,19 @@ export function validateCADArtifactProvenance(
   if (value.artifactSha256 !== undefined && (typeof value.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.artifactSha256))) {
     errors.push("CAD artifact provenance artifactSha256 must be a lowercase SHA-256 digest when supplied.");
   }
+  if (value.modelRevision !== undefined &&
+      (!Number.isSafeInteger(value.modelRevision) || (value.modelRevision as number) < 1)) {
+    errors.push("CAD artifact provenance modelRevision must be a positive safe integer when supplied.");
+  }
+  if (value.canonicalGeometryArtifactId !== undefined && !nonEmptyString(value.canonicalGeometryArtifactId)) {
+    errors.push("CAD artifact provenance canonicalGeometryArtifactId must be non-empty when supplied.");
+  }
+  if (value.sourceArtifactIds !== undefined &&
+      (!Array.isArray(value.sourceArtifactIds) ||
+       value.sourceArtifactIds.some((id) => !nonEmptyString(id)) ||
+       new Set(value.sourceArtifactIds).size !== value.sourceArtifactIds.length)) {
+    errors.push("CAD artifact provenance sourceArtifactIds must contain unique non-empty artifact IDs.");
+  }
 
   const comparisons: Array<[keyof CADProvenanceExpectation, string]> = [
     ["projectId", "projectId"],

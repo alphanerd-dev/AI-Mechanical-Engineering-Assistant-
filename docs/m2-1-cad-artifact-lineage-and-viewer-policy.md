@@ -11,13 +11,14 @@ The CAD pipeline already produces a generated Python source file, a canonical BR
 
 For a single execution of the current build123d cylindrical-part workflow:
 
-1. The generated SOURCE Python artifact is the originating source record.
+1. The generated SOURCE Python artifact is the common design-input record.
 2. The canonical SOLID BREP records the SOURCE artifact ID in provenance.sourceArtifactIds.
-3. STEP, STL and THREE_MF derivatives record the canonical SOLID BREP artifact ID in provenance.sourceArtifactIds.
+3. STEP, STL and THREE_MF exports are emitted in parallel from the same in-memory build123d shape. They therefore record the SOURCE artifact ID in provenance.sourceArtifactIds rather than claiming conversion from the persisted BREP.
+4. Each STEP/STL/3MF record also carries canonicalGeometryArtifactId pointing to the associated BREP. This is a relationship to the canonical geometry record, not a conversion-parent claim.
 
 These references are stable artifact identifiers within the persisted completion record. They do not alter storage paths or project authorization.
 
-The lineage links express generation dependency only. They do not assert byte equality, geometric equivalence, manufacturing readiness or engineering approval.
+The lineage links express source dependency and association only. They do not assert byte equality, geometric equivalence, a BREP-to-STEP/STL/3MF conversion, manufacturing readiness or engineering approval. Because the exports are parallel siblings from the in-memory shape, the BREP relationship is represented separately and must not be described as their conversion source.
 
 ## Validation boundary
 
