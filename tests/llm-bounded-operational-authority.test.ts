@@ -205,6 +205,34 @@ describe("LLM bounded operational authority", () => {
     expect(report.stopReason).toContain("geometry.unregisteredDimension");
   });
 
+  it("does not allow a model plan to target a host-created task id in the same planning cycle", async () => {
+    const router = setup();
+    const report = await runBoundedAutonomy({
+      runId: "RUN-SAME-PLAN-ID",
+      taskGraph: graph(),
+      limits: limits(),
+      createTaskId: () => "PREDICTABLE-HOST-ID",
+      now: stamp,
+      actions: [
+        {
+          kind: "CREATE_TASK",
+          name: "Create task",
+          goal: "Create a task with a host-owned id.",
+          capability: "ANALYSIS.SHAFT_TORQUE",
+          risk: "LOW",
+          input: { powerKw: 5, speedRpm: 1500 }
+        },
+        { kind: "REQUEST_READY", taskId: "PREDICTABLE-HOST-ID" }
+      ]
+    }, router);
+
+    expect(report.status).toBe("FAILED");
+    expect(report.finalGraph.tasks[0].status).toBe("PROPOSED");
+    expect(report.taskExecutions).toBe(0);
+    expect(report.actions[1].status).toBe("BLOCKED");
+    expect(report.stopReason).toContain("next model planning cycle");
+  });
+
   it("requires human approval for pilot capabilities and never treats an LLM approval request as approval", async () => {
     const router = setup();
     const policy = limits({ allowedCapabilities: ["ANALYSIS.SHAFT_STATIC_DESIGN"], maxRisk: "MEDIUM" });
