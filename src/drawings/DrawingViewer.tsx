@@ -123,8 +123,57 @@ function DxfPreview({ document }: { document: DXFDocument }) {
         </>}
       </g>
     </svg>
-    <footer>{visibleEntities.length.toLocaleString()} / {document.entities.length.toLocaleString()} visible entities · {document.units} · view-only; measurement is not validation</footer>
+    <footer>{visibleEntities.length.toLocaleString()} / {document.entities.length.toLocaleString()} visible entities · {document.units} · view-only; unsnapped pointer distance is not a dimension check</footer>
   </div>;
+}
+
+type LoadedDrawingPreview = {
+  state: DrawingState;
+  objectUrl: string | null;
+};
+
+async function fetchDrawingSource(src: string, signal: AbortSignal): Promise<string | null> {
+  const response = await fetch(src, { signal, cache: "no-store" });
+  if (!response.ok) throw new Error("The authorized drawing artifact could not be loaded.");
+  const buffer = await response.arrayBuffer();
+  if (signal.aborted) return null;
+  if (buffer.byteLength < 1 || buffer.byteLength > 10 * 1024 * 1024) {
+    throw new Error("Drawing artifact is empty or exceeds the 10 MiB preview limit.");
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+}
+
+function isDxfFormat(format: string): boolean {
+  return format === "application/dxf" || format === "image/vnd.dxf";
+}
+
+function createDrawingPreview(src: string, format: string, source: string): LoadedDrawingPreview {
+  if (format === "image/svg+xml") {
+    const safeSvg = sanitizeSVG(source);
+    const objectUrl = URL.createObjectURL(new Blob([safeSvg], { type: "image/svg+xml" }));
+    return { state: { src, svgUrl: objectUrl, dxf: null, error: null }, objectUrl };
+  }
+  if (isDxfFormat(format)) {
+    return { state: { src, svgUrl: null, dxf: parseDXF(source), error: null }, objectUrl: null };
+  }
+  throw new Error("This drawing format has no registered browser preview.");
+}
+
+async function loadDrawingPreview(
+  src: string,
+  format: string,
+  signal: AbortSignal
+): Promise<LoadedDrawingPreview | null> {
+  const source = await fetchDrawingSource(src, signal);
+  if (source === null || signal.aborted) return null;
+  return createDrawingPreview(src, format, source);
+}
+
+function drawingErrorState(src: string, cause: unknown): DrawingState {
+  return {
+    src, svgUrl: null, dxf: null,
+    error: cause instanceof Error ? cause.message : "Drawing preview failed."
+  };
 }
 
 function useDrawingState(src: string, format: string): DrawingState {
@@ -133,37 +182,15 @@ function useDrawingState(src: string, format: string): DrawingState {
     if (format === "application/pdf") return;
     const controller = new AbortController();
     let objectUrl: string | null = null;
-    void (async () => {
-      try {
-        const response = await fetch(src, { signal: controller.signal, cache: "no-store" });
-        if (!response.ok) throw new Error("The authorized drawing artifact could not be loaded.");
-        const buffer = await response.arrayBuffer();
-        if (controller.signal.aborted) return;
-        if (buffer.byteLength < 1 || buffer.byteLength > 10 * 1024 * 1024) {
-          throw new Error("Drawing artifact is empty or exceeds the 10 MiB preview limit.");
-        }
-        const source = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-        if (controller.signal.aborted) return;
-        if (format === "image/svg+xml") {
-          const safeSvg = sanitizeSVG(source);
-          objectUrl = URL.createObjectURL(new Blob([safeSvg], { type: "image/svg+xml" }));
-          setState({ src, svgUrl: objectUrl, dxf: null, error: null });
-          return;
-        }
-        if (format === "application/dxf" || format === "image/vnd.dxf") {
-          setState({ src, svgUrl: null, dxf: parseDXF(source), error: null });
-          return;
-        }
-        throw new Error("This drawing format has no registered browser preview.");
-      } catch (cause) {
-        if (!controller.signal.aborted) {
-          setState({
-            src, svgUrl: null, dxf: null,
-            error: cause instanceof Error ? cause.message : "Drawing preview failed."
-          });
-        }
-      }
-    })();
+    void loadDrawingPreview(src, format, controller.signal)
+      .then((loaded) => {
+        if (!loaded || controller.signal.aborted) return;
+        objectUrl = loaded.objectUrl;
+        setState(loaded.state);
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setState(drawingErrorState(src, cause));
+      });
     return () => {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
