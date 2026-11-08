@@ -88,6 +88,7 @@ Start with:
 - [Product brief](docs/product-brief.md) — current user experience and product scope.
 - [Architecture and trust boundaries](docs/architecture.md) — control plane, chat, core, workers and evidence.
 - [Architecture decision records](docs/README.md#architecture-decision-records) — accepted renderer, geometry and integrated-workspace direction.
+- [Geometry Platform Charter](docs/geometry-platform/README.md) — proprietary geometry platform strategy, kernel ownership boundaries and implementation gates.
 - [Engineering capabilities and maturity](docs/engineering-capabilities.md) — implemented, pilot and experimental capabilities.
 - [Implementation plan](docs/implementation-plan.md) — current milestone status, next priorities and exit gates.
 - [Documentation guide](docs/README.md) — canonical docs and historical records.
