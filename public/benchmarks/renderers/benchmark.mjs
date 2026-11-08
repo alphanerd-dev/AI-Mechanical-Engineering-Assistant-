@@ -35,10 +35,31 @@ function instancePosition(index, count) {
   const z = Math.floor(index / cols) - (rows - 1) / 2;
   return [x * 1.35, 0, z * 1.35];
 }
-function finishSummary(engine, started, frames, pickSamples, renderMs, initMs, count, contextLost, visibilityToggleCount) {
-  const avgFrameMs = frames.length ? frames.reduce((sum, item) => sum + item, 0) / frames.length : null;
-  const p50 = percentile(frames, 0.5);
-  const p95 = percentile(frames, 0.95);
+function average(values) {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function roundedOrNull(value, digits) {
+  if (value === null) return null;
+  return Number(value.toFixed(digits));
+}
+
+function averageFps(avgFrameMs) {
+  if (!avgFrameMs || avgFrameMs <= 0) return null;
+  return Number((1000 / avgFrameMs).toFixed(1));
+}
+
+function maximumOrNull(values) {
+  if (!values.length) return null;
+  return Math.max(...values);
+}
+
+function finishSummary({
+  engine, started, frames, pickSamples, renderMs, initMs, count, contextLost, visibilityToggleCount
+}) {
+  const avgFrameMs = average(frames);
+  const averagePickMs = average(pickSamples);
   return {
     engine,
     version: VERSIONS[engine],
@@ -48,18 +69,19 @@ function finishSummary(engine, started, frames, pickSamples, renderMs, initMs, c
     firstRenderMs: Number(renderMs.toFixed(2)),
     sampleDurationMs: Number((performance.now() - started).toFixed(2)),
     frameCount: frames.length,
-    avgFrameMs: avgFrameMs === null ? null : Number(avgFrameMs.toFixed(2)),
-    p50FrameMs: p50 === null ? null : Number(p50.toFixed(2)),
-    p95FrameMs: p95 === null ? null : Number(p95.toFixed(2)),
-    maxFrameMs: frames.length ? Number(Math.max(...frames).toFixed(2)) : null,
-    avgFps: avgFrameMs && avgFrameMs > 0 ? Number((1000 / avgFrameMs).toFixed(1)) : null,
+    avgFrameMs: roundedOrNull(avgFrameMs, 2),
+    p50FrameMs: roundedOrNull(percentile(frames, 0.5), 2),
+    p95FrameMs: roundedOrNull(percentile(frames, 0.95), 2),
+    maxFrameMs: roundedOrNull(maximumOrNull(frames), 2),
+    avgFps: averageFps(avgFrameMs),
     pickingSamples: pickSamples.length,
-    avgPickMs: pickSamples.length ? Number((pickSamples.reduce((a, b) => a + b, 0) / pickSamples.length).toFixed(3)) : null,
+    avgPickMs: roundedOrNull(averagePickMs, 3),
     contextLostEvents: contextLost,
     visibilityToggleCount,
     jsHeapUsedBytesAfter: performance.memory?.usedJSHeapSize ?? null
   };
 }
+
 async function importEngines() {
   const started = performance.now();
   const [B, T] = await Promise.all([import(URLS.babylon), import(URLS.three)]);
@@ -152,10 +174,11 @@ async function runThree(T, canvas, count, durationMs) {
   const setup = createThreeScene(T, canvas, count);
   try {
     const sample = await sampleThreeScene(T, canvas, setup, count, durationMs);
-    return finishSummary(
-      "three", sample.sampleStart, sample.frames, sample.picks,
-      setup.renderMs, setup.initMs, count, sample.contextLost, sample.visibilityToggleCount
-    );
+    return finishSummary({
+      engine: "three", started: sample.sampleStart, frames: sample.frames, pickSamples: sample.picks,
+      renderMs: setup.renderMs, initMs: setup.initMs, count,
+      contextLost: sample.contextLost, visibilityToggleCount: sample.visibilityToggleCount
+    });
   } finally {
     setup.renderer.dispose();
     setup.geometry.dispose();
@@ -218,7 +241,10 @@ async function runBabylon(B, canvas, count, durationMs) {
     };
     requestAnimationFrame(tick);
   });
-  const summary = finishSummary("babylon", sampleStart, frames, picks, renderMs, initMs, count, contextLost, visibilityToggleCount);
+  const summary = finishSummary({
+    engine: "babylon", started: sampleStart, frames, pickSamples: picks, renderMs, initMs,
+    count, contextLost, visibilityToggleCount
+  });
   canvas.removeEventListener("webglcontextlost", onLost);
   scene.dispose();
   engine.dispose();
