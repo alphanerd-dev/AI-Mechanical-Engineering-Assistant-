@@ -81,6 +81,8 @@ export function isCADDisplayMesh(value: unknown): value is CADDisplayMesh {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const mesh = value as UnknownRecord;
   const positions = mesh.positions;
-  if (!hasRequiredIdentity(mesh) || !validPositions(positions)) return false;
-  return validNormals(mesh.normals, positions.length) && validIndices(mesh.indices, positions.length / 3);
+  if (!hasRequiredIdentity(mesh)) return false;
+  if (!validPositions(positions)) return false;
+  if (!validNormals(mesh.normals, positions.length)) return false;
+  return validIndices(mesh.indices, positions.length / 3);
 }
