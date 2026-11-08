@@ -95,6 +95,9 @@ describe("CADCompletionGeometryProvider", () => {
     expect(result.executionProviderId).toBe("cad.build123d");
     expect(result.validationProviderId).toBe("cad.occt");
     expect(result.artifacts.some((artifact) => artifact.kind === "SOLID")).toBe(true);
+    expect(result.evidenceIds).toHaveLength(1);
+    expect(result.engineeringArtifactId).toBeTruthy();
+    expect(result.acceptanceStatus).toBe("ACCEPTED");
   });
 
   it("rejects invalid dimensions, units and coordinate frames before invoking CAD", async () => {
