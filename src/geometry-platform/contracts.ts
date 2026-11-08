@@ -11,6 +11,7 @@ export interface GeometryOperationContext {
   modelIdentity: CADModelIdentity;
   units: GeometryUnitSystem;
   coordinateFrame: GeometryCoordinateFrame;
+  tolerancePolicyId: "CYLINDER_DIMENSION_0_01_MM";
 }
 
 export interface CreateCylinderOperation {
