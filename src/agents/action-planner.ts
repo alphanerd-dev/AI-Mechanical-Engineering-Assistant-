@@ -100,7 +100,7 @@ function parseInput(value: unknown, label: string): Record<string, unknown> {
 
 function parseCapability(value: unknown, allowed: ReadonlySet<string>, label: string): string {
   const capability = requiredText(value, label, 128);
-  if (/^(AGENT|TASK_GRAPH|WORKSPACE)\\./.test(capability) ||
+  if (/^(AGENT|TASK_GRAPH|WORKSPACE)\./.test(capability) ||
       capability === "ENGINEERING.ORCHESTRATE_WORKFLOW" ||
       capability === "ENGINEERING.ENTER_FROM_INTENT") {
     throw new Error(label + " cannot reference an orchestration/control-plane capability: " + capability + ".");
