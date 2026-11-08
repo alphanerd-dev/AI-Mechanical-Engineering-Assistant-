@@ -102,20 +102,6 @@ describe("CADCompletionGeometryProvider", () => {
 
   it("rejects invalid dimensions, units and coordinate frames before invoking CAD", async () => {
     const provider = makeProvider();
-    const result = await provider.execute({
-      operation: "geometry.create_cylinder",
-      operationId: "op-invalid",
-      context: {
-        projectId: "geometry-project",
-        modelIdentity: identity,
-        units: "mm",
-        coordinateFrame: "WORLD_Z_AXIS",
-        tolerancePolicyId: "CYLINDER_DIMENSION_0_01_MM"
-      },
-      parameters: { diameter: 30, length: 200 }
-    });
-    expect(result.status).toBe("SUCCEEDED");
-
     const invalid = await provider.execute({
       operation: "geometry.create_cylinder",
       operationId: "op-invalid-frame",
@@ -161,5 +147,20 @@ describe("CADCompletionGeometryProvider", () => {
     } as unknown as import("../src/geometry-platform/contracts.js").GeometryOperationRequest);
     expect(invalidFrame.status).toBe("FAILED");
     expect(invalidFrame.errors.join(" ")).toContain("+Z only");
+
+    const invalidTolerance = await provider.execute({
+      operation: "geometry.create_cylinder",
+      operationId: "op-invalid-tolerance",
+      context: {
+        projectId: "geometry-project",
+        modelIdentity: identity,
+        units: "mm",
+        coordinateFrame: "WORLD_Z_AXIS",
+        tolerancePolicyId: "CALLER_SELECTED_TOLERANCE"
+      },
+      parameters: { diameter: 30, length: 200 }
+    } as unknown as import("../src/geometry-platform/contracts.js").GeometryOperationRequest);
+    expect(invalidTolerance.status).toBe("FAILED");
+    expect(invalidTolerance.errors.join(" ")).toContain("host-controlled 0.01 mm");
   });
 });
