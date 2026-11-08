@@ -96,7 +96,7 @@ describe("CADCompletionGeometryProvider", () => {
     expect(result.artifacts.some((artifact) => artifact.kind === "SOLID")).toBe(true);
   });
 
-  it("rejects unsupported units and coordinate frames before invoking CAD", async () => {
+  it("rejects invalid dimensions, units and coordinate frames before invoking CAD", async () => {
     const provider = makeProvider();
     const result = await provider.execute({
       operation: "geometry.create_cylinder",
@@ -125,5 +125,33 @@ describe("CADCompletionGeometryProvider", () => {
     expect(invalid.status).toBe("FAILED");
     expect(invalid.stage).toBe("REQUEST_VALIDATION");
     expect(invalid.artifacts).toHaveLength(0);
+
+    const invalidUnits = await provider.execute({
+      operation: "geometry.create_cylinder",
+      operationId: "op-invalid-units",
+      context: {
+        projectId: "geometry-project",
+        modelIdentity: identity,
+        units: "inch",
+        coordinateFrame: "WORLD_Z_AXIS"
+      },
+      parameters: { diameter: 30, length: 200 }
+    } as unknown as import("../src/geometry-platform/contracts.js").GeometryOperationRequest);
+    expect(invalidUnits.status).toBe("FAILED");
+    expect(invalidUnits.errors.join(" ")).toContain("millimetres only");
+
+    const invalidFrame = await provider.execute({
+      operation: "geometry.create_cylinder",
+      operationId: "op-invalid-frame",
+      context: {
+        projectId: "geometry-project",
+        modelIdentity: identity,
+        units: "mm",
+        coordinateFrame: "CUSTOM_FRAME"
+      },
+      parameters: { diameter: 30, length: 200 }
+    } as unknown as import("../src/geometry-platform/contracts.js").GeometryOperationRequest);
+    expect(invalidFrame.status).toBe("FAILED");
+    expect(invalidFrame.errors.join(" ")).toContain("+Z only");
   });
 });
