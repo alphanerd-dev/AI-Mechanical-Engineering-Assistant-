@@ -51,31 +51,57 @@ function validateRequiredProvenanceFields(value: Record<string, unknown>): strin
   return errors;
 }
 
+function validateOptionalSourceArtifactUri(value: Record<string, unknown>): string[] {
+  if (value.sourceArtifactUri === undefined) return [];
+  return nonEmptyString(value.sourceArtifactUri)
+    ? []
+    : ["CAD artifact provenance sourceArtifactUri must be non-empty when supplied."];
+}
+
+function validateOptionalArtifactDigest(value: Record<string, unknown>): string[] {
+  if (value.artifactSha256 === undefined) return [];
+  return typeof value.artifactSha256 === "string" && /^[a-f0-9]{64}$/.test(value.artifactSha256)
+    ? []
+    : ["CAD artifact provenance artifactSha256 must be a lowercase SHA-256 digest when supplied."];
+}
+
+function validateOptionalModelRevision(value: Record<string, unknown>): string[] {
+  if (value.modelRevision === undefined) return [];
+  return Number.isSafeInteger(value.modelRevision) && (value.modelRevision as number) >= 1
+    ? []
+    : ["CAD artifact provenance modelRevision must be a positive safe integer when supplied."];
+}
+
+function validateOptionalCanonicalGeometryId(value: Record<string, unknown>): string[] {
+  if (value.canonicalGeometryArtifactId === undefined) return [];
+  return nonEmptyString(value.canonicalGeometryArtifactId)
+    ? []
+    : ["CAD artifact provenance canonicalGeometryArtifactId must be non-empty when supplied."];
+}
+
+function validateSourceArtifactIds(value: Record<string, unknown>): string[] {
+  const ids = value.sourceArtifactIds;
+  if (ids === undefined) return [];
+  if (!Array.isArray(ids)) {
+    return ["CAD artifact provenance sourceArtifactIds must contain unique non-empty artifact IDs."];
+  }
+  if (!ids.every(nonEmptyString)) {
+    return ["CAD artifact provenance sourceArtifactIds must contain unique non-empty artifact IDs."];
+  }
+  if (new Set(ids).size !== ids.length) {
+    return ["CAD artifact provenance sourceArtifactIds must contain unique non-empty artifact IDs."];
+  }
+  return [];
+}
+
 function validateOptionalProvenanceFields(value: Record<string, unknown>): string[] {
-  const errors: string[] = [];
-  if (value.sourceArtifactUri !== undefined && !nonEmptyString(value.sourceArtifactUri)) {
-    errors.push("CAD artifact provenance sourceArtifactUri must be non-empty when supplied.");
-  }
-  if (value.artifactSha256 !== undefined &&
-      (typeof value.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.artifactSha256))) {
-    errors.push("CAD artifact provenance artifactSha256 must be a lowercase SHA-256 digest when supplied.");
-  }
-  if (value.modelRevision !== undefined &&
-      (!Number.isSafeInteger(value.modelRevision) || (value.modelRevision as number) < 1)) {
-    errors.push("CAD artifact provenance modelRevision must be a positive safe integer when supplied.");
-  }
-  if (value.canonicalGeometryArtifactId !== undefined && !nonEmptyString(value.canonicalGeometryArtifactId)) {
-    errors.push("CAD artifact provenance canonicalGeometryArtifactId must be non-empty when supplied.");
-  }
-  if (value.sourceArtifactIds !== undefined) {
-    const ids = value.sourceArtifactIds;
-    const validArray = Array.isArray(ids) && ids.every(nonEmptyString);
-    const uniqueArray = Array.isArray(ids) && new Set(ids).size === ids.length;
-    if (!validArray || !uniqueArray) {
-      errors.push("CAD artifact provenance sourceArtifactIds must contain unique non-empty artifact IDs.");
-    }
-  }
-  return errors;
+  return [
+    ...validateOptionalSourceArtifactUri(value),
+    ...validateOptionalArtifactDigest(value),
+    ...validateOptionalModelRevision(value),
+    ...validateOptionalCanonicalGeometryId(value),
+    ...validateSourceArtifactIds(value)
+  ];
 }
 
 function validateExpectedProvenanceValues(
