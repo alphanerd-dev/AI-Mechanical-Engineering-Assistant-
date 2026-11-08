@@ -17,6 +17,7 @@ This index points to the current product and operational contracts. It also dist
 - [ADR — OCCT-first hybrid geometry foundation](architecture/adr-2026-11-08-hybrid-geometry-foundation.md) — initial OCCT provider, provider adapters and canonical/display geometry separation; remains valid for the initial provider direction.
 - [ADR — Proprietary geometry platform and progressive kernel ownership](architecture/adr-2026-11-08-proprietary-geometry-platform.md) — supersedes the earlier decision not to pursue a proprietary kernel; approves a product-owned platform and staged native algorithm development.
 - [Geometry Platform Charter](geometry-platform/README.md) — ownership boundaries, repository placement, conformance suite and G0–G6 delivery sequence.
+- [G0 Repository Audit](geometry-platform/g0-repository-audit.md) — current CAD architecture inventory, gaps, worker trust boundaries and G1 contract proposal.
 - [ADR — Integrated engineering workspace strategy](architecture/adr-2026-11-08-integrated-engineering-workspace.md) — modular CAD/CAE/perception/manufacturing/lifecycle domains under shared engineering contracts.
 
 These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above.
