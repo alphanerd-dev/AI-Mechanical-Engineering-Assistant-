@@ -57,6 +57,14 @@ function getSkillRiskError(risk: EngineeringTask["risk"], skill?: SkillManifest)
   return "The selected skill supports up to " + skill.maximumRisk + " risk. Choose a lower task risk or remove the skill profile.";
 }
 
+function prepareTaskCreation(inputJson: string, framework: ReasoningFrameworkManifest | undefined, skill: SkillManifest | undefined, risk: EngineeringTask["risk"]) {
+  const input = parseInputJson(inputJson);
+  if (!framework) throw new Error("Choose a registered reasoning framework.");
+  const skillError = getSkillRiskError(risk, skill);
+  if (skillError) throw new Error(skillError);
+  return { input, framework, skill };
+}
+
 export default function ReasoningWorkbench({ projectId }: { projectId: string }) {
   const [taskGraph, setTaskGraph] = useState<EngineeringTaskGraph>();
   const [frameworks, setFrameworks] = useState<ReasoningFrameworkManifest[]>([]);
@@ -175,20 +183,11 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     if (busyAction) return;
     setError(undefined);
     setNotice(undefined);
-    let input: Record<string, unknown>;
+    let prepared;
     try {
-      input = parseInputJson(newInputsJson);
+      prepared = prepareTaskCreation(newInputsJson, selectedFramework, selectedSkill, risk);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Task inputs are invalid.");
-      return;
-    }
-    if (!selectedFramework) {
-      setError("Choose a registered reasoning framework.");
-      return;
-    }
-    const skillError = getSkillRiskError(risk, selectedSkill);
-    if (skillError) {
-      setError(skillError);
+      setError(caught instanceof Error ? caught.message : "Task inputs or skill profile are invalid.");
       return;
     }
 
@@ -201,14 +200,12 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
         taskType,
         risk,
         uncertainty,
-        frameworkId: selectedFramework.id,
-        frameworkVersion: selectedFramework.version,
-        ...(selectedSkill ? { skillId: selectedSkill.id, skillVersion: selectedSkill.version } : {}),
-        input
+        frameworkId: prepared.framework.id,
+        frameworkVersion: prepared.framework.version,
+        ...(prepared.skill ? { skillId: prepared.skill.id, skillVersion: prepared.skill.version } : {}),
+        input: prepared.input
       });
-      if (payload.task) {
-        setSelectedTaskId(payload.task.id);
-      }
+      if (payload.task) setSelectedTaskId(payload.task.id);
       setName("");
       setGoal("");
       setNewInputsJson("{}");
