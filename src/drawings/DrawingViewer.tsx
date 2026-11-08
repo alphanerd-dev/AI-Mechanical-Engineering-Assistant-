@@ -163,12 +163,20 @@ export default function DrawingViewer({ src, mediaType, label }: {
   if (format === "application/pdf") {
     return <div className={styles.drawingFrame}>
       <iframe title={"PDF drawing preview of " + label} src={src} loading="lazy" referrerPolicy="no-referrer" />
-      <span>PDF preview · supplied by the browser's native PDF viewer · not a drafting validation</span>
+      <span>PDF preview · supplied by the browser&apos;s native PDF viewer · not a drafting validation</span>
     </div>;
   }
   if (state.src !== src) return <div className={styles.drawingStatus} role="status">Loading drawing preview…</div>;
   if (state.error) return <div className={styles.drawingStatus} role="alert">{state.error}</div>;
-  if (state.svgUrl) return <div className={styles.drawingCanvas}><img src={state.svgUrl} alt={"Sanitized SVG drawing preview of " + label} /><footer>Sanitized SVG · preview only</footer></div>;
+  if (state.svgUrl) return <div className={styles.drawingCanvas}>
+    <div
+      className={styles.sanitizedSvgImage}
+      role="img"
+      aria-label={"Sanitized SVG drawing preview of " + label}
+      style={{ backgroundImage: "url(" + JSON.stringify(state.svgUrl) + ")" }}
+    />
+    <footer>Sanitized SVG · preview only</footer>
+  </div>;
   if (state.dxf) return <DxfPreview key={src} document={state.dxf} />;
   return <div className={styles.drawingStatus} role="status">No drawing preview is available.</div>;
 }

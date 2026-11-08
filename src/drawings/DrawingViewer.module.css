@@ -98,3 +98,12 @@
 .measuringCanvas {
   cursor: crosshair;
 }
+
+.sanitizedSvgImage {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}

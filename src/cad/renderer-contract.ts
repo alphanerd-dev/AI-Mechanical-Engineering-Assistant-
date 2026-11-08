@@ -52,17 +52,23 @@ export interface CADViewportAdapter {
 export function isCADDisplayMesh(value: unknown): value is CADDisplayMesh {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const mesh = value as Record<string, unknown>;
-  return typeof mesh.artifactId === "string" && mesh.artifactId.length > 0 &&
-    typeof mesh.sourceArtifactId === "string" && mesh.sourceArtifactId.length > 0 &&
-    typeof mesh.sourceArtifactSha256 === "string" && /^[a-f0-9]{64}$/.test(mesh.sourceArtifactSha256) &&
-    mesh.positions instanceof Float32Array && mesh.positions.length >= 9 && mesh.positions.length % 3 === 0 &&
-    mesh.positions.every(Number.isFinite) &&
-    (mesh.normals === undefined ||
-      (mesh.normals instanceof Float32Array && mesh.normals.length === mesh.positions.length &&
-       mesh.normals.every(Number.isFinite))) &&
-    (mesh.indices === undefined ||
-      (mesh.indices instanceof Uint32Array && mesh.indices.length >= 3 && mesh.indices.length % 3 === 0 &&
-       mesh.indices.every((index) => Number.isSafeInteger(index) && index < mesh.positions.length / 3))) &&
-    typeof mesh.units === "string" && mesh.units.length > 0 &&
-    typeof mesh.coordinateFrame === "string" && mesh.coordinateFrame.length > 0;
+  const positions = mesh.positions;
+  const normals = mesh.normals;
+  const indices = mesh.indices;
+  if (typeof mesh.artifactId !== "string" || !mesh.artifactId ||
+      typeof mesh.sourceArtifactId !== "string" || !mesh.sourceArtifactId ||
+      typeof mesh.sourceArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(mesh.sourceArtifactSha256) ||
+      !(positions instanceof Float32Array) || positions.length < 9 || positions.length % 3 !== 0 ||
+      !positions.every(Number.isFinite) ||
+      (normals !== undefined &&
+        (!(normals instanceof Float32Array) || normals.length !== positions.length ||
+         !normals.every(Number.isFinite))) ||
+      (indices !== undefined &&
+        (!(indices instanceof Uint32Array) || indices.length < 3 || indices.length % 3 !== 0 ||
+         !indices.every((index) => Number.isSafeInteger(index) && index < positions.length / 3))) ||
+      typeof mesh.units !== "string" || !mesh.units ||
+      typeof mesh.coordinateFrame !== "string" || !mesh.coordinateFrame) {
+    return false;
+  }
+  return true;
 }
