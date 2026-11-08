@@ -301,7 +301,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
                 </label>
                 <label>Risk
                   <select value={risk} onChange={(event) => setRisk(event.target.value as EngineeringTask["risk"])} disabled={Boolean(busyAction)}>
-                    <option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="CRITICAL">Critical</option>
+                    <option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH" disabled={Boolean(getSkillRiskError("HIGH", selectedSkill))}>High</option><option value="CRITICAL" disabled={Boolean(getSkillRiskError("CRITICAL", selectedSkill))}>Critical</option>
                   </select>
                 </label>
               </div>
@@ -318,7 +318,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
                 </label>
               </div>
               <label>Skill profile (optional)
-                <select value={skillId} onChange={(event) => setSkillId(event.target.value)} disabled={Boolean(busyAction) || skills.length === 0}>
+                <select value={skillId} onChange={(event) => { const nextSkillId = event.target.value; const nextSkill = skills.find((skill) => skill.id === nextSkillId); setSkillId(nextSkillId); if (nextSkill && getSkillRiskError(risk, nextSkill)) setRisk(nextSkill.maximumRisk); }} disabled={Boolean(busyAction) || skills.length === 0}>
                   <option value="">No skill profile</option>
                   {skills.map((skill) => <option key={skill.id + "@" + skill.version} value={skill.id}>{skill.name} · v{skill.version}</option>)}
                 </select>
