@@ -24,13 +24,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../lib/supabase/server.js", () => ({
+vi.mock("../lib/supabase/server.js", () => ({
   createClient: mocks.createClient
 }));
-vi.mock("../../lib/supabase/service.js", () => ({
+vi.mock("../lib/supabase/service.js", () => ({
   createServiceRoleClient: mocks.createServiceRoleClient
 }));
-vi.mock("../../src/auth/supabase-service.js", () => ({
+vi.mock("../src/auth/supabase-service.js", () => ({
   authorizeSupabaseRequest: mocks.authorize,
   authorizationFailureStatus: (decision: { reason?: string }) =>
     decision.reason === "Durable authorization audit is unavailable." ? 503 : 403
