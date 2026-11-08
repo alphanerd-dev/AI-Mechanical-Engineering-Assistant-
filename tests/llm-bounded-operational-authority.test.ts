@@ -161,6 +161,50 @@ describe("LLM bounded operational authority", () => {
     expect(executed.actions.map(action => action.status)).toEqual(["SUCCESS", "SUCCESS"]);
   });
 
+  it("rejects nested task input fields outside a registered capability input path", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerCapability({
+      id: "TEST.NESTED_INPUT",
+      domain: "analysis",
+      purpose: "Test a nested capability input contract.",
+      inputs: ["geometry.radiusMm"],
+      outputs: ["result"],
+      risk: "LOW",
+      providers: ["test.nested"],
+      status: "VERIFIED"
+    });
+    registry.register({
+      id: "test.nested",
+      capabilities: ["TEST.NESTED_INPUT"],
+      execute: async request => ({
+        capability: request.capability,
+        provider: "test.nested",
+        success: true,
+        output: { accepted: true }
+      })
+    });
+    const router = new CapabilityRouter(registry);
+    const report = await runBoundedAutonomy({
+      runId: "RUN-NESTED-INPUT",
+      taskGraph: graph(),
+      limits: limits({ allowedCapabilities: ["TEST.NESTED_INPUT"] }),
+      createTaskId: () => "HOST-NESTED",
+      now: stamp,
+      actions: [{
+        kind: "CREATE_TASK",
+        name: "Create nested input task",
+        goal: "Verify nested input contract enforcement.",
+        capability: "TEST.NESTED_INPUT",
+        risk: "LOW",
+        input: { geometry: { radiusMm: 10, unregisteredDimension: 20 } }
+      }]
+    }, router);
+
+    expect(report.status).toBe("FAILED");
+    expect(report.finalGraph.tasks).toHaveLength(0);
+    expect(report.stopReason).toContain("geometry.unregisteredDimension");
+  });
+
   it("requires human approval for pilot capabilities and never treats an LLM approval request as approval", async () => {
     const router = setup();
     const policy = limits({ allowedCapabilities: ["ANALYSIS.SHAFT_STATIC_DESIGN"], maxRisk: "MEDIUM" });
