@@ -40,6 +40,18 @@ const proposal = {
   requiredGates: []
 };
 
+function openAIResponse(): Response {
+  return new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(proposal) } }]
+  }), { status: 200, headers: { "content-type": "application/json" } });
+}
+
+function geminiResponse(): Response {
+  return new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ text: JSON.stringify(proposal) }] } }]
+  }), { status: 200, headers: { "content-type": "application/json" } });
+}
+
 describe("OpenAI-compatible reasoning transport", () => {
   it("sends a server-side JSON-mode request and parses the returned proposal object", async () => {
     let capturedUrl: RequestInfo | URL | undefined;
@@ -47,9 +59,7 @@ describe("OpenAI-compatible reasoning transport", () => {
     const fetchImpl: typeof fetch = async (input, init) => {
       capturedUrl = input;
       capturedInit = init;
-      return new Response(JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(proposal) } }]
-      }), { status: 200, headers: { "content-type": "application/json" } });
+      return openAIResponse();
     };
 
     const generator = new OpenAICompatibleModelReasoningGenerator({
@@ -78,9 +88,7 @@ describe("OpenAI-compatible reasoning transport", () => {
       apiKey: "placeholder-test-key",
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: JSON.stringify(proposal) } }]
-        }), { status: 200, headers: { "content-type": "application/json" } });
+        return openAIResponse();
       }
     });
 
@@ -103,9 +111,7 @@ describe("OpenAI-compatible reasoning transport", () => {
       apiKey: "placeholder-test-key",
       fetchImpl: async (input) => {
         capturedUrl = input;
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: JSON.stringify(proposal) } }]
-        }), { status: 200, headers: { "content-type": "application/json" } });
+        return openAIResponse();
       }
     });
 
@@ -121,9 +127,7 @@ describe("OpenAI-compatible reasoning transport", () => {
       apiKey: "placeholder-test-key",
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return new Response(JSON.stringify({
-          candidates: [{ content: { parts: [{ text: JSON.stringify(proposal) }] } }]
-        }), { status: 200, headers: { "content-type": "application/json" } });
+        return geminiResponse();
       }
     });
 
