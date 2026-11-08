@@ -2,7 +2,32 @@ import {CapabilityRisk,ProjectState} from "../core/types.js";
 import {EngineeringWorkflowStage} from "../orchestration/types.js";
 import {EngineeringTaskGraph} from "../task-graph/types.js";
 
+export interface AgentTaskUpdatePatch {
+  name?: string;
+  goal?: string;
+  capability?: string;
+  risk?: CapabilityRisk;
+  input?: Record<string, unknown>;
+  /** Requirements/dependencies may be added, but an agent cannot remove existing gates. */
+  dependsOn?: string[];
+  requiredRequirementIds?: string[];
+}
+
 export type AgentActionProposal=
+  | {
+      kind:"CREATE_TASK";
+      name:string;
+      goal:string;
+      capability:string;
+      risk:CapabilityRisk;
+      input:Record<string,unknown>;
+      dependsOn?:string[];
+      requiredRequirementIds?:string[];
+      approvalRequired?:boolean;
+      evidenceRequired?:boolean;
+    }
+  | {kind:"UPDATE_TASK";taskId:string;patch:AgentTaskUpdatePatch;expectedGraphRevision?:number}
+  | {kind:"REQUEST_READY";taskId:string;expectedGraphRevision?:number}
   | {kind:"EXECUTE_TASK";taskId:string;stage:EngineeringWorkflowStage;expectedGraphRevision?:number}
   | {kind:"DELEGATE_SPECIALIST";taskId:string;specialistId:string;stage:EngineeringWorkflowStage;expectedGraphRevision?:number}
   | {kind:"REQUEST_APPROVAL";taskId:string;reason:string;expectedGraphRevision?:number}
@@ -15,6 +40,14 @@ export interface AgentRunLimits{
   maxRisk:CapabilityRisk;
   allowedCapabilities?:readonly string[];
   allowedSpecialists?:readonly string[];
+  /** Enables model-proposed task creation; defaults to false. */
+  allowTaskCreation?:boolean;
+  /** Enables model-proposed task updates; defaults to false. */
+  allowTaskUpdates?:boolean;
+  /** Fail closed unless every capability action is in a non-empty host allowlist. */
+  requireCapabilityAllowlist?:boolean;
+  /** Fail closed unless specialist delegation is in a non-empty host allowlist. */
+  requireSpecialistAllowlist?:boolean;
   stopOnFailure:boolean;
 }
 
