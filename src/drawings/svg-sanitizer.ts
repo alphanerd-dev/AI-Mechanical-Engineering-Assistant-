@@ -16,16 +16,28 @@ function safeAttribute(name: string, value: string): boolean {
   if (name === "fill" || name === "stroke") {
     return /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
   }
-  if (name === "transform") return /^[a-z0-9(),.+\-\s]+$/i.test(value);
-  if (name === "d") return /^[a-z0-9(),.+\-\s]+$/i.test(value);
+  if (name === "transform" || name === "d") return /^[a-z0-9(),.+\-\s]+$/i.test(value);
   return value.length <= 10000;
 }
 
-/**
- * Sanitize SVG for image-only preview. Active content, foreignObject, style, links,
- * external resources and unknown elements are removed. This is not a general SVG editor.
- */
-export function sanitizeSVG(markup: string): string {
+function sanitizeAttributes(element: Element): void {
+  for (const attribute of Array.from(element.attributes)) {
+    if (!safeAttribute(attribute.name, attribute.value)) element.removeAttribute(attribute.name);
+  }
+}
+
+function sanitizeChildren(element: Element): void {
+  for (const child of Array.from(element.children)) {
+    if (!ALLOWED_TAGS.has(child.localName.toLowerCase())) {
+      child.remove();
+      continue;
+    }
+    sanitizeAttributes(child);
+    sanitizeChildren(child);
+  }
+}
+
+function parseSVGDocument(markup: string): XMLDocument {
   if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
     throw new Error("SVG preview requires a browser XML parser.");
   }
@@ -36,23 +48,17 @@ export function sanitizeSVG(markup: string): string {
   if (document.querySelector("parsererror") || document.documentElement.localName.toLowerCase() !== "svg") {
     throw new Error("The drawing is not well-formed SVG.");
   }
-  const visit = (element: Element) => {
-    for (const child of Array.from(element.children)) {
-      const tag = child.localName.toLowerCase();
-      if (!ALLOWED_TAGS.has(tag)) {
-        child.remove();
-        continue;
-      }
-      for (const attribute of Array.from(child.attributes)) {
-        if (!safeAttribute(attribute.name, attribute.value)) child.removeAttribute(attribute.name);
-      }
-      visit(child);
-    }
-    for (const attribute of Array.from(element.attributes)) {
-      if (!safeAttribute(attribute.name, attribute.value)) element.removeAttribute(attribute.name);
-    }
-  };
-  visit(document.documentElement);
+  return document;
+}
+
+/**
+ * Sanitize SVG for image-only preview. Active content, foreignObject, style, links,
+ * external resources and unknown elements are removed. This is not a general SVG editor.
+ */
+export function sanitizeSVG(markup: string): string {
+  const document = parseSVGDocument(markup);
+  sanitizeAttributes(document.documentElement);
+  sanitizeChildren(document.documentElement);
   document.documentElement.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   return new XMLSerializer().serializeToString(document.documentElement);
 }
