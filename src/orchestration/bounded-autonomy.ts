@@ -518,6 +518,7 @@ function executionResultFromCapability(output:unknown):TaskGraphExecutionResult|
 
 interface BoundedRunState{
   graph:EngineeringTaskGraph;
+  createdTaskIds:Set<string>;
   taskExecutions:number;
   delegations:number;
   actions:BoundedAutonomyActionResult[];
@@ -558,6 +559,7 @@ function buildInitialReport(request:BoundedAutonomyRequest):BoundedAutonomyRepor
 function buildState(graph:EngineeringTaskGraph):BoundedRunState{
   return {
     graph:structuredClone(graph),
+    createdTaskIds:new Set<string>(),
     taskExecutions:0,
     delegations:0,
     actions:[],
@@ -622,6 +624,11 @@ function validateActionOrBlock(
   index:number,
   action:AgentActionProposal
 ):ActionProcessResult|undefined{
+  if(action.kind!=="CREATE_TASK"&&action.kind!=="STOP"&&context.state.createdTaskIds.has(action.taskId)){
+    const reason="A task created in this planning cycle cannot be referenced until the next model planning cycle.";
+    appendAction(context,{index,action,status:"BLOCKED",taskId:action.taskId,reason});
+    return context.request.limits.stopOnFailure?{terminalStatus:"FAILED",stopReason:reason}:{skipAction:true};
+  }
   const errors=validateActionShape(
     context.state.graph,action,context.request.limits,context.router,context.request.createTaskId
   );
@@ -643,6 +650,7 @@ function processCreateTask(
       ...context.request,now:context.hostTimestamp
     },context.router);
     context.state.graph=created.graph;
+    context.state.createdTaskIds.add(created.task.id);
     appendAction(context,{
       index,action,status:"SUCCESS",taskId:created.task.id,
       reason:"Task created in PROPOSED state by the backend; readiness and approval remain separate."
