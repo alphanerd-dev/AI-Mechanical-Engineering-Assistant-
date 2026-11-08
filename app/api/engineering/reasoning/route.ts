@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
+import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { createDefaultReasoningFrameworkRegistry } from "../../../../src/reasoning-frameworks/registry";
 import { createDefaultSkillManifestRegistry } from "../../../../src/reasoning-frameworks/skill-registry";
@@ -202,11 +203,15 @@ async function saveWorkspace(
     return structuredClone(next);
   }
 
-  let db: Awaited<ReturnType<typeof createClient>>;
+  // The caller has already passed authenticated identity, project-membership,
+  // permission and durable-audit checks in authorizeProject(). Workspace mutations
+  // must use the server-only writer because authenticated table writes are revoked
+  // by ADR-0012. Never expose this client or use it before authorization succeeds.
+  let db: ReturnType<typeof createServiceRoleClient>;
   try {
-    db = await createClient();
+    db = createServiceRoleClient();
   } catch {
-    throw new ApiError(503, "Supabase is not configured or the authenticated workspace session is unavailable.");
+    throw new ApiError(503, "Server-side workspace writer configuration is unavailable.");
   }
 
   if (!loaded.persisted) {
