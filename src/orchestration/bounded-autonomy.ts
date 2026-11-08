@@ -240,6 +240,10 @@ function validateActionShape(
     if(task&&isPlainRecord(patch)){
       if(patch.name!==undefined&&(typeof patch.name!=="string"||!patch.name.trim()||patch.name.length>160))
         errors.push("Updated task name must contain 1-160 characters.");
+      if(patch.capability!==undefined&&(typeof patch.capability!=="string"||!patch.capability.trim()))
+        errors.push("Updated task capability must be a non-empty registered capability id.");
+      if(patch.input!==undefined&&(!isPlainRecord(patch.input)||!isJsonValue(patch.input)))
+        errors.push("Updated task input must be a plain, finite JSON object.");
       if(patch.goal!==undefined&&(typeof patch.goal!=="string"||!patch.goal.trim()||patch.goal.length>2_000))
         errors.push("Updated task goal must contain 1-2000 characters.");
       if(patch.risk!==undefined){
