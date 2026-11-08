@@ -499,6 +499,7 @@ interface BoundedRunContext{
 interface ActionProcessResult{
   terminalStatus?:BoundedAutonomyReport["status"];
   stopReason?:string;
+  skipAction?:boolean;
 }
 
 function buildInitialReport(request:BoundedAutonomyRequest):BoundedAutonomyReport{
@@ -592,7 +593,7 @@ function validateActionOrBlock(
   appendAction(context,{index,action,status:"BLOCKED",reason});
   return context.request.limits.stopOnFailure
     ?{terminalStatus:"FAILED",stopReason:"Bounded agent action rejected by core policy: "+reason}
-    :{};
+    :{skipAction:true};
 }
 
 function processCreateTask(
@@ -800,7 +801,7 @@ async function processAction(
   action:AgentActionProposal
 ):Promise<ActionProcessResult>{
   const blocked=validateActionOrBlock(context,index,action);
-  if(blocked) return blocked;
+  if(blocked?.terminalStatus||blocked?.skipAction) return blocked;
   switch(action.kind){
     case "STOP":
       appendAction(context,{index,action,status:"STOPPED",reason:action.reason});
@@ -821,7 +822,6 @@ function validateInitialRequest(
   const initial=buildInitialReport(request);
   const errors=[...validateEngineeringTaskGraph(request.taskGraph),...validateLimits(request.limits)];
   if(errors.length) return {initial,error:errors.join(" ")};
-  if(request.actions.length===0) return {initial,error:"Bounded agent action list must contain at least one action."};
   if(request.project&&request.project.id!==request.taskGraph.projectId)
     return {initial,error:"Agent project id does not match task graph project id."};
   return {initial};
@@ -834,6 +834,9 @@ export async function runBoundedAutonomy(
 ):Promise<BoundedAutonomyReport>{
   const validated=validateInitialRequest(request);
   if(validated.error) return {...validated.initial,status:"FAILED",stopReason:validated.error};
+  if(request.actions.length===0) {
+    return {...validated.initial,status:"INCOMPLETE",stopReason:"Bounded agent action list must contain at least one action."};
+  }
 
   const hostTimestamp=request.now??new Date().toISOString();
   if(Number.isNaN(Date.parse(hostTimestamp)))
