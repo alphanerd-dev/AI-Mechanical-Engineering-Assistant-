@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { measureDXFDistance, parseDXF, type DXFDocument, type DXFEntity } from "./dxf";
 import { sanitizeSVG } from "./svg-sanitizer";
 import styles from "./DrawingViewer.module.css";
