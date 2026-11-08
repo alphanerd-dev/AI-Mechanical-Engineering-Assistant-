@@ -147,9 +147,13 @@ Tests prove only the properties they assert. Geometry validity is not design app
 | G5 | Parametric feature/constraint system | Deterministic regeneration and solver edge cases pass |
 | G6 | Independent productization | Stable API, release process, runtime matrix and external consumer exist |
 
+## G0 audit result
+
+The source-level G0 audit is recorded in [G0 Repository Audit](g0-repository-audit.md). It confirms the existing CAD identity, artifact, provenance, worker, validation and viewer foundations should be reused. It identifies missing provider-neutral geometry operation contracts, explicit units/frames/tolerance policies, immutable geometry revision identity and provider-neutral conformance fixtures. The audit is source-level only; local test execution, exact-PR CI, deployment verification and dependency/license review remain open gates.
+
 ## Immediate next task
 
-G0 is the first engineering task. Audit current implementation before adding code. Produce a file-level map of:
+G1 begins by mapping imports and call sites, then defining the minimum provider-neutral geometry operation contracts without changing existing persisted artifact semantics. The source-level G0 audit lists the required file-level inventory:
 - Geometry and CAD domain types.
 - Artifact and derivative identities.
 - Provider interfaces and adapters.
