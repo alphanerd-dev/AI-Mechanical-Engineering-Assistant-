@@ -14,26 +14,69 @@ function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function validateRequest(request: GeometryOperationRequest): string[] {
+function validateOperation(request: GeometryOperationRequest): string[] {
+  return request.operation === "geometry.create_cylinder"
+    ? []
+    : ["Operation is not supported by this adapter."];
+}
+
+function validateOperationId(request: GeometryOperationRequest): string[] {
+  return nonEmpty(request.operationId) ? [] : ["operationId is required."];
+}
+
+function validateUnits(request: GeometryOperationRequest): string[] {
+  return request.context?.units === "mm" ? [] : ["This adapter currently accepts millimetres only."];
+}
+
+function validateCoordinateFrame(request: GeometryOperationRequest): string[] {
+  return request.context?.coordinateFrame === "WORLD_Z_AXIS"
+    ? []
+    : ["This adapter currently supports the world frame with the cylinder axis on +Z only."];
+}
+
+function validateTolerancePolicy(request: GeometryOperationRequest): string[] {
+  return request.context?.tolerancePolicyId === "CYLINDER_DIMENSION_0_01_MM"
+    ? []
+    : ["This adapter requires its host-controlled 0.01 mm cylinder dimension tolerance policy."];
+}
+
+function validateContext(request: GeometryOperationRequest): string[] {
   const errors: string[] = [];
-  if (!request || typeof request !== "object") return ["Geometry operation request must be an object."];
-  if (request.operation !== "geometry.create_cylinder") errors.push("Operation is not supported by this adapter.");
-  if (!nonEmpty(request.operationId)) errors.push("operationId is required.");
   if (!nonEmpty(request.context?.projectId)) errors.push("A server-resolved projectId is required.");
-  if (request.context?.units !== "mm") errors.push("This adapter currently accepts millimetres only.");
-  if (request.context?.coordinateFrame !== "WORLD_Z_AXIS") errors.push("This adapter currently supports the world frame with the cylinder axis on +Z only.");
-  if (request.context?.tolerancePolicyId !== "CYLINDER_DIMENSION_0_01_MM") errors.push("This adapter requires its host-controlled 0.01 mm cylinder dimension tolerance policy.");
-  if (!Number.isFinite(request.parameters?.diameter) || request.parameters.diameter <= 0) {
-    errors.push("diameter must be a finite positive number in millimetres.");
-  }
-  if (!Number.isFinite(request.parameters?.length) || request.parameters.length <= 0) {
-    errors.push("length must be a finite positive number in millimetres.");
-  }
-  if (request.parameters?.name !== undefined &&
-      request.parameters.name !== "shaft" && request.parameters.name !== "cylinder") {
-    errors.push("name must be shaft or cylinder.");
-  }
+  errors.push(...validateUnits(request), ...validateCoordinateFrame(request), ...validateTolerancePolicy(request));
   return errors;
+}
+
+function validatePositiveDimension(value: unknown, name: string): string[] {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? []
+    : [name + " must be a finite positive number in millimetres."];
+}
+
+function validateDimensions(request: GeometryOperationRequest): string[] {
+  return [
+    ...validatePositiveDimension(request.parameters?.diameter, "diameter"),
+    ...validatePositiveDimension(request.parameters?.length, "length")
+  ];
+}
+
+function validateOptionalName(request: GeometryOperationRequest): string[] {
+  const name = request.parameters?.name;
+  if (name === undefined || name === "shaft" || name === "cylinder") return [];
+  return ["name must be shaft or cylinder."];
+}
+
+function validateRequest(request: GeometryOperationRequest): string[] {
+  if (!request || typeof request !== "object") {
+    return ["Geometry operation request must be an object."];
+  }
+  return [
+    ...validateOperation(request),
+    ...validateOperationId(request),
+    ...validateContext(request),
+    ...validateDimensions(request),
+    ...validateOptionalName(request)
+  ];
 }
 
 function mapStatus(result: CADPartCompletionResult): GeometryOperationStatus {
