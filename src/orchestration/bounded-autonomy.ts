@@ -201,14 +201,17 @@ function validateActionShape(
     if(!createTaskId) errors.push("A host-owned task id factory is required for task creation.");
     if(graph.tasks.length>=BOUNDED_AUTONOMY_HARD_LIMITS.maxTaskGraphSize)
       errors.push("Engineering task graph reached its hard size limit.");
-    if(!action.name.trim()||action.name.length>160) errors.push("New task name must contain 1-160 characters.");
-    if(!action.goal.trim()||action.goal.length>2_000) errors.push("New task goal must contain 1-2000 characters.");
+    if(typeof action.name!=="string"||!action.name.trim()||action.name.length>160) errors.push("New task name must contain 1-160 characters.");
+    if(typeof action.goal!=="string"||!action.goal.trim()||action.goal.length>2_000) errors.push("New task goal must contain 1-2000 characters.");
     const target=capabilityErrors(action.capability,action.risk,action.input,limits,router,false);
     errors.push(...target.errors);
-    for(const dependency of action.dependsOn??[]){
-      if(!graph.tasks.some(task=>task.id===dependency)) errors.push("New task dependency does not exist: "+dependency+".");
+    if(action.dependsOn!==undefined&&!Array.isArray(action.dependsOn)) errors.push("New task dependencies must be an array.");
+    else for(const dependency of action.dependsOn??[]){
+      if(typeof dependency!=="string"||!dependency.trim()) errors.push("New task dependencies must be non-empty ids.");
+      else if(!graph.tasks.some(task=>task.id===dependency)) errors.push("New task dependency does not exist: "+dependency+".");
     }
-    for(const requirementId of action.requiredRequirementIds??[]){
+    if(action.requiredRequirementIds!==undefined&&!Array.isArray(action.requiredRequirementIds)) errors.push("New task requirement ids must be an array.");
+    else for(const requirementId of action.requiredRequirementIds??[]){
       if(!requirementId.trim()) errors.push("New task requirement ids cannot be empty.");
       if(limits && !(/^[A-Za-z0-9._:-]{1,160}$/).test(requirementId)) errors.push("New task requirement id has an invalid format.");
     }
@@ -222,7 +225,7 @@ function validateActionShape(
   if(task&&action.expectedGraphRevision!==undefined&&action.expectedGraphRevision!==graph.revision)
     errors.push(`Agent action graph revision is stale: expected ${action.expectedGraphRevision}, current ${graph.revision}.`);
 
-  if(action.kind==="REQUEST_APPROVAL"&&!action.reason.trim())
+  if(action.kind==="REQUEST_APPROVAL"&&(typeof action.reason!=="string"||!action.reason.trim()))
     errors.push("Agent approval request reason is required.");
 
   if(action.kind==="UPDATE_TASK"){
@@ -578,7 +581,17 @@ export async function runBoundedAutonomy(
       input:{taskGraph:graph,taskId:action.taskId,stage:action.stage,project:request.project}
     });
     const execution=executionResultFromCapability(result.output);
-    if(execution) graph=execution.graph;
+    if(execution){
+      const executionGraphErrors=validateEngineeringTaskGraph(execution.graph);
+      if(executionGraphErrors.length){
+        const reason="Task execution returned an invalid graph: "+executionGraphErrors.join(" ");
+        actions.push({index,action,status:"FAILED",capability:"TASK_GRAPH.EXECUTE_READY",output:result.output,reason});
+        if(request.limits.stopOnFailure)
+          return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
+        continue;
+      }
+      graph=execution.graph;
+    }
 
     if(!result.success){
       const failed={index,action,status:"FAILED" as const,capability:"TASK_GRAPH.EXECUTE_READY",output:result.output,reason:result.error??"Bounded task execution failed."};
