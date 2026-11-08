@@ -50,6 +50,13 @@ async function readApiResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
+function getSkillRiskError(risk: EngineeringTask["risk"], skill?: SkillManifest): string | undefined {
+  if (!skill) return undefined;
+  const riskRank = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 } as const;
+  if (riskRank[risk] <= riskRank[skill.maximumRisk]) return undefined;
+  return "The selected skill supports up to " + skill.maximumRisk + " risk. Choose a lower task risk or remove the skill profile.";
+}
+
 export default function ReasoningWorkbench({ projectId }: { projectId: string }) {
   const [taskGraph, setTaskGraph] = useState<EngineeringTaskGraph>();
   const [frameworks, setFrameworks] = useState<ReasoningFrameworkManifest[]>([]);
@@ -179,9 +186,9 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
       setError("Choose a registered reasoning framework.");
       return;
     }
-    const riskRank = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 } as const;
-    if (selectedSkill && riskRank[risk] > riskRank[selectedSkill.maximumRisk]) {
-      setError("The selected skill supports up to " + selectedSkill.maximumRisk + " risk. Choose a lower task risk or remove the skill profile.");
+    const skillError = getSkillRiskError(risk, selectedSkill);
+    if (skillError) {
+      setError(skillError);
       return;
     }
 
