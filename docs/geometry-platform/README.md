@@ -1,6 +1,6 @@
 # Geometry Platform — Architecture Charter
 
-**Status:** Accepted strategic direction; initial implementation is not yet delivered.  
+**Status:** Accepted strategic direction; G0 audit is merged, G1 facade is under review, and no native kernel is delivered.  
 **Repository boundary:** This repository, initially alongside the existing CAD modules.  
 **Product rule:** AI proposes. Deterministic systems execute. Validation decides. Evidence proves.
 
@@ -141,11 +141,12 @@ Tests prove only the properties they assert. Geometry validity is not design app
 |---|---|---|
 | G0 | Existing CAD/geometry contract and dependency audit | Current call graph, contract inventory, duplicate map and gaps reviewed |
 | G1 | Product-owned geometry facade and conformance suite | Existing cylinder/shaft path works unchanged through stable contracts |
-| G2 | Native math primitives | Analytical, property and differential fixtures pass |
-| G3 | Selected topology and simple solids | Topology and geometric invariants pass |
-| G4 | Advanced native operations | Adversarial/degenerate tests, differential tests and resource gates pass |
-| G5 | Parametric feature/constraint system | Deterministic regeneration and solver edge cases pass |
-| G6 | Independent productization | Stable API, release process, runtime matrix and external consumer exist |
+| G2 | Geometry identity, immutable revisions and canonical representation | Revision, digest, lineage, concurrency and migration tests pass |
+| G3 | Native mathematical foundation | Analytical, property and differential fixtures pass |
+| G4 | Selected topology and bounded solid construction | Topology and geometric invariants pass |
+| G5 | Advanced native operations | Adversarial/degenerate tests, differential tests and resource gates pass |
+| G6 | Parametric feature/constraint system | Deterministic regeneration and solver edge cases pass |
+| G7 | Independent productization | Stable API, release process, runtime matrix and external consumer exist |
 
 ## G0 audit result
 
@@ -153,7 +154,13 @@ The source-level G0 audit is recorded in [G0 Repository Audit](g0-repository-aud
 
 ## Immediate next task
 
-G1 begins by mapping imports and call sites, then defining the minimum provider-neutral geometry operation contracts without changing existing persisted artifact semantics. The source-level G0 audit lists the required file-level inventory:
+G0 is merged in PR #138. G1 is the open draft [PR #139](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/139), which adds a bounded product-owned operation facade over the existing CAD completion workflow; it does not replace OCCT or implement native algorithms. G1 remains subject to exact-head CI, CodeScene and acceptance review.
+
+The next geometry milestone is G2, not native math primitives. The [G2 Identity, Revision and Canonical Representation Design](g2-identity-revision-design.md) defines the immutable geometry revision model, artifact digest binding, canonical/derivative distinction, concurrency and migration gates. It is a design proposal only; no runtime code or database migration is included.
+
+G2 must reuse existing CAD model identity, artifact storage, provenance and evidence owners. Do not create a second artifact registry or reinterpret the existing CAD metadata revision as a geometry revision.
+
+The source-level G0 audit lists the required file-level inventory: The source-level G0 audit lists the required file-level inventory:
 - Geometry and CAD domain types.
 - Artifact and derivative identities.
 - Provider interfaces and adapters.
@@ -162,4 +169,4 @@ G1 begins by mapping imports and call sites, then defining the minimum provider-
 - Existing fixtures and tests.
 - Existing dependencies and license obligations.
 
-Then propose the minimum G1 changes. Do not change the current CAD worker, production route, Supabase schema or accepted artifact format during G0.
+Then complete G1 acceptance and review the G2 design before any schema migration. Do not change the current CAD worker, production route, Supabase schema or accepted artifact format until the relevant milestone gates pass.
