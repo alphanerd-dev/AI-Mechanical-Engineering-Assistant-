@@ -3,7 +3,7 @@ import { CapabilityRegistry } from "../src/capabilities/registry.js";
 import { ENGINEERING_CAPABILITIES } from "../src/capabilities/catalog.js";
 import { CADCapabilityRouter } from "../src/cad/routing.js";
 import type { CADModelIdentity } from "../src/cad/identity.js";
-import type { CADExecutionRequest, CADExecutionResult, CADWorkerExecutor } from "../src/cad/execution.js";
+import type { CADExecutionResult, CADWorkerExecutor } from "../src/cad/execution.js";
 import { CADPartCompletionWorkflow } from "../src/cad/completion.js";
 import { Build123dCADProvider } from "../src/providers/build123d-cad.js";
 import { Build123dIntentCodeGenerator } from "../src/providers/build123d-intent-generator.js";
