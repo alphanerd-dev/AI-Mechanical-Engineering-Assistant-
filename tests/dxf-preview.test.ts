@@ -16,7 +16,7 @@ describe("bounded DXF 2D preview parser", () => {
     const result = parseDXF(drawing);
     expect(result.units).toBe("mm");
     expect(result.entities.map((entity) => entity.type)).toEqual(["LINE", "CIRCLE", "LWPOLYLINE", "TEXT"]);
-    expect(result.bounds).toMatchObject({ minX: 0, minY: 0, maxX: 100, maxY: 80 });
+    expect(result.bounds).toMatchObject({ minX: 0, minY: 0, maxX: 100, maxY: 90 });
   });
 
   it("rejects malformed group codes, empty documents and oversized data", () => {

@@ -167,3 +167,18 @@ export function parseDXF(source: string): DXFDocument {
   }
   return { entities, units: readUnits(pairs), bounds, warnings };
 }
+
+
+/** Euclidean distance in the drawing's declared units; this does not apply scale or tolerance validation. */
+export function measureDXFDistance(start: [number, number], end: [number, number]): {
+  deltaX: number;
+  deltaY: number;
+  distance: number;
+} {
+  if (![...start, ...end].every(Number.isFinite)) {
+    throw new Error("Measurement points must contain finite coordinates.");
+  }
+  const deltaX = end[0] - start[0];
+  const deltaY = end[1] - start[1];
+  return { deltaX, deltaY, distance: Math.hypot(deltaX, deltaY) };
+}

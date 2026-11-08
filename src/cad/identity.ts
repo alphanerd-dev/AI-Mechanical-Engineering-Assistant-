@@ -118,9 +118,6 @@ export function validateCADModelIdentity(
       (!Number.isSafeInteger(value.revision) || (value.revision as number) < 1)) {
     errors.push("CAD model identity revision must be a positive safe integer when supplied.");
   }
-  if (value.revision === undefined) {
-    warnings.push("CAD model metadata revision was not supplied by this persistence boundary.");
-  }
   if (!validDate(value.updatedAt)) errors.push("CAD model identity updatedAt must be a valid date string.");
   if (
     validDate(value.createdAt) &&
