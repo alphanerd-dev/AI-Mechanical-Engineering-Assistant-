@@ -38,19 +38,36 @@ function asRecord(value: unknown): UnknownRecord | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as UnknownRecord : null;
 }
 
+function validateSchemaVersion(item: UnknownRecord): string[] {
+  return item.schemaVersion === 1 ? [] : ["Unsupported display derivative schema version."];
+}
+
+function validateIdentityStrings(item: UnknownRecord): string[] {
+  return ["artifactId", "sourceArtifactId", "modelIdentityId", "units", "coordinateFrame"]
+    .filter((key) => !NON_EMPTY(item[key]))
+    .map((key) => key + " is required.");
+}
+
+function validateDisplayFormat(item: UnknownRecord): string[] {
+  return item.format === "STL" || item.format === "GLB" || item.format === "GLTF"
+    ? []
+    : ["Display derivative format is unsupported."];
+}
+
+function validateModelRevision(item: UnknownRecord): string[] {
+  const revision = item.modelRevision;
+  return typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 1
+    ? []
+    : ["modelRevision must be a positive safe integer."];
+}
+
 function validateRequiredIdentity(item: UnknownRecord): string[] {
-  const errors: string[] = [];
-  if (item.schemaVersion !== 1) errors.push("Unsupported display derivative schema version.");
-  for (const key of ["artifactId", "sourceArtifactId", "modelIdentityId", "units", "coordinateFrame"] as const) {
-    if (!NON_EMPTY(item[key])) errors.push(key + " is required.");
-  }
-  if (item.format !== "STL" && item.format !== "GLB" && item.format !== "GLTF") {
-    errors.push("Display derivative format is unsupported.");
-  }
-  if (typeof item.modelRevision !== "number" || !Number.isSafeInteger(item.modelRevision) || item.modelRevision < 1) {
-    errors.push("modelRevision must be a positive safe integer.");
-  }
-  return errors;
+  return [
+    ...validateSchemaVersion(item),
+    ...validateIdentityStrings(item),
+    ...validateDisplayFormat(item),
+    ...validateModelRevision(item)
+  ];
 }
 
 function validateDigestsAndTimestamp(item: UnknownRecord): string[] {
