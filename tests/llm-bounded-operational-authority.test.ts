@@ -95,45 +95,70 @@ describe("LLM bounded operational authority", () => {
     }, policy, ["ANALYSIS.SHAFT_TORQUE"])).toThrow(/unsupported fields/);
   });
 
-  it("lets the model create a task, request backend readiness, and execute only through the capability router", async () => {
+  it("lets the model create a task, then request backend readiness and execution using the host-assigned id", async () => {
     const router = setup();
+    let planningCycle = 0;
     const generator: StructuredModelGenerator = {
-      generateStructured: vi.fn(async () => ({
-        baseGraphRevision: 1,
-        actions: [
-          {
-            kind: "CREATE_TASK",
-            name: "Calculate torque",
-            goal: "Calculate the torque transmitted by a shaft.",
-            capability: "ANALYSIS.SHAFT_TORQUE",
-            risk: "LOW",
-            input: { powerKw: 5, speedRpm: 1500 }
-          },
-          { kind: "REQUEST_READY", taskId: "HOST-TASK-1" },
-          { kind: "EXECUTE_TASK", taskId: "HOST-TASK-1", stage: "ANALYSIS" }
-        ]
-      }))
+      generateStructured: vi.fn(async () => {
+        planningCycle += 1;
+        if (planningCycle === 1) {
+          return {
+            baseGraphRevision: 1,
+            actions: [{
+              kind: "CREATE_TASK",
+              name: "Calculate torque",
+              goal: "Calculate the torque transmitted by a shaft.",
+              capability: "ANALYSIS.SHAFT_TORQUE",
+              risk: "LOW",
+              input: { powerKw: 5, speedRpm: 1500 }
+            }]
+          };
+        }
+        return {
+          baseGraphRevision: 2,
+          actions: [
+            { kind: "REQUEST_READY", taskId: "HOST-TASK-1" },
+            { kind: "EXECUTE_TASK", taskId: "HOST-TASK-1", stage: "ANALYSIS" }
+          ]
+        };
+      })
     };
     const planner = new ModelBackedAgentActionPlanner(generator);
-    const report = await runModelDirectedAutonomy({
+    const policy = limits();
+    const created = await runModelDirectedAutonomy({
       runId: "RUN-1",
       taskGraph: graph(),
-      limits: limits(),
+      limits: policy,
       createTaskId: () => "HOST-TASK-1",
       now: stamp
     }, planner, router);
 
-    expect(generator.generateStructured).toHaveBeenCalledTimes(1);
-    expect(report.status).toBe("COMPLETED");
-    expect(report.taskExecutions).toBe(1);
-    expect(report.finalGraph.tasks[0]).toMatchObject({
+    expect(created.status).toBe("COMPLETED");
+    expect(created.finalGraph.tasks[0]).toMatchObject({
+      id: "HOST-TASK-1",
+      projectId: "P-1",
+      status: "PROPOSED",
+      capability: "ANALYSIS.SHAFT_TORQUE"
+    });
+
+    const executed = await runModelDirectedAutonomy({
+      runId: "RUN-1",
+      taskGraph: created.finalGraph,
+      limits: policy,
+      now: stamp
+    }, planner, router);
+
+    expect(generator.generateStructured).toHaveBeenCalledTimes(2);
+    expect(executed.status).toBe("COMPLETED");
+    expect(executed.taskExecutions).toBe(1);
+    expect(executed.finalGraph.tasks[0]).toMatchObject({
       id: "HOST-TASK-1",
       projectId: "P-1",
       status: "COMPLETED",
       capability: "ANALYSIS.SHAFT_TORQUE"
     });
-    expect(report.finalGraph.tasks[0].approvalGranted).toBeUndefined();
-    expect(report.actions.map(action => action.status)).toEqual(["SUCCESS", "SUCCESS", "SUCCESS"]);
+    expect(executed.finalGraph.tasks[0].approvalGranted).toBeUndefined();
+    expect(executed.actions.map(action => action.status)).toEqual(["SUCCESS", "SUCCESS"]);
   });
 
   it("requires human approval for pilot capabilities and never treats an LLM approval request as approval", async () => {
