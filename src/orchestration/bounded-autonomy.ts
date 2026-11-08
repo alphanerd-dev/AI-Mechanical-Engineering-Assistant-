@@ -153,7 +153,7 @@ function capabilityInputErrors(
 }
 
 function isControlPlaneCapability(capability:string):boolean{
-  return /^(AGENT|TASK_GRAPH|WORKSPACE)\\./.test(capability)||
+  return /^(AGENT|TASK_GRAPH|WORKSPACE)\./.test(capability)||
     capability==="ENGINEERING.ORCHESTRATE_WORKFLOW"||
     capability==="ENGINEERING.ENTER_FROM_INTENT";
 }
