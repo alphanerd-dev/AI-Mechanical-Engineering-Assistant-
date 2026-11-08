@@ -22,6 +22,7 @@ function validateRequest(request: GeometryOperationRequest): string[] {
   if (!nonEmpty(request.context?.projectId)) errors.push("A server-resolved projectId is required.");
   if (request.context?.units !== "mm") errors.push("This adapter currently accepts millimetres only.");
   if (request.context?.coordinateFrame !== "WORLD_Z_AXIS") errors.push("This adapter currently supports the world frame with the cylinder axis on +Z only.");
+  if (request.context?.tolerancePolicyId !== "CYLINDER_DIMENSION_0_01_MM") errors.push("This adapter requires its host-controlled 0.01 mm cylinder dimension tolerance policy.");
   if (!Number.isFinite(request.parameters?.diameter) || request.parameters.diameter <= 0) {
     errors.push("diameter must be a finite positive number in millimetres.");
   }
