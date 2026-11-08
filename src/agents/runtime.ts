@@ -2,6 +2,16 @@ import {CapabilityRisk,ProjectState} from "../core/types.js";
 import {EngineeringWorkflowStage} from "../orchestration/types.js";
 import {EngineeringTaskGraph} from "../task-graph/types.js";
 
+export interface StructuredModelGenerationRequest {
+  instructions: string;
+  input: unknown;
+  maxOutputTokens?: number;
+}
+
+export interface StructuredModelGenerator {
+  generateStructured(request: StructuredModelGenerationRequest): Promise<unknown>;
+}
+
 export interface AgentTaskUpdatePatch {
   name?: string;
   goal?: string;
