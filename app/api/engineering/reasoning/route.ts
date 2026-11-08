@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { createDefaultReasoningFrameworkRegistry } from "../../../../src/reasoning-frameworks/registry";
+import { createDefaultSkillManifestRegistry } from "../../../../src/reasoning-frameworks/skill-registry";
+import { assignTaskSkillManifest } from "../../../../src/task-graph/reasoning";
 import { ModelBackedTaskReasoningProposer } from "../../../../src/reasoning-frameworks/model-adapter";
 import {
   createConfiguredReasoningGenerator,
@@ -298,12 +300,14 @@ export async function GET(request: Request) {
     if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status }); }
 
     const registry = createDefaultReasoningFrameworkRegistry();
+    const skillRegistry = createDefaultSkillManifestRegistry();
     const loaded = await loadWorkspace(projectId, authorization.subject);
     return NextResponse.json({
       projectId,
       taskGraph: loaded.snapshot.taskGraph,
       workspaceRevision: loaded.snapshot.revision,
       frameworks: registry.list(),
+      skills: skillRegistry.list(),
       storageMode: loaded.storageMode,
       persisted: loaded.storageMode === "DURABLE" && loaded.persisted,
       modelConfigured: Boolean(
@@ -336,12 +340,19 @@ export async function POST(request: Request) {
 
     const loaded = await loadWorkspace(projectId, authorization.subject);
     const registry = createDefaultReasoningFrameworkRegistry();
+    const skillRegistry = createDefaultSkillManifestRegistry();
 
     if (action === "CREATE_TASK") {
       const risk = body.risk;
       const uncertainty = body.uncertainty;
       const input = body.input === undefined ? {} : getInputRecord(body.input);
+      const skillId = typeof body.skillId === "string" && body.skillId.trim() ? body.skillId.trim() : undefined;
+      const skillVersion = typeof body.skillVersion === "string" && body.skillVersion.trim() ? body.skillVersion.trim() : undefined;
+      if (Boolean(skillId) !== Boolean(skillVersion)) {
+        throw new ApiError(400, "skillId and skillVersion must be supplied together.");
+      }
       let result: ReturnType<typeof createWorkspaceReasoningTask>;
+      let workspace = loaded.snapshot;
       try {
         result = createWorkspaceReasoningTask(loaded.snapshot, {
           taskId: randomUUID(),
@@ -356,10 +367,22 @@ export async function POST(request: Request) {
           approvalRequired: body.approvalRequired as boolean | undefined,
           evidenceRequired: body.evidenceRequired as boolean | undefined
         }, { frameworkRegistry: registry });
+        if (skillId && skillVersion) {
+          const taskGraph = assignTaskSkillManifest(
+            result.workspace.taskGraph,
+            result.task.id,
+            skillId,
+            skillVersion,
+            skillRegistry
+          );
+          workspace = { ...result.workspace, taskGraph };
+        } else {
+          workspace = result.workspace;
+        }
       } catch (error) {
         throw new ApiError(422, error instanceof Error ? error.message : "The task could not be created.");
       }
-      const saved = await saveWorkspace(loaded, result.workspace);
+      const saved = await saveWorkspace(loaded, workspace);
       return NextResponse.json({
         ...taskResponse(saved.taskGraph, result.task.id),
         workspaceRevision: saved.revision,
