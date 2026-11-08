@@ -1,13 +1,13 @@
 import type { CapabilityRouter } from "../capabilities/router.js";
-import type { AgentActionPlanner } from "../agents/action-planner.js";
+import { parseAgentActionPlan, type AgentActionPlanner } from "../agents/action-planner.js";
 import type { BoundedAutonomyRequest, BoundedAutonomyReport } from "./bounded-autonomy.js";
 import { runBoundedAutonomy } from "./bounded-autonomy.js";
 
 /**
  * Host-controlled bridge from a model-generated action plan to the existing
  * bounded execution engine. The model receives only registered contracts
- * explicitly named by the host policy; every proposal is revalidated by the
- * bounded backend before it mutates state or executes a capability.
+ * explicitly named by the host policy; every proposal is re-parsed and
+ * revalidated by the backend before it mutates state or executes a capability.
  */
 export async function runModelDirectedAutonomy(
   request: Omit<BoundedAutonomyRequest, "actions">,
@@ -30,12 +30,15 @@ export async function runModelDirectedAutonomy(
     return definition;
   });
 
-  const plan = await planner.plan({
+  const proposedPlan = await planner.plan({
     runId: request.runId,
     taskGraph: structuredClone(request.taskGraph),
     limits: structuredClone(request.limits),
     registeredCapabilities: structuredClone(registeredCapabilities)
   });
+  // Enforce the parser at the final backend boundary even when a planner
+  // implementation is injected, mocked or replaced by another model vendor.
+  const plan = parseAgentActionPlan(proposedPlan, request.limits, allowed);
   if (plan.baseGraphRevision !== request.taskGraph.revision) {
     return {
       runId: request.runId,
