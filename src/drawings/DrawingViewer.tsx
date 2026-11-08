@@ -132,7 +132,7 @@ type LoadedDrawingPreview = {
   objectUrl: string | null;
 };
 
-async function fetchDrawingSource(src: string, signal: AbortSignal): Promise<string | null> {
+async function fetchDrawingSource({ src, signal }: { src: string; signal: AbortSignal }): Promise<string | null> {
   const response = await fetch(src, { signal, cache: "no-store" });
   if (!response.ok) throw new Error("The authorized drawing artifact could not be loaded.");
   const buffer = await response.arrayBuffer();
@@ -143,53 +143,49 @@ async function fetchDrawingSource(src: string, signal: AbortSignal): Promise<str
   return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
 }
 
-function isDxfFormat(format: string): boolean {
+function isDxfFormat({ format }: { format: string }): boolean {
   return format === "application/dxf" || format === "image/vnd.dxf";
 }
 
-function createDrawingPreview(src: string, format: string, source: string): LoadedDrawingPreview {
+function createDrawingPreview({ src, format, source }: { src: string; format: string; source: string }): LoadedDrawingPreview {
   if (format === "image/svg+xml") {
     const safeSvg = sanitizeSVG(source);
     const objectUrl = URL.createObjectURL(new Blob([safeSvg], { type: "image/svg+xml" }));
     return { state: { src, svgUrl: objectUrl, dxf: null, error: null }, objectUrl };
   }
-  if (isDxfFormat(format)) {
+  if (isDxfFormat({ format })) {
     return { state: { src, svgUrl: null, dxf: parseDXF(source), error: null }, objectUrl: null };
   }
   throw new Error("This drawing format has no registered browser preview.");
 }
 
-async function loadDrawingPreview(
-  src: string,
-  format: string,
-  signal: AbortSignal
-): Promise<LoadedDrawingPreview | null> {
-  const source = await fetchDrawingSource(src, signal);
+async function loadDrawingPreview({ src, format, signal }: { src: string; format: string; signal: AbortSignal }): Promise<LoadedDrawingPreview | null> {
+  const source = await fetchDrawingSource({ src, signal });
   if (source === null || signal.aborted) return null;
-  return createDrawingPreview(src, format, source);
+  return createDrawingPreview({ src, format, source });
 }
 
-function drawingErrorState(src: string, cause: unknown): DrawingState {
+function drawingErrorState({ src, cause }: { src: string; cause: unknown }): DrawingState {
   return {
     src, svgUrl: null, dxf: null,
     error: cause instanceof Error ? cause.message : "Drawing preview failed."
   };
 }
 
-function useDrawingState(src: string, format: string): DrawingState {
+function useDrawingState({ src, format }: { src: string; format: string }): DrawingState {
   const [state, setState] = useState<DrawingState>({ src: "", svgUrl: null, dxf: null, error: null });
   useEffect(() => {
     if (format === "application/pdf") return;
     const controller = new AbortController();
     let objectUrl: string | null = null;
-    void loadDrawingPreview(src, format, controller.signal)
+    void loadDrawingPreview({ src, format, signal: controller.signal })
       .then((loaded) => {
         if (!loaded || controller.signal.aborted) return;
         objectUrl = loaded.objectUrl;
         setState(loaded.state);
       })
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setState(drawingErrorState(src, cause));
+        if (!controller.signal.aborted) setState(drawingErrorState({ src, cause }));
       });
     return () => {
       controller.abort();
@@ -224,7 +220,7 @@ export default function DrawingViewer({ src, mediaType, label }: {
   label: string;
 }) {
   const format = mediaType.toLowerCase();
-  const state = useDrawingState(src, format);
+  const state = useDrawingState({ src, format });
   if (format === "application/pdf") return <PdfDrawingPreview src={src} label={label} />;
   if (state.src !== src) return <div className={styles.drawingStatus} role="status">Loading drawing preview…</div>;
   if (state.error) return <div className={styles.drawingStatus} role="alert">{state.error}</div>;
