@@ -81,6 +81,7 @@ export * from "./reasoning-frameworks/index.js";
 export * from "./agents/specialists.js";
 export * from "./agents/runtime.js";
 export * from "./agents/langgraph-adapter.js";
+export * from "./agents/action-planner.js";
 export * from "./orchestration/specialist-delegation.js";
 export * from "./orchestration/bounded-autonomy.js";
 export * from "./auth/index.js";
