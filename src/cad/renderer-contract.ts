@@ -51,12 +51,17 @@ export interface CADViewportAdapter {
 
 type UnknownRecord = Record<string, unknown>;
 
+function isNonEmptyString(value: unknown): boolean {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isSha256(value: unknown): boolean {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
 function hasRequiredIdentity(mesh: UnknownRecord): boolean {
-  return typeof mesh.artifactId === "string" && mesh.artifactId.length > 0 &&
-    typeof mesh.sourceArtifactId === "string" && mesh.sourceArtifactId.length > 0 &&
-    typeof mesh.sourceArtifactSha256 === "string" && /^[a-f0-9]{64}$/.test(mesh.sourceArtifactSha256) &&
-    typeof mesh.units === "string" && mesh.units.length > 0 &&
-    typeof mesh.coordinateFrame === "string" && mesh.coordinateFrame.length > 0;
+  const requiredText = [mesh.artifactId, mesh.sourceArtifactId, mesh.units, mesh.coordinateFrame];
+  return requiredText.every(isNonEmptyString) && isSha256(mesh.sourceArtifactSha256);
 }
 
 function validPositions(value: unknown): value is Float32Array {
