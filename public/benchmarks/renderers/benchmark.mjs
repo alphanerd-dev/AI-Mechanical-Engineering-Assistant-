@@ -65,7 +65,7 @@ async function importEngines() {
   const [B, T] = await Promise.all([import(URLS.babylon), import(URLS.three)]);
   return { B, T, importMs: performance.now() - started };
 }
-async function runThree(T, canvas, count, durationMs) {
+function createThreeScene(T, canvas, count) {
   const startInit = performance.now();
   const renderer = new T.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
   const gl = renderer.getContext();
@@ -95,13 +95,19 @@ async function runThree(T, canvas, count, durationMs) {
   mesh.instanceMatrix.needsUpdate = true;
   scene.add(mesh);
   const initMs = performance.now() - startInit;
-  const started = performance.now();
+  const firstRenderStart = performance.now();
   renderer.render(scene, camera);
-  const renderMs = performance.now() - started;
+  return {
+    renderer, scene, camera, geometry, material, mesh,
+    initMs, renderMs: performance.now() - firstRenderStart
+  };
+}
+
+async function sampleThreeScene(T, canvas, setup, count, durationMs) {
   const raycaster = new T.Raycaster();
   const pointer = new T.Vector2(0, 0);
-  const frameTimes = [];
-  const pickTimes = [];
+  const frames = [];
+  const picks = [];
   let contextLost = 0;
   let visibilityToggleCount = 0;
   let lastVisibilityToggle = 0;
@@ -109,36 +115,54 @@ async function runThree(T, canvas, count, durationMs) {
   canvas.addEventListener("webglcontextlost", onLost);
   const sampleStart = performance.now();
   let last = sampleStart;
-  await new Promise((resolve) => {
-    const tick = (now) => {
-      const dt = now - last;
-      last = now;
-      frameTimes.push(dt);
-      const angle = (now - sampleStart) * 0.00011;
-      camera.position.set(Math.cos(angle) * Math.max(10, Math.sqrt(count) * 2), camera.position.y, Math.sin(angle) * Math.max(10, Math.sqrt(count) * 2));
-      camera.lookAt(0, 0, 0);
-      if (now - lastVisibilityToggle >= 400) {
-        mesh.visible = !mesh.visible;
-        lastVisibilityToggle = now;
-        visibilityToggleCount += 1;
-      }
-      renderer.render(scene, camera);
-      const pickStart = performance.now();
-      raycaster.setFromCamera(pointer, camera);
-      raycaster.intersectObject(mesh, false);
-      pickTimes.push(performance.now() - pickStart);
-      if (now - sampleStart < durationMs) requestAnimationFrame(tick);
-      else resolve();
-    };
-    requestAnimationFrame(tick);
-  });
-  const summary = finishSummary("three", sampleStart, frameTimes, pickTimes, renderMs, initMs, count, contextLost, visibilityToggleCount);
-  canvas.removeEventListener("webglcontextlost", onLost);
-  renderer.dispose();
-  geometry.dispose();
-  material.dispose();
-  return summary;
+  try {
+    await new Promise((resolve) => {
+      const tick = (now) => {
+        frames.push(now - last);
+        last = now;
+        const angle = (now - sampleStart) * 0.00011;
+        setup.camera.position.set(
+          Math.cos(angle) * Math.max(10, Math.sqrt(count) * 2),
+          setup.camera.position.y,
+          Math.sin(angle) * Math.max(10, Math.sqrt(count) * 2)
+        );
+        setup.camera.lookAt(0, 0, 0);
+        if (now - lastVisibilityToggle >= 400) {
+          setup.mesh.visible = !setup.mesh.visible;
+          lastVisibilityToggle = now;
+          visibilityToggleCount += 1;
+        }
+        setup.renderer.render(setup.scene, setup.camera);
+        const pickStart = performance.now();
+        raycaster.setFromCamera(pointer, setup.camera);
+        raycaster.intersectObject(setup.mesh, false);
+        picks.push(performance.now() - pickStart);
+        if (now - sampleStart < durationMs) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+  } finally {
+    canvas.removeEventListener("webglcontextlost", onLost);
+  }
+  return { sampleStart, frames, picks, contextLost, visibilityToggleCount };
 }
+
+async function runThree(T, canvas, count, durationMs) {
+  const setup = createThreeScene(T, canvas, count);
+  try {
+    const sample = await sampleThreeScene(T, canvas, setup, count, durationMs);
+    return finishSummary(
+      "three", sample.sampleStart, sample.frames, sample.picks,
+      setup.renderMs, setup.initMs, count, sample.contextLost, sample.visibilityToggleCount
+    );
+  } finally {
+    setup.renderer.dispose();
+    setup.geometry.dispose();
+    setup.material.dispose();
+  }
+}
+
 async function runBabylon(B, canvas, count, durationMs) {
   const startInit = performance.now();
   const engine = new B.Engine(canvas, false, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false });
