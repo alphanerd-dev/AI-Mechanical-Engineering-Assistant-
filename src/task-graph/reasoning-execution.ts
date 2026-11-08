@@ -1,4 +1,4 @@
-import type { FrameworkReasoningRecord, ReasoningExecutionProvenance, ReasoningFrameworkManifest } from "../reasoning-frameworks/types";
+import type { FrameworkReasoningRecord, ReasoningExecutionProvenance, ReasoningFrameworkManifest, SkillManifest } from "../reasoning-frameworks/types";
 import type { ReasoningFrameworkRegistry } from "../reasoning-frameworks/registry";
 import { createFrameworkReasoningRecord } from "../reasoning-frameworks/records";
 import { getReasoningFramework } from "../reasoning-frameworks/registry";
@@ -17,6 +17,8 @@ export interface ReasoningProposal {
 export interface TaskReasoningProposalRequest {
   readonly task: Readonly<EngineeringTask>;
   readonly framework: Readonly<ReasoningFrameworkManifest>;
+  /** Optional version-pinned skill policy attached to the task graph. */
+  readonly skillManifest?: Readonly<SkillManifest>;
   /** Snapshot assembled from task-graph state, never copied from provider output. */
   readonly inputs: Readonly<Record<string, unknown>>;
   /** Evidence IDs supplied by a trusted host-side registry, never by the model. */
@@ -91,6 +93,7 @@ export async function executeTaskReasoning(
   const rawProposal = await proposer.propose({
     task: structuredClone(task),
     framework: structuredClone(framework),
+    ...(task.reasoning?.skillManifest ? { skillManifest: structuredClone(task.reasoning.skillManifest) } : {}),
     inputs: structuredClone(inputs),
     trustedEvidenceReferences: [...trustedEvidenceReferences]
   });
