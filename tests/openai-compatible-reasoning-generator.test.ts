@@ -31,18 +31,19 @@ const generationRequest: ModelReasoningGenerationRequest = {
   instructions: "Return JSON only."
 };
 
+const proposal = {
+  status: "PROPOSED",
+  assumptions: [],
+  output: { nextStep: "List facts." },
+  limitations: ["Not validated."],
+  evidenceReferences: [],
+  requiredGates: []
+};
+
 describe("OpenAI-compatible reasoning transport", () => {
   it("sends a server-side JSON-mode request and parses the returned proposal object", async () => {
     let capturedUrl: RequestInfo | URL | undefined;
     let capturedInit: RequestInit | undefined;
-    const proposal = {
-      status: "PROPOSED",
-      assumptions: [],
-      output: { nextStep: "List facts." },
-      limitations: ["Not validated."],
-      evidenceReferences: [],
-      requiredGates: []
-    };
     const fetchImpl: typeof fetch = async (input, init) => {
       capturedUrl = input;
       capturedInit = init;
@@ -71,14 +72,6 @@ describe("OpenAI-compatible reasoning transport", () => {
 
   it("uses OpenAI-compatible protocol for Gemini's OpenAI chat-completions endpoint", async () => {
     let capturedInit: RequestInit | undefined;
-    const proposal = {
-      status: "PROPOSED",
-      assumptions: [],
-      output: { nextStep: "List facts." },
-      limitations: ["Not validated."],
-      evidenceReferences: [],
-      requiredGates: []
-    };
     const generator = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-3.8-flash",
@@ -104,14 +97,6 @@ describe("OpenAI-compatible reasoning transport", () => {
 
   it("normalizes Google's OpenAI-compatible API base URL to the chat-completions endpoint", async () => {
     let capturedUrl: RequestInfo | URL | undefined;
-    const proposal = {
-      status: "PROPOSED",
-      assumptions: [],
-      output: { nextStep: "List facts." },
-      limitations: ["Not validated."],
-      evidenceReferences: [],
-      requiredGates: []
-    };
     const generator = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/",
       model: "gemini-test",
@@ -130,14 +115,6 @@ describe("OpenAI-compatible reasoning transport", () => {
 
   it("keeps native Gemini generateContent requests on the native protocol", async () => {
     let capturedInit: RequestInit | undefined;
-    const proposal = {
-      status: "PROPOSED",
-      assumptions: [],
-      output: { nextStep: "List facts." },
-      limitations: ["Not validated."],
-      evidenceReferences: [],
-      requiredGates: []
-    };
     const generator = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent",
       model: "gemini-test",
