@@ -20,7 +20,7 @@ const identity: CADModelIdentity = {
 };
 
 class FakeExecutor implements CADWorkerExecutor {
-  async execute(_request: CADExecutionRequest): Promise<CADExecutionResult> {
+  async execute(): Promise<CADExecutionResult> {
     return {
       success: true,
       backend: "build123d",
