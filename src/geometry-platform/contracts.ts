@@ -55,6 +55,9 @@ export interface GeometryOperationResult {
   executionProviderId?: string;
   validationProviderId?: string;
   artifacts: GeometryArtifactReference[];
+  evidenceIds: string[];
+  engineeringArtifactId?: string;
+  acceptanceStatus?: "ACCEPTED" | "REJECTED" | "INCOMPLETE";
   errors: string[];
   warnings: string[];
 }
