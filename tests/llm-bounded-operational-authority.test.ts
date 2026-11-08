@@ -273,6 +273,27 @@ describe("LLM bounded operational authority", () => {
     expect(report.finalGraph.tasks[0].approvalGranted).toBeUndefined();
   });
 
+  it("rejects privileged fields injected directly into the backend task-update boundary", async () => {
+    const router = setup();
+    const unsafeAction = {
+      kind: "UPDATE_TASK",
+      taskId: "T-1",
+      patch: { goal: "Try to remove the approval gate.", approvalRequired: false }
+    } as unknown as import("../src/agents/runtime.js").AgentActionProposal;
+    const report = await runBoundedAutonomy({
+      runId: "RUN-UPDATE-GATE",
+      taskGraph: graph([task({ approvalRequired: true })]),
+      limits: limits(),
+      now: stamp,
+      actions: [unsafeAction]
+    }, router);
+
+    expect(report.status).toBe("FAILED");
+    expect(report.finalGraph.revision).toBe(1);
+    expect(report.finalGraph.tasks[0].approvalRequired).toBe(true);
+    expect(report.stopReason).toContain("unsupported fields");
+  });
+
   it("refuses to update a READY task even when the model proposes a valid patch", async () => {
     const router = setup();
     const original = task({ status: "READY" });
