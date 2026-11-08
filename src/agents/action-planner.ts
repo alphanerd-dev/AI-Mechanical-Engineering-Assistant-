@@ -125,6 +125,8 @@ function parseAction(value: unknown, allowedCapabilities: ReadonlySet<string>, l
       if (action.evidenceRequired !== undefined && typeof action.evidenceRequired !== "boolean") {
         throw new Error("CREATE_TASK evidenceRequired must be boolean when supplied.");
       }
+      const dependsOn = parseStringArray(action.dependsOn, "Task dependencies");
+      const requiredRequirementIds = parseStringArray(action.requiredRequirementIds, "Task requirement ids");
       return {
         kind: "CREATE_TASK",
         name: requiredText(action.name, "Task name", 160),
@@ -132,8 +134,8 @@ function parseAction(value: unknown, allowedCapabilities: ReadonlySet<string>, l
         capability: parseCapability(action.capability, allowedCapabilities, "Task capability"),
         risk: parseRisk(action.risk),
         input: parseInput(action.input, "Task input"),
-        ...(parseStringArray(action.dependsOn, "Task dependencies") ? { dependsOn: parseStringArray(action.dependsOn, "Task dependencies") } : {}),
-        ...(parseStringArray(action.requiredRequirementIds, "Task requirement ids") ? { requiredRequirementIds: parseStringArray(action.requiredRequirementIds, "Task requirement ids") } : {}),
+        ...(dependsOn ? { dependsOn } : {}),
+        ...(requiredRequirementIds ? { requiredRequirementIds } : {}),
         ...(action.approvalRequired === true ? { approvalRequired: true } : {}),
         ...(action.evidenceRequired === true ? { evidenceRequired: true } : {})
       };
