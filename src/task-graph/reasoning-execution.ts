@@ -5,6 +5,11 @@ import { getReasoningFramework } from "../reasoning-frameworks/registry";
 import type { EngineeringTask, EngineeringTaskGraph } from "./types";
 import { appendTaskReasoningRecord } from "./reasoning";
 
+function snapshotTaskSkillManifest(task: EngineeringTask): SkillManifest | undefined {
+  const skillManifest = task.reasoning?.skillManifest;
+  return skillManifest ? structuredClone(skillManifest) : undefined;
+}
+
 export interface ReasoningProposal {
   status: "PROPOSED" | "INCOMPLETE" | "BLOCKED";
   assumptions: string[];
@@ -93,7 +98,7 @@ export async function executeTaskReasoning(
   const rawProposal = await proposer.propose({
     task: structuredClone(task),
     framework: structuredClone(framework),
-    ...(task.reasoning?.skillManifest ? { skillManifest: structuredClone(task.reasoning.skillManifest) } : {}),
+    skillManifest: snapshotTaskSkillManifest(task),
     inputs: structuredClone(inputs),
     trustedEvidenceReferences: [...trustedEvidenceReferences]
   });
