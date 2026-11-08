@@ -1,6 +1,6 @@
 import { CADModelIdentity, validateCADModelIdentity } from "./identity.js";
 import { CADExecutionRequest, CADExecutionResult } from "./execution.js";
-import { CADArtifact, CADArtifactKind, CADExecutionProvenance } from "./artifacts.js";
+import { CADArtifact, CADArtifactKind, CADArtifactProvenance, CADExecutionProvenance } from "./artifacts.js";
 import { createCADSourceSha256 } from "./provenance.js";
 
 export interface CADArtifactManifestContext {
@@ -49,10 +49,10 @@ function noArtifacts(warnings: string[], errors: string[]): CADArtifactManifest 
 const DERIVED_GEOMETRY_ARTIFACT_KINDS = new Set<CADArtifactKind>(["STEP", "STL", "THREE_MF"]);
 
 function withCanonicalGeometryLink(
-  provenance: CADExecutionProvenance,
+  provenance: CADArtifactProvenance,
   artifactKind: CADArtifactKind,
   solid: CADArtifact | undefined
-): CADExecutionProvenance {
+): CADArtifactProvenance {
   if (!solid) return provenance;
   if (!DERIVED_GEOMETRY_ARTIFACT_KINDS.has(artifactKind)) return provenance;
   return { ...provenance, canonicalGeometryArtifactId: solid.id };
