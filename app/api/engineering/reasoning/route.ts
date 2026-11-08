@@ -346,6 +346,12 @@ export async function POST(request: Request) {
       const risk = body.risk;
       const uncertainty = body.uncertainty;
       const input = body.input === undefined ? {} : getInputRecord(body.input);
+      if (body.skillId !== undefined && typeof body.skillId !== "string") {
+        throw new ApiError(400, "skillId must be a string when supplied.");
+      }
+      if (body.skillVersion !== undefined && typeof body.skillVersion !== "string") {
+        throw new ApiError(400, "skillVersion must be a string when supplied.");
+      }
       const skillId = typeof body.skillId === "string" && body.skillId.trim() ? body.skillId.trim() : undefined;
       const skillVersion = typeof body.skillVersion === "string" && body.skillVersion.trim() ? body.skillVersion.trim() : undefined;
       if (Boolean(skillId) !== Boolean(skillVersion)) {
