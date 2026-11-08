@@ -80,21 +80,34 @@ function validateConverter(value: unknown): string[] {
   return errors;
 }
 
+function validateLinearDeflection(tessellation: UnknownRecord): string[] {
+  const value = tessellation.linearDeflectionMm;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? []
+    : ["linearDeflectionMm must be finite and positive."];
+}
+
+function validateAngularDeflection(tessellation: UnknownRecord): string[] {
+  const value = tessellation.angularDeflectionRad;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= Math.PI
+    ? []
+    : ["angularDeflectionRad must be finite, positive and no greater than pi."];
+}
+
+function validateRelativeDeflection(tessellation: UnknownRecord): string[] {
+  return typeof tessellation.relative === "boolean"
+    ? []
+    : ["tessellation.relative must be boolean."];
+}
+
 function validateTessellation(value: unknown): string[] {
   const tessellation = asRecord(value);
   if (!tessellation) return ["Tessellation settings are required."];
-  const errors: string[] = [];
-  if (typeof tessellation.linearDeflectionMm !== "number" ||
-      !Number.isFinite(tessellation.linearDeflectionMm) || tessellation.linearDeflectionMm <= 0) {
-    errors.push("linearDeflectionMm must be finite and positive.");
-  }
-  if (typeof tessellation.angularDeflectionRad !== "number" ||
-      !Number.isFinite(tessellation.angularDeflectionRad) ||
-      tessellation.angularDeflectionRad <= 0 || tessellation.angularDeflectionRad > Math.PI) {
-    errors.push("angularDeflectionRad must be finite, positive and no greater than pi.");
-  }
-  if (typeof tessellation.relative !== "boolean") errors.push("tessellation.relative must be boolean.");
-  return errors;
+  return [
+    ...validateLinearDeflection(tessellation),
+    ...validateAngularDeflection(tessellation),
+    ...validateRelativeDeflection(tessellation)
+  ];
 }
 
 /**
