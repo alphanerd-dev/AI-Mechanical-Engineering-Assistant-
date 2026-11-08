@@ -22,66 +22,62 @@ export interface CADArtifactViewerRegistration {
 
 const CAD_ARTIFACT_VIEWERS: Readonly<Record<string, CADArtifactViewerRegistration>> = {
   SOURCE: {
-    artifactKind: "SOURCE",
-    mode: "DOWNLOAD_ONLY",
-    previewAvailable: false,
-    downloadAvailable: true,
+    artifactKind: "SOURCE", mode: "DOWNLOAD_ONLY", previewAvailable: false, downloadAvailable: true,
     description: "Generated Python source; available as a project-scoped download.",
     trustBoundary: "Source code is provenance, not proof that the generated geometry is correct."
   },
   SOLID: {
-    artifactKind: "SOLID",
-    mode: "DOWNLOAD_ONLY",
-    previewAvailable: false,
-    downloadAvailable: true,
+    artifactKind: "SOLID", mode: "DOWNLOAD_ONLY", previewAvailable: false, downloadAvailable: true,
     description: "Canonical BREP solid; no browser BREP viewer is registered yet.",
     trustBoundary: "The BREP validation receipt applies only to the exact canonical solid bytes it identifies."
   },
   STEP: {
-    artifactKind: "STEP",
-    mode: "DOWNLOAD_ONLY",
-    previewAvailable: false,
-    downloadAvailable: true,
+    artifactKind: "STEP", mode: "DOWNLOAD_ONLY", previewAvailable: false, downloadAvailable: true,
     description: "STEP exchange representation; available as a project-scoped download.",
     trustBoundary: "A validated BREP does not validate this STEP representation."
   },
   STL: {
-    artifactKind: "STL",
-    mode: "STL_PREVIEW",
-    previewAvailable: true,
-    downloadAvailable: true,
+    artifactKind: "STL", mode: "STL_PREVIEW", previewAvailable: true, downloadAvailable: true,
     description: "Read-only triangle-mesh preview using the existing bounded STL renderer.",
     trustBoundary: "This is a display derivative. Its preview does not establish mesh quality or inherit BREP validation."
   },
   THREE_MF: {
-    artifactKind: "THREE_MF",
-    mode: "DOWNLOAD_ONLY",
-    previewAvailable: false,
-    downloadAvailable: true,
+    artifactKind: "THREE_MF", mode: "DOWNLOAD_ONLY", previewAvailable: false, downloadAvailable: true,
     description: "3MF manufacturing representation; available as a project-scoped download.",
     trustBoundary: "A validated BREP does not validate this 3MF representation."
   },
   DRAWING: {
-    artifactKind: "DRAWING",
-    mode: "DOWNLOAD_ONLY",
-    previewAvailable: false,
-    downloadAvailable: true,
+    artifactKind: "DRAWING", mode: "DOWNLOAD_ONLY", previewAvailable: false, downloadAvailable: true,
     description: "CAD drawing artifact; available as a project-scoped download.",
     trustBoundary: "No drawing renderer or drawing-standard validation is implied."
   }
 };
 
 const UNSUPPORTED: CADArtifactViewerRegistration = {
-  artifactKind: "UNKNOWN",
-  mode: "UNSUPPORTED",
-  previewAvailable: false,
-  downloadAvailable: false,
+  artifactKind: "UNKNOWN", mode: "UNSUPPORTED", previewAvailable: false, downloadAvailable: false,
   description: "No viewer or download policy is registered for this artifact kind.",
   trustBoundary: "Unknown artifact kinds fail closed and must not be rendered by inference."
 };
 
+function drawingPreview(format: string, registration: CADArtifactViewerRegistration): CADArtifactViewerRegistration {
+  const descriptions: Record<string, string> = {
+    "application/pdf": "Read-only PDF drawing preview using the browser's native PDF viewer.",
+    "image/svg+xml": "Sanitized, image-only SVG drawing preview.",
+    "application/dxf": "Bounded 2D DXF preview for LINE, CIRCLE, ARC, LWPOLYLINE and TEXT.",
+    "image/vnd.dxf": "Bounded 2D DXF preview for LINE, CIRCLE, ARC, LWPOLYLINE and TEXT."
+  };
+  if (!Object.prototype.hasOwnProperty.call(descriptions, format)) return { ...registration };
+  return {
+    ...registration,
+    mode: "DRAWING_PREVIEW",
+    previewAvailable: true,
+    description: descriptions[format],
+    trustBoundary: "Drawing preview is for inspection only; it does not validate dimensions, drafting standards, symbols or manufacturing suitability."
+  };
+}
+
 /**
- * Resolve presentation support from the artifact kind alone.
+ * Resolve presentation support from the artifact kind and trusted media metadata.
  * Validation and evidence fields are deliberately not accepted as inputs:
  * viewer selection must never upgrade or alter engineering trust state.
  */
@@ -92,23 +88,8 @@ export function resolveCADArtifactViewer(kind: unknown, mediaType?: unknown): CA
     return { ...UNSUPPORTED, artifactKind: normalized || "UNKNOWN" };
   }
   const registration = CAD_ARTIFACT_VIEWERS[normalized];
-  if (normalized === "DRAWING" && typeof mediaType === "string") {
-    const format = mediaType.trim().toLowerCase();
-    if (["application/pdf", "image/svg+xml", "application/dxf", "image/vnd.dxf"].includes(format)) {
-      return {
-        ...registration,
-        mode: "DRAWING_PREVIEW",
-        previewAvailable: true,
-        description: format === "application/pdf"
-          ? "Read-only PDF drawing preview using the browser's native PDF viewer."
-          : format === "image/svg+xml"
-            ? "Sanitized, image-only SVG drawing preview."
-            : "Bounded 2D DXF preview for LINE, CIRCLE, ARC, LWPOLYLINE and TEXT entities.",
-        trustBoundary: "Drawing preview is for inspection only; it does not validate dimensions, drafting standards, symbols or manufacturing suitability."
-      };
-    }
-  }
-  return { ...registration };
+  if (normalized !== "DRAWING" || typeof mediaType !== "string") return { ...registration };
+  return drawingPreview(mediaType.trim().toLowerCase(), registration);
 }
 
 /** Return a stable snapshot of registered CAD presentation policies for tests and diagnostics. */
