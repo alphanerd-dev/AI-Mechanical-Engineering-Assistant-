@@ -2,15 +2,15 @@
 
 This harness compares pinned Babylon.js and Three.js builds without adding either package to the application bundle.
 
-- Babylon.js @babylonjs/core 9.35.0 — Apache-2.0.
-- Three.js three 0.187.0 — MIT.
+- Babylon.js @babylonjs/core 9.35.0 — Apache-2.0; loaded as a version-pinned ESM bundle from esm.sh to avoid the oversized unbundled module graph.
+- Three.js three 0.187.0 — MIT; loaded as a version-pinned ES module from jsDelivr.
 - WebGL 2 is mandatory. A browser without WebGL 2 is rejected rather than silently compared on a different backend.
 - Both engines render the same repeated unit-box fixture using native instance batching (Babylon thin instances / Three InstancedMesh).
 - The test samples orbit interaction and centre picking, and records initialization, first-render, frame-time distribution and available heap data.
 
 ## Run
 
-The committed static page is served by Next.js at /benchmarks/renderers/. Select a workload and export the JSON. External engine modules load from jsDelivr; the benchmark therefore requires network access.
+The committed static page is served by Next.js at /benchmarks/renderers/. Select a workload and export the JSON. Both engine bundles are external, version-pinned CDN resources; the benchmark therefore requires network access.
 
 Run at least five paired trials per workload; the harness alternates which renderer runs first between successive runs. Repeat on:
 - a representative desktop Chromium device;
