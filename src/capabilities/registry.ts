@@ -29,5 +29,4 @@ export class CapabilityRegistry {
 
   getDefinition(capability:string){ return this.definitions.get(capability); }
 
-  listDefinitions(){ return [...this.definitions.values()].map(definition=>structuredClone(definition)); }
 }
