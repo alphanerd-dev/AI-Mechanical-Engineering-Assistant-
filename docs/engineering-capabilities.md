@@ -91,7 +91,7 @@ Research providers can retrieve source-backed findings, but source authority or 
 - Renderer: benchmark Babylon.js against Three.js. No production renderer is selected by the decision. WebGL 2 is the initial browser compatibility baseline; WebGPU remains a future evaluation.
 - Scientific visualization: evaluate VTK.js independently for mesh and result fields. Do not assume the CAD renderer is the correct scientific field renderer.
 - Drawings: separate 2D subsystem for PDF, SVG and DXF initially; DWG requires a separately licensed and validated route.
-- Custom geometry kernel: not approved. Prefer OCCT and adapters until a demonstrated capability/business gap justifies a separate kernel.
+- Proprietary geometry platform: accepted strategic direction, not yet delivered as an implementation. The first task is a repository contract audit; OCCT remains the initial exact-geometry provider and build123d remains the bounded authoring provider. Native kernel algorithms will be developed progressively and promoted only through shared conformance gates.
 
 **Non-negotiable representation boundary:** canonical CAD/source bytes remain authoritative. Tessellated meshes are display derivatives only and must include source artifact ID, source revision and digest, converter/kernel identity and version, tessellation settings, units and coordinate frame. A display derivative must not silently become a canonical artifact. Picking a displayed face/edge maps to a persistent CAD topology reference only when the conversion process emits and validates that mapping.
 
