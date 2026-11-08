@@ -118,24 +118,35 @@ interface StructuredTransportRequest {
   maxOutputTokens: number;
 }
 
-function serializeStructuredInput(request: StructuredModelGenerationRequest): string {
-  if (!request || typeof request.instructions !== "string" || !request.instructions.trim()) {
+function validateStructuredInstructions(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !value.trim()) {
     throw new Error("Structured model instructions are required.");
   }
-  const maxOutputTokens = request.maxOutputTokens ?? 1800;
-  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 128 || maxOutputTokens > 8192) {
+}
+
+function validateOutputTokenLimit(value: number): void {
+  if (!Number.isInteger(value) || value < 128 || value > 8192) {
     throw new Error("Structured model output limit must be an integer from 128 to 8192 tokens.");
   }
-  let inputJson: string;
+}
+
+function stringifyStructuredInput(value: unknown): string {
+  let serialized: string | undefined;
   try {
-    inputJson = JSON.stringify(request.input);
+    serialized = JSON.stringify(value);
   } catch {
     throw new Error("Structured model input must be JSON serializable.");
   }
-  if (inputJson === undefined || inputJson.length > 256_000) {
+  if (serialized === undefined || serialized.length > 256_000) {
     throw new Error("Structured model input must be defined and no larger than 256 KB.");
   }
-  return inputJson;
+  return serialized;
+}
+
+function serializeStructuredInput(request: StructuredModelGenerationRequest): string {
+  validateStructuredInstructions(request?.instructions);
+  validateOutputTokenLimit(request.maxOutputTokens ?? 1800);
+  return stringifyStructuredInput(request.input);
 }
 
 async function sendStructuredRequest(request: StructuredTransportRequest): Promise<Response> {
