@@ -217,6 +217,18 @@ function appendEntityBounds(entity: DXFEntity, xs: number[], ys: number[]): void
   }
 }
 
+function hasFiniteBounds(bounds: DXFBounds): boolean {
+  if (!finite(bounds.minX)) return false;
+  if (!finite(bounds.minY)) return false;
+  if (!finite(bounds.maxX)) return false;
+  return finite(bounds.maxY);
+}
+
+function hasPositiveBoundsArea(bounds: DXFBounds): boolean {
+  if (bounds.maxX <= bounds.minX) return false;
+  return bounds.maxY > bounds.minY;
+}
+
 function computeBounds(entities: DXFEntity[]): DXFBounds {
   const xs: number[] = [], ys: number[] = [];
   for (const entity of entities) appendEntityBounds(entity, xs, ys);
@@ -224,8 +236,7 @@ function computeBounds(entities: DXFEntity[]): DXFBounds {
     minX: Math.min(...xs), minY: Math.min(...ys),
     maxX: Math.max(...xs), maxY: Math.max(...ys)
   };
-  if (![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].every(finite) ||
-      bounds.maxX - bounds.minX <= 0 || bounds.maxY - bounds.minY <= 0) {
+  if (!hasFiniteBounds(bounds) || !hasPositiveBoundsArea(bounds)) {
     throw new Error("DXF preview has degenerate or non-finite drawing bounds.");
   }
   return bounds;
