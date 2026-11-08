@@ -3,6 +3,7 @@ import type { EngineeringWorkflowStage } from "../orchestration/types.js";
 import type { EngineeringTaskGraph } from "../task-graph/types.js";
 import type {
   AgentActionProposal,
+  AgentTaskUpdatePatch,
   AgentRunLimits,
   StructuredModelGenerator
 } from "./runtime.js";
@@ -140,15 +141,7 @@ function parseCreateTaskAction(
   };
 }
 
-function parseTaskUpdatePatch(value: unknown, allowed: ReadonlySet<string>): AgentActionProposal extends never ? never : {
-  name?: string;
-  goal?: string;
-  capability?: string;
-  risk?: CapabilityRisk;
-  input?: Record<string, unknown>;
-  dependsOn?: string[];
-  requiredRequirementIds?: string[];
-} {
+function parseTaskUpdatePatch(value: unknown, allowed: ReadonlySet<string>): AgentTaskUpdatePatch {
   const patch = record(value, "UPDATE_TASK patch");
   exactKeys(patch, ["name", "goal", "capability", "risk", "input", "dependsOn", "requiredRequirementIds"], "UPDATE_TASK patch");
   if (Object.keys(patch).length === 0) throw new Error("UPDATE_TASK patch must change at least one permitted task field.");
