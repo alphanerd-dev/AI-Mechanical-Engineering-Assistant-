@@ -40,6 +40,8 @@ Do not expose a general-purpose autonomous execution endpoint until there is dur
 
 Initial product exposure should use a narrow, host-authored allowlist of capabilities with verified providers and bounded side effects. Expanding that allowlist is a capability-specific security and acceptance decision, not an LLM setting.
 
+The existing `engineering_execution_jobs` store is not a substitute for an agent-run journal: its request/backend contract is designed for deterministic numerical or worker execution and does not persist model-plan revisions, task-graph snapshots, action-level decisions or orchestration checkpoints. Its V2.0.29/V2.0.30 migrations are present in the repository and validated in the dedicated E2E project, but the production migration ledger still ends at V2.0.28 and the production schema does not contain that table/lease function. The existing durable API is explicitly feature-flagged off until its migration reconciliation, dedicated worker deployment and authenticated E2E gates are complete. Do not route agent runs through this store or enable either durable API based only on the core planner tests.
+
 ## Options considered
 
 ### A. Keep all model output advisory
