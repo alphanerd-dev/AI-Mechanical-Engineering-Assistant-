@@ -447,34 +447,48 @@ function artifactRevisionLabel(selectedArtifact: CADArtifactViewEntry | null): s
   return "Completion " + selectedArtifact.completion.id.slice(0, 8).toUpperCase() + suffix;
 }
 
+function renderSelectedArtifactPreview(
+  selectedArtifact: CADArtifactViewEntry | null,
+  visibility: ViewVisibility
+) {
+  if (!selectedArtifact?.signedUrl || !visibility.geometry) return null;
+  switch (selectedArtifact.viewer.mode) {
+    case "STL_PREVIEW":
+      return <StlViewport src={selectedArtifact.signedUrl} label={selectedArtifact.artifact.name} />;
+    case "DRAWING_PREVIEW":
+      return <DrawingViewer
+        src={selectedArtifact.signedUrl}
+        mediaType={selectedArtifact.artifact.mediaType ?? ""}
+        label={selectedArtifact.artifact.name}
+      />;
+    default:
+      return null;
+  }
+}
+
+function renderArtifactFallbackAction(selectedArtifact: CADArtifactViewEntry | null) {
+  if (!selectedArtifact?.viewer.downloadAvailable) return null;
+  if (!selectedArtifact.signedUrl) {
+    return <p role="status">Private file access is unavailable. Refresh artifact access to request a new signed URL.</p>;
+  }
+  if (!selectedArtifact.viewer.previewAvailable) {
+    return <a className="button secondaryButton" href={selectedArtifact.signedUrl} target="_blank" rel="noopener noreferrer">Open / download {selectedArtifact.artifact.kind}</a>;
+  }
+  return null;
+}
+
 function WorkbenchArtifactPreview({ selectedArtifact, models, visibility }: {
   selectedArtifact: CADArtifactViewEntry | null;
   models: CadModel[];
   visibility: ViewVisibility;
 }) {
-  const previewUrl = selectedArtifact?.signedUrl;
-  const canPreview = Boolean(selectedArtifact?.viewer.previewAvailable && previewUrl && visibility.geometry);
-  if (canPreview && selectedArtifact?.viewer.mode === "STL_PREVIEW" && previewUrl) {
-    return <StlViewport src={previewUrl} label={selectedArtifact.artifact.name} />;
-  }
-  if (canPreview && selectedArtifact?.viewer.mode === "DRAWING_PREVIEW" && previewUrl) {
-    return <DrawingViewer
-      src={previewUrl}
-      mediaType={selectedArtifact.artifact.mediaType ?? ""}
-      label={selectedArtifact.artifact.name}
-    />;
-  }
-  const canDownload = Boolean(selectedArtifact?.signedUrl && selectedArtifact.viewer.downloadAvailable && !selectedArtifact.viewer.previewAvailable);
-  const accessUnavailable = Boolean(selectedArtifact?.viewer.downloadAvailable && !selectedArtifact.signedUrl);
+  const preview = renderSelectedArtifactPreview(selectedArtifact, visibility);
+  if (preview) return preview;
   return <div className="viewportEmptyCopy">
     <Box size={28} aria-hidden="true" />
     <strong>{viewportEmptyTitle(selectedArtifact, visibility)}</strong>
     <p>{viewportEmptyDetail(selectedArtifact, models.length, visibility)}</p>
-    {canDownload && selectedArtifact?.signedUrl
-      ? <a className="button secondaryButton" href={selectedArtifact.signedUrl} target="_blank" rel="noopener noreferrer">Open / download {selectedArtifact.artifact.kind}</a>
-      : accessUnavailable
-        ? <p role="status">Private file access is unavailable. Refresh artifact access to request a new signed URL.</p>
-        : null}
+    {renderArtifactFallbackAction(selectedArtifact)}
   </div>;
 }
 
