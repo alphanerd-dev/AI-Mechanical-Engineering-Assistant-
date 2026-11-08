@@ -111,98 +111,143 @@ function parseCapability(value: unknown, allowed: ReadonlySet<string>, label: st
   return capability;
 }
 
-function parseAction(value: unknown, allowedCapabilities: ReadonlySet<string>, limits: AgentRunLimits): AgentActionProposal {
-  const action = record(value, "Agent action");
-  if (typeof action.kind !== "string") throw new Error("Agent action kind is required.");
+function parseCreateTaskAction(
+  action: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  limits: AgentRunLimits
+): AgentActionProposal {
+  exactKeys(action, ["kind", "name", "goal", "capability", "risk", "input", "dependsOn", "requiredRequirementIds", "approvalRequired", "evidenceRequired"], "CREATE_TASK");
+  if (limits.allowTaskCreation !== true) throw new Error("The host policy does not authorize agent task creation.");
+  for (const field of ["approvalRequired", "evidenceRequired"] as const) {
+    if (action[field] !== undefined && typeof action[field] !== "boolean") {
+      throw new Error("CREATE_TASK " + field + " must be boolean when supplied.");
+    }
+  }
 
+  const dependsOn = parseStringArray(action.dependsOn, "Task dependencies");
+  const requirementIds = parseStringArray(action.requiredRequirementIds, "Task requirement ids");
+  return {
+    kind: "CREATE_TASK",
+    name: requiredText(action.name, "Task name", 160),
+    goal: requiredText(action.goal, "Task goal"),
+    capability: parseCapability(action.capability, allowed, "Task capability"),
+    risk: parseRisk(action.risk),
+    input: parseInput(action.input, "Task input"),
+    ...(dependsOn ? { dependsOn } : {}),
+    ...(requirementIds ? { requiredRequirementIds: requirementIds } : {}),
+    ...(action.approvalRequired === true ? { approvalRequired: true } : {}),
+    ...(action.evidenceRequired === true ? { evidenceRequired: true } : {})
+  };
+}
+
+function parseTaskUpdatePatch(value: unknown, allowed: ReadonlySet<string>): AgentActionProposal extends never ? never : {
+  name?: string;
+  goal?: string;
+  capability?: string;
+  risk?: CapabilityRisk;
+  input?: Record<string, unknown>;
+  dependsOn?: string[];
+  requiredRequirementIds?: string[];
+} {
+  const patch = record(value, "UPDATE_TASK patch");
+  exactKeys(patch, ["name", "goal", "capability", "risk", "input", "dependsOn", "requiredRequirementIds"], "UPDATE_TASK patch");
+  if (Object.keys(patch).length === 0) throw new Error("UPDATE_TASK patch must change at least one permitted task field.");
+
+  const dependsOn = parseStringArray(patch.dependsOn, "Task dependencies");
+  const requirementIds = parseStringArray(patch.requiredRequirementIds, "Task requirement ids");
+  return {
+    ...(patch.name === undefined ? {} : { name: requiredText(patch.name, "Task name", 160) }),
+    ...(patch.goal === undefined ? {} : { goal: requiredText(patch.goal, "Task goal") }),
+    ...(patch.capability === undefined ? {} : { capability: parseCapability(patch.capability, allowed, "Task capability") }),
+    ...(patch.risk === undefined ? {} : { risk: parseRisk(patch.risk) }),
+    ...(patch.input === undefined ? {} : { input: parseInput(patch.input, "Task input") }),
+    ...(dependsOn === undefined ? {} : { dependsOn }),
+    ...(requirementIds === undefined ? {} : { requiredRequirementIds: requirementIds })
+  };
+}
+
+function parseUpdateTaskAction(
+  action: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  limits: AgentRunLimits
+): AgentActionProposal {
+  exactKeys(action, ["kind", "taskId", "patch"], "UPDATE_TASK");
+  if (limits.allowTaskUpdates !== true) throw new Error("The host policy does not authorize agent task updates.");
+  return {
+    kind: "UPDATE_TASK",
+    taskId: requiredText(action.taskId, "Task id", 128),
+    patch: parseTaskUpdatePatch(action.patch, allowed)
+  };
+}
+
+function parseTaskReferenceAction(
+  action: Record<string, unknown>,
+  kind: "REQUEST_READY" | "REQUEST_APPROVAL" | "STOP"
+): AgentActionProposal {
+  if (kind === "REQUEST_READY") {
+    exactKeys(action, ["kind", "taskId"], kind);
+    return { kind, taskId: requiredText(action.taskId, "Task id", 128) };
+  }
+  if (kind === "REQUEST_APPROVAL") {
+    exactKeys(action, ["kind", "taskId", "reason"], kind);
+    return {
+      kind,
+      taskId: requiredText(action.taskId, "Task id", 128),
+      reason: requiredText(action.reason, "Approval reason")
+    };
+  }
+  exactKeys(action, ["kind", "reason"], kind);
+  return { kind, reason: requiredText(action.reason, "Stop reason") };
+}
+
+function parseStage(value: unknown, kind: string): EngineeringWorkflowStage {
+  if (typeof value !== "string" || !STAGES.includes(value as EngineeringWorkflowStage)) {
+    throw new Error(kind + " stage is invalid.");
+  }
+  return value as EngineeringWorkflowStage;
+}
+
+function parseExecutionAction(action: Record<string, unknown>): AgentActionProposal {
+  exactKeys(action, ["kind", "taskId", "stage"], "EXECUTE_TASK");
+  return {
+    kind: "EXECUTE_TASK",
+    taskId: requiredText(action.taskId, "Task id", 128),
+    stage: parseStage(action.stage, "EXECUTE_TASK")
+  };
+}
+
+function parseDelegationAction(
+  action: Record<string, unknown>,
+  limits: AgentRunLimits
+): AgentActionProposal {
+  exactKeys(action, ["kind", "taskId", "specialistId", "stage"], "DELEGATE_SPECIALIST");
+  const specialistId = requiredText(action.specialistId, "Specialist id", 80);
+  if (!limits.allowedSpecialists?.length || !limits.allowedSpecialists.includes(specialistId)) {
+    throw new Error("Specialist is not in the host-authorized specialist allowlist: " + specialistId + ".");
+  }
+  return {
+    kind: "DELEGATE_SPECIALIST",
+    taskId: requiredText(action.taskId, "Task id", 128),
+    specialistId,
+    stage: parseStage(action.stage, "DELEGATE_SPECIALIST")
+  };
+}
+
+function parseAction(
+  value: unknown,
+  allowedCapabilities: ReadonlySet<string>,
+  limits: AgentRunLimits
+): AgentActionProposal {
+  const action = record(value, "Agent action");
   switch (action.kind) {
-    case "CREATE_TASK": {
-      exactKeys(action, ["kind", "name", "goal", "capability", "risk", "input", "dependsOn", "requiredRequirementIds", "approvalRequired", "evidenceRequired"], "CREATE_TASK");
-      if (limits.allowTaskCreation !== true) throw new Error("The host policy does not authorize agent task creation.");
-      if (action.approvalRequired !== undefined && typeof action.approvalRequired !== "boolean") {
-        throw new Error("CREATE_TASK approvalRequired must be boolean when supplied.");
-      }
-      if (action.evidenceRequired !== undefined && typeof action.evidenceRequired !== "boolean") {
-        throw new Error("CREATE_TASK evidenceRequired must be boolean when supplied.");
-      }
-      const dependsOn = parseStringArray(action.dependsOn, "Task dependencies");
-      const requiredRequirementIds = parseStringArray(action.requiredRequirementIds, "Task requirement ids");
-      return {
-        kind: "CREATE_TASK",
-        name: requiredText(action.name, "Task name", 160),
-        goal: requiredText(action.goal, "Task goal"),
-        capability: parseCapability(action.capability, allowedCapabilities, "Task capability"),
-        risk: parseRisk(action.risk),
-        input: parseInput(action.input, "Task input"),
-        ...(dependsOn ? { dependsOn } : {}),
-        ...(requiredRequirementIds ? { requiredRequirementIds } : {}),
-        ...(action.approvalRequired === true ? { approvalRequired: true } : {}),
-        ...(action.evidenceRequired === true ? { evidenceRequired: true } : {})
-      };
-    }
-    case "UPDATE_TASK": {
-      exactKeys(action, ["kind", "taskId", "patch"], "UPDATE_TASK");
-      if (limits.allowTaskUpdates !== true) throw new Error("The host policy does not authorize agent task updates.");
-      const patch = record(action.patch, "UPDATE_TASK patch");
-      exactKeys(patch, ["name", "goal", "capability", "risk", "input", "dependsOn", "requiredRequirementIds"], "UPDATE_TASK patch");
-      if (Object.keys(patch).length === 0) throw new Error("UPDATE_TASK patch must change at least one permitted task field.");
-      return {
-        kind: "UPDATE_TASK",
-        taskId: requiredText(action.taskId, "Task id", 128),
-        patch: {
-          ...(patch.name === undefined ? {} : { name: requiredText(patch.name, "Task name", 160) }),
-          ...(patch.goal === undefined ? {} : { goal: requiredText(patch.goal, "Task goal") }),
-          ...(patch.capability === undefined ? {} : { capability: parseCapability(patch.capability, allowedCapabilities, "Task capability") }),
-          ...(patch.risk === undefined ? {} : { risk: parseRisk(patch.risk) }),
-          ...(patch.input === undefined ? {} : { input: parseInput(patch.input, "Task input") }),
-          ...(patch.dependsOn === undefined ? {} : { dependsOn: parseStringArray(patch.dependsOn, "Task dependencies")! }),
-          ...(patch.requiredRequirementIds === undefined ? {} : { requiredRequirementIds: parseStringArray(patch.requiredRequirementIds, "Task requirement ids")! })
-        }
-      };
-    }
+    case "CREATE_TASK": return parseCreateTaskAction(action, allowedCapabilities, limits);
+    case "UPDATE_TASK": return parseUpdateTaskAction(action, allowedCapabilities, limits);
     case "REQUEST_READY":
-      exactKeys(action, ["kind", "taskId"], "REQUEST_READY");
-      return { kind: "REQUEST_READY", taskId: requiredText(action.taskId, "Task id", 128) };
-    case "EXECUTE_TASK": {
-      exactKeys(action, ["kind", "taskId", "stage"], "EXECUTE_TASK");
-      if (typeof action.stage !== "string" || !STAGES.includes(action.stage as EngineeringWorkflowStage)) {
-        throw new Error("EXECUTE_TASK stage is invalid.");
-      }
-      return {
-        kind: "EXECUTE_TASK",
-        taskId: requiredText(action.taskId, "Task id", 128),
-        stage: action.stage as EngineeringWorkflowStage
-      };
-    }
-    case "DELEGATE_SPECIALIST": {
-      exactKeys(action, ["kind", "taskId", "specialistId", "stage"], "DELEGATE_SPECIALIST");
-      const specialistId = requiredText(action.specialistId, "Specialist id", 80);
-      if (!limits.allowedSpecialists || limits.allowedSpecialists.length === 0 ||
-          !limits.allowedSpecialists.includes(specialistId)) {
-        throw new Error("Specialist is not in the host-authorized specialist allowlist: " + specialistId + ".");
-      }
-      if (typeof action.stage !== "string" || !STAGES.includes(action.stage as EngineeringWorkflowStage)) {
-        throw new Error("DELEGATE_SPECIALIST stage is invalid.");
-      }
-      return {
-        kind: "DELEGATE_SPECIALIST",
-        taskId: requiredText(action.taskId, "Task id", 128),
-        specialistId,
-        stage: action.stage as EngineeringWorkflowStage
-      };
-    }
     case "REQUEST_APPROVAL":
-      exactKeys(action, ["kind", "taskId", "reason"], "REQUEST_APPROVAL");
-      return {
-        kind: "REQUEST_APPROVAL",
-        taskId: requiredText(action.taskId, "Task id", 128),
-        reason: requiredText(action.reason, "Approval reason")
-      };
-    case "STOP":
-      exactKeys(action, ["kind", "reason"], "STOP");
-      return { kind: "STOP", reason: requiredText(action.reason, "Stop reason") };
-    default:
-      throw new Error("Agent action kind is unsupported: " + action.kind + ".");
+    case "STOP": return parseTaskReferenceAction(action, action.kind);
+    case "EXECUTE_TASK": return parseExecutionAction(action);
+    case "DELEGATE_SPECIALIST": return parseDelegationAction(action, limits);
+    default: throw new Error("Agent action kind is unsupported: " + String(action.kind) + ".");
   }
 }
 
