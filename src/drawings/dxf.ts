@@ -236,8 +236,11 @@ function computeBounds(entities: DXFEntity[]): DXFBounds {
     minX: Math.min(...xs), minY: Math.min(...ys),
     maxX: Math.max(...xs), maxY: Math.max(...ys)
   };
-  if (!hasFiniteBounds(bounds) || !hasPositiveBoundsArea(bounds)) {
-    throw new Error("DXF preview has degenerate or non-finite drawing bounds.");
+  if (!hasFiniteBounds(bounds)) {
+    throw new Error("DXF preview has non-finite drawing bounds.");
+  }
+  if (!hasPositiveBoundsArea(bounds)) {
+    throw new Error("DXF preview has degenerate drawing bounds.");
   }
   return bounds;
 }
