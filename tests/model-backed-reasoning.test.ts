@@ -8,6 +8,7 @@ import {
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
 import { assignTaskSkillManifest, routeTaskReasoning } from "../src/task-graph/reasoning.js";
 import type { EngineeringTaskGraph } from "../src/task-graph/types.js";
+import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
 
 const NOW = "2026-10-09T05:00:00.000Z";
 const proposal = {
@@ -47,7 +48,10 @@ function makeRoutedGraph(): EngineeringTaskGraph {
 
 describe("model-backed reasoning adapter", () => {
   it("passes pinned framework context to the model and persists only a validated advisory record", async () => {
-    const generate = vi.fn(async () => proposal);
+    const generate = vi.fn(async (request: ModelReasoningGenerationRequest) => {
+      expect(request.task.id).toBe("task-1");
+      return proposal;
+    });
     const proposer = new ModelBackedTaskReasoningProposer({ generate });
     const result = await executeTaskReasoning(makeRoutedGraph(), "task-1", proposer, {
       now: NOW,
@@ -84,7 +88,10 @@ describe("model-backed reasoning adapter", () => {
       skillRegistry,
       NOW
     );
-    const generate = vi.fn(async () => proposal);
+    const generate = vi.fn(async (request: ModelReasoningGenerationRequest) => {
+      expect(request.skillManifest?.id).toBe("engineering-rd");
+      return proposal;
+    });
     const proposer = new ModelBackedTaskReasoningProposer({ generate });
     const result = await executeTaskReasoning(graph, "task-1", proposer, {
       now: NOW,
