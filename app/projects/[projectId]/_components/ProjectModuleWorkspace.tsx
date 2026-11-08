@@ -320,7 +320,7 @@ function getCADArtifactViewEntries(completions: CadCompletionRecord[]): CADArtif
     staleness: !completion.model_identity_id
       ? "UNVERIFIABLE" as const
       : latestByModel.get(completion.model_identity_id) === completion.id
-        ? "CURRENT" as const
+        ? "LATEST_ACCEPTED" as const
         : "HISTORICAL" as const
   })));
 }
