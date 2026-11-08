@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { createDefaultReasoningFrameworkRegistry } from "../../../../src/reasoning-frameworks/registry";
+import { createDefaultSkillManifestRegistry } from "../../../../src/reasoning-frameworks/skill-registry";
+import { assignTaskSkillManifest } from "../../../../src/task-graph/reasoning";
 import { ModelBackedTaskReasoningProposer } from "../../../../src/reasoning-frameworks/model-adapter";
 import {
   createConfiguredReasoningGenerator,
@@ -278,6 +280,56 @@ function getInputRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function readOptionalBodyString(body: Record<string, unknown>, key: string): string {
+  const value = body[key];
+  if (value === undefined) return "";
+  if (typeof value !== "string") throw new ApiError(400, key + " must be a string when supplied.");
+  return value.trim();
+}
+
+function parseSkillBinding(body: Record<string, unknown>): { id: string; version: string } | undefined {
+  const id = readOptionalBodyString(body, "skillId");
+  const version = readOptionalBodyString(body, "skillVersion");
+  if (!id && !version) return undefined;
+  if (!id || !version) throw new ApiError(400, "skillId and skillVersion must be supplied together.");
+  return { id, version };
+}
+
+function createTaskWorkspace(
+  loaded: LoadedWorkspace,
+  body: Record<string, unknown>,
+  frameworkRegistry: ReturnType<typeof createDefaultReasoningFrameworkRegistry>,
+  skillRegistry: ReturnType<typeof createDefaultSkillManifestRegistry>
+): { workspace: EngineeringWorkspaceSnapshot; taskId: string } {
+  const skill = parseSkillBinding(body);
+  const input = body.input === undefined ? {} : getInputRecord(body.input);
+  try {
+    const result = createWorkspaceReasoningTask(loaded.snapshot, {
+      taskId: randomUUID(),
+      name: body.name as string,
+      goal: body.goal as string,
+      taskType: body.taskType as string,
+      risk: body.risk as EngineeringTask["risk"],
+      uncertainty: body.uncertainty as "LOW" | "MEDIUM" | "HIGH",
+      requestedFramework: body.frameworkId as string,
+      requestedFrameworkVersion: body.frameworkVersion as string,
+      input,
+      approvalRequired: body.approvalRequired as boolean | undefined,
+      evidenceRequired: body.evidenceRequired as boolean | undefined
+    }, { frameworkRegistry });
+    const taskGraph = skill
+      ? assignTaskSkillManifest(result.workspace.taskGraph, result.task.id, skill.id, skill.version, skillRegistry)
+      : result.workspace.taskGraph;
+    return {
+      workspace: { ...result.workspace, taskGraph },
+      taskId: result.task.id
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(422, error instanceof Error ? error.message : "The task could not be created.");
+  }
+}
+
 function taskResponse(taskGraph: EngineeringWorkspaceSnapshot["taskGraph"], taskId?: string) {
   const task = taskId ? taskGraph.tasks.find((item) => item.id === taskId) : undefined;
   return { taskGraph, ...(task ? { task } : {}) };
@@ -298,12 +350,14 @@ export async function GET(request: Request) {
     if (!authorization.allowed) { const status = authorizationFailureStatus(authorization); return NextResponse.json({ error: authorization.reason, code: status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED" }, { status }); }
 
     const registry = createDefaultReasoningFrameworkRegistry();
+    const skillRegistry = createDefaultSkillManifestRegistry();
     const loaded = await loadWorkspace(projectId, authorization.subject);
     return NextResponse.json({
       projectId,
       taskGraph: loaded.snapshot.taskGraph,
       workspaceRevision: loaded.snapshot.revision,
       frameworks: registry.list(),
+      skills: skillRegistry.list(),
       storageMode: loaded.storageMode,
       persisted: loaded.storageMode === "DURABLE" && loaded.persisted,
       modelConfigured: Boolean(
@@ -336,32 +390,13 @@ export async function POST(request: Request) {
 
     const loaded = await loadWorkspace(projectId, authorization.subject);
     const registry = createDefaultReasoningFrameworkRegistry();
+    const skillRegistry = createDefaultSkillManifestRegistry();
 
     if (action === "CREATE_TASK") {
-      const risk = body.risk;
-      const uncertainty = body.uncertainty;
-      const input = body.input === undefined ? {} : getInputRecord(body.input);
-      let result: ReturnType<typeof createWorkspaceReasoningTask>;
-      try {
-        result = createWorkspaceReasoningTask(loaded.snapshot, {
-          taskId: randomUUID(),
-          name: body.name as string,
-          goal: body.goal as string,
-          taskType: body.taskType as string,
-          risk: risk as EngineeringTask["risk"],
-          uncertainty: uncertainty as "LOW" | "MEDIUM" | "HIGH",
-          requestedFramework: body.frameworkId as string,
-          requestedFrameworkVersion: body.frameworkVersion as string,
-          input,
-          approvalRequired: body.approvalRequired as boolean | undefined,
-          evidenceRequired: body.evidenceRequired as boolean | undefined
-        }, { frameworkRegistry: registry });
-      } catch (error) {
-        throw new ApiError(422, error instanceof Error ? error.message : "The task could not be created.");
-      }
-      const saved = await saveWorkspace(loaded, result.workspace);
+      const created = createTaskWorkspace(loaded, body, registry, skillRegistry);
+      const saved = await saveWorkspace(loaded, created.workspace);
       return NextResponse.json({
-        ...taskResponse(saved.taskGraph, result.task.id),
+        ...taskResponse(saved.taskGraph, created.taskId),
         workspaceRevision: saved.revision,
         storageMode: loaded.storageMode,
         persisted: loaded.storageMode === "DURABLE"
