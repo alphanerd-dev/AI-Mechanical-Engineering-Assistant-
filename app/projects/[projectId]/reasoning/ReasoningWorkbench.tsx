@@ -300,7 +300,17 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
                   <input value={taskType} onChange={(event) => setTaskType(event.target.value)} required maxLength={80} disabled={Boolean(busyAction)} />
                 </label>
                 <label>Risk
-                  <select value={risk} onChange={(event) => setRisk(event.target.value as EngineeringTask["risk"])} disabled={Boolean(busyAction)}>
+                  <select value={risk} onChange={(event) => {
+                    const nextRisk = event.target.value as EngineeringTask["risk"];
+                    const riskError = getSkillRiskError(nextRisk, selectedSkill);
+                    if (riskError) {
+                      setError(riskError);
+                      if (selectedSkill) setRisk(selectedSkill.maximumRisk);
+                      return;
+                    }
+                    setError(undefined);
+                    setRisk(nextRisk);
+                  }} disabled={Boolean(busyAction)} aria-label="Task risk">
                     <option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH" disabled={Boolean(getSkillRiskError("HIGH", selectedSkill))}>High</option><option value="CRITICAL" disabled={Boolean(getSkillRiskError("CRITICAL", selectedSkill))}>Critical</option>
                   </select>
                 </label>
