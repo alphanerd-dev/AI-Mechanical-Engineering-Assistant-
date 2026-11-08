@@ -125,7 +125,7 @@ function createThreeScene(T, canvas, count) {
   };
 }
 
-async function sampleThreeScene(T, canvas, setup, count, durationMs) {
+async function sampleThreeScene({ T, canvas, setup, count, durationMs }) {
   const raycaster = new T.Raycaster();
   const pointer = new T.Vector2(0, 0);
   const frames = [];
@@ -173,7 +173,7 @@ async function sampleThreeScene(T, canvas, setup, count, durationMs) {
 async function runThree(T, canvas, count, durationMs) {
   const setup = createThreeScene(T, canvas, count);
   try {
-    const sample = await sampleThreeScene(T, canvas, setup, count, durationMs);
+    const sample = await sampleThreeScene({ T, canvas, setup, count, durationMs });
     return finishSummary({
       engine: "three", started: sample.sampleStart, frames: sample.frames, pickSamples: sample.picks,
       renderMs: setup.renderMs, initMs: setup.initMs, count,
