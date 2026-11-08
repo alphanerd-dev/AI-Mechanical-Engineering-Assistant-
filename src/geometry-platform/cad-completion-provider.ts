@@ -83,6 +83,7 @@ export class CADCompletionGeometryProvider implements GeometryOperationProvider 
         workflowStatus: "NOT_STARTED",
         stage: "REQUEST_VALIDATION",
         artifacts: [],
+        evidenceIds: [],
         errors,
         warnings: []
       };
@@ -117,6 +118,9 @@ export class CADCompletionGeometryProvider implements GeometryOperationProvider 
         ? { validationProviderId: result.validation.selectedProviderId }
         : {}),
       artifacts: artifactReferences(result),
+      evidenceIds: result.bundle ? [result.bundle.evidence.id] : [],
+      ...(result.bundle ? { engineeringArtifactId: result.bundle.engineering.id } : {}),
+      ...(result.acceptance ? { acceptanceStatus: result.acceptance.status } : {}),
       errors: [...result.errors],
       warnings: [...result.warnings]
     };
