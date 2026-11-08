@@ -63,16 +63,31 @@ function asRecord(value: unknown): UnknownRecord | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as UnknownRecord : null;
 }
 
+function validateRequiredTextFields(source: UnknownRecord): string[] {
+  return ["artifactId", "modelIdentityId", "units", "coordinateFrame"]
+    .filter((key) => typeof source[key] !== "string" || !(source[key] as string).trim())
+    .map((key) => key + " is required.");
+}
+
+function validateModelRevision(source: UnknownRecord): string[] {
+  const revision = source.modelRevision;
+  return typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 1
+    ? []
+    : ["modelRevision must be a positive safe integer."];
+}
+
+function validateGeometryFormat(source: UnknownRecord): string[] {
+  return source.format === "BREP" || source.format === "STEP"
+    ? []
+    : ["Geometry source format is unsupported."];
+}
+
 function validateIdentityFields(source: UnknownRecord): string[] {
-  const errors: string[] = [];
-  for (const key of ["artifactId", "modelIdentityId", "units", "coordinateFrame"] as const) {
-    if (typeof source[key] !== "string" || !(source[key] as string).trim()) errors.push(key + " is required.");
-  }
-  if (typeof source.modelRevision !== "number" || !Number.isSafeInteger(source.modelRevision) || source.modelRevision < 1) {
-    errors.push("modelRevision must be a positive safe integer.");
-  }
-  if (source.format !== "BREP" && source.format !== "STEP") errors.push("Geometry source format is unsupported.");
-  return errors;
+  return [
+    ...validateRequiredTextFields(source),
+    ...validateModelRevision(source),
+    ...validateGeometryFormat(source)
+  ];
 }
 
 function validateDigest(source: UnknownRecord): string[] {
