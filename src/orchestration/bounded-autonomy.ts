@@ -128,26 +128,46 @@ function missing(value:unknown):boolean{
   return false;
 }
 
-/** CapabilityDefinition currently records input paths, not runtime JSON types. */
+function inputPathErrors(
+  value:Record<string,unknown>,
+  allowedPaths:readonly string[],
+  prefix=""
+):string[]{
+  const errors:string[]=[];
+  for(const [key,child] of Object.entries(value)){
+    const path=prefix?prefix+"."+key:key;
+    const descendants=allowedPaths.filter(candidate=>candidate.startsWith(path+"."));
+    if(!allowedPaths.includes(path)&&descendants.length===0){
+      errors.push("Task input contains a field outside the registered capability contract: "+path+".");
+      continue;
+    }
+    if(descendants.length>0){
+      if(!isPlainRecord(child)){
+        errors.push("Task input path must be an object to satisfy the registered nested contract: "+path+".");
+      }else{
+        errors.push(...inputPathErrors(child,allowedPaths,path));
+      }
+    }
+  }
+  return errors;
+}
+
+/** CapabilityDefinition records permitted input paths; providers validate domain-specific types. */
 function capabilityInputErrors(
   definition:CapabilityDefinition,
   input:Record<string,unknown>,
   requireAll:boolean
 ):string[]{
-  const errors:string[]=[];
   if(!isPlainRecord(input)||!isJsonValue(input)){
     return ["Task capability input must be a plain, finite JSON object."];
   }
-  const allowedRoots=new Set(definition.inputs.map(path=>path.split(".")[0]));
-  const unknown=Object.keys(input).filter(key=>!allowedRoots.has(key));
-  if(unknown.length) errors.push("Task input contains fields outside the registered capability contract: "+unknown.join(", ")+".");
+  const errors=inputPathErrors(input,definition.inputs);
   if(requireAll){
     for(const path of definition.inputs){
       if(missing(getPath(input,path))) errors.push("Required capability input is missing: "+path+".");
     }
   }
-  let serialized:string;
-  try{serialized=JSON.stringify(input);}catch{return [...errors,"Task capability input is not JSON serializable."];}
+  const serialized=JSON.stringify(input);
   if(serialized.length>64_000) errors.push("Task capability input exceeds the 64 KB limit.");
   return [...new Set(errors)];
 }
