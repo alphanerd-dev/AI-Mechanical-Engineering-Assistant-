@@ -7,7 +7,6 @@ import {
 } from "../src/reasoning-frameworks/index.js";
 import { executeTaskReasoning } from "../src/task-graph/reasoning-execution.js";
 import { assignTaskSkillManifest, routeTaskReasoning } from "../src/task-graph/reasoning.js";
-import type { ModelReasoningGenerationRequest } from "../src/reasoning-frameworks/model-adapter.js";
 import type { EngineeringTaskGraph } from "../src/task-graph/types.js";
 
 const NOW = "2026-10-09T05:00:00.000Z";
