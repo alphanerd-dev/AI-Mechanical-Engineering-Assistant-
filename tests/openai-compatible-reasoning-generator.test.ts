@@ -31,24 +31,35 @@ const generationRequest: ModelReasoningGenerationRequest = {
   instructions: "Return JSON only."
 };
 
+const reasoningProposal = {
+  status: "PROPOSED",
+  assumptions: [],
+  output: { nextStep: "List facts." },
+  limitations: ["Not validated."],
+  evidenceReferences: [],
+  requiredGates: []
+};
+
+function openAIMessageResponse(content: unknown): Response {
+  return new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(content) } }]
+  }), { status: 200, headers: { "content-type": "application/json" } });
+}
+
+function geminiContentResponse(content: unknown): Response {
+  return new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ text: JSON.stringify(content) }] } }]
+  }), { status: 200, headers: { "content-type": "application/json" } });
+}
+
 describe("OpenAI-compatible reasoning transport", () => {
   it("sends a server-side JSON-mode request and parses the returned proposal object", async () => {
     let capturedUrl: RequestInfo | URL | undefined;
     let capturedInit: RequestInit | undefined;
-    const proposal = {
-      status: "PROPOSED",
-      assumptions: [],
-      output: { nextStep: "List facts." },
-      limitations: ["Not validated."],
-      evidenceReferences: [],
-      requiredGates: []
-    };
     const fetchImpl: typeof fetch = async (input, init) => {
       capturedUrl = input;
       capturedInit = init;
-      return new Response(JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(proposal) } }]
-      }), { status: 200, headers: { "content-type": "application/json" } });
+      return openAIMessageResponse(reasoningProposal);
     };
 
     const generator = new OpenAICompatibleModelReasoningGenerator({
@@ -58,7 +69,7 @@ describe("OpenAI-compatible reasoning transport", () => {
       fetchImpl
     });
     const result = await generator.generate(generationRequest);
-    expect(result).toEqual(proposal);
+    expect(result).toEqual(reasoningProposal);
     expect(capturedUrl).toBe("https://model.example/v1/chat/completions");
     expect(capturedInit?.method).toBe("POST");
     expect((capturedInit?.headers as Record<string, string>).authorization).toBe("Bearer server-secret");
@@ -76,9 +87,7 @@ describe("OpenAI-compatible reasoning transport", () => {
       model: "engineering-agent",
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: JSON.stringify({ baseGraphRevision: 7, actions: [{ kind: "STOP", reason: "No work." }] }) } }]
-        }), { status: 200, headers: { "content-type": "application/json" } });
+        return openAIMessageResponse({ baseGraphRevision: 7, actions: [{ kind: "STOP", reason: "No work." }] });
       }
     });
 
@@ -96,14 +105,6 @@ describe("OpenAI-compatible reasoning transport", () => {
 
   it("uses OpenAI-compatible protocol for Gemini's OpenAI chat-completions endpoint", async () => {
     let capturedInit: RequestInit | undefined;
-    const proposal = {
-      status: "PROPOSED",
-      assumptions: [],
-      output: { nextStep: "List facts." },
-      limitations: ["Not validated."],
-      evidenceReferences: [],
-      requiredGates: []
-    };
     const generator = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-3.8-flash",
@@ -116,7 +117,7 @@ describe("OpenAI-compatible reasoning transport", () => {
       }
     });
 
-    expect(await generator.generate(generationRequest)).toEqual(proposal);
+    expect(await generator.generate(generationRequest)).toEqual(reasoningProposal);
     expect((capturedInit?.headers as Record<string, string>).authorization).toBe("Bearer placeholder-test-key");
     expect((capturedInit?.headers as Record<string, string>)["x-goog-api-key"]).toBeUndefined();
     const body = JSON.parse(String(capturedInit?.body));
@@ -129,27 +130,17 @@ describe("OpenAI-compatible reasoning transport", () => {
 
   it("keeps native Gemini generateContent requests on the native protocol", async () => {
     let capturedInit: RequestInit | undefined;
-    const proposal = {
-      status: "PROPOSED",
-      assumptions: [],
-      output: { nextStep: "List facts." },
-      limitations: ["Not validated."],
-      evidenceReferences: [],
-      requiredGates: []
-    };
     const generator = new OpenAICompatibleModelReasoningGenerator({
       endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent",
       model: "gemini-test",
       apiKey: "placeholder-test-key",
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return new Response(JSON.stringify({
-          candidates: [{ content: { parts: [{ text: JSON.stringify(proposal) }] } }]
-        }), { status: 200, headers: { "content-type": "application/json" } });
+        return geminiContentResponse(reasoningProposal);
       }
     });
 
-    expect(await generator.generate(generationRequest)).toEqual(proposal);
+    expect(await generator.generate(generationRequest)).toEqual(reasoningProposal);
     expect((capturedInit?.headers as Record<string, string>)["x-goog-api-key"]).toBe("placeholder-test-key");
     expect((capturedInit?.headers as Record<string, string>).authorization).toBeUndefined();
     const body = JSON.parse(String(capturedInit?.body));
