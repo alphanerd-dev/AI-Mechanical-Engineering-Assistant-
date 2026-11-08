@@ -1,6 +1,6 @@
 # Geometry Platform — Architecture Charter
 
-**Status:** Accepted strategic direction; initial implementation is not yet delivered.  
+**Status:** Strategic direction accepted; G0 audit complete; G1 bounded API implementation is in draft review.  
 **Repository boundary:** This repository, initially alongside the existing CAD modules.  
 **Product rule:** AI proposes. Deterministic systems execute. Validation decides. Evidence proves.
 
@@ -140,7 +140,7 @@ Tests prove only the properties they assert. Geometry validity is not design app
 | Increment | Deliverable | Exit condition |
 |---|---|---|
 | G0 | Existing CAD/geometry contract and dependency audit | Current call graph, contract inventory, duplicate map and gaps reviewed |
-| G1 | Product-owned geometry facade and conformance suite | Existing cylinder/shaft path works unchanged through stable contracts |
+| G1 | Product-owned geometry facade and initial adapter conformance tests | Existing cylinder/shaft workflow is exposed through a versioned typed contract without changing its execution or persistence path |
 | G2 | Native math primitives | Analytical, property and differential fixtures pass |
 | G3 | Selected topology and simple solids | Topology and geometric invariants pass |
 | G4 | Advanced native operations | Adversarial/degenerate tests, differential tests and resource gates pass |
@@ -151,15 +151,22 @@ Tests prove only the properties they assert. Geometry validity is not design app
 
 The source-level G0 audit is recorded in [G0 Repository Audit](g0-repository-audit.md). It confirms the existing CAD identity, artifact, provenance, worker, validation and viewer foundations should be reused. It identifies missing provider-neutral geometry operation contracts, explicit units/frames/tolerance policies, immutable geometry revision identity and provider-neutral conformance fixtures. The audit is source-level only; local test execution, exact-PR CI, deployment verification and dependency/license review remain open gates.
 
-## Immediate next task
+## G1 initial implementation
 
-G1 begins by mapping imports and call sites, then defining the minimum provider-neutral geometry operation contracts without changing existing persisted artifact semantics. The source-level G0 audit lists the required file-level inventory:
-- Geometry and CAD domain types.
-- Artifact and derivative identities.
-- Provider interfaces and adapters.
-- Execution and worker boundaries.
-- Validation receipts and evidence.
-- Existing fixtures and tests.
-- Existing dependencies and license obligations.
+The first typed facade is implemented in the draft G1 pull request:
+- `src/geometry-platform/contracts.ts` defines the versioned operation request/result and provider interface.
+- `src/geometry-platform/cad-completion-provider.ts` adapts the existing completion workflow.
+- `geometry.create_cylinder` is the only advertised operation.
+- The adapter requires millimetres, the existing world +Z cylinder convention and the host-controlled 0.01 mm dimension tolerance policy.
+- Execution and validation provider IDs remain distinct; artifacts are references to the existing CAD artifact model.
+- The adapter does not own execution, persistence, validation, identity, rendering or worker lifecycle.
 
-Then propose the minimum G1 changes. Do not change the current CAD worker, production route, Supabase schema or accepted artifact format during G0.
+This is deliberately not yet a general geometry kernel. No native algorithms, general transforms, topology IDs, Boolean operations, assemblies or parametric history are claimed. The current CADModelIdentity remains a logical model identity; this adapter does not invent immutable geometry-revision semantics. A revision contract is still required before topology references or revision-based editing can be supported. Existing routes and production behavior are not switched to the new facade in G1.
+
+## Remaining G1 exit gates
+
+- Run TypeScript build and the full Vitest suite on the exact PR head.
+- Confirm the existing CAD intent/completion regression suite remains green.
+- Expand conformance coverage for invalid inputs, units, frame policy, tolerance policy and explicit unsupported operations.
+- Review CI and preview deployments before merging.
+- Keep dependency/license and deployed worker-profile verification as separate G0/G1 governance gates.
