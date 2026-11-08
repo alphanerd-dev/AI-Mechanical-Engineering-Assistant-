@@ -102,6 +102,32 @@ describe("OpenAI-compatible reasoning transport", () => {
     expect(body).not.toHaveProperty("contents");
   });
 
+  it("normalizes Google's OpenAI-compatible API base URL to the chat-completions endpoint", async () => {
+    let capturedUrl: RequestInfo | URL | undefined;
+    const proposal = {
+      status: "PROPOSED",
+      assumptions: [],
+      output: { nextStep: "List facts." },
+      limitations: ["Not validated."],
+      evidenceReferences: [],
+      requiredGates: []
+    };
+    const generator = new OpenAICompatibleModelReasoningGenerator({
+      endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/",
+      model: "gemini-test",
+      apiKey: "placeholder-test-key",
+      fetchImpl: async (input) => {
+        capturedUrl = input;
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(proposal) } }]
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+    });
+
+    expect(await generator.generate(generationRequest)).toEqual(proposal);
+    expect(capturedUrl).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+  });
+
   it("keeps native Gemini generateContent requests on the native protocol", async () => {
     let capturedInit: RequestInit | undefined;
     const proposal = {
