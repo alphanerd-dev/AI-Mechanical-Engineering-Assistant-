@@ -125,7 +125,8 @@ function createThreeScene(T, canvas, count) {
   };
 }
 
-async function sampleThreeScene({ T, canvas, setup, count, durationMs }) {
+async function sampleThreeScene(context) {
+  const { T, canvas, setup, count, durationMs } = context;
   const raycaster = new T.Raycaster();
   const pointer = new T.Vector2(0, 0);
   const frames = [];
