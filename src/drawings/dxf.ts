@@ -134,26 +134,56 @@ function readEntity(type: string, groups: GroupPair[], warnings: string[]): DXFE
   return null;
 }
 
+interface EntityParseStep {
+  nextIndex: number;
+  inEntities: boolean;
+  entity?: DXFEntity;
+}
+
+function nextEntityBoundary(pairs: GroupPair[], start: number): number {
+  let end = start + 1;
+  while (end < pairs.length && pairs[end][0] !== 0) end += 1;
+  return end;
+}
+
+function readSectionState(pairs: GroupPair[], index: number): EntityParseStep {
+  const section = pairs[index + 1];
+  const validHeader = section?.[0] === 2;
+  return {
+    nextIndex: index + (validHeader ? 2 : 1),
+    inEntities: validHeader && section[1].toUpperCase() === "ENTITIES"
+  };
+}
+
+function parseEntityStep(
+  pairs: GroupPair[],
+  index: number,
+  inEntities: boolean,
+  warnings: string[]
+): EntityParseStep {
+  const [code, value] = pairs[index];
+  if (code !== 0) return { nextIndex: index + 1, inEntities };
+  if (value === "SECTION") return readSectionState(pairs, index);
+  if (value === "ENDSEC") return { nextIndex: index + 1, inEntities: false };
+  if (!inEntities) return { nextIndex: index + 1, inEntities };
+  const end = nextEntityBoundary(pairs, index);
+  return {
+    nextIndex: end,
+    inEntities,
+    entity: readEntity(value.toUpperCase(), pairs.slice(index + 1, end), warnings) ?? undefined
+  };
+}
+
 function parseEntities(pairs: GroupPair[], warnings: string[]): DXFEntity[] {
   const entities: DXFEntity[] = [];
+  let index = 0;
   let inEntities = false;
-  for (let index = 0; index < pairs.length;) {
-    const [code, value] = pairs[index];
-    if (code !== 0) { index += 1; continue; }
-    if (value === "SECTION") {
-      const section = pairs[index + 1];
-      inEntities = section?.[0] === 2 && section[1].toUpperCase() === "ENTITIES";
-      index += section?.[0] === 2 ? 2 : 1;
-      continue;
-    }
-    if (value === "ENDSEC") { inEntities = false; index += 1; continue; }
-    if (!inEntities) { index += 1; continue; }
-    let end = index + 1;
-    while (end < pairs.length && pairs[end][0] !== 0) end += 1;
-    const entity = readEntity(value.toUpperCase(), pairs.slice(index + 1, end), warnings);
-    if (entity) entities.push(entity);
+  while (index < pairs.length) {
+    const step = parseEntityStep(pairs, index, inEntities, warnings);
+    if (step.entity) entities.push(step.entity);
     if (entities.length > MAX_ENTITIES) throw new Error("DXF exceeds the 10,000 supported-entity preview limit.");
-    index = end;
+    index = step.nextIndex;
+    inEntities = step.inEntities;
   }
   return entities;
 }
