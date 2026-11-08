@@ -82,7 +82,10 @@ Adopt an **OCCT-first hybrid**:
 - Put a product-owned engineering geometry/domain model above kernel adapters. It owns engineering identity, revisions, provenance, units, coordinate frames, feature/operation metadata, constraints and relationships to requirements, artifacts and validation.
 - Define kernel conformance fixtures for import/export round trips, topology validity, dimensions, volume, units, tolerances, coordinate transforms and stable reference mapping.
 - Review exact source revision, bindings, licenses, notices, maintenance, packaging and deployment constraints before adopting OCCT.js/OCP or another binding in a runtime.
-- Do not build a proprietary geometry kernel now. Consider an alternative or proprietary kernel only after a demonstrated gap, an economic case and a separate accepted ADR.
+- Build a proprietary geometry platform with progressive kernel ownership. First complete G0: audit existing `src/cad`, `src/artifacts`, `src/providers`, `src/execution` and `worker/cad` contracts and tests. Do not add parallel artifact identity, persistence, viewer registry or CAD execution paths.
+- Retain OCCT as the initial exact-geometry provider and build123d as the bounded authoring provider. Develop native algorithms incrementally and promote each only after differential, numerical, adversarial, regression and resource conformance gates pass.
+- Keep the first implementation in this repository. Consider extraction only after stable APIs, independent versioning/CI, conformance coverage and a real external consumer exist.
+- See [Proprietary Geometry Platform ADR](architecture/adr-2026-11-08-proprietary-geometry-platform.md) and [Geometry Platform Charter](geometry-platform/README.md).
 
 Canonical geometry is distinct from renderer-facing tessellation. Display derivatives carry source ID/revision/digest, conversion provider/version and tessellation parameters. Geometry validation must identify the exact bytes tested. STEP/STL/3MF exports are not validated merely because a related BREP passed a check.
 
