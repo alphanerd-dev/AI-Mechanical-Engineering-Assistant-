@@ -523,8 +523,8 @@ export async function runBoundedAutonomy(
 
     if(action.kind==="REQUEST_APPROVAL"){
       const task=graph.tasks.find(item=>item.id===action.taskId)!;
-      if(!["PROPOSED","BLOCKED","FAILED"].includes(task.status)){
-        const reason="Human approval can only be requested before task readiness or execution.";
+      if(!["PROPOSED","BLOCKED","FAILED","READY"].includes(task.status)){
+        const reason="Human approval can only be requested before task execution begins.";
         actions.push({index,action,status:"BLOCKED",taskId:task.id,reason});
         if(request.limits.stopOnFailure)
           return {...initial,finalGraph:graph,status:"FAILED",steps:actions.length,taskExecutions,delegations,actions,evidenceIds,artifactIds,stopReason:reason};
@@ -533,7 +533,18 @@ export async function runBoundedAutonomy(
       const next=structuredClone(graph);
       next.revision++;
       const taskIndex=next.tasks.findIndex(item=>item.id===task.id);
-      next.tasks[taskIndex]={...next.tasks[taskIndex],approvalRequired:true,approvalGranted:undefined,updatedAt:hostTimestamp};
+      next.tasks[taskIndex]={
+        ...next.tasks[taskIndex],
+        status:"PROPOSED",
+        approvalRequired:true,
+        approvalGranted:undefined,
+        reasoning:next.tasks[taskIndex].reasoning?{
+          ...next.tasks[taskIndex].reasoning,
+          routingDecision:undefined,
+          records:[]
+        }:undefined,
+        updatedAt:hostTimestamp
+      };
       graph=next;
       actions.push({
         index,action,status:"WAITING_APPROVAL",taskId:task.id,
