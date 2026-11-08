@@ -95,7 +95,8 @@ Adopt an **OCCT-first hybrid geometry foundation**:
 - Retain the existing bounded build123d CAD generation path. Evaluate CadQuery, FreeCAD and Onshape as separate providers where there is a demonstrated workflow need.
 - Build a product-owned engineering geometry/artifact abstraction above kernel adapters. It owns stable engineering identity, revisions, units, coordinate frames, provenance, feature/operation metadata and validation relationships—not the kernel's geometric algorithms.
 - Keep canonical CAD artifacts separate from tessellated display derivatives. Every derivative carries source ID/revision/digest and conversion/tessellation metadata.
-- Do not develop a proprietary geometry kernel now. Alternative kernels require an evidenced gap, conformance tests, benchmarks and license/security review.
+- Build a proprietary engineering geometry platform with progressive kernel ownership. The platform owns stable engineering contracts, feature semantics, constraints, provenance and validation relationships; OCCT remains the initial mature geometry provider while native algorithms are developed incrementally.
+- Do not attempt immediate full replacement of OCCT. Every native operation must pass shared differential, numerical, adversarial and performance conformance gates before promotion.
 
 ### Visualization domains
 
