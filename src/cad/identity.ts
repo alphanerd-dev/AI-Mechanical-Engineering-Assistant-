@@ -93,6 +93,11 @@ export function validateCADNativeModelReference(value: unknown): CADIdentityVali
   return { status: errors.length ? "FAIL" : "PASS", errors, warnings: [] };
 }
 
+function identityValidationStatus(errors: string[]): "PASS" | "FAIL" {
+  if (errors.length > 0) return "FAIL";
+  return "PASS";
+}
+
 function validateIdentityBaseFields(value: Record<string, unknown>): string[] {
   return ["id", "projectId", "name"]
     .filter((key) => !nonEmptyString(value[key]))
@@ -164,7 +169,7 @@ export function validateCADModelIdentity(
     ...validateIdentityTimestamps(value),
     ...nativeReferences.errors
   ];
-  return { status: errors.length ? "FAIL" : "PASS", errors, warnings: nativeReferences.warnings };
+  return { status: identityValidationStatus(errors), errors, warnings: nativeReferences.warnings };
 }
 
 /**
