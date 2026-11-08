@@ -111,9 +111,7 @@ describe("OpenAI-compatible reasoning transport", () => {
       apiKey: "placeholder-test-key",
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return new Response(JSON.stringify({
-          choices: [{ message: { content: JSON.stringify(proposal) } }]
-        }), { status: 200, headers: { "content-type": "application/json" } });
+        return openAIMessageResponse(reasoningProposal);
       }
     });
 
