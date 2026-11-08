@@ -18,12 +18,12 @@ export async function runModelDirectedAutonomy(
   if (request.limits.requireCapabilityAllowlist !== true || !allowed || allowed.length === 0) {
     throw new Error("Model-directed autonomy requires a non-empty host-enforced capability allowlist.");
   }
-  if (request.limits.allowTaskCreation !== true && request.limits.allowTaskUpdates !== true) {
-    throw new Error("Model-directed autonomy has no authorized task mutation operations.");
-  }
   const registeredCapabilities = allowed.map((id) => {
     const definition = router.getDefinition(id);
     if (!definition) throw new Error("Host allowlist references an unregistered capability: " + id + ".");
+    if (definition.status === "BLOCKED" || definition.status === "DEPRECATED") {
+      throw new Error("Host allowlist references a blocked or deprecated capability: " + id + ".");
+    }
     if (!router.hasExecutableProvider(id)) {
       throw new Error("Host allowlist references a capability without an executable provider: " + id + ".");
     }
