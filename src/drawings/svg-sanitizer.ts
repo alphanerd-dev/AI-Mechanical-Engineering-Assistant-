@@ -12,7 +12,9 @@ function isSafeAttributeName({ name }: { name: string }): boolean {
   const lower = name.toLowerCase();
   if (!ALLOWED_ATTRIBUTES.has(name)) return false;
   if (lower.startsWith("on")) return false;
-  if (lower === "style" || lower === "href" || lower.endsWith(":href")) return false;
+  if (lower === "style") return false;
+  if (lower === "href") return false;
+  if (lower.endsWith(":href")) return false;
   return true;
 }
 
