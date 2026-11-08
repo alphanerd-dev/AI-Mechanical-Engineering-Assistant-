@@ -69,7 +69,9 @@ export class CapabilityRouter {
   }
 
   hasExecutableProvider(capability: string): boolean {
-    return this.registry.resolve(capability).length > 0;
+    const definition = this.registry.getDefinition(capability);
+    if (!definition) return false;
+    return this.registry.resolve(capability).some(provider => definition.providers.includes(provider.id));
   }
 
   async execute(request: CapabilityRequest): Promise<CapabilityResult> {
