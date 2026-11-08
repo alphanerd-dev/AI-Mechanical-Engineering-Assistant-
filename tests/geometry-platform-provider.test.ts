@@ -85,7 +85,8 @@ describe("CADCompletionGeometryProvider", () => {
         projectId: "geometry-project",
         modelIdentity: identity,
         units: "mm",
-        coordinateFrame: "WORLD_Z_AXIS"
+        coordinateFrame: "WORLD_Z_AXIS",
+        tolerancePolicyId: "CYLINDER_DIMENSION_0_01_MM"
       },
       parameters: { name: "shaft", diameter: 30, length: 200 }
     });
