@@ -57,9 +57,13 @@ export interface CADGeometryKernelAdapter {
   }): Promise<CADGeometryResult<CADGeometryTessellation>>;
 }
 
-export function validateCADGeometrySource(value: unknown): string[] {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return ["Geometry source must be an object."];
-  const source = value as Record<string, unknown>;
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as UnknownRecord : null;
+}
+
+function validateIdentityFields(source: UnknownRecord): string[] {
   const errors: string[] = [];
   for (const key of ["artifactId", "modelIdentityId", "units", "coordinateFrame"] as const) {
     if (typeof source[key] !== "string" || !(source[key] as string).trim()) errors.push(key + " is required.");
@@ -68,11 +72,29 @@ export function validateCADGeometrySource(value: unknown): string[] {
     errors.push("modelRevision must be a positive safe integer.");
   }
   if (source.format !== "BREP" && source.format !== "STEP") errors.push("Geometry source format is unsupported.");
-  if (typeof source.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(source.sha256)) errors.push("sha256 must be a lowercase SHA-256 digest.");
-  if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 || source.bytes.byteLength > 100 * 1024 * 1024) {
-    errors.push("Geometry source bytes must contain 1 byte to 100 MiB.");
-  }
   return errors;
+}
+
+function validateDigest(source: UnknownRecord): string[] {
+  return typeof source.sha256 === "string" && /^[a-f0-9]{64}$/.test(source.sha256)
+    ? []
+    : ["sha256 must be a lowercase SHA-256 digest."];
+}
+
+function validateSourceBytes(source: UnknownRecord): string[] {
+  const bytes = source.bytes;
+  if (bytes instanceof Uint8Array && bytes.byteLength >= 1 && bytes.byteLength <= 100 * 1024 * 1024) return [];
+  return ["Geometry source bytes must contain 1 byte to 100 MiB."];
+}
+
+export function validateCADGeometrySource(value: unknown): string[] {
+  const source = asRecord(value);
+  if (!source) return ["Geometry source must be an object."];
+  return [
+    ...validateIdentityFields(source),
+    ...validateDigest(source),
+    ...validateSourceBytes(source)
+  ];
 }
 
 export function unavailableGeometryResult<T>(operation: string): CADGeometryResult<T> {
@@ -83,16 +105,14 @@ export function unavailableGeometryResult<T>(operation: string): CADGeometryResu
   };
 }
 
-
 /**
  * Verify that the exact bytes supplied to a geometry adapter match the declared
  * canonical artifact digest. This function is a byte-integrity check only; it
  * does not parse, validate or approve the geometry.
  */
 export async function verifyCADGeometrySourceDigest(value: unknown): Promise<boolean> {
-  if (validateCADGeometrySource(value).length > 0) return false;
+  if (validateCADGeometrySource(value).length > 0 || !globalThis.crypto?.subtle) return false;
   const source = value as CADGeometrySource;
-  if (!globalThis.crypto?.subtle) return false;
   try {
     const exactBytes = new Uint8Array(source.bytes.byteLength);
     exactBytes.set(source.bytes);
