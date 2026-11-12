@@ -13,19 +13,39 @@ const capabilityRiskRank:Record<CapabilityDefinition["risk"],number>={
   CRITICAL:4
 };
 
+function requireRegisteredCapability(
+  id:string,
+  router:CapabilityRouter
+):CapabilityDefinition{
+  const definition=router.getDefinition(id);
+  if(!definition) throw new Error("Host allowlist references an unregistered capability: "+id+".");
+  return definition;
+}
+
+function requireAvailableCapability(id:string,definition:CapabilityDefinition,router:CapabilityRouter):void{
+  if(definition.status==="BLOCKED"||definition.status==="DEPRECATED")
+    throw new Error("Host allowlist references a blocked or deprecated capability: "+id+".");
+  if(!router.hasExecutableProvider(id))
+    throw new Error("Host allowlist references a capability without an executable provider: "+id+".");
+}
+
+function requireCapabilityRiskWithinPolicy(
+  id:string,
+  definition:CapabilityDefinition,
+  request:ModelDirectedRequest
+):void{
+  if(capabilityRiskRank[definition.risk]>capabilityRiskRank[request.limits.maxRisk])
+    throw new Error("Host allowlist exceeds the configured risk ceiling for capability: "+id+".");
+}
+
 function resolveAllowedCapability(
   id:string,
   request:ModelDirectedRequest,
   router:CapabilityRouter
 ):CapabilityDefinition{
-  const definition=router.getDefinition(id);
-  if(!definition) throw new Error("Host allowlist references an unregistered capability: "+id+".");
-  if(definition.status==="BLOCKED"||definition.status==="DEPRECATED")
-    throw new Error("Host allowlist references a blocked or deprecated capability: "+id+".");
-  if(capabilityRiskRank[definition.risk]>capabilityRiskRank[request.limits.maxRisk])
-    throw new Error("Host allowlist exceeds the configured risk ceiling for capability: "+id+".");
-  if(!router.hasExecutableProvider(id))
-    throw new Error("Host allowlist references a capability without an executable provider: "+id+".");
+  const definition=requireRegisteredCapability(id,router);
+  requireAvailableCapability(id,definition,router);
+  requireCapabilityRiskWithinPolicy(id,definition,request);
   return definition;
 }
 
