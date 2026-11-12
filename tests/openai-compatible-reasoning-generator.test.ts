@@ -40,16 +40,19 @@ const reasoningProposal = {
   requiredGates: []
 };
 
-function openAIMessageResponse(content: unknown): Response {
-  return new Response(JSON.stringify({
-    choices: [{ message: { content: JSON.stringify(content) } }]
-  }), { status: 200, headers: { "content-type": "application/json" } });
+function jsonResponse(payload:unknown):Response{
+  return new Response(JSON.stringify(payload),{
+    status:200,
+    headers:{"content-type":"application/json"}
+  });
 }
 
-function geminiContentResponse(content: unknown): Response {
-  return new Response(JSON.stringify({
-    candidates: [{ content: { parts: [{ text: JSON.stringify(content) }] } }]
-  }), { status: 200, headers: { "content-type": "application/json" } });
+function openAIMessageResponse(content:unknown):Response{
+  return jsonResponse({choices:[{message:{content:JSON.stringify(content)}}]});
+}
+
+function geminiContentResponse(content:unknown):Response{
+  return jsonResponse({candidates:[{content:{parts:[{text:JSON.stringify(content)}]}}]});
 }
 
 describe("OpenAI-compatible reasoning transport", () => {
