@@ -1,6 +1,5 @@
 import {CapabilityRouter} from "../capabilities/router.js";
 import {CapabilityDefinition,CapabilityRisk,ProjectState} from "../core/types.js";
-import {EngineeringWorkflowStage} from "./types.js";
 import {EngineeringTask,EngineeringTaskGraph} from "../task-graph/types.js";
 import {evaluateTaskReady} from "../task-graph/ready.js";
 import {validateEngineeringTaskGraph,transitionTask} from "../task-graph/validation.js";
@@ -17,10 +16,6 @@ export const BOUNDED_AUTONOMY_HARD_LIMITS={
 
 const riskRank:Record<CapabilityRisk,number>={LOW:1,MEDIUM:2,HIGH:3,CRITICAL:4};
 const taskRiskRank:Record<CapabilityRisk,number>={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
-const validStages:readonly EngineeringWorkflowStage[]=[
-  "REQUIREMENTS","RESEARCH","COMPUTATION","ANALYSIS","CAD","SIMULATION",
-  "DYNAMICS","ROBOTICS","MANUFACTURING","VALIDATION","PLM"
-];
 
 export interface BoundedAutonomyRequest{
   runId:string;
