@@ -116,32 +116,48 @@ function parseCapability(value: unknown, allowed: ReadonlySet<string>, label: st
   return capability;
 }
 
-function parseCreateTaskAction(
-  action: Record<string, unknown>,
-  allowed: ReadonlySet<string>,
-  limits: AgentRunLimits
-): AgentActionProposal {
-  exactKeys(action, ["kind", "name", "goal", "capability", "risk", "input", "dependsOn", "requiredRequirementIds", "approvalRequired", "evidenceRequired"], "CREATE_TASK");
-  if (limits.allowTaskCreation !== true) throw new Error("The host policy does not authorize agent task creation.");
-  for (const field of ["approvalRequired", "evidenceRequired"] as const) {
-    if (action[field] !== undefined && typeof action[field] !== "boolean") {
-      throw new Error("CREATE_TASK " + field + " must be boolean when supplied.");
-    }
+function parseCreateTaskFlags(action:Record<string,unknown>):{
+  approvalRequired?:true;
+  evidenceRequired?:true;
+}{
+  for(const field of ["approvalRequired","evidenceRequired"] as const){
+    if(action[field]!==undefined&&typeof action[field]!=="boolean")
+      throw new Error("CREATE_TASK "+field+" must be boolean when supplied.");
   }
-
-  const dependsOn = parseStringArray(action.dependsOn, "Task dependencies");
-  const requirementIds = parseStringArray(action.requiredRequirementIds, "Task requirement ids");
   return {
-    kind: "CREATE_TASK",
-    name: requiredText(action.name, "Task name", 160),
-    goal: requiredText(action.goal, "Task goal"),
-    capability: parseCapability(action.capability, allowed, "Task capability"),
-    risk: parseRisk(action.risk),
-    input: parseInput(action.input, "Task input"),
-    ...(dependsOn ? { dependsOn } : {}),
-    ...(requirementIds ? { requiredRequirementIds: requirementIds } : {}),
-    ...(action.approvalRequired === true ? { approvalRequired: true } : {}),
-    ...(action.evidenceRequired === true ? { evidenceRequired: true } : {})
+    ...(action.approvalRequired===true?{approvalRequired:true as const}:{}),
+    ...(action.evidenceRequired===true?{evidenceRequired:true as const}:{})
+  };
+}
+
+function parseCreateTaskMetadata(action:Record<string,unknown>){
+  const dependsOn=parseStringArray(action.dependsOn,"Task dependencies");
+  const requirementIds=parseStringArray(action.requiredRequirementIds,"Task requirement ids");
+  return {
+    ...(dependsOn?{dependsOn}:{}),
+    ...(requirementIds?{requiredRequirementIds:requirementIds}:{})
+  };
+}
+
+function parseCreateTaskAction(
+  action:Record<string,unknown>,
+  allowed:ReadonlySet<string>,
+  limits:AgentRunLimits
+):AgentActionProposal{
+  exactKeys(action,["kind","name","goal","capability","risk","input","dependsOn","requiredRequirementIds","approvalRequired","evidenceRequired"],"CREATE_TASK");
+  if(limits.allowTaskCreation!==true)
+    throw new Error("The host policy does not authorize agent task creation.");
+  const flags=parseCreateTaskFlags(action);
+  const metadata=parseCreateTaskMetadata(action);
+  return {
+    kind:"CREATE_TASK",
+    name:requiredText(action.name,"Task name",160),
+    goal:requiredText(action.goal,"Task goal"),
+    capability:parseCapability(action.capability,allowed,"Task capability"),
+    risk:parseRisk(action.risk),
+    input:parseInput(action.input,"Task input"),
+    ...metadata,
+    ...flags
   };
 }
 
