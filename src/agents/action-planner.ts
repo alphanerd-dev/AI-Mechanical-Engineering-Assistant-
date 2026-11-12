@@ -32,12 +32,15 @@ const STAGES: readonly EngineeringWorkflowStage[] = [
 const MAX_TEXT_LENGTH = 2_000;
 const MAX_INPUT_BYTES = 64_000;
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function record(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value) ||
-      (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) {
-    throw new Error(label + " must be a plain JSON object.");
-  }
-  return value as Record<string, unknown>;
+  if (!isPlainRecord(value)) throw new Error(label + " must be a plain JSON object.");
+  return value;
 }
 
 function exactKeys(value: Record<string, unknown>, allowed: readonly string[], label: string): void {
