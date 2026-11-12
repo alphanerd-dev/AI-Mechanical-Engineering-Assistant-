@@ -184,18 +184,18 @@ describe("LLM bounded operational authority", () => {
       })
     });
     const router = new CapabilityRouter(registry);
-    const planner = new ModelBackedAgentActionPlanner({
-      generateStructured: vi.fn(async () => ({
-        baseGraphRevision: 1,
-        actions: [{ kind: "STOP", reason: "No work." }]
-      }))
-    });
+    const generateStructured = vi.fn(async () => ({
+      baseGraphRevision: 1,
+      actions: [{ kind: "STOP", reason: "No work." }]
+    }));
+    const planner = new ModelBackedAgentActionPlanner({ generateStructured });
 
     await expect(runModelDirectedAutonomy({
       runId: "RUN-RISK-CEILING",
       taskGraph: graph(),
       limits: limits({ allowedCapabilities: ["TEST.HIGH_RISK"], maxRisk: "LOW" })
     }, planner, router)).rejects.toThrow(/risk ceiling/);
+    expect(generateStructured).not.toHaveBeenCalled();
   });
 
   it("rejects nested task input fields outside a registered capability input path", async () => {
