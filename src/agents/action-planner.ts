@@ -59,15 +59,24 @@ function parseRisk(value: unknown): CapabilityRisk {
   return value as CapabilityRisk;
 }
 
-function parseStringArray(value: unknown, label: string, maximum = 50): string[] | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length > maximum ||
-      value.some((item) => typeof item !== "string" || !item.trim() || item.length > 160)) {
-    throw new Error(label + " must contain at most " + maximum + " non-empty strings of at most 160 characters.");
+function validateStringArray(value:unknown,label:string,maximum:number):asserts value is string[]{
+  if(!Array.isArray(value)||value.length>maximum||
+      value.some(item=>typeof item!=="string"||!item.trim()||item.length>160)){
+    throw new Error(label+" must contain at most "+maximum+" non-empty strings of at most 160 characters.");
   }
-  const items = value.map((item) => (item as string).trim());
-  if (new Set(items).size !== items.length) throw new Error(label + " cannot contain duplicates.");
+}
+
+function normalizeStringArray(value:readonly string[],label:string):string[]{
+  const items=value.map(item=>item.trim());
+  if(new Set(items).size!==items.length)
+    throw new Error(label+" cannot contain duplicates.");
   return items;
+}
+
+function parseStringArray(value:unknown,label:string,maximum=50):string[]|undefined{
+  if(value===undefined) return undefined;
+  validateStringArray(value,label,maximum);
+  return normalizeStringArray(value,label);
 }
 
 function jsonCompatible(value: unknown, seen = new Set<object>()): boolean {
