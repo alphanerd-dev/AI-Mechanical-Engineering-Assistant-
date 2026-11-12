@@ -106,21 +106,31 @@ function isPlainRecord(value:unknown):value is Record<string,unknown>{
     (Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 }
 
+function isJsonPrimitive(value:unknown):boolean{
+  return value===null||typeof value==="string"||typeof value==="boolean"||
+    (typeof value==="number"&&Number.isFinite(value));
+}
+
+function isJsonArrayValue(value:unknown[],seen:Set<object>):boolean{
+  if(Object.keys(value).length!==value.length||Object.getOwnPropertySymbols(value).length!==0)
+    return false;
+  return value.every(item=>isJsonValue(item,seen));
+}
+
+function isJsonObjectValue(value:Record<string,unknown>,seen:Set<object>):boolean{
+  const prototype=Object.getPrototypeOf(value);
+  if((prototype!==Object.prototype&&prototype!==null)||Object.getOwnPropertySymbols(value).length!==0)
+    return false;
+  return Object.values(value).every(item=>isJsonValue(item,seen));
+}
+
 function isJsonValue(value:unknown,seen=new Set<object>()):boolean{
-  if(value===null||typeof value==="string"||typeof value==="boolean") return true;
-  if(typeof value==="number") return Number.isFinite(value);
-  if(typeof value!=="object") return false;
-  if(seen.has(value)) return false;
+  if(isJsonPrimitive(value)) return true;
+  if(typeof value!=="object"||value===null||seen.has(value)) return false;
   seen.add(value);
-  let valid:boolean;
-  if(Array.isArray(value)){
-    valid=Object.keys(value).length===value.length&&Object.getOwnPropertySymbols(value).length===0&&
-      value.every(item=>isJsonValue(item,seen));
-  }else{
-    const prototype=Object.getPrototypeOf(value);
-    valid=(prototype===Object.prototype||prototype===null)&&Object.getOwnPropertySymbols(value).length===0&&
-      Object.values(value as Record<string,unknown>).every(item=>isJsonValue(item,seen));
-  }
+  const valid=Array.isArray(value)
+    ?isJsonArrayValue(value,seen)
+    :isJsonObjectValue(value as Record<string,unknown>,seen);
   seen.delete(value);
   return valid;
 }
