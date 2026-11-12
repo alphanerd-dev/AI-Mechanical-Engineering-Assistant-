@@ -112,9 +112,21 @@ function validateLimits(limits:AgentRunLimits):string[]{
   ])];
 }
 
+function hasPlainObjectPrototype(value:object):boolean{
+  const prototype=Object.getPrototypeOf(value);
+  if(prototype===Object.prototype) return true;
+  return prototype===null;
+}
+
+function hasNoOwnSymbols(value:object):boolean{
+  return Object.getOwnPropertySymbols(value).length===0;
+}
+
 function isPlainRecord(value:unknown):value is Record<string,unknown>{
-  return value!==null&&typeof value==="object"&&!Array.isArray(value)&&
-    (Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
+  if(value===null) return false;
+  if(typeof value!=="object") return false;
+  if(Array.isArray(value)) return false;
+  return hasPlainObjectPrototype(value);
 }
 
 function isJsonPrimitive(value:unknown):boolean{
@@ -123,15 +135,14 @@ function isJsonPrimitive(value:unknown):boolean{
 }
 
 function isJsonArrayValue(value:unknown[],seen:Set<object>):boolean{
-  if(Object.keys(value).length!==value.length||Object.getOwnPropertySymbols(value).length!==0)
+  if(Object.keys(value).length!==value.length||!hasNoOwnSymbols(value))
     return false;
   return value.every(item=>isJsonValue(item,seen));
 }
 
 function isJsonObjectValue(value:Record<string,unknown>,seen:Set<object>):boolean{
-  const prototype=Object.getPrototypeOf(value);
-  if((prototype!==Object.prototype&&prototype!==null)||Object.getOwnPropertySymbols(value).length!==0)
-    return false;
+  if(!hasPlainObjectPrototype(value)) return false;
+  if(!hasNoOwnSymbols(value)) return false;
   return Object.values(value).every(item=>isJsonValue(item,seen));
 }
 
