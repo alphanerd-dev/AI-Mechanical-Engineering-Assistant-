@@ -80,15 +80,26 @@ function validateRiskLimit(limits:AgentRunLimits):string[]{
     :["Agent maxRisk "+limits.maxRisk+" exceeds hard ceiling "+BOUNDED_AUTONOMY_HARD_LIMITS.maxRisk+"."];
 }
 
+function requiredAllowlistMissing(required:boolean,values:readonly string[]|undefined):boolean{
+  if(!required) return false;
+  if(!values) return true;
+  return values.length===0;
+}
+
+function hasDuplicateValues(values:readonly string[]|undefined):boolean{
+  if(!values) return false;
+  return new Set(values).size!==values.length;
+}
+
 function validateAllowlistLimits(limits:AgentRunLimits):string[]{
   const errors:string[]=[];
-  if(limits.requireCapabilityAllowlist===true&&(!Array.isArray(limits.allowedCapabilities)||limits.allowedCapabilities.length===0))
+  if(requiredAllowlistMissing(limits.requireCapabilityAllowlist===true,limits.allowedCapabilities))
     errors.push("A non-empty host capability allowlist is required for model-directed execution.");
-  if(limits.requireSpecialistAllowlist===true&&(!Array.isArray(limits.allowedSpecialists)||limits.allowedSpecialists.length===0))
+  if(requiredAllowlistMissing(limits.requireSpecialistAllowlist===true,limits.allowedSpecialists))
     errors.push("A non-empty host specialist allowlist is required for model-directed delegation.");
-  if(limits.allowedCapabilities&&new Set(limits.allowedCapabilities).size!==limits.allowedCapabilities.length)
+  if(hasDuplicateValues(limits.allowedCapabilities))
     errors.push("Agent capability allowlist cannot contain duplicate ids.");
-  if(limits.allowedSpecialists&&new Set(limits.allowedSpecialists).size!==limits.allowedSpecialists.length)
+  if(hasDuplicateValues(limits.allowedSpecialists))
     errors.push("Agent specialist allowlist cannot contain duplicate ids.");
   return errors;
 }
