@@ -33,9 +33,12 @@ const MAX_TEXT_LENGTH = 2_000;
 const MAX_INPUT_BYTES = 64_000;
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  if (value === null) return false;
+  if (typeof value !== "object") return false;
+  if (Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  if (prototype === Object.prototype) return true;
+  return prototype === null;
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -277,24 +280,6 @@ function parseDelegationAction(
     specialistId,
     stage: parseStage(action.stage, "DELEGATE_SPECIALIST")
   };
-}
-
-function parseTaskControlAction(
-  action:Record<string,unknown>,
-  kind:string
-):AgentActionProposal{
-  if(kind==="REQUEST_READY"||kind==="REQUEST_APPROVAL"||kind==="STOP")
-    return parseTaskReferenceAction(action,kind);
-  throw new Error("Unsupported task-control action: "+kind+".");
-}
-
-function parseMutationAction(
-  action:Record<string,unknown>,
-  allowed:ReadonlySet<string>,
-  limits:AgentRunLimits
-):AgentActionProposal{
-  if(action.kind==="CREATE_TASK") return parseCreateTaskAction(action,allowed,limits);
-  return parseUpdateTaskAction(action,allowed,limits);
 }
 
 type ActionParser=(action:Record<string,unknown>,allowed:ReadonlySet<string>,limits:AgentRunLimits)=>AgentActionProposal;
