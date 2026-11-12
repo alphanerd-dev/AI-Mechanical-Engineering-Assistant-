@@ -164,7 +164,9 @@ function isJsonValue(value:unknown,seen=new Set<object>()):boolean{
 
 function getPath(input:Record<string,unknown>,path:string):unknown{
   return path.split(".").reduce<unknown>((value,key)=>{
-    if(!value||typeof value!=="object"||Array.isArray(value)) return undefined;
+    if(value===null||value===undefined) return undefined;
+    if(typeof value!=="object") return undefined;
+    if(Array.isArray(value)) return undefined;
     return (value as Record<string,unknown>)[key];
   },input);
 }
