@@ -255,23 +255,36 @@ function capabilityRiskErrors(
   return errors;
 }
 
+function isOutsideRequiredCapabilityAllowlist(capability:string,limits:AgentRunLimits):boolean{
+  if(limits.requireCapabilityAllowlist!==true) return false;
+  if(!limits.allowedCapabilities) return true;
+  return !limits.allowedCapabilities.includes(capability);
+}
+
+function isOutsideConfiguredCapabilityAllowlist(capability:string,limits:AgentRunLimits):boolean{
+  if(!limits.allowedCapabilities?.length) return false;
+  return !limits.allowedCapabilities.includes(capability);
+}
+
 function capabilityAllowlistErrors(capability:string,limits:AgentRunLimits):string[]{
-  if(limits.requireCapabilityAllowlist===true&&
-      (!limits.allowedCapabilities||!limits.allowedCapabilities.includes(capability)))
+  if(isOutsideRequiredCapabilityAllowlist(capability,limits))
     return ["Capability is outside the required host allowlist: "+capability+"."];
-  if(limits.allowedCapabilities?.length&&!limits.allowedCapabilities.includes(capability))
+  if(isOutsideConfiguredCapabilityAllowlist(capability,limits))
     return ["Capability is outside the bounded agent policy: "+capability+"."];
   return [];
 }
 
-function capabilityErrors(
-  capability:string,
-  risk:CapabilityRisk,
-  input:Record<string,unknown>,
-  limits:AgentRunLimits,
-  router:CapabilityRouter,
-  requireAllInputs:boolean
-):{definition?:CapabilityDefinition;errors:string[]}{
+interface CapabilityValidationRequest {
+  capability:string;
+  risk:CapabilityRisk;
+  input:Record<string,unknown>;
+  limits:AgentRunLimits;
+  router:CapabilityRouter;
+  requireAllInputs:boolean;
+}
+
+function capabilityErrors(request:CapabilityValidationRequest):{definition?:CapabilityDefinition;errors:string[]}{
+  const {capability,risk,input,limits,router,requireAllInputs}=request;
   if(isControlPlaneCapability(capability))
     return {errors:["Task capability cannot target an orchestration/control-plane operation: "+capability+"."]};
   const definition=router.getDefinition(capability);
@@ -345,7 +358,7 @@ function validateCreateTaskAction(
     errors.push("New task name must contain 1-160 characters.");
   if(typeof action.goal!=="string"||!action.goal.trim()||action.goal.length>2_000)
     errors.push("New task goal must contain 1-2000 characters.");
-  errors.push(...capabilityErrors(action.capability,action.risk,action.input,limits,router,false).errors);
+  errors.push(...capabilityErrors({capability:action.capability,risk:action.risk,input:action.input,limits,router,requireAllInputs:false}).errors);
   errors.push(...validateCreateDependencies(graph,action));
   return [...new Set(errors)];
 }
@@ -423,7 +436,7 @@ function validateUpdatedCapability(
   const risk=(typeof patch.risk==="string"?patch.risk:task.risk) as CapabilityRisk;
   const input=isPlainRecord(patch.input)?patch.input:task.input;
   if(!capability.trim()) return ["An updated task must retain a registered capability."];
-  const errors=capabilityErrors(capability,risk,input,limits,router,false).errors;
+  const errors=capabilityErrors({capability,risk,input,limits,router,requireAllInputs:false}).errors;
   const skill=task.reasoning?.skillManifest;
   if(skill&&!skill.allowedCapabilities.includes(capability))
     errors.push("Updated task capability is outside its assigned skill allowlist.");
@@ -454,7 +467,7 @@ function validateReadinessAction(task:EngineeringTask|undefined,limits:AgentRunL
   const errors:string[]=[];
   if(!["PROPOSED","FAILED","BLOCKED"].includes(task.status))
     errors.push("Only a PROPOSED, FAILED or BLOCKED task can request readiness.");
-  if(task.capability) errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
+  if(task.capability) errors.push(...capabilityErrors({capability:task.capability,risk:task.risk,input:task.input,limits,router,requireAllInputs:true}).errors);
   return errors;
 }
 
@@ -465,7 +478,7 @@ function validateExecutionAction(
 ):string[]{
   if(!task) return [];
   const errors=task.capability
-    ?capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors
+    ?capabilityErrors({capability:task.capability,risk:task.risk,input:task.input,limits,router,requireAllInputs:true}).errors
     :["Task has no registered capability to execute."];
   if(task.status!=="READY") errors.push("Task must be READY before bounded execution; current status is "+task.status+".");
   return errors;
@@ -484,7 +497,7 @@ function validateDelegationAction(
   else if(limits.allowedSpecialists?.length&&!limits.allowedSpecialists.includes(action.specialistId))
     errors.push("Specialist is outside the bounded agent policy: "+action.specialistId+".");
   if(!task) return errors;
-  if(task.capability) errors.push(...capabilityErrors(task.capability,task.risk,task.input,limits,router,true).errors);
+  if(task.capability) errors.push(...capabilityErrors({capability:task.capability,risk:task.risk,input:task.input,limits,router,requireAllInputs:true}).errors);
   else errors.push("Task has no registered capability for specialist delegation.");
   if(task.status!=="READY")
     errors.push("Task must be READY before specialist delegation; current status is "+task.status+".");
