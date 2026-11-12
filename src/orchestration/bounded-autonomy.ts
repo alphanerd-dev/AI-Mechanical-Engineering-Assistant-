@@ -130,13 +130,16 @@ function isPlainRecord(value:unknown):value is Record<string,unknown>{
 }
 
 function isJsonPrimitive(value:unknown):boolean{
-  return value===null||typeof value==="string"||typeof value==="boolean"||
-    (typeof value==="number"&&Number.isFinite(value));
+  if(value===null) return true;
+  if(typeof value==="string") return true;
+  if(typeof value==="boolean") return true;
+  if(typeof value==="number") return Number.isFinite(value);
+  return false;
 }
 
 function isJsonArrayValue(value:unknown[],seen:Set<object>):boolean{
-  if(Object.keys(value).length!==value.length||!hasNoOwnSymbols(value))
-    return false;
+  if(Object.keys(value).length!==value.length) return false;
+  if(!hasNoOwnSymbols(value)) return false;
   return value.every(item=>isJsonValue(item,seen));
 }
 
@@ -148,7 +151,9 @@ function isJsonObjectValue(value:Record<string,unknown>,seen:Set<object>):boolea
 
 function isJsonValue(value:unknown,seen=new Set<object>()):boolean{
   if(isJsonPrimitive(value)) return true;
-  if(typeof value!=="object"||value===null||seen.has(value)) return false;
+  if(typeof value!=="object") return false;
+  if(value===null) return false;
+  if(seen.has(value)) return false;
   seen.add(value);
   const valid=Array.isArray(value)
     ?isJsonArrayValue(value,seen)
