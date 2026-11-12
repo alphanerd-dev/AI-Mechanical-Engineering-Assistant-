@@ -263,25 +263,52 @@ function validateCreateTaskAction(
   return [...new Set(errors)];
 }
 
-function validateUpdatePatchShape(patch:unknown,task:EngineeringTask):string[]{
-  if(!isPlainRecord(patch)) return ["Task update patch must be a plain object."];
+function validatePatchKeys(
+  patch:Record<string,unknown>,
+  allowedKeys:readonly string[]
+):string[]{
+  const extra=Object.keys(patch).filter(key=>!allowedKeys.includes(key));
+  const errors=extra.length
+    ?["Task update patch contains unsupported fields: "+extra.join(", ")+"."]:[];
+  if(Object.keys(patch).length===0)
+    errors.push("Task update patch must change at least one permitted field.");
+  return errors;
+}
+
+function validatePatchTextFields(patch:Record<string,unknown>):string[]{
   const errors:string[]=[];
-  const allowedKeys=["name","goal","capability","risk","input","dependsOn","requiredRequirementIds"];
-  const extraKeys=Object.keys(patch).filter(key=>!allowedKeys.includes(key));
-  if(extraKeys.length) errors.push("Task update patch contains unsupported fields: "+extraKeys.join(", ")+".");
-  if(Object.keys(patch).length===0) errors.push("Task update patch must change at least one permitted field.");
   if(patch.name!==undefined&&(typeof patch.name!=="string"||!patch.name.trim()||patch.name.length>160))
     errors.push("Updated task name must contain 1-160 characters.");
   if(patch.goal!==undefined&&(typeof patch.goal!=="string"||!patch.goal.trim()||patch.goal.length>2_000))
     errors.push("Updated task goal must contain 1-2000 characters.");
   if(patch.capability!==undefined&&(typeof patch.capability!=="string"||!patch.capability.trim()))
     errors.push("Updated task capability must be a non-empty registered capability id.");
-  if(patch.input!==undefined&&(!isPlainRecord(patch.input)||!isJsonValue(patch.input)))
-    errors.push("Updated task input must be a plain, finite JSON object.");
-  errors.push(...validateUpdateRisk(patch.risk,task.risk));
-  errors.push(...validateUpdatedStringList(patch.dependsOn,task.dependsOn??[],"dependencies"));
-  errors.push(...validateUpdatedStringList(patch.requiredRequirementIds,task.requiredRequirementIds??[],"requirement gates"));
   return errors;
+}
+
+function validatePatchInput(patch:Record<string,unknown>):string[]{
+  return patch.input===undefined||
+    (isPlainRecord(patch.input)&&isJsonValue(patch.input))
+    ?[]
+    :["Updated task input must be a plain, finite JSON object."];
+}
+
+function validatePatchGates(patch:Record<string,unknown>,task:EngineeringTask):string[]{
+  return [
+    ...validateUpdateRisk(patch.risk,task.risk),
+    ...validateUpdatedStringList(patch.dependsOn,task.dependsOn??[],"dependencies"),
+    ...validateUpdatedStringList(patch.requiredRequirementIds,task.requiredRequirementIds??[],"requirement gates")
+  ];
+}
+
+function validateUpdatePatchShape(patch:unknown,task:EngineeringTask):string[]{
+  if(!isPlainRecord(patch)) return ["Task update patch must be a plain object."];
+  return [
+    ...validatePatchKeys(patch,["name","goal","capability","risk","input","dependsOn","requiredRequirementIds"]),
+    ...validatePatchTextFields(patch),
+    ...validatePatchInput(patch),
+    ...validatePatchGates(patch,task)
+  ];
 }
 
 function validateUpdateRisk(value:unknown,currentRisk:CapabilityRisk):string[]{
