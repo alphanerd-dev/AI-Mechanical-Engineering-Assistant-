@@ -294,24 +294,27 @@ function parseMutationAction(
   return parseUpdateTaskAction(action,allowed,limits);
 }
 
+type ActionParser=(action:Record<string,unknown>,allowed:ReadonlySet<string>,limits:AgentRunLimits)=>AgentActionProposal;
+
+const ACTION_PARSERS:Readonly<Record<string,ActionParser>>={
+  CREATE_TASK:(action,allowed,limits)=>parseCreateTaskAction(action,allowed,limits),
+  UPDATE_TASK:(action,allowed,limits)=>parseUpdateTaskAction(action,allowed,limits),
+  REQUEST_READY:action=>parseTaskReferenceAction(action,"REQUEST_READY"),
+  REQUEST_APPROVAL:action=>parseTaskReferenceAction(action,"REQUEST_APPROVAL"),
+  STOP:action=>parseTaskReferenceAction(action,"STOP"),
+  EXECUTE_TASK:action=>parseExecutionAction(action),
+  DELEGATE_SPECIALIST:(action,_allowed,limits)=>parseDelegationAction(action,limits)
+};
+
 function parseAction(
   value:unknown,
   allowedCapabilities:ReadonlySet<string>,
   limits:AgentRunLimits
 ):AgentActionProposal{
   const action=record(value,"Agent action");
-  switch(action.kind){
-    case "CREATE_TASK":
-    case "UPDATE_TASK":
-      return parseMutationAction(action,allowedCapabilities,limits);
-    case "REQUEST_READY":
-    case "REQUEST_APPROVAL":
-    case "STOP":
-      return parseTaskControlAction(action,action.kind);
-    case "EXECUTE_TASK": return parseExecutionAction(action);
-    case "DELEGATE_SPECIALIST": return parseDelegationAction(action,limits);
-    default: throw new Error("Agent action kind is unsupported: "+String(action.kind)+".");
-  }
+  const parser=ACTION_PARSERS[String(action.kind)];
+  if(!parser) throw new Error("Agent action kind is unsupported: "+String(action.kind)+".");
+  return parser(action,allowedCapabilities,limits);
 }
 
 function parseBaseGraphRevision(value:unknown):number{
