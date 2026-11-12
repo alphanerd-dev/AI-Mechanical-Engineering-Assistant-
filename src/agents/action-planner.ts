@@ -246,21 +246,41 @@ function parseDelegationAction(
   };
 }
 
+function parseTaskControlAction(
+  action:Record<string,unknown>,
+  kind:string
+):AgentActionProposal{
+  if(kind==="REQUEST_READY"||kind==="REQUEST_APPROVAL"||kind==="STOP")
+    return parseTaskReferenceAction(action,kind);
+  throw new Error("Unsupported task-control action: "+kind+".");
+}
+
+function parseMutationAction(
+  action:Record<string,unknown>,
+  allowed:ReadonlySet<string>,
+  limits:AgentRunLimits
+):AgentActionProposal{
+  if(action.kind==="CREATE_TASK") return parseCreateTaskAction(action,allowed,limits);
+  return parseUpdateTaskAction(action,allowed,limits);
+}
+
 function parseAction(
-  value: unknown,
-  allowedCapabilities: ReadonlySet<string>,
-  limits: AgentRunLimits
-): AgentActionProposal {
-  const action = record(value, "Agent action");
-  switch (action.kind) {
-    case "CREATE_TASK": return parseCreateTaskAction(action, allowedCapabilities, limits);
-    case "UPDATE_TASK": return parseUpdateTaskAction(action, allowedCapabilities, limits);
+  value:unknown,
+  allowedCapabilities:ReadonlySet<string>,
+  limits:AgentRunLimits
+):AgentActionProposal{
+  const action=record(value,"Agent action");
+  switch(action.kind){
+    case "CREATE_TASK":
+    case "UPDATE_TASK":
+      return parseMutationAction(action,allowedCapabilities,limits);
     case "REQUEST_READY":
     case "REQUEST_APPROVAL":
-    case "STOP": return parseTaskReferenceAction(action, action.kind);
+    case "STOP":
+      return parseTaskControlAction(action,action.kind);
     case "EXECUTE_TASK": return parseExecutionAction(action);
-    case "DELEGATE_SPECIALIST": return parseDelegationAction(action, limits);
-    default: throw new Error("Agent action kind is unsupported: " + String(action.kind) + ".");
+    case "DELEGATE_SPECIALIST": return parseDelegationAction(action,limits);
+    default: throw new Error("Agent action kind is unsupported: "+String(action.kind)+".");
   }
 }
 
