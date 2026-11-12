@@ -407,21 +407,26 @@ function forcedApproval(definition:CapabilityDefinition,risk:CapabilityRisk):boo
   return risk==="HIGH"||definition.risk==="HIGH"||definition.status!=="VERIFIED";
 }
 
-function applyCreateTask(
+function resolveCreatedTaskIdentity(
   graph:EngineeringTaskGraph,
-  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>,
-  request:BoundedAutonomyRequest,
-  router:CapabilityRouter
-):{graph:EngineeringTaskGraph;task:EngineeringTask}{
-  const definition=router.getDefinition(action.capability);
-  if(!definition) throw new Error("Registered capability definition disappeared before task creation.");
+  request:BoundedAutonomyRequest
+):{id:string;timestamp:string}{
   const id=request.createTaskId?.();
   if(!id||!id.trim()) throw new Error("Host task id factory returned an empty identifier.");
   if(graph.tasks.some(task=>task.id===id)) throw new Error("Host task id factory returned a duplicate identifier.");
-  const createdAt=request.now??new Date().toISOString();
-  if(Number.isNaN(Date.parse(createdAt))) throw new Error("Host task timestamp is invalid.");
-  const task:EngineeringTask={
-    id,
+  const timestamp=request.now??new Date().toISOString();
+  if(Number.isNaN(Date.parse(timestamp))) throw new Error("Host task timestamp is invalid.");
+  return {id,timestamp};
+}
+
+function buildCreatedTask(
+  graph:EngineeringTaskGraph,
+  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>,
+  definition:CapabilityDefinition,
+  identity:{id:string;timestamp:string}
+):EngineeringTask{
+  return {
+    id:identity.id,
     projectId:graph.projectId,
     name:action.name,
     goal:action.goal,
@@ -433,13 +438,36 @@ function applyCreateTask(
     approvalRequired:action.approvalRequired===true||forcedApproval(definition,action.risk),
     evidenceRequired:action.evidenceRequired===true||definition.status!=="VERIFIED"||definition.risk==="HIGH",
     status:"PROPOSED",
-    createdAt,
-    updatedAt:createdAt
+    createdAt:identity.timestamp,
+    updatedAt:identity.timestamp
   };
-  const next:EngineeringTaskGraph={...structuredClone(graph),revision:graph.revision+1,tasks:[...graph.tasks,task]};
-  const validation=validateEngineeringTaskGraph(next);
-  if(validation.length) throw new Error("Proposed task failed graph validation: "+validation.join(" "));
-  return {graph:next,task};
+}
+
+function appendCreatedTask(
+  graph:EngineeringTaskGraph,
+  task:EngineeringTask
+):EngineeringTaskGraph{
+  const next:EngineeringTaskGraph={
+    ...structuredClone(graph),
+    revision:graph.revision+1,
+    tasks:[...graph.tasks,task]
+  };
+  const errors=validateEngineeringTaskGraph(next);
+  if(errors.length) throw new Error("Proposed task failed graph validation: "+errors.join(" "));
+  return next;
+}
+
+function applyCreateTask(
+  graph:EngineeringTaskGraph,
+  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>,
+  request:BoundedAutonomyRequest,
+  router:CapabilityRouter
+):{graph:EngineeringTaskGraph;task:EngineeringTask}{
+  const definition=router.getDefinition(action.capability);
+  if(!definition) throw new Error("Registered capability definition disappeared before task creation.");
+  const identity=resolveCreatedTaskIdentity(graph,request);
+  const task=buildCreatedTask(graph,action,definition,identity);
+  return {graph:appendCreatedTask(graph,task),task};
 }
 
 function taskUpdateReasoning(task:EngineeringTask):EngineeringTask["reasoning"]{
