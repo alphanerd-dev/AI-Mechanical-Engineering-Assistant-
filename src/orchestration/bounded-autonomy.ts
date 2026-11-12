@@ -251,20 +251,43 @@ function taskForAction(graph:EngineeringTaskGraph,action:AgentActionProposal):En
   return graph.tasks.find(task=>task.id===action.taskId);
 }
 
-function validateCreateDependencies(graph:EngineeringTaskGraph,action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>):string[]{
+function validateDependencyReferences(
+  graph:EngineeringTaskGraph,
+  dependencies:unknown
+):string[]{
+  if(dependencies===undefined) return [];
+  if(!Array.isArray(dependencies)) return ["New task dependencies must be an array."];
   const errors:string[]=[];
-  if(action.dependsOn!==undefined&&!Array.isArray(action.dependsOn)) errors.push("New task dependencies must be an array.");
-  else for(const dependency of action.dependsOn??[]){
-    if(typeof dependency!=="string"||!dependency.trim()) errors.push("New task dependencies must be non-empty ids.");
-    else if(!graph.tasks.some(task=>task.id===dependency)) errors.push("New task dependency does not exist: "+dependency+".");
-  }
-  if(action.requiredRequirementIds!==undefined&&!Array.isArray(action.requiredRequirementIds))
-    errors.push("New task requirement ids must be an array.");
-  else for(const requirementId of action.requiredRequirementIds??[]){
-    if(typeof requirementId!=="string"||!requirementId.trim()) errors.push("New task requirement ids cannot be empty.");
-    else if(!/^[A-Za-z0-9._:-]{1,160}$/.test(requirementId)) errors.push("New task requirement id has an invalid format.");
+  for(const dependency of dependencies){
+    if(typeof dependency!=="string"||!dependency.trim())
+      errors.push("New task dependencies must be non-empty ids.");
+    else if(!graph.tasks.some(task=>task.id===dependency))
+      errors.push("New task dependency does not exist: "+dependency+".");
   }
   return errors;
+}
+
+function validateRequirementReferences(requirementIds:unknown):string[]{
+  if(requirementIds===undefined) return [];
+  if(!Array.isArray(requirementIds)) return ["New task requirement ids must be an array."];
+  const errors:string[]=[];
+  for(const requirementId of requirementIds){
+    if(typeof requirementId!=="string"||!requirementId.trim())
+      errors.push("New task requirement ids cannot be empty.");
+    else if(!/^[A-Za-z0-9._:-]{1,160}$/.test(requirementId))
+      errors.push("New task requirement id has an invalid format.");
+  }
+  return errors;
+}
+
+function validateCreateDependencies(
+  graph:EngineeringTaskGraph,
+  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>
+):string[]{
+  return [
+    ...validateDependencyReferences(graph,action.dependsOn),
+    ...validateRequirementReferences(action.requiredRequirementIds)
+  ];
 }
 
 function validateCreateTaskAction(
