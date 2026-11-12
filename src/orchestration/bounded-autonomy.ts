@@ -342,22 +342,29 @@ function validateCreateDependencies(
   ];
 }
 
-function validateCreateTaskAction(
-  graph:EngineeringTaskGraph,
-  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>,
-  limits:AgentRunLimits,
-  router:CapabilityRouter,
-  createTaskId?:()=>string
-):string[]{
+function isValidTaskText(value:unknown,maxLength:number):boolean{
+  if(typeof value!=="string") return false;
+  if(!value.trim()) return false;
+  return value.length<=maxLength;
+}
+
+interface CreateTaskValidationContext {
+  graph:EngineeringTaskGraph;
+  action:Extract<AgentActionProposal,{kind:"CREATE_TASK"}>;
+  limits:AgentRunLimits;
+  router:CapabilityRouter;
+  createTaskId?:()=>string;
+}
+
+function validateCreateTaskAction(context:CreateTaskValidationContext):string[]{
+  const {graph,action,limits,router,createTaskId}=context;
   const errors:string[]=[];
   if(limits.allowTaskCreation!==true) errors.push("Task creation is not enabled by the host policy.");
   if(!createTaskId) errors.push("A host-owned task id factory is required for task creation.");
   if(graph.tasks.length>=BOUNDED_AUTONOMY_HARD_LIMITS.maxTaskGraphSize)
     errors.push("Engineering task graph reached its hard size limit.");
-  if(typeof action.name!=="string"||!action.name.trim()||action.name.length>160)
-    errors.push("New task name must contain 1-160 characters.");
-  if(typeof action.goal!=="string"||!action.goal.trim()||action.goal.length>2_000)
-    errors.push("New task goal must contain 1-2000 characters.");
+  if(!isValidTaskText(action.name,160)) errors.push("New task name must contain 1-160 characters.");
+  if(!isValidTaskText(action.goal,2_000)) errors.push("New task goal must contain 1-2000 characters.");
   errors.push(...capabilityErrors({capability:action.capability,risk:action.risk,input:action.input,limits,router,requireAllInputs:false}).errors);
   errors.push(...validateCreateDependencies(graph,action));
   return [...new Set(errors)];
@@ -541,7 +548,7 @@ function validateActionShape(
   router:CapabilityRouter,
   createTaskId?:()=>string
 ):string[]{
-  if(action.kind==="CREATE_TASK") return validateCreateTaskAction(graph,action,limits,router,createTaskId);
+  if(action.kind==="CREATE_TASK") return validateCreateTaskAction({graph,action,limits,router,createTaskId});
   if(action.kind==="STOP") return [];
   const target=validateActionTarget(graph,action);
   return [...new Set([
