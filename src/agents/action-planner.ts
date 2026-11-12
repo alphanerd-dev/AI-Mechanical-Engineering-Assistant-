@@ -161,21 +161,42 @@ function parseCreateTaskAction(
   };
 }
 
-function parseTaskUpdatePatch(value: unknown, allowed: ReadonlySet<string>): AgentTaskUpdatePatch {
-  const patch = record(value, "UPDATE_TASK patch");
-  exactKeys(patch, ["name", "goal", "capability", "risk", "input", "dependsOn", "requiredRequirementIds"], "UPDATE_TASK patch");
-  if (Object.keys(patch).length === 0) throw new Error("UPDATE_TASK patch must change at least one permitted task field.");
-
-  const dependsOn = parseStringArray(patch.dependsOn, "Task dependencies");
-  const requirementIds = parseStringArray(patch.requiredRequirementIds, "Task requirement ids");
+function parseTaskUpdateTextFields(patch:Record<string,unknown>){
   return {
-    ...(patch.name === undefined ? {} : { name: requiredText(patch.name, "Task name", 160) }),
-    ...(patch.goal === undefined ? {} : { goal: requiredText(patch.goal, "Task goal") }),
-    ...(patch.capability === undefined ? {} : { capability: parseCapability(patch.capability, allowed, "Task capability") }),
-    ...(patch.risk === undefined ? {} : { risk: parseRisk(patch.risk) }),
-    ...(patch.input === undefined ? {} : { input: parseInput(patch.input, "Task input") }),
-    ...(dependsOn === undefined ? {} : { dependsOn }),
-    ...(requirementIds === undefined ? {} : { requiredRequirementIds: requirementIds })
+    ...(patch.name===undefined?{}:{name:requiredText(patch.name,"Task name",160)}),
+    ...(patch.goal===undefined?{}:{goal:requiredText(patch.goal,"Task goal")})
+  };
+}
+
+function parseTaskUpdateCapabilityFields(
+  patch:Record<string,unknown>,
+  allowed:ReadonlySet<string>
+){
+  return {
+    ...(patch.capability===undefined?{}:{capability:parseCapability(patch.capability,allowed,"Task capability")}),
+    ...(patch.risk===undefined?{}:{risk:parseRisk(patch.risk)}),
+    ...(patch.input===undefined?{}:{input:parseInput(patch.input,"Task input")})
+  };
+}
+
+function parseTaskUpdateGateFields(patch:Record<string,unknown>){
+  const dependsOn=parseStringArray(patch.dependsOn,"Task dependencies");
+  const requirementIds=parseStringArray(patch.requiredRequirementIds,"Task requirement ids");
+  return {
+    ...(dependsOn===undefined?{}:{dependsOn}),
+    ...(requirementIds===undefined?{}:{requiredRequirementIds:requirementIds})
+  };
+}
+
+function parseTaskUpdatePatch(value:unknown,allowed:ReadonlySet<string>):AgentTaskUpdatePatch{
+  const patch=record(value,"UPDATE_TASK patch");
+  exactKeys(patch,["name","goal","capability","risk","input","dependsOn","requiredRequirementIds"],"UPDATE_TASK patch");
+  if(Object.keys(patch).length===0)
+    throw new Error("UPDATE_TASK patch must change at least one permitted task field.");
+  return {
+    ...parseTaskUpdateTextFields(patch),
+    ...parseTaskUpdateCapabilityFields(patch,allowed),
+    ...parseTaskUpdateGateFields(patch)
   };
 }
 
