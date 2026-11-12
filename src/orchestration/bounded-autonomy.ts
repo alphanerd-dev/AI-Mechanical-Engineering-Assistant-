@@ -377,6 +377,36 @@ function validateDelegationAction(
   return errors;
 }
 
+function validateTaskAction(
+  action:Exclude<AgentActionProposal,{kind:"CREATE_TASK"|"STOP"}>,
+  task:EngineeringTask|undefined,
+  limits:AgentRunLimits,
+  router:CapabilityRouter
+):string[]{
+  switch(action.kind){
+    case "UPDATE_TASK": return validateUpdateTaskAction(action,task,limits,router);
+    case "REQUEST_READY": return validateReadinessAction(task,limits,router);
+    case "EXECUTE_TASK": return validateExecutionAction(task,limits,router);
+    case "DELEGATE_SPECIALIST": return validateDelegationAction(action,task,limits,router);
+    case "REQUEST_APPROVAL":
+      return typeof action.reason==="string"&&action.reason.trim()
+        ?[]
+        :["Agent approval request reason is required."];
+  }
+}
+
+function validateActionTarget(
+  graph:EngineeringTaskGraph,
+  action:Exclude<AgentActionProposal,{kind:"CREATE_TASK"|"STOP"}>
+):{task:EngineeringTask|undefined;errors:string[]}{
+  const task=taskForAction(graph,action);
+  const errors:string[]=[];
+  if(!task) errors.push("Agent action references an unknown task: "+action.taskId+".");
+  if(task&&action.expectedGraphRevision!==undefined&&action.expectedGraphRevision!==graph.revision)
+    errors.push("Agent action graph revision is stale: expected "+action.expectedGraphRevision+", current "+graph.revision+".");
+  return {task,errors};
+}
+
 function validateActionShape(
   graph:EngineeringTaskGraph,
   action:AgentActionProposal,
@@ -386,21 +416,11 @@ function validateActionShape(
 ):string[]{
   if(action.kind==="CREATE_TASK") return validateCreateTaskAction(graph,action,limits,router,createTaskId);
   if(action.kind==="STOP") return [];
-  const task=taskForAction(graph,action);
-  const errors:string[]=[];
-  if(!task) errors.push("Agent action references an unknown task: "+action.taskId+".");
-  if(task&&action.expectedGraphRevision!==undefined&&action.expectedGraphRevision!==graph.revision)
-    errors.push("Agent action graph revision is stale: expected "+action.expectedGraphRevision+", current "+graph.revision+".");
-  switch(action.kind){
-    case "UPDATE_TASK": errors.push(...validateUpdateTaskAction(action,task,limits,router)); break;
-    case "REQUEST_READY": errors.push(...validateReadinessAction(task,limits,router)); break;
-    case "EXECUTE_TASK": errors.push(...validateExecutionAction(task,limits,router)); break;
-    case "DELEGATE_SPECIALIST": errors.push(...validateDelegationAction(action,task,limits,router)); break;
-    case "REQUEST_APPROVAL":
-      if(typeof action.reason!=="string"||!action.reason.trim()) errors.push("Agent approval request reason is required.");
-      break;
-  }
-  return [...new Set(errors)];
+  const target=validateActionTarget(graph,action);
+  return [...new Set([
+    ...target.errors,
+    ...validateTaskAction(action,target.task,limits,router)
+  ])];
 }
 
 function forcedApproval(definition:CapabilityDefinition,risk:CapabilityRisk):boolean{
