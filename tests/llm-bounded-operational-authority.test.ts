@@ -161,6 +161,43 @@ describe("LLM bounded operational authority", () => {
     expect(executed.actions.map(action => action.status)).toEqual(["SUCCESS", "SUCCESS"]);
   });
 
+  it("does not expose allowlisted capabilities above the host risk ceiling to the model", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerCapability({
+      id: "TEST.HIGH_RISK",
+      domain: "analysis",
+      purpose: "Test host risk ceiling enforcement.",
+      inputs: ["value"],
+      outputs: ["result"],
+      risk: "HIGH",
+      providers: ["test.high"],
+      status: "VERIFIED"
+    });
+    registry.register({
+      id: "test.high",
+      capabilities: ["TEST.HIGH_RISK"],
+      execute: async request => ({
+        capability: request.capability,
+        provider: "test.high",
+        success: true,
+        output: { accepted: true }
+      })
+    });
+    const router = new CapabilityRouter(registry);
+    const planner = new ModelBackedAgentActionPlanner({
+      generateStructured: vi.fn(async () => ({
+        baseGraphRevision: 1,
+        actions: [{ kind: "STOP", reason: "No work." }]
+      }))
+    });
+
+    await expect(runModelDirectedAutonomy({
+      runId: "RUN-RISK-CEILING",
+      taskGraph: graph(),
+      limits: limits({ allowedCapabilities: ["TEST.HIGH_RISK"], maxRisk: "LOW" })
+    }, planner, router)).rejects.toThrow(/risk ceiling/);
+  });
+
   it("rejects nested task input fields outside a registered capability input path", async () => {
     const registry = new CapabilityRegistry();
     registry.registerCapability({
