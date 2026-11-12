@@ -968,13 +968,11 @@ async function processExecution(
   return {};
 }
 
-async function processAction(
+async function dispatchAction(
   context:BoundedRunContext,
   index:number,
   action:AgentActionProposal
 ):Promise<ActionProcessResult>{
-  const blocked=validateActionOrBlock(context,index,action);
-  if(blocked?.terminalStatus||blocked?.skipAction) return blocked;
   switch(action.kind){
     case "STOP":
       appendAction(context,{index,action,status:"STOPPED",reason:action.reason});
@@ -987,6 +985,16 @@ async function processAction(
     case "EXECUTE_TASK": return processExecution(context,index,action);
     default: return {terminalStatus:"FAILED",stopReason:"Unsupported bounded agent action."};
   }
+}
+
+async function processAction(
+  context:BoundedRunContext,
+  index:number,
+  action:AgentActionProposal
+):Promise<ActionProcessResult>{
+  const blocked=validateActionOrBlock(context,index,action);
+  if(blocked?.terminalStatus||blocked?.skipAction) return blocked;
+  return dispatchAction(context,index,action);
 }
 
 function validateInitialRequest(
