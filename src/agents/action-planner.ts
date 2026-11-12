@@ -336,13 +336,18 @@ function createCapabilityAllowlist(values:readonly string[]):ReadonlySet<string>
   return new Set(values);
 }
 
+function assertPlanActionCount(value:unknown,maxSteps:number):asserts value is unknown[]{
+  if(!Array.isArray(value)) throw new Error("Agent plan actions must be an array.");
+  if(value.length===0) throw new Error("Agent plan actions must contain at least one entry.");
+  if(value.length>maxSteps) throw new Error("Agent plan actions exceed the configured maxSteps limit.");
+}
+
 function parsePlanActions(
   value:unknown,
   limits:AgentRunLimits,
   allowed:ReadonlySet<string>
 ):AgentActionProposal[]{
-  if(!Array.isArray(value)||value.length===0||value.length>limits.maxSteps)
-    throw new Error("Agent plan actions must contain between 1 and the configured maxSteps entries.");
+  assertPlanActionCount(value,limits.maxSteps);
   return value.map(action=>parseAction(action,allowed,limits));
 }
 
