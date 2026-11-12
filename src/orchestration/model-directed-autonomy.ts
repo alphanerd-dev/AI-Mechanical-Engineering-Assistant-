@@ -6,11 +6,24 @@ import { runBoundedAutonomy } from "./bounded-autonomy.js";
 
 type ModelDirectedRequest = Omit<BoundedAutonomyRequest, "actions">;
 
-function resolveAllowedCapability(id:string,router:CapabilityRouter):CapabilityDefinition{
+const capabilityRiskRank:Record<CapabilityDefinition["risk"],number>={
+  LOW:1,
+  MEDIUM:2,
+  HIGH:3,
+  CRITICAL:4
+};
+
+function resolveAllowedCapability(
+  id:string,
+  request:ModelDirectedRequest,
+  router:CapabilityRouter
+):CapabilityDefinition{
   const definition=router.getDefinition(id);
   if(!definition) throw new Error("Host allowlist references an unregistered capability: "+id+".");
   if(definition.status==="BLOCKED"||definition.status==="DEPRECATED")
     throw new Error("Host allowlist references a blocked or deprecated capability: "+id+".");
+  if(capabilityRiskRank[definition.risk]>capabilityRiskRank[request.limits.maxRisk])
+    throw new Error("Host allowlist exceeds the configured risk ceiling for capability: "+id+".");
   if(!router.hasExecutableProvider(id))
     throw new Error("Host allowlist references a capability without an executable provider: "+id+".");
   return definition;
@@ -23,7 +36,7 @@ function resolveAllowedCapabilities(
   const allowed=request.limits.allowedCapabilities;
   if(request.limits.requireCapabilityAllowlist!==true||!allowed?.length)
     throw new Error("Model-directed autonomy requires a non-empty host-enforced capability allowlist.");
-  return allowed.map(id=>resolveAllowedCapability(id,router));
+  return allowed.map(id=>resolveAllowedCapability(id,request,router));
 }
 
 async function createValidatedPlan(
