@@ -190,6 +190,41 @@ function isControlPlaneCapability(capability:string):boolean{
     capability==="ENGINEERING.ENTER_FROM_INTENT";
 }
 
+function capabilityAvailabilityErrors(
+  capability:string,
+  definition:CapabilityDefinition,
+  router:CapabilityRouter
+):string[]{
+  const errors:string[]=[];
+  if(definition.status==="BLOCKED"||definition.status==="DEPRECATED")
+    errors.push("Capability is blocked or deprecated: "+capability+".");
+  if(!router.hasExecutableProvider(capability))
+    errors.push("No executable provider is registered for capability: "+capability+".");
+  return errors;
+}
+
+function capabilityRiskErrors(
+  risk:CapabilityRisk,
+  definition:CapabilityDefinition,
+  limits:AgentRunLimits
+):string[]{
+  const errors:string[]=[];
+  if(taskRiskRank[risk]<taskRiskRank[definition.risk])
+    errors.push("Task risk cannot be lower than its registered capability risk: "+risk+" < "+definition.risk+".");
+  if(!withinRiskLimit(risk,limits.maxRisk)||!withinRiskLimit(definition.risk,limits.maxRisk))
+    errors.push("Task or capability risk exceeds the bounded agent policy.");
+  return errors;
+}
+
+function capabilityAllowlistErrors(capability:string,limits:AgentRunLimits):string[]{
+  if(limits.requireCapabilityAllowlist===true&&
+      (!limits.allowedCapabilities||!limits.allowedCapabilities.includes(capability)))
+    return ["Capability is outside the required host allowlist: "+capability+"."];
+  if(limits.allowedCapabilities?.length&&!limits.allowedCapabilities.includes(capability))
+    return ["Capability is outside the bounded agent policy: "+capability+"."];
+  return [];
+}
+
 function capabilityErrors(
   capability:string,
   risk:CapabilityRisk,
@@ -198,26 +233,16 @@ function capabilityErrors(
   router:CapabilityRouter,
   requireAllInputs:boolean
 ):{definition?:CapabilityDefinition;errors:string[]}{
-  const errors:string[]=[];
-  if(isControlPlaneCapability(capability)){
+  if(isControlPlaneCapability(capability))
     return {errors:["Task capability cannot target an orchestration/control-plane operation: "+capability+"."]};
-  }
   const definition=router.getDefinition(capability);
   if(!definition) return {errors:["Registered capability definition not found: "+capability+"."]};
-  if(definition.status==="BLOCKED"||definition.status==="DEPRECATED")
-    errors.push("Capability is blocked or deprecated: "+capability+".");
-  if(!router.hasExecutableProvider(capability))
-    errors.push("No executable provider is registered for capability: "+capability+".");
-  if(taskRiskRank[risk]<taskRiskRank[definition.risk])
-    errors.push("Task risk cannot be lower than its registered capability risk: "+risk+" < "+definition.risk+".");
-  if(!withinRiskLimit(risk,limits.maxRisk)||!withinRiskLimit(definition.risk,limits.maxRisk))
-    errors.push("Task or capability risk exceeds the bounded agent policy.");
-  if(limits.requireCapabilityAllowlist===true&&
-      (!limits.allowedCapabilities||!limits.allowedCapabilities.includes(capability)))
-    errors.push("Capability is outside the required host allowlist: "+capability+".");
-  else if(limits.allowedCapabilities?.length&&!limits.allowedCapabilities.includes(capability))
-    errors.push("Capability is outside the bounded agent policy: "+capability+".");
-  errors.push(...capabilityInputErrors(definition,input,requireAllInputs));
+  const errors=[
+    ...capabilityAvailabilityErrors(capability,definition,router),
+    ...capabilityRiskErrors(risk,definition,limits),
+    ...capabilityAllowlistErrors(capability,limits),
+    ...capabilityInputErrors(definition,input,requireAllInputs)
+  ];
   return {definition,errors:[...new Set(errors)]};
 }
 
