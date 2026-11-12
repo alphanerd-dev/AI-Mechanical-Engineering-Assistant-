@@ -133,11 +133,15 @@ function parseInput(value: unknown, label: string): Record<string, unknown> {
   return structuredClone(input);
 }
 
+function isControlPlaneCapability(capability: string): boolean {
+  if (/^(AGENT|TASK_GRAPH|WORKSPACE)\./.test(capability)) return true;
+  if (capability === "ENGINEERING.ORCHESTRATE_WORKFLOW") return true;
+  return capability === "ENGINEERING.ENTER_FROM_INTENT";
+}
+
 function parseCapability(value: unknown, allowed: ReadonlySet<string>, label: string): string {
   const capability = requiredText(value, label, 128);
-  if (/^(AGENT|TASK_GRAPH|WORKSPACE)\./.test(capability) ||
-      capability === "ENGINEERING.ORCHESTRATE_WORKFLOW" ||
-      capability === "ENGINEERING.ENTER_FROM_INTENT") {
+  if (isControlPlaneCapability(capability)) {
     throw new Error(label + " cannot reference an orchestration/control-plane capability: " + capability + ".");
   }
   if (!allowed.has(capability)) {
