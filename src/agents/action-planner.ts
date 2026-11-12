@@ -95,7 +95,8 @@ function parseStringArray(value:unknown,label:string,maximum=50):string[]|undefi
 function jsonCompatible(value: unknown, seen = new Set<object>()): boolean {
   if (value === null || typeof value === "string" || typeof value === "boolean") return true;
   if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value !== "object" || seen.has(value)) return false;
+  if (typeof value !== "object") return false;
+  if (seen.has(value)) return false;
   seen.add(value);
   const valid = Array.isArray(value)
     ? jsonArrayCompatible(value, seen)
@@ -105,15 +106,20 @@ function jsonCompatible(value: unknown, seen = new Set<object>()): boolean {
 }
 
 function jsonArrayCompatible(value: unknown[], seen: Set<object>): boolean {
-  if (Object.keys(value).length !== value.length || Object.getOwnPropertySymbols(value).length > 0) return false;
+  if (Object.keys(value).length !== value.length) return false;
+  if (Object.getOwnPropertySymbols(value).length > 0) return false;
   return value.every(item => jsonCompatible(item, seen));
 }
 
-function jsonObjectCompatible(value: Record<string, unknown>, seen: Set<object>): boolean {
+function hasPlainObjectPrototype(value: object): boolean {
   const prototype = Object.getPrototypeOf(value);
-  if ((prototype !== Object.prototype && prototype !== null) || Object.getOwnPropertySymbols(value).length > 0) {
-    return false;
-  }
+  if (prototype === Object.prototype) return true;
+  return prototype === null;
+}
+
+function jsonObjectCompatible(value: Record<string, unknown>, seen: Set<object>): boolean {
+  if (!hasPlainObjectPrototype(value)) return false;
+  if (Object.getOwnPropertySymbols(value).length > 0) return false;
   return Object.values(value).every(item => jsonCompatible(item, seen));
 }
 
