@@ -106,49 +106,52 @@ describe("OpenAI-compatible reasoning transport", () => {
     expect(JSON.parse(body.messages[1].content).authorizedCapabilities).toEqual(["ANALYSIS.SHAFT_TORQUE"]);
   });
 
-  it("uses OpenAI-compatible protocol for Gemini's OpenAI chat-completions endpoint", async () => {
-    let capturedInit: RequestInit | undefined;
-    const generator = new OpenAICompatibleModelReasoningGenerator({
+  it.each([
+    {
+      name: "uses the OpenAI-compatible protocol for Gemini chat completions",
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-3.8-flash",
-      apiKey: "placeholder-test-key",
-      fetchImpl: async (_input, init) => {
-        capturedInit = init;
-        return openAIMessageResponse(reasoningProposal);
-      }
-    });
-
-    expect(await generator.generate(generationRequest)).toEqual(reasoningProposal);
-    expect((capturedInit?.headers as Record<string, string>).authorization).toBe("Bearer placeholder-test-key");
-    expect((capturedInit?.headers as Record<string, string>)["x-goog-api-key"]).toBeUndefined();
-    const body = JSON.parse(String(capturedInit?.body));
-    expect(body.model).toBe("gemini-3.8-flash");
-    expect(body.response_format).toEqual({ type: "json_object" });
-    expect(body.messages).toHaveLength(2);
-    expect(body).not.toHaveProperty("systemInstruction");
-    expect(body).not.toHaveProperty("contents");
-  });
-
-  it("keeps native Gemini generateContent requests on the native protocol", async () => {
-    let capturedInit: RequestInit | undefined;
-    const generator = new OpenAICompatibleModelReasoningGenerator({
+      response: openAIMessageResponse,
+      protocol: "openai" as const
+    },
+    {
+      name: "keeps native Gemini generateContent requests on the native protocol",
       endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent",
       model: "gemini-test",
+      response: geminiContentResponse,
+      protocol: "native" as const
+    }
+  ])("$name", async ({ endpoint, model, response, protocol }) => {
+    let capturedInit: RequestInit | undefined;
+    const generator = new OpenAICompatibleModelReasoningGenerator({
+      endpoint,
+      model,
       apiKey: "placeholder-test-key",
       fetchImpl: async (_input, init) => {
         capturedInit = init;
-        return geminiContentResponse(reasoningProposal);
+        return response(reasoningProposal);
       }
     });
 
     expect(await generator.generate(generationRequest)).toEqual(reasoningProposal);
-    expect((capturedInit?.headers as Record<string, string>)["x-goog-api-key"]).toBe("placeholder-test-key");
-    expect((capturedInit?.headers as Record<string, string>).authorization).toBeUndefined();
+    const headers = capturedInit?.headers as Record<string, string>;
     const body = JSON.parse(String(capturedInit?.body));
-    expect(body.systemInstruction.parts[0].text).toBe("Return JSON only.");
-    expect(body.contents).toHaveLength(1);
-    expect(body).not.toHaveProperty("messages");
-    expect(body).not.toHaveProperty("model");
+    if (protocol === "openai") {
+      expect(headers.authorization).toBe("Bearer placeholder-test-key");
+      expect(headers["x-goog-api-key"]).toBeUndefined();
+      expect(body.model).toBe("gemini-3.8-flash");
+      expect(body.response_format).toEqual({ type: "json_object" });
+      expect(body.messages).toHaveLength(2);
+      expect(body).not.toHaveProperty("systemInstruction");
+      expect(body).not.toHaveProperty("contents");
+    } else {
+      expect(headers["x-goog-api-key"]).toBe("placeholder-test-key");
+      expect(headers.authorization).toBeUndefined();
+      expect(body.systemInstruction.parts[0].text).toBe("Return JSON only.");
+      expect(body.contents).toHaveLength(1);
+      expect(body).not.toHaveProperty("messages");
+      expect(body).not.toHaveProperty("model");
+    }
   });
 
   it("fails closed when transport output is missing or malformed", async () => {
