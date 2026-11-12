@@ -93,7 +93,9 @@ function parseStringArray(value:unknown,label:string,maximum=50):string[]|undefi
 }
 
 function jsonCompatible(value: unknown, seen = new Set<object>()): boolean {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (value === null) return true;
+  if (typeof value === "string") return true;
+  if (typeof value === "boolean") return true;
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value !== "object") return false;
   if (seen.has(value)) return false;
