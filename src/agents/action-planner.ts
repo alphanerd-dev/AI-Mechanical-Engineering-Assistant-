@@ -51,8 +51,15 @@ function exactKeys(value: Record<string, unknown>, allowed: readonly string[], l
   if (extra.length) throw new Error(label + " contains unsupported fields: " + extra.join(", ") + ".");
 }
 
+function isValidRequiredText(value: unknown, maxLength: number): value is string {
+  if (typeof value !== "string") return false;
+  if (!value.trim()) return false;
+  if (value.length > maxLength) return false;
+  return true;
+}
+
 function requiredText(value: unknown, label: string, maxLength = MAX_TEXT_LENGTH): string {
-  if (typeof value !== "string" || !value.trim() || value.length > maxLength) {
+  if (!isValidRequiredText(value, maxLength)) {
     throw new Error(label + " must be a non-empty string of at most " + maxLength + " characters.");
   }
   return value.trim();
