@@ -378,18 +378,35 @@ export function buildAgentActionInstructions(
   ].join(" ");
 }
 
-function resolvePlannerCapabilities(request:AgentActionPlannerRequest):CapabilityDefinition[]{
-  const allowed=request.limits.allowedCapabilities;
-  if(request.limits.requireCapabilityAllowlist!==true||!allowed?.length)
+function requirePlannerCapabilityAllowlist(limits:AgentRunLimits):readonly string[]{
+  const allowed=limits.allowedCapabilities;
+  if(limits.requireCapabilityAllowlist!==true||!allowed?.length)
     throw new Error("Model-backed planning requires a non-empty, host-enforced capability allowlist.");
   if(new Set(allowed).size!==allowed.length)
     throw new Error("The host capability allowlist cannot contain duplicate ids.");
-  const definitions=new Map(request.registeredCapabilities.map(definition=>[definition.id,definition]));
-  return allowed.map(id=>{
-    const definition=definitions.get(id);
-    if(!definition) throw new Error("One or more host-authorized capabilities are not registered: "+id+".");
-    return structuredClone(definition);
-  });
+  return allowed;
+}
+
+function registeredCapabilityMap(
+  definitions:readonly CapabilityDefinition[]
+):ReadonlyMap<string,CapabilityDefinition>{
+  return new Map(definitions.map(definition=>[definition.id,definition]));
+}
+
+function resolvePlannerCapability(
+  id:string,
+  definitions:ReadonlyMap<string,CapabilityDefinition>
+):CapabilityDefinition{
+  const definition=definitions.get(id);
+  if(!definition)
+    throw new Error("One or more host-authorized capabilities are not registered: "+id+".");
+  return structuredClone(definition);
+}
+
+function resolvePlannerCapabilities(request:AgentActionPlannerRequest):CapabilityDefinition[]{
+  const allowed=requirePlannerCapabilityAllowlist(request.limits);
+  const definitions=registeredCapabilityMap(request.registeredCapabilities);
+  return allowed.map(id=>resolvePlannerCapability(id,definitions));
 }
 
 function buildModelPlanningRequest(
