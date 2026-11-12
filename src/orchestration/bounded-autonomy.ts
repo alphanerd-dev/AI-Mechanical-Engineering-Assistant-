@@ -382,13 +382,23 @@ function validatePatchKeys(
   return errors;
 }
 
+function isInvalidOptionalText(value:unknown,maxLength?:number):boolean{
+  if(value===undefined) return false;
+  if(typeof value!=="string") return true;
+  if(!value.trim()) return true;
+  if(maxLength!==undefined){
+    if(value.length>maxLength) return true;
+  }
+  return false;
+}
+
 function validatePatchTextFields(patch:Record<string,unknown>):string[]{
   const errors:string[]=[];
-  if(patch.name!==undefined&&(typeof patch.name!=="string"||!patch.name.trim()||patch.name.length>160))
+  if(isInvalidOptionalText(patch.name,160))
     errors.push("Updated task name must contain 1-160 characters.");
-  if(patch.goal!==undefined&&(typeof patch.goal!=="string"||!patch.goal.trim()||patch.goal.length>2_000))
+  if(isInvalidOptionalText(patch.goal,2_000))
     errors.push("Updated task goal must contain 1-2000 characters.");
-  if(patch.capability!==undefined&&(typeof patch.capability!=="string"||!patch.capability.trim()))
+  if(isInvalidOptionalText(patch.capability))
     errors.push("Updated task capability must be a non-empty registered capability id.");
   return errors;
 }
@@ -541,13 +551,18 @@ function validateActionTarget(
   return {task,errors};
 }
 
+interface ActionShapeContext {
+  graph:EngineeringTaskGraph;
+  limits:AgentRunLimits;
+  router:CapabilityRouter;
+  createTaskId?:()=>string;
+}
+
 function validateActionShape(
-  graph:EngineeringTaskGraph,
   action:AgentActionProposal,
-  limits:AgentRunLimits,
-  router:CapabilityRouter,
-  createTaskId?:()=>string
+  context:ActionShapeContext
 ):string[]{
+  const {graph,limits,router,createTaskId}=context;
   if(action.kind==="CREATE_TASK") return validateCreateTaskAction({graph,action,limits,router,createTaskId});
   if(action.kind==="STOP") return [];
   const target=validateActionTarget(graph,action);
@@ -780,14 +795,17 @@ function failureOutcome(
     :{};
 }
 
-function actionFailure(
-  context:BoundedRunContext,
-  index:number,
-  action:AgentActionProposal,
-  reason:string,
-  capability?:string,
-  output?:unknown
-):ActionProcessResult{
+interface ActionFailureRequest {
+  context:BoundedRunContext;
+  index:number;
+  action:AgentActionProposal;
+  reason:string;
+  capability?:string;
+  output?:unknown;
+}
+
+function actionFailure(request:ActionFailureRequest):ActionProcessResult{
+  const {context,index,action,reason,capability,output}=request;
   return failureOutcome(context,{
     index,action,status:"FAILED",reason,
     ...(capability?{capability}:{}),
@@ -806,9 +824,12 @@ function validateActionOrBlock(
     appendAction(context,{index,action,status:"BLOCKED",taskId:action.taskId,reason});
     return context.request.limits.stopOnFailure?{terminalStatus:"FAILED",stopReason:reason}:{skipAction:true};
   }
-  const errors=validateActionShape(
-    context.state.graph,action,context.request.limits,context.router,context.request.createTaskId
-  );
+  const errors=validateActionShape(action,{
+    graph:context.state.graph,
+    limits:context.request.limits,
+    router:context.router,
+    createTaskId:context.request.createTaskId
+  });
   if(!errors.length) return undefined;
   const reason=errors.join(" ");
   appendAction(context,{index,action,status:"BLOCKED",reason});
@@ -834,7 +855,7 @@ function processCreateTask(
     });
     return {};
   }catch(error){
-    return actionFailure(context,index,action,error instanceof Error?error.message:"Task creation failed.");
+    return actionFailure({context,index,action,reason:error instanceof Error?error.message:"Task creation failed."});
   }
 }
 
@@ -853,7 +874,7 @@ function processUpdateTask(
     });
     return {};
   }catch(error){
-    return actionFailure(context,index,action,error instanceof Error?error.message:"Task update failed.");
+    return actionFailure({context,index,action,reason:error instanceof Error?error.message:"Task update failed."});
   }
 }
 
@@ -896,7 +917,7 @@ function processApprovalRequest(
   action:Extract<AgentActionProposal,{kind:"REQUEST_APPROVAL"}>
 ):ActionProcessResult{
   const task=context.state.graph.tasks.find(item=>item.id===action.taskId);
-  if(!task) return actionFailure(context,index,action,"Approval target task was not found.");
+  if(!task) return actionFailure({context,index,action,reason:"Approval target task was not found."});
   if(!["PROPOSED","BLOCKED","FAILED","READY"].includes(task.status)){
     const reason="Human approval can only be requested before task execution begins.";
     appendAction(context,{index,action,status:"BLOCKED",taskId:task.id,reason});
@@ -949,10 +970,10 @@ async function executeDelegation(
     }
   });
   if(!result.success){
-    return actionFailure(
-      context,index,action,result.error??"Specialist delegation failed.",
-      "AGENT.DELEGATE_SPECIALIST",result.output
-    );
+    return actionFailure({
+      context,index,action,reason:result.error??"Specialist delegation failed.",
+      capability:"AGENT.DELEGATE_SPECIALIST",output:result.output
+    });
   }
   context.state.delegations++;
   appendAction(context,{
@@ -996,15 +1017,15 @@ async function processExecution(
     const graphErrors=validateEngineeringTaskGraph(execution.graph);
     if(graphErrors.length){
       const reason="Task execution returned an invalid graph: "+graphErrors.join(" ");
-      return actionFailure(context,index,action,reason,"TASK_GRAPH.EXECUTE_READY",result.output);
+      return actionFailure({context,index,action,reason,capability:"TASK_GRAPH.EXECUTE_READY",output:result.output});
     }
     context.state.graph=execution.graph;
   }
   if(!result.success){
-    return actionFailure(
-      context,index,action,result.error??"Bounded task execution failed.",
-      "TASK_GRAPH.EXECUTE_READY",result.output
-    );
+    return actionFailure({
+      context,index,action,reason:result.error??"Bounded task execution failed.",
+      capability:"TASK_GRAPH.EXECUTE_READY",output:result.output
+    });
   }
   context.state.taskExecutions++;
   context.state.evidenceIds.push(...(result.evidenceIds??[]));
