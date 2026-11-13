@@ -49,6 +49,9 @@ jobs:
       - name: Test OCCT validator acceptance and failure paths
         run: |
           docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=64m --tmpfs /artifacts:rw,noexec,nosuid,size=16m,mode=1777 --mount type=bind,src="$PWD/worker/cad/occt",dst=/validator,readonly --env CAD_ARTIFACT_DIR=/artifacts --entrypoint python --pull=never ai-mechanical-engineering-assistant-build123d:0.13.0 /validator/test_validate_brep.py
+      - name: Test OCCT geometry-kernel protocol
+        run: |
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=64m --tmpfs /artifacts:rw,noexec,nosuid,size=16m,mode=1777 --mount type=bind,src="$PWD/worker/cad/occt",dst=/validator,readonly --entrypoint python --pull=never ai-mechanical-engineering-assistant-build123d:0.13.0 /validator/test_geometry_kernel.py
       - name: Build authenticated remote CAD worker image
         run: docker build --tag ai-mechanical-engineering-assistant-remote-cad:ci --file worker/cad/remote/Dockerfile .
       - name: Smoke test authenticated remote CAD worker end to end
@@ -111,6 +114,41 @@ jobs:
           assert result["volumeMm3"] > 0, result
           assert all(item["passed"] for item in result["dimensionChecks"]), result
           print("OpenCascade independently validated the generated BREP and requested dimensions")
+          PY
+      - name: Import, inspect and tessellate BREP and STEP with OpenCascade
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_geometry() {
+            local format="$1" filename="$2" operation="$3" output="$4"
+            printf '%s' "{\\"operation\\":\\"$operation\\",\\"format\\":\\"$format\\",\\"artifactPath\\":\\"/artifacts/$filename\\",\\"linearDeflectionMm\\":0.1,\\"angularDeflectionRad\\":0.35}" \\
+              | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 64 --memory=1g --cpus=1 --tmpfs /tmp:rw,noexec,nosuid,size=32m --user 10001:10001 --mount type=bind,src="$PWD/.cad-intent-smoke",dst=/artifacts,readonly --mount type=bind,src="$PWD/worker/cad/occt",dst=/validator,readonly --env CAD_ARTIFACT_DIR=/artifacts --entrypoint python --pull=never ai-mechanical-engineering-assistant-build123d:0.13.0 /validator/geometry_kernel.py > "$output"
+          }
+          run_geometry BREP part.brep INSPECT .cad-intent-smoke/brep-inspect.json
+          run_geometry BREP part.brep TESSELLATE .cad-intent-smoke/brep-mesh.json
+          run_geometry STEP part.step INSPECT .cad-intent-smoke/step-inspect.json
+          run_geometry STEP part.step TESSELLATE .cad-intent-smoke/step-mesh.json
+          python - <<'PY'
+          import base64, json
+          from pathlib import Path
+          root = Path(".cad-intent-smoke")
+          for name in ("brep-inspect.json", "step-inspect.json"):
+              result = json.loads((root / name).read_text())
+              assert result["status"] == "COMPLETED", result
+              assert result["topology"]["valid"] is True, result
+              assert result["topology"]["solids"] == 1, result
+              assert result["topology"]["faces"] > 0 and result["topology"]["edges"] > 0, result
+          for name in ("brep-mesh.json", "step-mesh.json"):
+              result = json.loads((root / name).read_text())
+              assert result["status"] == "COMPLETED", result
+              mesh = result["tessellation"]
+              vertices, triangles = mesh["vertexCount"], mesh["triangleCount"]
+              assert vertices >= 3 and triangles >= 1, result
+              assert len(base64.b64decode(mesh["positionsFloat32LE"])) == vertices * 3 * 4, result
+              assert len(base64.b64decode(mesh["normalsFloat32LE"])) == vertices * 3 * 4, result
+              assert len(base64.b64decode(mesh["indicesUint32LE"])) == triangles * 3 * 4, result
+              assert mesh["units"] == "mm" and mesh["coordinateFrame"] == "MODEL", result
+          print("OpenCascade imported, inspected and tessellated the generated BREP and STEP artifacts")
           PY
       - name: End-to-end CAD intent-to-verified artifact through production provider adapters
         shell: bash
