@@ -142,31 +142,62 @@ function validateUpdateRisk(value:unknown,currentRisk:CapabilityRisk):string[]{
     ?["Agent task updates cannot lower an existing task risk."]:[];
 }
 
-function validateUpdatedStringList(value:unknown,current:readonly string[],label:string):string[]{
-  if(value===undefined) return [];
-  if(!Array.isArray(value)||value.some(item=>typeof item!=="string"||!item.trim()))
-    return ["Updated "+label+" must be an array of non-empty strings."];
-  return current.some(id=>!value.includes(id))
-    ?["Agent task updates cannot remove existing "+label+"."]:[];
+function isNonEmptyStringArray(value:unknown):value is string[]{
+  if(!Array.isArray(value)) return false;
+  return value.every(item=>typeof item==="string"&&item.trim().length>0);
 }
 
-function validateUpdatedCapability(
-  task:EngineeringTask,
-  patch:Record<string,unknown>,
-  limits:AgentRunLimits,
-  router:CapabilityRouter
-):string[]{
-  const capability=typeof patch.capability==="string"?patch.capability:task.capability??"";
-  const risk=(typeof patch.risk==="string"?patch.risk:task.risk) as CapabilityRisk;
-  const input=isPlainRecord(patch.input)?patch.input:task.input;
-  if(!capability.trim()) return ["An updated task must retain a registered capability."];
-  const errors=capabilityErrors({capability,risk,input,limits,router,requireAllInputs:false}).errors;
+function removesExistingValues(current:readonly string[],next:readonly string[]):boolean{
+  return current.some(value=>!next.includes(value));
+}
+
+function validateUpdatedStringList(value:unknown,current:readonly string[],label:string):string[]{
+  if(value===undefined) return [];
+  if(!isNonEmptyStringArray(value))
+    return ["Updated "+label+" must be an array of non-empty strings."];
+  if(removesExistingValues(current,value))
+    return ["Agent task updates cannot remove existing "+label+"."];
+  return [];
+}
+
+interface UpdatedCapabilityContext{
+  task:EngineeringTask;
+  patch:Record<string,unknown>;
+  limits:AgentRunLimits;
+  router:CapabilityRouter;
+}
+
+function resolveUpdatedCapability(task:EngineeringTask,patch:Record<string,unknown>):{
+  capability:string;
+  risk:CapabilityRisk;
+  input:Record<string,unknown>;
+}{
+  return {
+    capability:typeof patch.capability==="string"?patch.capability:task.capability??"",
+    risk:(typeof patch.risk==="string"?patch.risk:task.risk) as CapabilityRisk,
+    input:isPlainRecord(patch.input)?patch.input:task.input
+  };
+}
+
+function assignedSkillErrors(task:EngineeringTask,capability:string,risk:CapabilityRisk):string[]{
   const skill=task.reasoning?.skillManifest;
-  if(skill&&!skill.allowedCapabilities.includes(capability))
+  if(!skill) return [];
+  const errors:string[]=[];
+  if(!skill.allowedCapabilities.includes(capability))
     errors.push("Updated task capability is outside its assigned skill allowlist.");
-  if(skill&&taskRiskRank[risk]>taskRiskRank[skill.maximumRisk])
+  if(taskRiskRank[risk]>taskRiskRank[skill.maximumRisk])
     errors.push("Updated task risk exceeds its assigned skill maximum.");
   return errors;
+}
+
+function validateUpdatedCapability(context:UpdatedCapabilityContext):string[]{
+  const {task,limits,router}=context;
+  const resolved=resolveUpdatedCapability(task,context.patch);
+  if(!resolved.capability.trim()) return ["An updated task must retain a registered capability."];
+  return [
+    ...capabilityErrors({...resolved,limits,router,requireAllInputs:false}).errors,
+    ...assignedSkillErrors(task,resolved.capability,resolved.risk)
+  ];
 }
 
 function validateUpdateTaskAction(
@@ -182,7 +213,7 @@ function validateUpdateTaskAction(
     errors.push("Agent task updates are allowed only before readiness or after a blocked/failed result.");
   if(!isPlainRecord(action.patch)) return [...errors,"Task update patch must be a plain object."];
   errors.push(...validateUpdatePatchShape(action.patch,task));
-  errors.push(...validateUpdatedCapability(task,action.patch,limits,router));
+  errors.push(...validateUpdatedCapability({task,patch:action.patch,limits,router}));
   return [...new Set(errors)];
 }
 
@@ -209,12 +240,12 @@ function validateExecutionAction(
 }
 
 function specialistAllowlistErrors(specialistId:string,limits:AgentRunLimits):string[]{
-  if(limits.requireSpecialistAllowlist===true&&
-      (!limits.allowedSpecialists||!limits.allowedSpecialists.includes(specialistId)))
-    return ["Specialist is outside the required host allowlist: "+specialistId+"."];
-  if(limits.allowedSpecialists?.length&&!limits.allowedSpecialists.includes(specialistId))
-    return ["Specialist is outside the bounded agent policy: "+specialistId+"."];
-  return [];
+  const allowed=limits.allowedSpecialists?.includes(specialistId)===true;
+  if(limits.requireSpecialistAllowlist===true){
+    return allowed?[]:["Specialist is outside the required host allowlist: "+specialistId+"."];
+  }
+  if(!limits.allowedSpecialists?.length) return [];
+  return allowed?[]:["Specialist is outside the bounded agent policy: "+specialistId+"."];
 }
 
 function taskDelegationErrors(
@@ -261,6 +292,11 @@ export function validateTaskAction(
   }
 }
 
+function isStaleActionRevision(graph:EngineeringTaskGraph,action:Exclude<AgentActionProposal,{kind:"CREATE_TASK"|"STOP"}>):boolean{
+  if(action.expectedGraphRevision===undefined) return false;
+  return action.expectedGraphRevision!==graph.revision;
+}
+
 function validateActionTarget(
   graph:EngineeringTaskGraph,
   action:Exclude<AgentActionProposal,{kind:"CREATE_TASK"|"STOP"}>
@@ -268,8 +304,10 @@ function validateActionTarget(
   const task=taskForAction(graph,action);
   const errors:string[]=[];
   if(!task) errors.push("Agent action references an unknown task: "+action.taskId+".");
-  if(task&&action.expectedGraphRevision!==undefined&&action.expectedGraphRevision!==graph.revision)
-    errors.push("Agent action graph revision is stale: expected "+action.expectedGraphRevision+", current "+graph.revision+".");
+  if(task){
+    if(isStaleActionRevision(graph,action))
+      errors.push("Agent action graph revision is stale: expected "+action.expectedGraphRevision+", current "+graph.revision+".");
+  }
   return {task,errors};
 }
 
