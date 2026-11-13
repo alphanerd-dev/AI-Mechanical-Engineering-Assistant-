@@ -77,7 +77,7 @@ function uniqueReasons(reasons: string[]): string[] {
 export function assessManufacturingReadiness(
   request: ManufacturingReadinessRequest
 ): ManufacturingReadinessResult {
-  const dfm = evaluateCADDFM(request.metrics, request.dfmRules);
+  const dfm = evaluateManufacturingDFM({ metrics: request.metrics, rules: request.dfmRules, process: request.process });
   const processPlan = validateManufacturingProcessPlan(request.processPlan);
   const bom = generateManufacturingBOM(
     request.bom.id,
