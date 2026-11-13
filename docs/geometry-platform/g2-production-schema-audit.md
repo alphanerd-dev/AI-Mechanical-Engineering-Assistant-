@@ -118,11 +118,27 @@ A content-addressed object path such as `{project_id}/{model_id}/revisions/{geom
 
 ## 6. Migration ledger discrepancy — blocking gate
 
-The production migration ledger contains 17 entries; E2E contains 18. Ten shared migration names have different version timestamps. The latest matching migration names are recorded as:
+The production migration ledger contains 17 entries; E2E contains 18. Eleven shared migration names have different version timestamps. The latest matching migration names are recorded as:
 
 - Production ledger: `20261105150148` — `engineering_chat_session_list_metadata`.
 - E2E ledger: `20261104173125` — `engineering_chat_session_list_metadata`.
 - Repository file on current `main`: `20261101200000_engineering_chat_session_list_metadata.sql`.
+
+The complete shared-name timestamp differences are:
+
+| Migration name | Production version | E2E version |
+|---|---:|---:|
+| `v2_0_9_collaborative_engineering_state` | `20261007222703` | `20261014062648` |
+| `v2_1_6_cad_workspace_acceptance` | `20261010054845` | `20261014062702` |
+| `v2_1_7_project_owner_auth_uid` | `20261012132557` | `20261014062705` |
+| `v2_0_22_durable_intent_sessions` | `20261013125414` | `20261014062710` |
+| `v2_0_23_resumable_intent_conversation` | `20261013220000` | `20261014103010` |
+| `v2_0_24_owner_project_lifecycle` | `20261014120000` | `20261014120544` |
+| `v2_0_25_durable_audit_provenance` | `20261014170000` | `20261014164758` |
+| `v2_0_26_audit_chain_atomic_cad_completion` | `20261014190000` | `20261014235057` |
+| `v2_0_27_cad_specification_null_normalization` | `20261015010000` | `20261014235236` |
+| `v2_0_28_atomic_cad_audit_correlation` | `20261015011000` | `20261014235307` |
+| `engineering_chat_session_list_metadata` | `20261105150148` | `20261104173125` |
 
 Other environment-only entries:
 - Production only: `20261021161424_add_missing_cad_foreign_key_indexes`.
@@ -140,7 +156,7 @@ Required resolution:
 
 Do not run `migration repair`, rename/rewrite an applied migration, or push a new production migration as part of this review. Those actions require explicit database-owner approval.
 
-The existing `.github/workflows/production-supabase-migration-reconciliation.yml` is a manual production workflow pinned to Supabase CLI `2.98.2`. Its repair path is narrowly scoped to six known legacy timestamps for V2.0.23–V2.0.28 and then applies V2.0.29/V2.0.30. It does not reconcile the current ten shared timestamp differences or the E2E-only point-cloud history. Do not dispatch its `reconcile_and_apply` operation for this issue; its scope must be reviewed and expanded separately after database-owner approval.
+The existing `.github/workflows/production-supabase-migration-reconciliation.yml` is a manual production workflow pinned to Supabase CLI `2.98.2`. Its repair path is narrowly scoped to six known legacy timestamps for V2.0.23–V2.0.28 and then applies V2.0.29/V2.0.30. It does not reconcile the current eleven shared timestamp differences or the E2E-only point-cloud history. Do not dispatch its `reconcile_and_apply` operation for this issue; its scope must be reviewed and expanded separately after database-owner approval.
 
 Supabase CLI v3 changed hosted database commands to target the local stack by default; hosted operations require explicit `--remote`, and non-interactive hosted mutations require `--yes`. See the [Supabase CLI v3 changelog](https://supabase.com/changelog). Use explicit project targeting and review the resolved target before any future migration command.
 
