@@ -12,7 +12,7 @@ RUN apt-get update \
 
 RUN printf '%s\n' \
     '#!/usr/bin/env bash' \
-    'set -euo pipefail' \
+    'set -eo pipefail' \
     'source /opt/openfoam14/etc/bashrc' \
     'exec "$@"' \
     > /usr/local/bin/foam-env \
