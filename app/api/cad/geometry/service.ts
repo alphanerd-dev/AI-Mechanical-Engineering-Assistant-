@@ -191,13 +191,26 @@ async function loadCurrentModel(db: Database, projectId: string, modelIdentityId
   return revision;
 }
 
+function findArtifactRecord(completion: Row, sourceArtifactId: string): Row | null {
+  if (!Array.isArray(completion.artifact_records)) return null;
+  const artifact = completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === sourceArtifactId);
+  return isRecord(artifact) ? artifact : null;
+}
+
+function isCanonicalArtifactKind(artifact: Row): boolean {
+  return artifact.kind === "SOLID" || artifact.kind === "STEP";
+}
+
+function belongsToCompletionProject(artifact: Row, completion: Row, projectId: string): boolean {
+  if (!isRecord(artifact.provenance)) return false;
+  return artifact.provenance.modelIdentityId === completion.model_identity_id &&
+    artifact.provenance.projectId === projectId;
+}
+
 function findCanonicalArtifact(completion: Row, request: CADGeometryRequest): Row {
-  const artifact = Array.isArray(completion.artifact_records)
-    ? completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === request.sourceArtifactId)
-    : null;
-  if (!isRecord(artifact) || (artifact.kind !== "SOLID" && artifact.kind !== "STEP") ||
-      !isRecord(artifact.provenance) || artifact.provenance.modelIdentityId !== completion.model_identity_id ||
-      artifact.provenance.projectId !== request.projectId) {
+  const artifact = findArtifactRecord(completion, request.sourceArtifactId);
+  if (!artifact || !isCanonicalArtifactKind(artifact) ||
+      !belongsToCompletionProject(artifact, completion, request.projectId)) {
     fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
   }
   return artifact;
