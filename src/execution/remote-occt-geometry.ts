@@ -47,19 +47,27 @@ function decodeUint32(value: string, expectedLength: number): Uint32Array {
   return output;
 }
 
-function validateRemoteSource(source: CADGeometrySource): string {
+function validateRemoteGeometryContract(source: CADGeometrySource): void {
   const errors = validateCADGeometrySource(source);
   if (errors.length) throw new Error(errors.join("; "));
+  if (source.units !== "mm" || source.coordinateFrame !== "MODEL") {
+    throw new Error("Remote OCCT geometry worker accepts millimetre model-frame sources only.");
+  }
+}
+
+function validateRemoteSourceBytes(source: CADGeometrySource): string {
   if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 ||
       source.bytes.byteLength > MAX_REMOTE_GEOMETRY_BYTES) {
     throw new Error("Remote OCCT geometry source must contain 1 byte to 4 MiB.");
   }
   const digest = createHash("sha256").update(source.bytes).digest("hex");
   if (digest !== source.sha256) throw new Error("Remote OCCT geometry source SHA-256 does not match the exact bytes.");
-  if (source.units !== "mm" || source.coordinateFrame !== "MODEL") {
-    throw new Error("Remote OCCT geometry worker accepts millimetre model-frame sources only.");
-  }
   return digest;
+}
+
+function validateRemoteSource(source: CADGeometrySource): string {
+  validateRemoteGeometryContract(source);
+  return validateRemoteSourceBytes(source);
 }
 
 function validateRemoteDeflection(options?: { linearDeflectionMm: number; angularDeflectionRad: number }): void {
