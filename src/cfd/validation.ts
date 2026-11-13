@@ -70,7 +70,7 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
     errors.push("mesh.cellsAxial must be an integer between 40 and 1000.");
   }
   if (!validInteger(candidate.mesh?.cellsVertical, 20, 200)) {
-    errors.push("mesh.cellsVertical must be an integer between 8 and 200.");
+    errors.push("mesh.cellsVertical must be an integer between 20 and 200.");
   }
   if (
     validInteger(candidate.mesh?.cellsAxial, 40, 1000) &&
