@@ -135,19 +135,28 @@ async function readGeometryRequestBody(request: Request): Promise<unknown> {
   }
 }
 
-function validateGeometryRequestFields(body: Record<string, unknown>): CADGeometryRequest {
-  if (Object.keys(body).some((key) => !ALLOWED_FIELDS.has(key))) {
-    fail("Geometry request contains unsupported fields.", 400);
-  }
+function validateAllowedGeometryRequestFields(body: Record<string, unknown>): void {
+  const hasUnsupportedField = Object.keys(body).some((key) => !ALLOWED_FIELDS.has(key));
+  if (hasUnsupportedField) fail("Geometry request contains unsupported fields.", 400);
+}
+
+function parseGeometryRequestIdentity(body: Record<string, unknown>): Pick<
+  CADGeometryRequest, "projectId" | "completionId" | "sourceArtifactId" | "operation"
+> {
   const { projectId, completionId, sourceArtifactId, operation } = body;
-  if (!isUuid(projectId) || !isUuid(completionId) || !nonEmpty(sourceArtifactId) ||
-      sourceArtifactId.length > 160 || (operation !== "INSPECT" && operation !== "TESSELLATE")) {
+  const validOperation = operation === "INSPECT" || operation === "TESSELLATE";
+  const validIdentity = isUuid(projectId) && isUuid(completionId) &&
+    nonEmpty(sourceArtifactId) && sourceArtifactId.length <= 160;
+  if (!validIdentity || !validOperation) {
     fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
   }
-  return {
-    projectId, completionId, sourceArtifactId, operation,
-    ...validateDeflection(body, operation)
-  };
+  return { projectId, completionId, sourceArtifactId, operation };
+}
+
+function validateGeometryRequestFields(body: Record<string, unknown>): CADGeometryRequest {
+  validateAllowedGeometryRequestFields(body);
+  const identity = parseGeometryRequestIdentity(body);
+  return { ...identity, ...validateDeflection(body, identity.operation) };
 }
 
 export async function parseCADGeometryRequest(request: Request): Promise<CADGeometryRequest> {
