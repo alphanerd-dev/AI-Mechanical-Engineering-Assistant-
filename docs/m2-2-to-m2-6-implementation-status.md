@@ -2,7 +2,7 @@
 
 **Implementation branch:** `feat/m2-2-to-m2-6-geometry-runtime`  
 **Baseline:** PR #140 geometry/viewer foundation  
-**Implementation PR:** #149 (draft; exact-head verification in progress)  
+**Implementation PR:** #150 (draft; corrected exact-head verification pending)  
 **Status date:** 13 November 2026
 
 ## Engineering boundary
@@ -64,7 +64,7 @@ Implemented:
 
 Verification already observed:
 - The first implementation batch passed GitHub Actions run #43504028624, including `npm test`, `npm run build`, OCCT worker protocol tests, and actual generated BREP/STEP import/inspection/tessellation in the pinned build123d runtime.
-- Subsequent remote transport, persistence API, GLB preview and drawing ingestion changes are included in PR #149. Exact-head CI run #43506210572 is in progress; do not treat the full batch as verified until it completes.
+- Subsequent remote transport, persistence API, GLB preview and drawing ingestion changes are included in PR #150. CI run #43506210572 verified the OCCT/FEA worker builds and real BREP/STEP geometry smoke, but its Next.js type check found two TypeScript issues in geometry deflection narrowing and ArrayBuffer typing in the GLB preview test. Those were corrected; the current head requires a fresh full CI run.
 
 Remaining:
 - Verify the remote worker endpoint and persistence API together in the current exact-head CI and deployed preview.
