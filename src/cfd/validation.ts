@@ -102,7 +102,7 @@ export function poiseuilleAxialVelocity(
   channelHeightM: number,
   meanVelocityMps: number
 ): number {
-  if (!finitePositive(channelHeightM) || !finitePositive(meanVelocityM)) {
+  if (!finitePositive(channelHeightM) || !finitePositive(meanVelocityMps)) {
     throw new Error("Channel height and mean velocity must be finite and positive.");
   }
   if (!Number.isFinite(yM) || yM < 0 || yM > channelHeightM) {
