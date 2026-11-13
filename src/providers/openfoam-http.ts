@@ -1,4 +1,5 @@
 import { OpenFOAMLaminarChannelRequest, OpenFOAMLaminarChannelResult } from "../cfd/types.js";
+import { validateOpenFOAMLaminarChannelRequest } from "../cfd/validation.js";
 import { OpenFOAMExecutor } from "./openfoam.js";
 
 const ARTIFACT_FILENAMES = new Set([
@@ -36,6 +37,10 @@ export class OpenFOAMHttpExecutor implements OpenFOAMExecutor {
   async runLaminarChannel(
     request: OpenFOAMLaminarChannelRequest
   ): Promise<OpenFOAMLaminarChannelResult> {
+    const requestErrors = validateOpenFOAMLaminarChannelRequest(request);
+    if (requestErrors.length) {
+      throw new Error(`Invalid OpenFOAM benchmark request: ${requestErrors.join("; ")}`);
+    }
     const response = await this.fetcher(
       `${this.baseUrl}/v1/cfd/laminar-channel`,
       {
