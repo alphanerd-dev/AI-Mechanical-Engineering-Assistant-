@@ -65,7 +65,9 @@ interface GeometryRevisionV1 {
   modelIdentityId: string;             // existing logical CAD model ID
   geometryRevisionNumber: number;      // monotonic per logical model
   parentGeometryRevisionId: string | null;
-  sourceOperationId: string;           // idempotent G1 operation ID
+  sourceCompletionId: string;          // existing CAD completion row; relational FK
+  sourceOperationId: string;           // execution_id copied from that completion
+  storageObjectName: string;           // immutable object path in private CAD bucket
   canonicalArtifact: {
     artifactId: string;                // ID in the source completion JSONB manifest; not an FK
     artifactKind: "SOLID";
@@ -112,7 +114,7 @@ This is a conceptual contract for review, not code to copy blindly. Final TypeSc
 
 ### Proposed relational shape
 
-Subject to confirming the exact production schema and foreign-key names, use a dedicated revision relation such as `engineering_geometry_revisions`:
+Based on the read-only production/E2E schema audit, use a dedicated revision relation such as `engineering_geometry_revisions`. Migration DDL remains blocked until the migration ledgers are reconciled:
 
 | Field | Purpose |
 |---|---|
@@ -122,7 +124,7 @@ Subject to confirming the exact production schema and foreign-key names, use a d
 | `revision_number` | Monotonic geometry revision sequence |
 | `parent_revision_id` | Previous immutable revision |
 | `source_completion_id` | Existing `engineering_cad_completions.id` that produced the canonical artifact |
-| `source_operation_id` | Existing completion `execution_id` for traceability/idempotency |
+| `source_operation_id` | Existing completion `execution_id` for traceability |
 | `canonical_artifact_id` | Artifact ID resolved from the source completion JSONB manifest; not an FK |
 | `storage_object_name` | Immutable revision-scoped path in the private CAD artifact bucket |
 | `canonical_artifact_sha256` | Exact canonical bytes digest |
@@ -135,7 +137,7 @@ Subject to confirming the exact production schema and foreign-key names, use a d
 
 Candidate constraints:
 - Unique `(project_id, model_identity_id, revision_number)`.
-- Unique `(project_id, model_identity_id, source_operation_id)` for idempotent creation.
+- Unique `(project_id, model_identity_id, source_completion_id, canonical_artifact_id)` to make creation idempotent per canonical artifact without assuming one completion can only produce one solid.
 - Composite FK `(project_id, model_identity_id)` to `engineering_cad_models(project_id, id)`.
 - Composite FK `(project_id, model_identity_id, source_completion_id)` to `engineering_cad_completions(project_id, model_identity_id, id)`, supported by an additive unique key on the completion relation.
 - Composite self-FK `(project_id, model_identity_id, parent_revision_id)` to the same-model revision key.
@@ -156,7 +158,7 @@ Revision creation must be transactional:
 
 A stale parent returns a conflict such as `STALE_GEOMETRY_REVISION`; the service must not silently rebase a geometry operation onto a different head.
 
-A repeated `sourceOperationId` / source completion with identical model and artifact binding returns the already-created revision. The existing completion table already has a partial unique index on `(project_id, execution_id)`. Reuse of the same operation ID with different artifact bytes is rejected.
+A repeated `(sourceCompletionId, canonicalArtifactId)` with identical model and digest returns the already-created revision. The existing completion table already has a partial unique index on `(project_id, execution_id)`. New G2 revisions require a non-null source `execution_id`; a legacy completion without one is rejected rather than assigned a fabricated operation ID. Reuse of the same completion/artifact binding with different bytes is rejected.
 
 Do not maintain a mutable latest-revision pointer until there is a demonstrated query/performance need. If one is later introduced, update it in the same transaction and treat it as a cache/index, not the source of revision truth.
 
