@@ -89,30 +89,44 @@ function validateSVGText(token: string): void {
   }
 }
 
-function validateSVGStructure(markup: string): void {
-  const tokens = markup.match(/<[^>]*>|[^<]+/g) ?? [];
-  const stack: string[] = [];
-  let rootSeen = false;
-  for (const rawToken of tokens) {
-    const token = parseSVGToken(rawToken);
-    if (token.kind === "comment") continue;
-    if (token.kind === "text") {
-      validateSVGText(rawToken);
-      continue;
-    }
-    if (token.kind === "closing") {
-      if (stack.pop() !== token.tag) throw new Error("SVG element nesting is malformed.");
-      continue;
-    }
-    if (!SVG_TAGS.has(token.tag)) throw new Error("SVG contains unsupported element " + token.tag + ".");
-    if (!rootSeen) {
-      if (token.tag !== "svg" || stack.length !== 0) throw new Error("SVG root element must be svg.");
-      rootSeen = true;
-    }
-    validateSVGAttributes(token.attributes);
-    if (!token.selfClosing) stack.push(token.tag);
+interface SVGValidationState {
+  stack: string[];
+  rootSeen: boolean;
+}
+
+function closeSVGElement(tag: string, state: SVGValidationState): void {
+  if (state.stack.pop() !== tag) throw new Error("SVG element nesting is malformed.");
+}
+
+function openSVGElement(token: Extract<ReturnType<typeof parseSVGToken>, { kind: "opening" }>, state: SVGValidationState): void {
+  if (!SVG_TAGS.has(token.tag)) throw new Error("SVG contains unsupported element " + token.tag + ".");
+  if (!state.rootSeen) {
+    if (token.tag !== "svg" || state.stack.length !== 0) throw new Error("SVG root element must be svg.");
+    state.rootSeen = true;
   }
-  if (!rootSeen || stack.length !== 0) throw new Error("SVG document is incomplete or malformed.");
+  validateSVGAttributes(token.attributes);
+  if (!token.selfClosing) state.stack.push(token.tag);
+}
+
+function validateSVGToken(rawToken: string, state: SVGValidationState): void {
+  const token = parseSVGToken(rawToken);
+  if (token.kind === "comment") return;
+  if (token.kind === "text") {
+    validateSVGText(rawToken);
+    return;
+  }
+  if (token.kind === "closing") {
+    closeSVGElement(token.tag, state);
+    return;
+  }
+  openSVGElement(token, state);
+}
+
+function validateSVGStructure(markup: string): void {
+  const state: SVGValidationState = { stack: [], rootSeen: false };
+  const tokens = markup.match(/<[^>]*>|[^<]+/g) ?? [];
+  for (const token of tokens) validateSVGToken(token, state);
+  if (!state.rootSeen || state.stack.length !== 0) throw new Error("SVG document is incomplete or malformed.");
 }
 
 function validateSVG(markup: string): void {
