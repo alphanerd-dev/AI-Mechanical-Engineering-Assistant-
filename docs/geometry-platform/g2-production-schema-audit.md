@@ -58,7 +58,7 @@ This changes the G2 relational design: an artifact ID inside JSONB cannot be a n
 - A database check prevents an `ACCEPTED` completion unless evidence records, Storage object references and a validation receipt are present.
 - RLS is enabled. Authenticated project members can select; project ADMIN/ENGINEER roles can insert. There are no direct client update/delete policies in the audited policy set.
 
-The read-only aggregate preflight returned zero completions with a null model identity, zero orphaned model references and zero cross-project model mismatches at audit time. This is evidence for a composite-key migration rehearsal, not a substitute for repeating the preflight immediately before migration.
+The read-only aggregate preflight returned two current completion records: zero with a null model identity, zero without an execution ID, zero orphaned model references and zero cross-project model mismatches at audit time. This is evidence for a composite-key migration rehearsal, not a substitute for repeating the preflight immediately before migration.
 
 ## 4. Existing Storage contract
 
@@ -92,7 +92,7 @@ Recommended fields:
 | `revision_number` | Positive monotonic geometry revision number per model |
 | `parent_revision_id` | Previous geometry revision, nullable only for the initial revision |
 | `source_completion_id` | Existing `engineering_cad_completions.id` that produced the canonical artifact |
-| `source_operation_id` | Copy of the completion's `execution_id` for traceability/idempotency |
+| `source_operation_id` | Copy of the completion's `execution_id` for traceability |
 | `canonical_artifact_id` | ID resolved from the source completion's JSONB artifact manifest; not an FK |
 | `canonical_artifact_sha256` | SHA-256 of the exact canonical artifact bytes |
 | `storage_bucket`, `storage_object_name` | Private Storage location; bucket is initially `engineering-cad-artifacts` |
