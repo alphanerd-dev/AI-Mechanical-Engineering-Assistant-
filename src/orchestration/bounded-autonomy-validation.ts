@@ -129,13 +129,16 @@ function missing(value:unknown):boolean{
   return false;
 }
 
-function appendInputPathErrors(
-  child:unknown,
-  path:string,
-  descendants:readonly string[],
-  allowedPaths:readonly string[],
-  errors:string[]
-):void{
+interface InputPathValidationContext{
+  child:unknown;
+  path:string;
+  descendants:readonly string[];
+  allowedPaths:readonly string[];
+  errors:string[];
+}
+
+function appendInputPathErrors(context:InputPathValidationContext):void{
+  const {child,path,descendants,allowedPaths,errors}=context;
   if(descendants.length===0) return;
   if(!isPlainRecord(child)){
     errors.push("Task input path must be an object to satisfy the registered nested contract: "+path+".");
@@ -157,7 +160,7 @@ function inputPathErrors(
       errors.push("Task input contains a field outside the registered capability contract: "+path+".");
       continue;
     }
-    appendInputPathErrors(child,path,descendants,allowedPaths,errors);
+    appendInputPathErrors({child,path,descendants,allowedPaths,errors});
   }
   return errors;
 }
