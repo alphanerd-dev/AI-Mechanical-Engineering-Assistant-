@@ -627,25 +627,38 @@ async function serializeDerivativeRow(db: Database, row: Row, lineage: Derivativ
   return { ...derivative, state, signedUrl: !error && data?.signedUrl ? data.signedUrl : null };
 }
 
-export async function listCADDisplayDerivatives(request: Request): Promise<NextResponse> {
+export function parseDerivativeListQuery(request: Request): { projectId: string; modelIdentityId: string | null } {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId")?.trim();
-  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim();
+  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim() ?? null;
   if (!isUuid(projectId) || (modelIdentityId && !isUuid(modelIdentityId))) {
-    return NextResponse.json({ error: "A registered project UUID and optional model identity UUID are required." }, { status: 400 });
+    fail("A registered project UUID and optional model identity UUID are required.", 400);
   }
+  return { projectId, modelIdentityId };
+}
+
+async function fetchDerivativeRows(db: Database, projectId: string, modelIdentityId: string | null) {
+  let query = db.from("engineering_cad_display_derivatives").select("*")
+    .eq("project_id", projectId).order("created_at", { ascending: false }).limit(100);
+  if (modelIdentityId) query = query.eq("model_identity_id", modelIdentityId);
+  const { data, error } = await query;
+  if (error) fail("CAD display derivative history is unavailable.", 503);
+  return data ?? [];
+}
+
+async function serializeDerivativeRows(db: Database, projectId: string, rows: Row[]) {
+  const lineage = await loadDerivativeLineage(db, projectId, rows);
+  return Promise.all(rows.map((row) => serializeDerivativeRow(db, row as unknown as Row, lineage)));
+}
+
+async function listCADDisplayDerivatives(request: Request): Promise<NextResponse> {
   try {
+    const { projectId, modelIdentityId } = parseDerivativeListQuery(request);
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
     if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization));
     const db = await createClient();
-    let query = db.from("engineering_cad_display_derivatives").select("*")
-      .eq("project_id", projectId).order("created_at", { ascending: false }).limit(100);
-    if (modelIdentityId) query = query.eq("model_identity_id", modelIdentityId);
-    const { data: rows, error } = await query;
-    if (error) fail("CAD display derivative history is unavailable.", 503);
-    const values = rows ?? [];
-    const lineage = await loadDerivativeLineage(db, projectId, values);
-    const derivatives = await Promise.all(values.map((row) => serializeDerivativeRow(db, row as unknown as Row, lineage)));
+    const rows = await fetchDerivativeRows(db, projectId, modelIdentityId);
+    const derivatives = await serializeDerivativeRows(db, projectId, rows);
     return NextResponse.json({ projectId, derivatives, signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS }, {
       headers: { "cache-control": "no-store" }
     });
