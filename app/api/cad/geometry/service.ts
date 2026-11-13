@@ -144,10 +144,12 @@ function parseGeometryRequestIdentity(body: Record<string, unknown>): Pick<
   CADGeometryRequest, "projectId" | "completionId" | "sourceArtifactId" | "operation"
 > {
   const { projectId, completionId, sourceArtifactId, operation } = body;
-  const validOperation = operation === "INSPECT" || operation === "TESSELLATE";
-  const validIdentity = isUuid(projectId) && isUuid(completionId) &&
-    nonEmpty(sourceArtifactId) && sourceArtifactId.length <= 160;
-  if (!validIdentity || !validOperation) {
+  if (!isUuid(projectId)) fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
+  if (!isUuid(completionId)) fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
+  if (!nonEmpty(sourceArtifactId) || sourceArtifactId.length > 160) {
+    fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
+  }
+  if (operation !== "INSPECT" && operation !== "TESSELLATE") {
     fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
   }
   return { projectId, completionId, sourceArtifactId, operation };
