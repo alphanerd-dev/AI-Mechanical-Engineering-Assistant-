@@ -342,8 +342,13 @@ export async function POST(request: Request) {
   };
   const { error: insertError } = await serviceDb.from("engineering_cad_display_derivatives").insert(row);
   if (insertError) {
-    await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([derivativePath]).catch(() => undefined);
-    return httpError("Display derivative metadata could not be committed.", 503);
+    const { data: committedRow, error: reconcileError } = await serviceDb.from("engineering_cad_display_derivatives")
+      .select("id").eq("id", derivativeId).eq("project_id", projectId).maybeSingle();
+    if (!committedRow && !reconcileError) {
+      await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([derivativePath]);
+      return httpError("Display derivative metadata could not be committed; the uploaded object was cleaned up.", 503);
+    }
+    if (reconcileError) return httpError("Display derivative commit is ambiguous. Reload derivative history before retrying.", 503);
   }
   try {
     await persistEngineeringAuditEvent({
@@ -363,6 +368,12 @@ export async function POST(request: Request) {
       }
     });
   } catch {
+    const { data: auditRecord, error: auditLookupError } = await serviceDb.from("engineering_audit_events")
+      .select("event_id").eq("resource_type", "CAD_DISPLAY_DERIVATIVE")
+      .eq("resource_id", derivativeId).eq("action", "EVIDENCE_WRITE").maybeSingle();
+    if (auditRecord || auditLookupError) {
+      return httpError("Display derivative was committed but its audit acknowledgement is ambiguous. Reload derivative history before retrying.", 503);
+    }
     await serviceDb.from("engineering_cad_display_derivatives").delete().eq("id", derivativeId).eq("project_id", projectId);
     await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([derivativePath]);
     return httpError("Display derivative audit persistence failed; the uncommitted derivative was rolled back.", 503);
