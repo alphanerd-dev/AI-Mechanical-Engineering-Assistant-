@@ -21,7 +21,7 @@ if (!response.success) {
 }
 const output = response.output as {
   result: OpenFOAMLaminarChannelResult;
-  validation: { status: string; blockingReasons: string[]; normalizedProfileRmse?: number; massFluxRelativeError?: number };
+  validation: { status: string; blockingReasons: string[]; reynoldsNumber: number; normalizedProfileRmse?: number; massFluxRelativeError?: number };
 };
 if (output.validation.status !== "PASS") {
   throw new Error(`OpenFOAM numerical validation failed: ${output.validation.blockingReasons.join("; ")}`);
@@ -29,7 +29,7 @@ if (output.validation.status !== "PASS") {
 console.log(JSON.stringify({
   status: output.validation.status,
   solverVersion: output.result.solverVersion,
-  reynoldsNumber: (output.result as OpenFOAMLaminarChannelResult).solverVersion,
+  reynoldsNumber: output.validation.reynoldsNumber,
   meshCells: output.result.meshCells,
   normalizedProfileRmse: output.validation.normalizedProfileRmse,
   massFluxRelativeError: output.validation.massFluxRelativeError,
