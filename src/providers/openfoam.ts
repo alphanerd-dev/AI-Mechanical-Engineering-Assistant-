@@ -37,8 +37,7 @@ export class OpenFOAMProvider implements EngineeringProvider {
       };
     }
 
-    const input = request.input as unknown as OpenFOAMLaminarChannelRequest;
-    const inputErrors = validateOpenFOAMLaminarChannelRequest(input);
+    const inputErrors = validateOpenFOAMLaminarChannelRequest(request.input);
     if (inputErrors.length) {
       return {
         capability: request.capability,
@@ -48,6 +47,7 @@ export class OpenFOAMProvider implements EngineeringProvider {
       };
     }
 
+    const input = request.input as unknown as OpenFOAMLaminarChannelRequest;
     if (!this.executor) {
       return {
         capability: request.capability,
@@ -70,8 +70,7 @@ export class OpenFOAMProvider implements EngineeringProvider {
         capability: request.capability,
         provider: this.id,
         success: validation.status === "PASS",
-        output: { result, validation },
-        artifactIds: result.artifacts.map(artifact => artifact.sha256)
+        output: { result, validation }
       };
     } catch (error) {
       return {
