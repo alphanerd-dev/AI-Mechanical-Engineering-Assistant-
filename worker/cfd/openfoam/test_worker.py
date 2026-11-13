@@ -100,6 +100,8 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
     def test_solver_residual_parser_uses_final_pressure_and_velocity_residuals(self):
         log = (
             "Solving for p, Initial residual = 1, Final residual = 1e-8, No Iterations 1\n"
+            "Solving for Ux, Initial residual = 1, Final residual = 1e-4, No Iterations 1\n"
+            "Solving for Uy, Initial residual = 1, Final residual = 1e-4, No Iterations 1\n"
             "Solving for Ux, Initial residual = 1, Final residual = 2e-8, No Iterations 1\n"
             "Solving for Uy, Initial residual = 1, Final residual = 3e-8, No Iterations 1\n"
         )
