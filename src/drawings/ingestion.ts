@@ -283,8 +283,7 @@ function inspectDXF(bytes: Uint8Array, ext: string, declared: string): CADDrawin
   };
 }
 
-/** Inspect and strictly bound a source drawing before private project storage. */
-export interface DrawingInspectionContext {
+interface DrawingInspectionContext {
   bytes: Uint8Array;
   extension: string;
   declaredMimeType: string;
@@ -329,7 +328,8 @@ function requireSupportedDrawingInspection(inspection: CADDrawingInspection | nu
   return inspection;
 }
 
-function inspectCADDrawingUpload(input: {
+/** Inspect and strictly bound a source drawing before private project storage. */
+export function inspectCADDrawingUpload(input: {
   filename: string;
   declaredMimeType?: string;
   bytes: Uint8Array;
