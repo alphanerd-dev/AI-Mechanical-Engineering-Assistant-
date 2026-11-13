@@ -19,8 +19,8 @@ type PreviewRequest = {
   projectId: string; completionId: string; sourceArtifactId: string;
 };
 
-async function requestDisplayDerivative(input: PreviewRequest): Promise<{ signedUrl: string; derivative: Derivative }> {
-  const response = await fetch("/api/cad/geometry", {
+async function postDisplayDerivative(input: PreviewRequest): Promise<Response> {
+  return fetch("/api/cad/geometry", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -29,13 +29,30 @@ async function requestDisplayDerivative(input: PreviewRequest): Promise<{ signed
     }),
     cache: "no-store"
   });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body.derivative || typeof body.signedUrl !== "string") {
-    const message = typeof body.error === "string" ? body.error :
-      Array.isArray(body.errors) ? body.errors.join("; ") : "CAD display derivative generation failed.";
-    throw new Error(message);
+}
+
+function displayDerivativeError(body: unknown): string {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const record = body as Record<string, unknown>;
+    if (typeof record.error === "string") return record.error;
+    if (Array.isArray(record.errors)) return record.errors.filter((item): item is string => typeof item === "string").join("; ");
   }
-  return { signedUrl: body.signedUrl, derivative: body.derivative as Derivative };
+  return "CAD display derivative generation failed.";
+}
+
+function parseDisplayDerivativeResponse(body: unknown): { signedUrl: string; derivative: Derivative } | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const record = body as Record<string, unknown>;
+  if (typeof record.signedUrl !== "string" || !record.derivative || typeof record.derivative !== "object") return null;
+  return { signedUrl: record.signedUrl, derivative: record.derivative as Derivative };
+}
+
+async function requestDisplayDerivative(input: PreviewRequest): Promise<{ signedUrl: string; derivative: Derivative }> {
+  const response = await postDisplayDerivative(input);
+  const body: unknown = await response.json().catch(() => ({}));
+  const result = parseDisplayDerivativeResponse(body);
+  if (!response.ok || !result) throw new Error(displayDerivativeError(body));
+  return result;
 }
 
 function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; onRefresh: () => void }) {
