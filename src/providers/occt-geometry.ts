@@ -7,14 +7,14 @@ import {
   validateCADGeometrySource,
   verifyCADGeometrySourceDigest
 } from "../cad/geometry-kernel-contract.js";
-import { DockerOCCTGeometryExecutor } from "../execution/docker-occt-geometry.js";
+import type { CADGeometryExecutor } from "../execution/docker-occt-geometry.js";
 
 /** Product adapter for the isolated OCCT geometry runtime. */
 export class DockerOCCTGeometryKernelAdapter implements CADGeometryKernelAdapter {
   readonly providerId = "occt.geometry-kernel";
   readonly providerVersion = "build123d-0.13.0/OCP";
 
-  constructor(private readonly executor: DockerOCCTGeometryExecutor) {}
+  constructor(private readonly executor: CADGeometryExecutor) {}
 
   async inspect(source: CADGeometrySource): Promise<CADGeometryResult<CADGeometryTopologySummary>> {
     const errors = validateCADGeometrySource(source);
