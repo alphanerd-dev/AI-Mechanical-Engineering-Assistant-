@@ -7,6 +7,7 @@ import os
 import tempfile
 import threading
 import urllib.request
+from urllib.error import HTTPError
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -68,7 +69,7 @@ def main() -> None:
             try:
                 urllib.request.urlopen(unauthenticated, timeout=5)
                 raise AssertionError("Unauthenticated CFD requests must be rejected.")
-            except urllib.error.HTTPError as error:
+            except HTTPError as error:
                 assert error.code == 401
 
             payload = json.dumps(request).encode("utf-8")
