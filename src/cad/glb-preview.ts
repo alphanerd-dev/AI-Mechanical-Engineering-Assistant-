@@ -211,13 +211,19 @@ function readSingleMeshPrimitive(document: GLTFDocument): GLTFPrimitive {
   return document.meshes![0].primitives![0];
 }
 
+function isAccessorIndex(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
 function validatePrimitiveAttributes(primitive: GLTFPrimitive): void {
   const attributes = primitive.attributes;
-  const valid = isRecord(attributes) &&
-    typeof attributes.POSITION === "number" && Number.isSafeInteger(attributes.POSITION) &&
-    typeof attributes.NORMAL === "number" && Number.isSafeInteger(attributes.NORMAL) &&
-    typeof primitive.indices === "number" && Number.isSafeInteger(primitive.indices);
-  if (!valid) throw new Error("GLB mesh attributes are incomplete.");
+  if (!isRecord(attributes)) throw new Error("GLB mesh attributes are incomplete.");
+  const validPositions = isAccessorIndex(attributes.POSITION);
+  const validNormals = isAccessorIndex(attributes.NORMAL);
+  const validIndices = isAccessorIndex(primitive.indices);
+  if (!validPositions || !validNormals || !validIndices) {
+    throw new Error("GLB mesh attributes are incomplete.");
+  }
 }
 
 function validateSingleMeshScene(document: GLTFDocument): GLTFPrimitive {
