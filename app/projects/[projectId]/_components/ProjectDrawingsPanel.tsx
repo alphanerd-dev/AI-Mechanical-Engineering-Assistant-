@@ -28,11 +28,17 @@ function dateLabel(value: string): string {
   return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
 }
 
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
 function drawingUploadIdFromBody(body: unknown): string | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-  const drawing = (body as Record<string, unknown>).drawing;
-  if (!drawing || typeof drawing !== "object" || Array.isArray(drawing)) return null;
-  const id = (drawing as Record<string, unknown>).id;
+  const record = asObjectRecord(body);
+  if (!record) return null;
+  const drawing = asObjectRecord(record.drawing);
+  if (!drawing) return null;
+  const id = drawing.id;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
