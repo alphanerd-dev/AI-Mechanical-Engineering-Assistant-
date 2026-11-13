@@ -222,33 +222,45 @@ export async function uploadProjectDrawing(request: Request): Promise<NextRespon
   }
 }
 
-export async function listProjectDrawings(request: Request): Promise<NextResponse> {
+function parseDrawingListQuery(request: Request): { projectId: string; modelIdentityId: string | null } {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId")?.trim();
-  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim();
+  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim() ?? null;
   if (!isUuid(projectId) || (modelIdentityId && !isUuid(modelIdentityId))) {
-    return NextResponse.json({ error: "A registered project UUID and optional model identity UUID are required." }, { status: 400 });
+    fail("A registered project UUID and optional model identity UUID are required.", 400);
   }
+  return { projectId, modelIdentityId };
+}
+
+async function fetchDrawingRows(db: Database, projectId: string, modelIdentityId: string | null) {
+  let query = db.from("engineering_cad_drawings").select("*")
+    .eq("project_id", projectId).order("created_at", { ascending: false }).limit(100);
+  if (modelIdentityId) query = query.eq("model_identity_id", modelIdentityId);
+  const { data, error } = await query;
+  if (error) fail("Project drawing history is unavailable.", 503);
+  return data ?? [];
+}
+
+async function serializeDrawingRow(db: Database, row: Row) {
+  const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+    .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+  return {
+    id: row.id, projectId: row.project_id, modelIdentityId: row.model_identity_id,
+    displayName: row.display_name, format: row.format, mediaType: row.media_type,
+    byteSize: row.byte_size, sha256: row.sha256, parserVersion: row.parser_version,
+    units: row.units, entityCount: row.entity_count, bounds: row.bounds, warnings: row.warnings,
+    createdAt: row.created_at, signedUrl: !error && data?.signedUrl ? data.signedUrl : null
+  };
+}
+
+export async function listProjectDrawings(request: Request): Promise<NextResponse> {
   try {
+    const { projectId, modelIdentityId } = parseDrawingListQuery(request);
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
     if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization));
     const db = await createClient();
-    let query = db.from("engineering_cad_drawings").select("*")
-      .eq("project_id", projectId).order("created_at", { ascending: false }).limit(100);
-    if (modelIdentityId) query = query.eq("model_identity_id", modelIdentityId);
-    const { data: rows, error } = await query;
-    if (error) fail("Project drawing history is unavailable.", 503);
-    const drawings = await Promise.all((rows ?? []).map(async (row) => {
-      const { data, error: signError } = await db.storage.from(CAD_ARTIFACT_BUCKET)
-        .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
-      return {
-        id: row.id, projectId: row.project_id, modelIdentityId: row.model_identity_id,
-        displayName: row.display_name, format: row.format, mediaType: row.media_type,
-        byteSize: row.byte_size, sha256: row.sha256, parserVersion: row.parser_version,
-        units: row.units, entityCount: row.entity_count, bounds: row.bounds, warnings: row.warnings,
-        createdAt: row.created_at, signedUrl: !signError && data?.signedUrl ? data.signedUrl : null
-      };
-    }));
+    const rows = await fetchDrawingRows(db, projectId, modelIdentityId);
+    const drawings = await Promise.all(rows.map((row: Row) => serializeDrawingRow(db, row)));
     return NextResponse.json({ projectId, drawings, signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS }, {
       headers: { "cache-control": "no-store" }
     });
