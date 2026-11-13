@@ -6,7 +6,7 @@ import { createStlWebGLRenderer, type StlViewportControls } from "../../../../sr
 import styles from "./StlViewport.module.css";
 
 type State = {
-  src: string; sourceArtifactId: string; sourceArtifactSha256: string;
+  src: string; sourceArtifactId: string; sourceArtifactSha256: string; artifactSha256: string;
   mesh: CADDisplayMeshPreview | null; error: string | null;
 };
 
@@ -36,17 +36,17 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controlsRef = useRef<StlViewportControls | null>(null);
   const renderErrorRef = useRef<HTMLDivElement | null>(null);
-  const [state, setState] = useState<State>({ src: "", sourceArtifactId: "", sourceArtifactSha256: "", mesh: null, error: null });
+  const [state, setState] = useState<State>({ src: "", sourceArtifactId: "", sourceArtifactSha256: "", artifactSha256: "", mesh: null, error: null });
 
   useEffect(() => {
     const controller = new AbortController();
     void loadGLB(src, sourceArtifactId, sourceArtifactSha256, artifactSha256, controller.signal)
       .then((mesh) => {
-        if (!controller.signal.aborted && mesh) setState({ src, sourceArtifactId, sourceArtifactSha256, mesh, error: null });
+        if (!controller.signal.aborted && mesh) setState({ src, sourceArtifactId, sourceArtifactSha256, artifactSha256, mesh, error: null });
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setState({
-          src, sourceArtifactId, sourceArtifactSha256, mesh: null,
+          src, sourceArtifactId, sourceArtifactSha256, artifactSha256, mesh: null,
           error: cause instanceof Error ? cause.message : "Display derivative could not be loaded."
         });
       });
@@ -54,7 +54,8 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   }, [src, sourceArtifactId, sourceArtifactSha256, artifactSha256]);
 
   useEffect(() => {
-    const matches = state.src === src && state.sourceArtifactId === sourceArtifactId && state.sourceArtifactSha256 === sourceArtifactSha256;
+    const matches = state.src === src && state.sourceArtifactId === sourceArtifactId &&
+      state.sourceArtifactSha256 === sourceArtifactSha256 && state.artifactSha256 === artifactSha256;
     const mesh = matches ? state.mesh : null;
     const canvas = canvasRef.current;
     const renderError = renderErrorRef.current;
@@ -80,7 +81,7 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
       renderer?.destroy();
       controlsRef.current = null;
     };
-  }, [src, state.mesh, state.src]);
+  }, [src, sourceArtifactId, sourceArtifactSha256, artifactSha256, state.mesh, state.src]);
 
   const matches = state.src === src && state.sourceArtifactId === sourceArtifactId && state.sourceArtifactSha256 === sourceArtifactSha256;
   const mesh = matches ? state.mesh : null;
