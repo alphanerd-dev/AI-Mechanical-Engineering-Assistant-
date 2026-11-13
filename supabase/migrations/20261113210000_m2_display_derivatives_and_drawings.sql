@@ -58,6 +58,7 @@ end;
 $;
 
 revoke all on function private.enforce_current_cad_display_derivative_revision() from public, anon, authenticated;
+grant execute on function private.enforce_current_cad_display_derivative_revision() to service_role;
 create trigger engineering_cad_display_derivatives_current_revision
   before insert on public.engineering_cad_display_derivatives
   for each row execute function private.enforce_current_cad_display_derivative_revision();
