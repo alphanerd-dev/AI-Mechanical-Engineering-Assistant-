@@ -50,7 +50,7 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
     const mesh = state.src === src ? state.mesh : null;
     const canvas = canvasRef.current;
     if (!mesh || !canvas) return;
-    let renderer: ReturnType<typeof createStlWebGLRenderer>["renderer"] | null = null;
+    let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
     try {
       renderer = createStlWebGLRenderer(canvas, mesh);
       controlsRef.current = renderer.controls;
