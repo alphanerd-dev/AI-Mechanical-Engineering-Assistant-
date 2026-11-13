@@ -67,105 +67,115 @@ def source_template(name: str, diameter: float, length: float) -> str:
     )
 
 
-def main() -> None:
+def wait_for_health() -> None:
     deadline = time.monotonic() + 90
-    while True:
+    while time.monotonic() < deadline:
         try:
             code, health = request("/healthz", auth=False)
             if code == 200 and health.get("status") == "ok":
-                break
+                return
         except Exception:
-            if time.monotonic() >= deadline:
-                raise
-        if time.monotonic() >= deadline:
-            raise AssertionError("Remote CAD worker did not become healthy within 90 seconds.")
+            pass
         time.sleep(0.5)
+    raise AssertionError("Remote CAD worker did not become healthy within 90 seconds.")
 
+
+def verify_readiness() -> None:
     code, readiness = request("/v1/readiness")
     assert code == 200 and readiness.get("ready") is True, readiness
-    assert {"CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP", "CAD.INSPECT_GEOMETRY", "CAD.TESSELLATE_GEOMETRY"}.issubset(set(readiness.get("capabilities", []))), readiness
+    expected = {"CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP", "CAD.INSPECT_GEOMETRY", "CAD.TESSELLATE_GEOMETRY"}
+    assert expected.issubset(set(readiness.get("capabilities", []))), readiness
 
-    dimensions = {"kind": "CYLINDER", "name": "shaft", "diameterMm": 30.0, "lengthMm": 200.0, "units": "mm"}
-    source = source_template("shaft", 30.0, 200.0)
+
+def generate_cad_artifacts(dimensions: dict[str, object], source: str) -> dict:
     code, execution = request("/v1/cad/execute", {
-        "id": "ci-cad-execution-001",
-        "backend": "build123d",
-        "source": source,
-        "filename": "shaft.py",
-        "timeoutMs": 60000,
-        "parameters": dimensions
+        "id": "ci-cad-execution-001", "backend": "build123d", "source": source,
+        "filename": "shaft.py", "timeoutMs": 60000, "parameters": dimensions
     })
     assert code == 200 and execution.get("success") is True, execution
     assert execution.get("executionId") == "ci-cad-execution-001"
     artifacts = execution.get("artifacts", {})
     assert set(artifacts) == {"source", "solid", "step", "stl", "threeMf"}
+    verify_artifact_digests(artifacts)
+    return artifacts
+
+
+def verify_artifact_digests(artifacts: dict) -> None:
     for artifact in artifacts.values():
         raw = base64.b64decode(artifact["contentBase64"], validate=True)
         assert len(raw) == artifact["sizeBytes"] > 0
         assert hashlib.sha256(raw).hexdigest() == artifact["sha256"]
 
-    solid = base64.b64decode(artifacts["solid"]["contentBase64"], validate=True)
+
+def verify_brep_validation(solid: bytes, dimensions: dict[str, object]) -> None:
+    digest = hashlib.sha256(solid).hexdigest()
     code, verdict = request("/v1/cad/validate", {
         "artifactBase64": base64.b64encode(solid).decode("ascii"),
-        "artifactSha256": hashlib.sha256(solid).hexdigest(),
-        "parameters": dimensions,
-        "toleranceMm": 0.01
+        "artifactSha256": digest, "parameters": dimensions, "toleranceMm": 0.01
     })
     assert code == 200 and verdict.get("valid") is True, verdict
-    assert verdict.get("solidCount") == 1
-    assert verdict.get("checkedBy") == "occt.brepcheck"
-    assert abs(verdict["boundingBoxMm"]["x"] - 30.0) <= 0.01
-    assert abs(verdict["boundingBoxMm"]["y"] - 30.0) <= 0.01
-    assert abs(verdict["boundingBoxMm"]["z"] - 200.0) <= 0.01
-    assert verdict["artifactSha256"] == hashlib.sha256(solid).hexdigest()
+    assert verdict.get("solidCount") == 1 and verdict.get("checkedBy") == "occt.brepcheck"
+    bounds = verdict["boundingBoxMm"]
+    assert abs(bounds["x"] - 30.0) <= 0.01
+    assert abs(bounds["y"] - 30.0) <= 0.01
+    assert abs(bounds["z"] - 200.0) <= 0.01
+    assert verdict["artifactSha256"] == digest
     assert all(item["passed"] for item in verdict["dimensionChecks"])
 
+
+def verify_tessellation_mesh(geometry: dict) -> None:
+    mesh = geometry["tessellation"]
+    vertices = mesh["vertexCount"]
+    triangles = mesh["triangleCount"]
+    assert vertices >= 3 and triangles >= 1, geometry
+    assert len(base64.b64decode(mesh["positionsFloat32LE"])) == vertices * 3 * 4
+    assert len(base64.b64decode(mesh["normalsFloat32LE"])) == vertices * 3 * 4
+    assert len(base64.b64decode(mesh["indicesUint32LE"])) == triangles * 3 * 4
+
+
+def verify_geometry_operations(artifacts: dict) -> None:
     for geometry_format, artifact_key in (("BREP", "solid"), ("STEP", "step")):
         geometry_bytes = base64.b64decode(artifacts[artifact_key]["contentBase64"], validate=True)
-        geometry_digest = hashlib.sha256(geometry_bytes).hexdigest()
+        digest = hashlib.sha256(geometry_bytes).hexdigest()
         for operation in ("INSPECT", "TESSELLATE"):
-            geometry_payload = {
-                "operation": operation,
-                "format": geometry_format,
+            payload = {
+                "operation": operation, "format": geometry_format,
                 "artifactBase64": base64.b64encode(geometry_bytes).decode("ascii"),
-                "artifactSha256": geometry_digest,
-                "linearDeflectionMm": 0.1,
-                "angularDeflectionRad": 0.35
+                "artifactSha256": digest, "linearDeflectionMm": 0.1, "angularDeflectionRad": 0.35
             }
-            code, geometry = request("/v1/cad/geometry", geometry_payload)
+            code, geometry = request("/v1/cad/geometry", payload)
             assert code == 200 and geometry.get("status") == "COMPLETED", geometry
-            assert geometry.get("artifactSha256") == geometry_digest, geometry
-            assert geometry["topology"]["valid"] is True, geometry
-            assert geometry["topology"]["solids"] == 1, geometry
+            assert geometry.get("artifactSha256") == digest, geometry
+            assert geometry["topology"]["valid"] is True and geometry["topology"]["solids"] == 1, geometry
             if operation == "TESSELLATE":
-                mesh = geometry["tessellation"]
-                vertex_count = mesh["vertexCount"]
-                triangle_count = mesh["triangleCount"]
-                assert vertex_count >= 3 and triangle_count >= 1, geometry
-                assert len(base64.b64decode(mesh["positionsFloat32LE"])) == vertex_count * 3 * 4
-                assert len(base64.b64decode(mesh["normalsFloat32LE"])) == vertex_count * 3 * 4
-                assert len(base64.b64decode(mesh["indicesUint32LE"])) == triangle_count * 3 * 4
+                verify_tessellation_mesh(geometry)
 
+
+def verify_rejections(source: str, dimensions: dict[str, object]) -> None:
     code, rejected = request("/v1/cad/execute", {
-        "id": "ci-cad-execution-002",
-        "backend": "build123d",
-        "source": source + "raise RuntimeError('source must never execute')\n",
-        "filename": "shaft.py",
-        "timeoutMs": 60000,
-        "parameters": dimensions
+        "id": "ci-cad-execution-002", "backend": "build123d",
+        "source": source + "raise RuntimeError('source must never execute')\\n",
+        "filename": "shaft.py", "timeoutMs": 60000, "parameters": dimensions
     }, allow_error=True)
     assert code == 400 and "template" in str(rejected.get("error", "")).lower(), rejected
-
     code, unauthorized = request("/v1/cad/execute", {
-        "id": "ci-cad-execution-003",
-        "backend": "build123d",
-        "source": source,
-        "filename": "shaft.py",
-        "timeoutMs": 60000,
-        "parameters": dimensions
+        "id": "ci-cad-execution-003", "backend": "build123d", "source": source,
+        "filename": "shaft.py", "timeoutMs": 60000, "parameters": dimensions
     }, auth=False, allow_error=True)
     assert code == 401, unauthorized
-    print("remote CAD worker HTTP smoke passed: generate + digest checks + OCCT validation + unsafe-source rejection + bearer auth")
+
+
+def main() -> None:
+    wait_for_health()
+    verify_readiness()
+    dimensions = {"kind": "CYLINDER", "name": "shaft", "diameterMm": 30.0, "lengthMm": 200.0, "units": "mm"}
+    source = source_template("shaft", 30.0, 200.0)
+    artifacts = generate_cad_artifacts(dimensions, source)
+    solid = base64.b64decode(artifacts["solid"]["contentBase64"], validate=True)
+    verify_brep_validation(solid, dimensions)
+    verify_geometry_operations(artifacts)
+    verify_rejections(source, dimensions)
+    print("remote CAD worker HTTP smoke passed: generate + digest checks + OCCT validation + geometry inspection/tessellation + rejection + bearer auth")
 
 
 if __name__ == "__main__":
