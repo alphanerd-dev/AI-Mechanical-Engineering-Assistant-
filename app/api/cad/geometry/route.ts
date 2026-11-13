@@ -177,11 +177,17 @@ export async function POST(request: Request) {
       (operation !== "INSPECT" && operation !== "TESSELLATE")) {
     return httpError("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
   }
-  const linearDeflectionMm = body.linearDeflectionMm === undefined ? 0.1 : body.linearDeflectionMm;
-  const angularDeflectionRad = body.angularDeflectionRad === undefined ? 0.35 : body.angularDeflectionRad;
+  const linearValue = body.linearDeflectionMm;
+  const angularValue = body.angularDeflectionRad;
+  if ((linearValue !== undefined && typeof linearValue !== "number") ||
+      (angularValue !== undefined && typeof angularValue !== "number")) {
+    return httpError("Tessellation deflection values must be numeric.", 400);
+  }
+  const linearDeflectionMm: number = linearValue === undefined ? 0.1 : linearValue;
+  const angularDeflectionRad: number = angularValue === undefined ? 0.35 : angularValue;
   if (operation === "TESSELLATE" && (
-      typeof linearDeflectionMm !== "number" || !Number.isFinite(linearDeflectionMm) || linearDeflectionMm < 0.001 || linearDeflectionMm > 5 ||
-      typeof angularDeflectionRad !== "number" || !Number.isFinite(angularDeflectionRad) || angularDeflectionRad < 0.01 || angularDeflectionRad > Math.PI / 2
+      !Number.isFinite(linearDeflectionMm) || linearDeflectionMm < 0.001 || linearDeflectionMm > 5 ||
+      !Number.isFinite(angularDeflectionRad) || angularDeflectionRad < 0.01 || angularDeflectionRad > Math.PI / 2
   )) return httpError("Tessellation deflection is outside the supported range.", 400);
 
   let authorization;
