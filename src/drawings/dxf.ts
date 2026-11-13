@@ -25,33 +25,37 @@ type EntityReader = (groups: GroupPair[], warnings: string[]) => DXFEntity | nul
 const MAX_DXF_BYTES = 8 * 1024 * 1024;
 const MAX_ENTITIES = 10000;
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
-const numberAt = (groups: GroupPair[], code: number, fallback = NaN): number => {
+const numberAt = ({ groups, code, fallback = NaN }: { groups: GroupPair[]; code: number; fallback?: number }): number => {
   const pair = groups.find((entry) => entry[0] === code);
   return pair ? Number(pair[1]) : fallback;
 };
-const allNumbers = (groups: GroupPair[], code: number): number[] =>
+const allNumbers = ({ groups, code }: { groups: GroupPair[]; code: number }): number[] =>
   groups.filter((entry) => entry[0] === code).map((entry) => Number(entry[1]));
 const layerOf = (groups: GroupPair[]): string =>
   (groups.find((entry) => entry[0] === 8)?.[1] ?? "0").slice(0, 128);
 
-function isValidGroupCode(codeText: string, code: number): boolean {
-  return codeText.length > 0 && Number.isInteger(code) && code >= 0 && code <= 1071;
+function isValidGroupCode(input: { codeText: string; code: number }): boolean {
+  const { codeText, code } = input;
+  if (codeText.length === 0) return false;
+  if (!Number.isInteger(code)) return false;
+  return code >= 0 && code <= 1071;
 }
 
-function parseGroupCode(value: string, lineNumber: number): number {
-  const codeText = value.trim();
+function parseGroupCode(input: { value: string; lineNumber: number }): number {
+  const codeText = input.value.trim();
   const code = Number(codeText);
-  if (isValidGroupCode(codeText, code)) return code;
-  throw new Error("DXF contains an invalid group code at line " + lineNumber + ".");
+  if (isValidGroupCode({ codeText, code })) return code;
+  throw new Error("DXF contains an invalid group code at line " + input.lineNumber + ".");
 }
 
-function parsePairs(source: string): GroupPair[] {
+function parsePairs(input: { source: string }): GroupPair[] {
+  const { source } = input;
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   if (lines.length % 2 !== 0) throw new Error("DXF contains an incomplete group-code pair.");
   const pairs: GroupPair[] = [];
   for (let index = 0; index < lines.length; index += 2) {
-    pairs.push([parseGroupCode(lines[index], index + 1), lines[index + 1].trimEnd()]);
+    pairs.push([parseGroupCode({ value: lines[index], lineNumber: index + 1 }), lines[index + 1].trimEnd()]);
   }
   return pairs;
 }
@@ -70,22 +74,22 @@ function readUnits(pairs: GroupPair[]): string {
 }
 
 function readLine(groups: GroupPair[], warnings: string[]): DXFEntity | null {
-  const [x1, y1, x2, y2] = [numberAt(groups, 10), numberAt(groups, 20), numberAt(groups, 11), numberAt(groups, 21)];
+  const [x1, y1, x2, y2] = [numberAt({ groups, code: 10 }), numberAt({ groups, code: 20 }), numberAt({ groups, code: 11 }), numberAt({ groups, code: 21 })];
   if ([x1, y1, x2, y2].every(finite)) return { type: "LINE", layer: layerOf(groups), x1, y1, x2, y2 };
   warnings.push("Skipped a LINE entity with missing or non-finite coordinates.");
   return null;
 }
 
 function readCircle(groups: GroupPair[], warnings: string[]): DXFEntity | null {
-  const x = numberAt(groups, 10), y = numberAt(groups, 20), radius = numberAt(groups, 40);
+  const x = numberAt({ groups, code: 10 }), y = numberAt({ groups, code: 20 }), radius = numberAt({ groups, code: 40 });
   if ([x, y, radius].every(finite) && radius > 0) return { type: "CIRCLE", layer: layerOf(groups), x, y, radius };
   warnings.push("Skipped a CIRCLE entity with invalid centre or radius.");
   return null;
 }
 
 function readArc(groups: GroupPair[], warnings: string[]): DXFEntity | null {
-  const x = numberAt(groups, 10), y = numberAt(groups, 20), radius = numberAt(groups, 40);
-  const startDegrees = numberAt(groups, 50), endDegrees = numberAt(groups, 51);
+  const x = numberAt({ groups, code: 10 }), y = numberAt({ groups, code: 20 }), radius = numberAt({ groups, code: 40 });
+  const startDegrees = numberAt({ groups, code: 50 }), endDegrees = numberAt({ groups, code: 51 });
   if ([x, y, radius, startDegrees, endDegrees].every(finite) && radius > 0) {
     return { type: "ARC", layer: layerOf(groups), x, y, radius, startDegrees, endDegrees };
   }
@@ -93,7 +97,8 @@ function readArc(groups: GroupPair[], warnings: string[]): DXFEntity | null {
   return null;
 }
 
-function hasValidPolylineVertices(xs: number[], ys: number[]): boolean {
+function hasValidPolylineVertices(input: { xs: number[]; ys: number[] }): boolean {
+  const { xs, ys } = input;
   if (xs.length < 2) return false;
   if (xs.length !== ys.length) return false;
   if (!xs.every(finite)) return false;
@@ -101,8 +106,8 @@ function hasValidPolylineVertices(xs: number[], ys: number[]): boolean {
 }
 
 function readPolyline(groups: GroupPair[], warnings: string[]): DXFEntity | null {
-  const xs = allNumbers(groups, 10), ys = allNumbers(groups, 20);
-  if (!hasValidPolylineVertices(xs, ys)) {
+  const xs = allNumbers({ groups, code: 10 }), ys = allNumbers({ groups, code: 20 });
+  if (!hasValidPolylineVertices({ xs, ys })) {
     warnings.push("Skipped an LWPOLYLINE entity with incomplete vertices.");
     return null;
   }
@@ -112,21 +117,21 @@ function readPolyline(groups: GroupPair[], warnings: string[]): DXFEntity | null
   return {
     type: "LWPOLYLINE", layer: layerOf(groups),
     points: xs.map((pointX, index) => [pointX, ys[index]] as [number, number]),
-    closed: (numberAt(groups, 70, 0) & 1) === 1
+    closed: (numberAt({ groups, code: 70, fallback: 0 }) & 1) === 1
   };
 }
 
-function isValidTextEntity(x: number, y: number, height: number, value: string): boolean {
-  if (!finite(x)) return false;
-  if (!finite(y)) return false;
-  if (!finite(height) || height <= 0) return false;
-  return value.length <= 512;
+function isValidTextEntity(input: { x: number; y: number; height: number; value: string }): boolean {
+  if (!finite(input.x)) return false;
+  if (!finite(input.y)) return false;
+  if (!finite(input.height) || input.height <= 0) return false;
+  return input.value.length <= 512;
 }
 
 function readText(groups: GroupPair[], warnings: string[]): DXFEntity | null {
-  const x = numberAt(groups, 10), y = numberAt(groups, 20), height = numberAt(groups, 40, 2.5);
+  const x = numberAt({ groups, code: 10 }), y = numberAt({ groups, code: 20 }), height = numberAt({ groups, code: 40, fallback: 2.5 });
   const value = groups.find((entry) => entry[0] === 1)?.[1] ?? "";
-  if (isValidTextEntity(x, y, height, value)) {
+  if (isValidTextEntity({ x, y, height, value })) {
     return { type: "TEXT", layer: layerOf(groups), x, y, height, value };
   }
   warnings.push("Skipped a TEXT entity with invalid position, height or content.");
@@ -141,7 +146,8 @@ const ENTITY_READERS: Readonly<Record<string, EntityReader>> = {
   TEXT: readText
 };
 
-function readEntity(type: string, groups: GroupPair[], warnings: string[]): DXFEntity | null {
+function readEntity(input: { type: string; groups: GroupPair[]; warnings: string[] }): DXFEntity | null {
+  const { type, groups, warnings } = input;
   const reader = ENTITY_READERS[type];
   if (reader) return reader(groups, warnings);
   if (!["POINT", "VERTEX", "SEQEND", "ENDSEC"].includes(type)) {
@@ -156,13 +162,15 @@ interface EntityParseStep {
   entity?: DXFEntity;
 }
 
-function nextEntityBoundary(pairs: GroupPair[], start: number): number {
+function nextEntityBoundary(input: { pairs: GroupPair[]; start: number }): number {
+  const { pairs, start } = input;
   let end = start + 1;
   while (end < pairs.length && pairs[end][0] !== 0) end += 1;
   return end;
 }
 
-function readSectionState(pairs: GroupPair[], index: number): EntityParseStep {
+function readSectionState(input: { pairs: GroupPair[]; index: number }): EntityParseStep {
+  const { pairs, index } = input;
   const section = pairs[index + 1];
   const validHeader = section?.[0] === 2;
   return {
@@ -171,22 +179,18 @@ function readSectionState(pairs: GroupPair[], index: number): EntityParseStep {
   };
 }
 
-function parseEntityStep(
-  pairs: GroupPair[],
-  index: number,
-  inEntities: boolean,
-  warnings: string[]
-): EntityParseStep {
+function parseEntityStep(input: { pairs: GroupPair[]; index: number; inEntities: boolean; warnings: string[] }): EntityParseStep {
+  const { pairs, index, inEntities, warnings } = input;
   const [code, value] = pairs[index];
   if (code !== 0) return { nextIndex: index + 1, inEntities };
-  if (value === "SECTION") return readSectionState(pairs, index);
+  if (value === "SECTION") return readSectionState({ pairs, index });
   if (value === "ENDSEC") return { nextIndex: index + 1, inEntities: false };
   if (!inEntities) return { nextIndex: index + 1, inEntities };
-  const end = nextEntityBoundary(pairs, index);
+  const end = nextEntityBoundary({ pairs, start: index });
   return {
     nextIndex: end,
     inEntities,
-    entity: readEntity(value.toUpperCase(), pairs.slice(index + 1, end), warnings) ?? undefined
+    entity: readEntity({ type: value.toUpperCase(), groups: pairs.slice(index + 1, end), warnings }) ?? undefined
   };
 }
 
@@ -195,7 +199,7 @@ function parseEntities(pairs: GroupPair[], warnings: string[]): DXFEntity[] {
   let index = 0;
   let inEntities = false;
   while (index < pairs.length) {
-    const step = parseEntityStep(pairs, index, inEntities, warnings);
+    const step = parseEntityStep({ pairs, index, inEntities, warnings });
     if (step.entity) entities.push(step.entity);
     if (entities.length > MAX_ENTITIES) throw new Error("DXF exceeds the 10,000 supported-entity preview limit.");
     index = step.nextIndex;
@@ -246,12 +250,16 @@ function computeBounds(entities: DXFEntity[]): DXFBounds {
 }
 
 /** Parse a deliberately bounded ASCII DXF subset. Unsupported entities are reported, never guessed. */
+function isValidDXFSource(source: string): boolean {
+  if (source.length === 0) return false;
+  return new TextEncoder().encode(source).byteLength <= MAX_DXF_BYTES;
+}
+
 export function parseDXF(source: string): DXFDocument {
-  if (typeof source !== "string" || source.length === 0 ||
-      new TextEncoder().encode(source).byteLength > MAX_DXF_BYTES) {
+  if (!isValidDXFSource(source)) {
     throw new Error("DXF must contain 1 byte to 8 MiB of ASCII-compatible text.");
   }
-  const pairs = parsePairs(source);
+  const pairs = parsePairs({ source });
   const warnings: string[] = [];
   const entities = parseEntities(pairs, warnings);
   if (!entities.length) throw new Error("DXF contains no supported 2D entities.");
