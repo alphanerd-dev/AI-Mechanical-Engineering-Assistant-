@@ -119,35 +119,45 @@ function normalizeAndExpand(positions: Float32Array, normals: Float32Array, indi
   return { ...expandIndexedMesh(positions, normals, indices, center, radius), triangleCount };
 }
 
-function readGLBChunks(buffer: ArrayBuffer): { document: GLTFDocument; binary: DataView } {
+function validateGLBHeader(buffer: ArrayBuffer, view: DataView): void {
   if (buffer.byteLength < 28 || buffer.byteLength > MAX_GLB_BYTES) {
     throw new Error("GLB is empty or exceeds the 32 MiB preview limit.");
   }
-  const view = new DataView(buffer);
   if (view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2 ||
       view.getUint32(8, true) !== buffer.byteLength) {
     throw new Error("GLB header or declared file length is invalid.");
   }
+}
+
+function parseGLBJsonChunk(buffer: ArrayBuffer, view: DataView): { document: GLTFDocument; binaryHeader: number } {
   const jsonLength = view.getUint32(12, true);
   if (view.getUint32(16, true) !== 0x4e4f534a || jsonLength < 2 || jsonLength % 4 !== 0 ||
       20 + jsonLength + 8 > buffer.byteLength) {
     throw new Error("GLB JSON chunk is invalid.");
   }
-  let document: GLTFDocument;
   try {
-    document = JSON.parse(new TextDecoder().decode(buffer.slice(20, 20 + jsonLength))) as GLTFDocument;
+    const document = JSON.parse(new TextDecoder().decode(buffer.slice(20, 20 + jsonLength))) as GLTFDocument;
+    return { document, binaryHeader: 20 + jsonLength };
   } catch {
     throw new Error("GLB JSON chunk could not be parsed.");
   }
-  const binaryHeader = 20 + jsonLength;
+}
+
+function readGLBBinaryChunk(buffer: ArrayBuffer, view: DataView, document: GLTFDocument, binaryHeader: number): DataView {
   const binaryLength = view.getUint32(binaryHeader, true);
-  if (view.getUint32(binaryHeader + 4, true) !== 0x004e4942 ||
-      binaryHeader + 8 + binaryLength !== buffer.byteLength ||
-      document.asset?.version !== "2.0" || document.buffers?.length !== 1 ||
-      document.buffers[0].uri !== undefined || document.buffers[0].byteLength !== binaryLength) {
-    throw new Error("GLB binary chunk or buffer declaration is invalid.");
-  }
-  return { document, binary: new DataView(buffer, binaryHeader + 8, binaryLength) };
+  const validChunk = view.getUint32(binaryHeader + 4, true) === 0x004e4942 &&
+    binaryHeader + 8 + binaryLength === buffer.byteLength;
+  const validDocument = document.asset?.version === "2.0" && document.buffers?.length === 1 &&
+    document.buffers[0].uri === undefined && document.buffers[0].byteLength === binaryLength;
+  if (!validChunk || !validDocument) throw new Error("GLB binary chunk or buffer declaration is invalid.");
+  return new DataView(buffer, binaryHeader + 8, binaryLength);
+}
+
+function readGLBChunks(buffer: ArrayBuffer): { document: GLTFDocument; binary: DataView } {
+  const view = new DataView(buffer);
+  validateGLBHeader(buffer, view);
+  const { document, binaryHeader } = parseGLBJsonChunk(buffer, view);
+  return { document, binary: readGLBBinaryChunk(buffer, view, document, binaryHeader) };
 }
 
 function validateSourceLineage(document: GLTFDocument) {
@@ -187,7 +197,6 @@ function readTriangleMesh(document: GLTFDocument, binary: DataView, primitive: G
   );
 }
 
-/** Parse the bounded GLB v2 profile emitted by createCADDisplayGLB; external buffers are rejected. */
 /** Parse the bounded GLB v2 profile emitted by createCADDisplayGLB; external buffers are rejected. */
 export function parseCADDisplayGLB(buffer: ArrayBuffer): CADDisplayMeshPreview {
   const { document, binary } = readGLBChunks(buffer);
