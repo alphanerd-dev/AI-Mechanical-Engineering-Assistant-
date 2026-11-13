@@ -2,7 +2,7 @@
 
 **Implementation branch:** `feat/m2-2-to-m2-6-geometry-runtime`  
 **Baseline:** PR #140 geometry/viewer foundation  
-**Implementation PR:** #151 (draft; corrected exact-head verification pending)  
+**Implementation PR:** #152 (draft; CodeScene and exact-head verification pending)  
 **Status date:** 13 November 2026
 
 ## Engineering boundary
@@ -64,7 +64,7 @@ Implemented:
 
 Verification already observed:
 - The first implementation batch passed GitHub Actions run #43504028624, including `npm test`, `npm run build`, OCCT worker protocol tests, and actual generated BREP/STEP import/inspection/tessellation in the pinned build123d runtime.
-- PR #150 CI run #43507164295 verified the test suite and worker-side geometry flows, but its changed-file ESLint gate found one initial drawing-list effect issue and one viewport dependency warning. Those were corrected in PR #151. Its production build was still in progress at the time this status was updated; PR #151 must complete all exact-head checks before the batch is considered verified.
+- PR #150/#151 verification identified TypeScript, React effect lifecycle and CodeScene complexity issues. These were corrected by splitting geometry/drawing API services, isolating OCCT worker parsing and tessellation, separating GLB validation/serialization, and extracting focused viewport and drawing hooks. PR #152 reruns all checks against the refactored code; do not treat the batch as verified until the exact-head CI and CodeScene quality gate pass.
 
 Remaining:
 - Verify the remote worker endpoint and persistence API together in the current exact-head CI and deployed preview.
