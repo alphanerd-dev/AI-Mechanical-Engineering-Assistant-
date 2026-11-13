@@ -109,20 +109,43 @@ def runtime_readiness() -> dict[str, Any]:
 
 
 
-def decode_geometry_artifact(payload: dict[str, Any]) -> tuple[bytes, str]:
-    encoded = payload.get("artifactBase64")
-    digest = payload.get("artifactSha256")
-    if not isinstance(encoded, str) or len(encoded) > 6 * 1024 * 1024:
+def validate_geometry_artifact_base64(encoded: Any) -> str:
+    if not isinstance(encoded, str):
         raise ValueError("A bounded geometry artifact base64 value is required.")
-    if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
+    if len(encoded) > 6 * 1024 * 1024:
+        raise ValueError("A bounded geometry artifact base64 value is required.")
+    return encoded
+
+
+def validate_geometry_artifact_digest(digest: Any) -> str:
+    if not isinstance(digest, str):
         raise ValueError("A SHA-256 geometry artifact digest is required.")
+    if not re.fullmatch(r"[a-f0-9]{64}", digest):
+        raise ValueError("A SHA-256 geometry artifact digest is required.")
+    return digest
+
+
+def decode_geometry_artifact_bytes(encoded: str) -> bytes:
     try:
-        artifact = base64.b64decode(encoded, validate=True)
+        return base64.b64decode(encoded, validate=True)
     except Exception as exc:
         raise ValueError("Geometry artifact base64 is malformed.") from exc
-    actual_digest = hashlib.sha256(artifact).hexdigest()
-    if not artifact or len(artifact) > MAX_ARTIFACT_BYTES or actual_digest != digest:
+
+
+def validate_geometry_artifact_bytes(artifact: bytes, digest: str) -> None:
+    if not artifact:
         raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+    if len(artifact) > MAX_ARTIFACT_BYTES:
+        raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+    if hashlib.sha256(artifact).hexdigest() != digest:
+        raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+
+
+def decode_geometry_artifact(payload: dict[str, Any]) -> tuple[bytes, str]:
+    encoded = validate_geometry_artifact_base64(payload.get("artifactBase64"))
+    digest = validate_geometry_artifact_digest(payload.get("artifactSha256"))
+    artifact = decode_geometry_artifact_bytes(encoded)
+    validate_geometry_artifact_bytes(artifact, digest)
     return artifact, digest
 
 
@@ -153,14 +176,34 @@ def parse_geometry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], byt
     return request, artifact, digest
 
 
-def validate_geometry_deflection(payload: dict[str, Any]) -> dict[str, float]:
-    linear = payload.get("linearDeflectionMm", 0.1)
-    angular = payload.get("angularDeflectionRad", 0.35)
-    if not isinstance(linear, (int, float)) or isinstance(linear, bool) or not 0.001 <= linear <= 5:
+def validate_linear_geometry_deflection(value: Any) -> float:
+    if not isinstance(value, (int, float)):
         raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
-    if not isinstance(angular, (int, float)) or isinstance(angular, bool) or not 0.01 <= angular <= 1.5707963267948966:
+    if isinstance(value, bool):
+        raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
+    if value < 0.001:
+        raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
+    if value > 5:
+        raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
+    return float(value)
+
+
+def validate_angular_geometry_deflection(value: Any) -> float:
+    if not isinstance(value, (int, float)):
         raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
-    return {"linearDeflectionMm": float(linear), "angularDeflectionRad": float(angular)}
+    if isinstance(value, bool):
+        raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
+    if value < 0.01:
+        raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
+    if value > 1.5707963267948966:
+        raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
+    return float(value)
+
+
+def validate_geometry_deflection(payload: dict[str, Any]) -> dict[str, float]:
+    linear = validate_linear_geometry_deflection(payload.get("linearDeflectionMm", 0.1))
+    angular = validate_angular_geometry_deflection(payload.get("angularDeflectionRad", 0.35))
+    return {"linearDeflectionMm": linear, "angularDeflectionRad": angular}
 
 
 def execute_geometry_worker(request: dict[str, Any], artifact: bytes) -> dict[str, Any]:
@@ -181,18 +224,41 @@ def execute_geometry_worker(request: dict[str, Any], artifact: bytes) -> dict[st
         return response
 
 
-def parse_geometry_worker_response(result: subprocess.CompletedProcess) -> dict[str, Any]:
-    if result.returncode != 0 or not result.stdout.strip():
+def validate_geometry_worker_process(result: subprocess.CompletedProcess) -> None:
+    if result.returncode != 0:
         raise RuntimeError("OpenCascade geometry worker returned no structured result.")
+    if not result.stdout.strip():
+        raise RuntimeError("OpenCascade geometry worker returned no structured result.")
+
+
+def parse_geometry_worker_json(stdout: str) -> Any:
     try:
-        response = json.loads(result.stdout)
+        return json.loads(stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError("OpenCascade geometry worker returned malformed JSON.") from exc
-    if not isinstance(response, dict) or response.get("status") != "COMPLETED":
-        errors = response.get("errors") if isinstance(response, dict) else None
-        detail = "; ".join(item for item in errors if isinstance(item, str)) if isinstance(errors, list) else "Geometry operation failed."
-        raise ValueError(detail[:500])
+
+
+def geometry_worker_failure_detail(response: Any) -> str:
+    if not isinstance(response, dict):
+        return "Geometry operation failed."
+    errors = response.get("errors")
+    if not isinstance(errors, list):
+        return "Geometry operation failed."
+    return "; ".join(item for item in errors if isinstance(item, str))
+
+
+def validate_geometry_worker_success(response: Any) -> dict[str, Any]:
+    if not isinstance(response, dict):
+        raise ValueError("Geometry operation failed.")
+    if response.get("status") != "COMPLETED":
+        raise ValueError(geometry_worker_failure_detail(response)[:500])
     return response
+
+
+def parse_geometry_worker_response(result: subprocess.CompletedProcess) -> dict[str, Any]:
+    validate_geometry_worker_process(result)
+    response = parse_geometry_worker_json(result.stdout)
+    return validate_geometry_worker_success(response)
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "EngineeringCADWorker/0.1"
@@ -373,9 +439,17 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
-def main() -> None:
-    if not GENERATOR_SCRIPT.is_file() or not VALIDATOR_SCRIPT.is_file() or not GEOMETRY_SCRIPT.is_file():
+def validate_trusted_worker_scripts() -> None:
+    if not GENERATOR_SCRIPT.is_file():
         raise RuntimeError("Trusted CAD worker scripts are missing.")
+    if not VALIDATOR_SCRIPT.is_file():
+        raise RuntimeError("Trusted CAD worker scripts are missing.")
+    if not GEOMETRY_SCRIPT.is_file():
+        raise RuntimeError("Trusted CAD worker scripts are missing.")
+
+
+def main() -> None:
+    validate_trusted_worker_scripts()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     server.daemon_threads = True
     print("ai-mechanical-cad-worker listening on " + HOST + ":" + str(PORT), flush=True)
