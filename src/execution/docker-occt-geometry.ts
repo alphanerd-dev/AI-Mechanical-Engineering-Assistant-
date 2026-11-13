@@ -246,21 +246,30 @@ function decodeUint32(value: string, expectedLength: number): Uint32Array {
   return output;
 }
 
-function decodeTessellation(response: GeometryWorkerResponse, source: CADGeometrySource) {
-  const mesh = response.tessellation;
-  if (!mesh || !Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 ||
+function validateTessellationCounts(mesh: NonNullable<GeometryWorkerResponse["tessellation"]>): void {
+  if (!Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 ||
       mesh.vertexCount > MAX_VERTICES || !Number.isSafeInteger(mesh.triangleCount) ||
       mesh.triangleCount < 1 || mesh.triangleCount > MAX_TRIANGLES) {
     throw new Error("OCCT geometry worker returned invalid tessellation counts.");
   }
+}
+
+function decodeTessellationBuffers(mesh: NonNullable<GeometryWorkerResponse["tessellation"]>) {
   const positions = decodeFloat32(mesh.positionsFloat32LE, mesh.vertexCount * 3);
   const normals = decodeFloat32(mesh.normalsFloat32LE, mesh.vertexCount * 3);
   const indices = decodeUint32(mesh.indicesUint32LE, mesh.triangleCount * 3);
   if (indices.some((index) => index >= mesh.vertexCount)) {
     throw new Error("OCCT geometry worker returned an out-of-range mesh index.");
   }
+  return { positions, normals, indices };
+}
+
+function decodeTessellation(response: GeometryWorkerResponse, source: CADGeometrySource) {
+  const mesh = response.tessellation;
+  if (!mesh) throw new Error("OCCT geometry worker omitted tessellation.");
+  validateTessellationCounts(mesh);
   return {
-    positions, normals, indices,
+    ...decodeTessellationBuffers(mesh),
     linearDeflectionMm: mesh.linearDeflectionMm,
     angularDeflectionRad: mesh.angularDeflectionRad,
     sourceArtifactId: source.artifactId,
