@@ -253,14 +253,24 @@ export async function uploadProjectDrawing(request: Request): Promise<NextRespon
   }
 }
 
+function parseDrawingListProjectId(url: URL): string {
+  const value = url.searchParams.get("projectId")?.trim();
+  if (!isUuid(value)) fail("A registered project UUID is required.", 400);
+  return value;
+}
+
+function parseDrawingListModelId(url: URL): string | null {
+  const value = url.searchParams.get("modelIdentityId")?.trim() ?? null;
+  if (value && !isUuid(value)) fail("The optional model identity UUID is invalid.", 400);
+  return value;
+}
+
 function parseDrawingListQuery(request: Request): { projectId: string; modelIdentityId: string | null } {
   const url = new URL(request.url);
-  const projectId = url.searchParams.get("projectId")?.trim();
-  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim() ?? null;
-  if (!isUuid(projectId) || (modelIdentityId && !isUuid(modelIdentityId))) {
-    fail("A registered project UUID and optional model identity UUID are required.", 400);
-  }
-  return { projectId, modelIdentityId };
+  return {
+    projectId: parseDrawingListProjectId(url),
+    modelIdentityId: parseDrawingListModelId(url)
+  };
 }
 
 async function fetchDrawingRows(db: Database, projectId: string, modelIdentityId: string | null) {
