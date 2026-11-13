@@ -137,16 +137,19 @@ async function inspectUpload(file: File) {
   return { bytes, inspection, sha256 };
 }
 
-async function writeDrawingAudit(
-  serviceDb: ServiceDatabase,
-  subject: string,
-  projectId: string,
-  drawingId: string,
-  inspection: CADDrawingInspection,
-  byteSize: number,
-  sha256: string,
-  modelIdentityId: string | null
-) {
+interface DrawingAuditInput {
+  serviceDb: ServiceDatabase;
+  subject: string;
+  projectId: string;
+  drawingId: string;
+  inspection: CADDrawingInspection;
+  byteSize: number;
+  sha256: string;
+  modelIdentityId: string | null;
+}
+
+async function writeDrawingAudit(input: DrawingAuditInput) {
+  const { serviceDb, subject, projectId, drawingId, inspection, byteSize, sha256, modelIdentityId } = input;
   try {
     await persistEngineeringAuditEvent({
       timestamp: new Date().toISOString(),
@@ -172,13 +175,16 @@ async function writeDrawingAudit(
   }
 }
 
-async function insertDrawingRecord(
-  serviceDb: ServiceDatabase,
-  row: Row,
-  drawingId: string,
-  projectId: string,
-  storagePath: string
-) {
+interface DrawingRecordInput {
+  serviceDb: ServiceDatabase;
+  row: Row;
+  drawingId: string;
+  projectId: string;
+  storagePath: string;
+}
+
+async function insertDrawingRecord(input: DrawingRecordInput) {
+  const { serviceDb, row, drawingId, projectId, storagePath } = input;
   const { error: insertError } = await serviceDb.from("engineering_cad_drawings").insert(row);
   if (!insertError) return;
   const { data, error } = await serviceDb.from("engineering_cad_drawings")
@@ -219,9 +225,13 @@ async function persistDrawing(
     warnings: inspection.warnings, created_by: context.subject
   };
   try {
-    await insertDrawingRecord(context.serviceDb, row, drawingId, upload.projectId, storagePath);
-    await writeDrawingAudit(context.serviceDb, context.subject, upload.projectId, drawingId,
-      inspection, bytes.byteLength, sha256, upload.modelIdentityId);
+    await insertDrawingRecord({
+      serviceDb: context.serviceDb, row, drawingId, projectId: upload.projectId, storagePath
+    });
+    await writeDrawingAudit({
+      serviceDb: context.serviceDb, subject: context.subject, projectId: upload.projectId,
+      drawingId, inspection, byteSize: bytes.byteLength, sha256, modelIdentityId: upload.modelIdentityId
+    });
   } catch (error) {
     if (error instanceof DrawingAuditAmbiguousError || error instanceof DrawingCommitAmbiguousError) throw error;
     await context.serviceDb.from("engineering_cad_drawings").delete().eq("id", drawingId).eq("project_id", upload.projectId);
