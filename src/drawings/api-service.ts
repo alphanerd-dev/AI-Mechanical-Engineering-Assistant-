@@ -21,6 +21,7 @@ class DrawingAPIError extends Error {
   }
 }
 class DrawingAuditAmbiguousError extends DrawingAPIError {}
+class DrawingCommitAmbiguousError extends DrawingAPIError {}
 
 interface UploadRequest {
   projectId: string;
@@ -151,10 +152,8 @@ async function insertDrawingRecord(
   if (!insertError) return;
   const { data, error } = await serviceDb.from("engineering_cad_drawings")
     .select("id").eq("id", drawingId).eq("project_id", projectId).maybeSingle();
-  if (data || error) {
-    if (error) fail("Drawing upload result is ambiguous. Reload drawing history before retrying.", 503);
-    return;
-  }
+  if (data) return;
+  if (error) throw new DrawingCommitAmbiguousError("Drawing upload result is ambiguous. Reload drawing history before retrying.", 503);
   await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
   fail("Drawing metadata could not be committed; the uploaded object was cleaned up.", 503);
 }
@@ -193,7 +192,7 @@ async function persistDrawing(
     await writeDrawingAudit(context.serviceDb, context.subject, upload.projectId, drawingId,
       inspection, bytes.byteLength, sha256, upload.modelIdentityId);
   } catch (error) {
-    if (error instanceof DrawingAuditAmbiguousError) throw error;
+    if (error instanceof DrawingAuditAmbiguousError || error instanceof DrawingCommitAmbiguousError) throw error;
     await context.serviceDb.from("engineering_cad_drawings").delete().eq("id", drawingId).eq("project_id", upload.projectId);
     await context.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
     throw error;
