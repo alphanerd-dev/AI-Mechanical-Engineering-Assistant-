@@ -371,6 +371,17 @@ function resolveDockerGeometryOptions(options: DockerOCCTGeometryOptions): Resol
   };
 }
 
+function assertGeometryCommandSucceeded(
+  execution: Awaited<ReturnType<CADCommandRunner["run"]>>
+): void {
+  if (execution.timedOut) throw new Error("OCCT geometry operation timed out.");
+  if (execution.outputLimitExceeded) throw new Error("OCCT geometry worker exceeded its output limit.");
+  if (execution.error) throw new Error("OCCT geometry worker could not start: " + execution.error);
+  if (execution.exitCode !== 0) {
+    throw new Error("OCCT geometry worker exited unsuccessfully. " + execution.stderr.trim().slice(-2000));
+  }
+}
+
 /** Executes real OCCT import/inspection/tessellation in a no-network, read-only container. */
 export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
   private readonly image: string;
@@ -403,12 +414,7 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
       timeoutMs: this.timeoutMs, maxStdoutBytes: this.maxStdoutBytes, maxStderrBytes: this.maxStderrBytes
     };
     const execution = await this.runner.run(this.dockerBinary, sandbox.args, sandbox.payload, runOptions);
-    if (execution.timedOut) throw new Error("OCCT geometry operation timed out.");
-    if (execution.outputLimitExceeded) throw new Error("OCCT geometry worker exceeded its output limit.");
-    if (execution.error) throw new Error("OCCT geometry worker could not start: " + execution.error);
-    if (execution.exitCode !== 0) {
-      throw new Error("OCCT geometry worker exited unsuccessfully. " + execution.stderr.trim().slice(-2000));
-    }
+    assertGeometryCommandSucceeded(execution);
     return parseGeometryWorkerResponse(execution.stdout);
   }
 
