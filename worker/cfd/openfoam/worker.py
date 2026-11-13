@@ -148,12 +148,16 @@ boundary
     {{
         type cyclic;
         neighbourPatch right;
+        transform translational;
+        separationVector ({streamwise_length:.12g} 0 0);
         faces ((0 3 7 4));
     }}
     right
     {{
         type cyclic;
         neighbourPatch left;
+        transform translational;
+        separationVector ({-streamwise_length:.12g} 0 0);
         faces ((1 2 6 5));
     }}
     wall
@@ -457,6 +461,7 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
                     cell_matches = re.findall(r"^\\s*cells:\\s*(\\d+)", output, flags=re.MULTILINE)
                     if not cell_matches or int(cell_matches[-1]) != int(request["mesh"]["cellsVertical"]):
                         raise WorkerError("OpenFOAM checkMesh cell count does not match the requested mesh.")
+                    actual_mesh_cells = int(cell_matches[-1])
 
             solver_log = logs[-1]
             residuals = final_residuals(solver_log)
@@ -509,7 +514,7 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
                 "solver": "OpenFOAM",
                 "solverVersion": "14",
                 "converged": converged,
-                "meshCells": int(request["mesh"]["cellsVertical"]),
+                "meshCells": actual_mesh_cells,
                 "massFluxKgS": mass_flux,
                 "residuals": residuals,
                 "velocityProfile": profile,
