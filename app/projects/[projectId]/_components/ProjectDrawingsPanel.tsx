@@ -28,10 +28,27 @@ function dateLabel(value: string): string {
   return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
 }
 
+function drawingUploadIdFromBody(body: unknown): string | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const drawing = (body as Record<string, unknown>).drawing;
+  if (!drawing || typeof drawing !== "object" || Array.isArray(drawing)) return null;
+  const id = (drawing as Record<string, unknown>).id;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+function drawingUploadError(body: unknown): string {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const error = (body as Record<string, unknown>).error;
+    if (typeof error === "string") return error;
+  }
+  return "Drawing upload failed.";
+}
+
 async function readDrawingUploadId(response: Response): Promise<string> {
-  const body = await response.json().catch(() => ({}));
-  if (response.ok && body.drawing && typeof body.drawing.id === "string") return body.drawing.id;
-  throw new Error(typeof body.error === "string" ? body.error : "Drawing upload failed.");
+  const body: unknown = await response.json().catch(() => ({}));
+  const id = drawingUploadIdFromBody(body);
+  if (response.ok && id) return id;
+  throw new Error(drawingUploadError(body));
 }
 
 async function submitDrawingUpload(projectId: string, modelIdentityId: string, file: File): Promise<string> {
