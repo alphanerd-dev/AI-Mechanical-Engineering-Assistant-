@@ -176,14 +176,14 @@ def parse_geometry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], byt
     return request, artifact, digest
 
 
-def validate_numeric_deflection(value: Any, label: str) -> float:
+def validate_numeric_deflection(value: Any, label: str) -> int | float:
     if not isinstance(value, (int, float)):
         raise ValueError(label)
     if isinstance(value, bool):
         raise ValueError(label)
     if value != value:
         raise ValueError(label)
-    return float(value)
+    return value
 
 
 def validate_deflection_minimum(value: float, minimum: float, label: str) -> None:
@@ -201,7 +201,7 @@ def validate_linear_geometry_deflection(value: Any) -> float:
     numeric = validate_numeric_deflection(value, label)
     validate_deflection_minimum(numeric, 0.001, label)
     validate_deflection_maximum(numeric, 5, label)
-    return numeric
+    return float(numeric)
 
 
 def validate_angular_geometry_deflection(value: Any) -> float:
@@ -209,7 +209,7 @@ def validate_angular_geometry_deflection(value: Any) -> float:
     numeric = validate_numeric_deflection(value, label)
     validate_deflection_minimum(numeric, 0.01, label)
     validate_deflection_maximum(numeric, 1.5707963267948966, label)
-    return numeric
+    return float(numeric)
 
 
 def validate_geometry_deflection(payload: dict[str, Any]) -> dict[str, float]:
