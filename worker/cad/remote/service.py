@@ -109,19 +109,9 @@ def runtime_readiness() -> dict[str, Any]:
 
 
 
-def parse_geometry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], bytes, str]:
-    allowed = {"operation", "format", "artifactBase64", "artifactSha256",
-               "linearDeflectionMm", "angularDeflectionRad"}
-    if set(payload) - allowed:
-        raise ValueError("Geometry request contains unsupported fields.")
-    operation = payload.get("operation")
-    geometry_format = payload.get("format")
+def decode_geometry_artifact(payload: dict[str, Any]) -> tuple[bytes, str]:
     encoded = payload.get("artifactBase64")
     digest = payload.get("artifactSha256")
-    if operation not in ("INSPECT", "TESSELLATE"):
-        raise ValueError("Geometry operation must be INSPECT or TESSELLATE.")
-    if geometry_format not in ("BREP", "STEP"):
-        raise ValueError("Geometry format must be BREP or STEP.")
     if not isinstance(encoded, str) or len(encoded) > 6 * 1024 * 1024:
         raise ValueError("A bounded geometry artifact base64 value is required.")
     if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
@@ -130,8 +120,29 @@ def parse_geometry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], byt
         artifact = base64.b64decode(encoded, validate=True)
     except Exception as exc:
         raise ValueError("Geometry artifact base64 is malformed.") from exc
-    if not artifact or len(artifact) > MAX_ARTIFACT_BYTES or hashlib.sha256(artifact).hexdigest() != digest:
+    actual_digest = hashlib.sha256(artifact).hexdigest()
+    if not artifact or len(artifact) > MAX_ARTIFACT_BYTES or actual_digest != digest:
         raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+    return artifact, digest
+
+
+def validate_geometry_operation(payload: dict[str, Any]) -> tuple[str, str]:
+    operation = payload.get("operation")
+    geometry_format = payload.get("format")
+    if operation not in ("INSPECT", "TESSELLATE"):
+        raise ValueError("Geometry operation must be INSPECT or TESSELLATE.")
+    if geometry_format not in ("BREP", "STEP"):
+        raise ValueError("Geometry format must be BREP or STEP.")
+    return operation, geometry_format
+
+
+def parse_geometry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], bytes, str]:
+    allowed = {"operation", "format", "artifactBase64", "artifactSha256",
+               "linearDeflectionMm", "angularDeflectionRad"}
+    if set(payload) - allowed:
+        raise ValueError("Geometry request contains unsupported fields.")
+    operation, geometry_format = validate_geometry_operation(payload)
+    artifact, digest = decode_geometry_artifact(payload)
     request = {
         "operation": operation,
         "format": geometry_format,
