@@ -4,12 +4,10 @@ export interface OpenFOAMLaminarChannelRequest {
   caseId: typeof OPENFOAM_LAMINAR_CHANNEL_CASE_ID;
   meanVelocityMps: number;
   heightM: number;
-  lengthM: number;
   depthM: number;
   densityKgM3: number;
   kinematicViscosityM2PerS: number;
   mesh: {
-    cellsAxial: number;
     cellsVertical: number;
   };
   solver: {
@@ -37,9 +35,7 @@ export interface OpenFOAMLaminarChannelResult {
   solverVersion: string;
   converged: boolean;
   meshCells: number;
-  pressureDropPa?: number;
-  massFluxInKgS?: number;
-  massFluxOutKgS?: number;
+  massFluxKgS?: number;
   residuals?: {
     pressure: number;
     velocity: number;
@@ -61,10 +57,9 @@ export interface CFDValidationCheck {
 export interface OpenFOAMLaminarChannelValidation {
   status: "PASS" | "INCOMPLETE" | "FAIL";
   reynoldsNumber: number;
-  expectedPressureDropPa: number;
+  expectedMassFluxKgS: number;
   normalizedProfileRmse?: number;
-  pressureRelativeError?: number;
-  massBalanceRelativeError?: number;
+  massFluxRelativeError?: number;
   checks: CFDValidationCheck[];
   blockingReasons: string[];
   warnings: string[];
