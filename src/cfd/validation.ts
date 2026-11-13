@@ -300,18 +300,17 @@ function hasFiniteNonNegativeResiduals(value: Record<string, unknown>): boolean 
 }
 
 function isValidHalfChannelProfile(
-  profile: unknown[]
+  profile: unknown[],
+  halfHeight: number
 ): profile is OpenFOAMVelocitySample[] {
   const samplesValid = profile.every(isVelocitySample);
   if (!samplesValid) return false;
   const samples = profile as OpenFOAMVelocitySample[];
   const coordinatesInRange = samples.every(sample => sample.yM >= 0);
-  const coordinatesBelowCentreline = samples.every(sample => sample.yM <= samplesHeightLimit);
+  const coordinatesBelowCentreline = samples.every(sample => sample.yM <= halfHeight);
   const coordinatesUnique = new Set(samples.map(sample => sample.yM)).size === samples.length;
   return coordinatesInRange && coordinatesBelowCentreline && coordinatesUnique;
 }
-
-let samplesHeightLimit = Number.POSITIVE_INFINITY;
 
 function calculateProfileMetrics(
   request: OpenFOAMLaminarChannelRequest,
@@ -339,8 +338,7 @@ function validateVelocityProfile(
   state: ValidationState
 ): number | undefined {
   if (!Array.isArray(value)) return undefined;
-  samplesHeightLimit = request.heightM / 2;
-  if (!isValidHalfChannelProfile(value)) {
+  if (!isValidHalfChannelProfile(value, request.heightM / 2)) {
     state.blockingReasons.push("The velocity profile contains invalid, out-of-domain or duplicate sample coordinates.");
     addCheck(state, {
       name: "poiseuille_velocity_profile",
@@ -368,7 +366,6 @@ function validateVelocityProfile(
 }
 
 function validateIntegratedMassFlow(
-  request: OpenFOAMLaminarChannelRequest,
   output: Partial<OpenFOAMLaminarChannelResult>,
   expectedMassFluxKgS: number,
   state: ValidationState
@@ -456,7 +453,6 @@ export function validateOpenFOAMLaminarChannelResult(
 
   const normalizedProfileRmse = validateVelocityProfile(request, output.velocityProfile, state);
   const massFluxRelativeError = validateIntegratedMassFlow(
-    request,
     output,
     expectedMassFluxKgS,
     state
