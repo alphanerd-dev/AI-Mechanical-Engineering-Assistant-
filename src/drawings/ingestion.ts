@@ -54,7 +54,7 @@ function parseSVGToken(token: string):
 }
 
 function parseSVGAttributes(attributes: string): Array<{ name: string; value: string }> {
-  const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   const parsed: Array<{ name: string; value: string }> = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(attributes)) !== null) {
@@ -70,7 +70,7 @@ function validateSVGAttribute(name: string, value: string, seen: Set<string>): v
   }
   seen.add(name);
   const canonicalNamespace = name === "xmlns" && value === "http://www.w3.org/2000/svg";
-  if (!canonicalNamespace && /url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value)) {
+  if (!canonicalNamespace && /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
     throw new Error("SVG contains an external or executable attribute value.");
   }
   validateSVGAttributeValue(name, value);
