@@ -202,19 +202,35 @@ function validateSVG(markup: string): void {
   validateSVGStructure(markup);
 }
 
-function extension(name: string): string {
+type DrawingExtension = "pdf" | "svg" | "dxf" | "unknown";
+
+interface DrawingInspectionContext {
+  bytes: Uint8Array;
+  extension: DrawingExtension;
+  declaredMimeType: string;
+  prefix: string;
+}
+
+const SUPPORTED_DXF_MEDIA_TYPES = new Set([
+  "application/dxf",
+  "image/vnd.dxf",
+  "application/octet-stream"
+]);
+
+function extension(name: string): DrawingExtension {
   const base = name.split(/[\\/]/).pop() ?? "";
-  return base.includes(".") ? base.split(".").pop()!.toLowerCase() : "";
+  const value = base.includes(".") ? base.split(".").pop()?.toLowerCase() : "";
+  return value === "pdf" || value === "svg" || value === "dxf" ? value : "unknown";
 }
 
 function isSafeDrawingFilename(filename: string): boolean {
   if (!filename.trim()) return false;
   if (filename.length > 180) return false;
-  if (/[\r\n\0]/.test(filename)) return false;
-  return !filename.split(/[\\/]/).some((part) => part === "..");
+  if (/[\\r\\n\\0]/.test(filename)) return false;
+  return !filename.split(/[\\/]/).some(part => part === "..");
 }
 
-function validateDrawingFilename(filename: string): string {
+function validateDrawingFilename(filename: string): DrawingExtension {
   if (!isSafeDrawingFilename(filename)) throw new Error("Drawing filename is invalid.");
   return extension(filename);
 }
@@ -223,9 +239,11 @@ function isPDFContent(bytes: Uint8Array): boolean {
   return bytes.byteLength >= 5 && BufferlessPrefix(bytes, "%PDF-");
 }
 
-function validatePDFUploadMetadata(extension: string, declaredMimeType: string): void {
-  if (extension !== "pdf") throw new Error("PDF filename or media type does not match its content.");
-  if (declaredMimeType && declaredMimeType !== "application/pdf") {
+function validatePDFUploadMetadata(context: DrawingInspectionContext): void {
+  const extensionMatches = context.extension === "pdf";
+  const mediaTypeMatches = !context.declaredMimeType ||
+    context.declaredMimeType === "application/pdf";
+  if (!extensionMatches || !mediaTypeMatches) {
     throw new Error("PDF filename or media type does not match its content.");
   }
 }
@@ -235,59 +253,62 @@ function validatePDFEndMarker(bytes: Uint8Array): void {
   if (!tail.includes("%%EOF")) throw new Error("PDF drawing is missing its terminal EOF marker.");
 }
 
-function inspectPDF(input: { bytes: Uint8Array; extension: string; declaredMimeType: string }): CADDrawingInspection | null {
-  if (!isPDFContent(input.bytes)) return null;
-  validatePDFUploadMetadata(input.extension, input.declaredMimeType);
-  validatePDFEndMarker(input.bytes);
+function inspectPDF(context: DrawingInspectionContext): CADDrawingInspection | null {
+  if (!isPDFContent(context.bytes)) return null;
+  validatePDFUploadMetadata(context);
+  validatePDFEndMarker(context.bytes);
   return {
-    format: "PDF", mediaType: "application/pdf", parserVersion: "pdf-source-1",
+    format: "PDF",
+    mediaType: "application/pdf",
+    parserVersion: "pdf-source-1",
     warnings: ["PDF is stored as an immutable source; page rendering is performed by the viewer."]
   };
 }
 
 function hasSVGRootPrefix(prefix: string): boolean {
-  return /^<svg(?:\s|>)/i.test(prefix);
+  return /^<svg(?:\\s|>)/i.test(prefix);
 }
 
-function validateSVGUploadMetadata(extension: string, declaredMimeType: string): void {
-  if (extension !== "svg") throw new Error("SVG filename or media type does not match its content.");
-  if (declaredMimeType && declaredMimeType !== "image/svg+xml") {
+function validateSVGUploadMetadata(context: DrawingInspectionContext): void {
+  const extensionMatches = context.extension === "svg";
+  const mediaTypeMatches = !context.declaredMimeType ||
+    context.declaredMimeType === "image/svg+xml";
+  if (!extensionMatches || !mediaTypeMatches) {
     throw new Error("SVG filename or media type does not match its content.");
   }
 }
 
-function inspectSVG(bytes: Uint8Array, ext: string, declared: string, prefix: string): CADDrawingInspection | null {
-  if (!hasSVGRootPrefix(prefix)) return null;
-  validateSVGUploadMetadata(ext, declared);
-  validateSVG(decodeUtf8(bytes));
+function inspectSVG(context: DrawingInspectionContext): CADDrawingInspection | null {
+  if (!hasSVGRootPrefix(context.prefix)) return null;
+  validateSVGUploadMetadata(context);
+  validateSVG(decodeUtf8(context.bytes));
   return {
-    format: "SVG", mediaType: "image/svg+xml", parserVersion: "svg-safe-subset-1",
+    format: "SVG",
+    mediaType: "image/svg+xml",
+    parserVersion: "svg-safe-subset-1",
     warnings: ["SVG preview is sanitized again by the browser before rendering."]
   };
 }
 
-function inspectDXF(bytes: Uint8Array, ext: string, declared: string): CADDrawingInspection | null {
-  const supportedTypes = ["application/dxf", "image/vnd.dxf", "application/octet-stream"];
-  if (ext !== "dxf") return null;
-  if (declared && !supportedTypes.includes(declared)) {
+function inspectDXF(context: DrawingInspectionContext): CADDrawingInspection | null {
+  if (context.extension !== "dxf") return null;
+  if (context.declaredMimeType && !SUPPORTED_DXF_MEDIA_TYPES.has(context.declaredMimeType)) {
     throw new Error("DXF media type does not match the declared file format.");
   }
-  const source = decodeUtf8(bytes);
-  if (/[^\x09\x0a\x0d\x20-\x7e]/.test(source)) {
+  const source = decodeUtf8(context.bytes);
+  if (/[^\\x09\\x0a\\x0d\\x20-\\x7e]/.test(source)) {
     throw new Error("DXF preview currently accepts ASCII-compatible text only.");
   }
   const parsed = parseDXF(source);
   return {
-    format: "DXF", mediaType: "application/dxf", parserVersion: "dxf-preview-1",
-    units: parsed.units, entityCount: parsed.entities.length, bounds: parsed.bounds, warnings: parsed.warnings
+    format: "DXF",
+    mediaType: "application/dxf",
+    parserVersion: "dxf-preview-1",
+    units: parsed.units,
+    entityCount: parsed.entities.length,
+    bounds: parsed.bounds,
+    warnings: parsed.warnings
   };
-}
-
-interface DrawingInspectionContext {
-  bytes: Uint8Array;
-  extension: string;
-  declaredMimeType: string;
-  prefix: string;
 }
 
 function validateDrawingBytes(bytes: Uint8Array): void {
@@ -310,15 +331,7 @@ function createDrawingInspectionContext(input: {
 }
 
 function inspectDrawingByFormat(context: DrawingInspectionContext): CADDrawingInspection | null {
-  const pdfInspection = inspectPDF({
-    bytes: context.bytes, extension: context.extension, declaredMimeType: context.declaredMimeType
-  });
-  if (pdfInspection) return pdfInspection;
-  const svgInspection = inspectSVG(
-    context.bytes, context.extension, context.declaredMimeType, context.prefix
-  );
-  if (svgInspection) return svgInspection;
-  return inspectDXF(context.bytes, context.extension, context.declaredMimeType);
+  return inspectPDF(context) ?? inspectSVG(context) ?? inspectDXF(context);
 }
 
 function requireSupportedDrawingInspection(inspection: CADDrawingInspection | null): CADDrawingInspection {
@@ -335,7 +348,8 @@ export function inspectCADDrawingUpload(input: {
   bytes: Uint8Array;
 }): CADDrawingInspection {
   validateDrawingBytes(input.bytes);
-  return requireSupportedDrawingInspection(inspectDrawingByFormat(createDrawingInspectionContext(input)));
+  const context = createDrawingInspectionContext(input);
+  return requireSupportedDrawingInspection(inspectDrawingByFormat(context));
 }
 
 function BufferlessPrefix(bytes: Uint8Array, text: string): boolean {
