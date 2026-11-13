@@ -61,6 +61,16 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
       throw new Error("Reasoning model timeout must be an integer from 1000 to 120000 milliseconds.");
     }
 
+    // Accept both an explicit Chat Completions URL and Google's documented
+    // OpenAI-compatible API base URL. A base URL ending in /v1beta/openai
+    // otherwise receives a POST at the collection root and returns HTTP 404.
+    if (
+      url.hostname === "generativelanguage.googleapis.com" &&
+      /^\/v1beta\/openai\/?$/.test(url.pathname)
+    ) {
+      url.pathname = "/v1beta/openai/chat/completions";
+    }
+
     this.endpoint = url.toString();
     this.model = options.model.trim();
     this.apiKey = options.apiKey?.trim() || undefined;

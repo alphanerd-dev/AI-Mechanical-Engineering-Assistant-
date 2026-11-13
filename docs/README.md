@@ -4,9 +4,10 @@ This index points to the current product and operational contracts. It also dist
 
 ## Canonical product and delivery documents
 
-- [Product brief](product-brief.md) — current experience, target users, chat/task separation and product scope.
+- [Product brief](product-brief.md) — current user experience, target users, chat/task separation and product scope.
 - [Implementation plan and milestones](implementation-plan.md) — current status, next priorities, dependencies and exit gates.
 - [M2.2–M2.6 implementation status](m2-2-to-m2-6-implementation-status.md) — revision/provenance, renderer benchmark, adapter and drawing-viewer foundations plus explicit promotion gates.
+- [Parallel development programme](parallel-development-programme.md) — coordinated workstreams for Engineering AI, CAD/CAE, manufacturing, product UX and the proprietary Geometry Platform.
 - [Architecture and trust boundaries](architecture.md) — system layers, authorization, model boundaries, execution, validation and evidence.
 - [Engineering capabilities and maturity](engineering-capabilities.md) — what is implemented, pilot, experimental or still unavailable.
 - [Product doctrine](product-doctrine.md) — product promise, result states and feature acceptance rules.

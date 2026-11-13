@@ -1,4 +1,4 @@
-import type { ReasoningFrameworkManifest } from "./types.js";
+import type { ReasoningFrameworkManifest, SkillManifest } from "./types.js";
 import type { TaskReasoningProposalRequest, TaskReasoningProposer } from "../task-graph/reasoning-execution.js";
 
 /**
@@ -9,6 +9,7 @@ import type { TaskReasoningProposalRequest, TaskReasoningProposer } from "../tas
 export interface ModelReasoningGenerationRequest {
   task: Readonly<TaskReasoningProposalRequest["task"]>;
   framework: Readonly<ReasoningFrameworkManifest>;
+  skillManifest?: Readonly<SkillManifest>;
   inputs: Readonly<Record<string, unknown>>;
   instructions: string;
   /** Host-supplied allowlist. Model-generated identifiers are never trusted. */
@@ -20,8 +21,16 @@ export interface ModelReasoningGenerator {
 }
 
 export function buildModelReasoningInstructions(
-  framework: ReasoningFrameworkManifest
+  framework: ReasoningFrameworkManifest,
+  skillManifest?: SkillManifest
 ): string {
+  const skillInstructions = skillManifest ? [
+    `Active skill profile: ${skillManifest.id}@${skillManifest.version} (${skillManifest.name}).`,
+    `Skill purpose and scope: ${skillManifest.description}`,
+    `Allowed deterministic capabilities: ${skillManifest.allowedCapabilities.join(", ") || "(none)"}.`,
+    `Maximum task risk: ${skillManifest.maximumRisk}. Human approval required: ${skillManifest.requiresApproval ? "yes" : "no"}.`,
+    "Stay within the skill profile and its capability allowlist. Do not execute or invoke any listed capability; propose next steps only. Existing server-side authorization, deterministic capability checks, validation and approval remain mandatory."
+  ] : [];
   return [
     "Return one JSON object only; do not wrap it in markdown.",
     "Produce advisory reasoning for the supplied task using the supplied framework manifest.",
@@ -35,7 +44,8 @@ export function buildModelReasoningInstructions(
     "Keep output JSON-compatible and limited to the reasoning task; never include task/project identity or verification-control fields.",
     `Selected framework: ${framework.id}@${framework.version} (${framework.name}).`,
     `Framework purpose: ${framework.purpose}`,
-    `Required inputs: ${framework.requiredInputs.join(", ") || "(none declared)"}.`
+    `Required inputs: ${framework.requiredInputs.join(", ") || "(none declared)"}.`,
+    ...skillInstructions
   ].join(" ");
 }
 
@@ -58,10 +68,11 @@ export class ModelBackedTaskReasoningProposer implements TaskReasoningProposer {
     const safeRequest: ModelReasoningGenerationRequest = {
       task: structuredClone(request.task),
       framework: structuredClone(request.framework),
+      ...(request.skillManifest ? { skillManifest: structuredClone(request.skillManifest) } : {}),
       inputs: structuredClone(request.inputs),
       trustedEvidenceReferences: [...(request.trustedEvidenceReferences ?? [])],
       instructions: [
-        buildModelReasoningInstructions(request.framework),
+        buildModelReasoningInstructions(request.framework, request.skillManifest ? structuredClone(request.skillManifest) : undefined),
         `Trusted evidence reference allowlist: ${JSON.stringify(request.trustedEvidenceReferences ?? [])}.`,
         "Only copy exact identifiers from this allowlist into evidenceReferences. Never invent or transform identifiers."
       ].join(" ")

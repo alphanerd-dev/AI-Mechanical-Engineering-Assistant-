@@ -1,6 +1,6 @@
 # Engineering Reasoning Frameworks and Skill Runtime
 
-**Status:** Proposed architecture / implementation gate  
+**Status:** Architecture implemented in the core; bounded Engineering R&D skill-profile integration is a candidate in PR #142  
 **Scope:** Cross-cutting capability for the commercial Engineering Workspace  
 **Compatibility target:** Existing V2.0 workspace, agent runtime, task graph, capability router, validation, evidence, and project records  
 **Roadmap relationship:** Cross-cutting foundation; does not replace or reorder V2.1 Multi-CAD.
@@ -23,6 +23,17 @@ The current repository already provides the principal integration points:
 - Existing validation, evidence, project-state, and audit systems: authoritative result and traceability boundaries.
 
 **Integration rule:** framework selection may inform a task plan, but only existing task-graph and capability execution paths can perform work. Existing shaft and electrical completion paths must remain behaviorally unchanged.
+
+## Current implementation boundary
+
+- The main branch already contains versioned framework manifests, JSON Schema Draft 2020-12 validation through Ajv 2020, in-memory framework/skill registries, selective routing, task-graph binding, model-backed advisory proposals and a project reasoning workbench.
+- The built-in framework set is First-Principles Thinking, Weighted Decision Matrix and 5 Whys.
+- PR #142 adds one optional built-in `engineering-rd@1.0.0` skill profile to the workbench. It is a version-pinned policy/profile, not a general autonomous agent or a sequence-executing workflow engine.
+- The profile is limited to MEDIUM risk, requires human approval before task readiness, and carries an explicit allowlist of existing deterministic capabilities. The model receives the profile description and policy as context but cannot invoke those capabilities.
+- The exact profile snapshot is attached to the task graph. The model output remains an advisory reasoning record with `validationStatus: NOT_PERFORMED`.
+- Skill authoring, remote skill loading, multi-step skill orchestration, dynamic capability delegation and autonomous execution are not part of this increment.
+
+Do not describe the profile as a shipped autonomous engineering skill until a separate bounded execution/orchestration implementation and its acceptance gates exist.
 
 ## 3. Component boundaries
 
