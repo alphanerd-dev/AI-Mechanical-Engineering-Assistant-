@@ -359,6 +359,9 @@ export async function POST(request: Request) {
       .select("id").eq("id", derivativeId).eq("project_id", projectId).maybeSingle();
     if (!committedRow && !reconcileError) {
       await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([derivativePath]);
+      if (insertError.code === "40001" || insertError.message?.includes("CAD model revision changed")) {
+        return httpError("The CAD model revision changed during tessellation. The temporary derivative was discarded; retry against the current accepted artifact.", 409);
+      }
       return httpError("Display derivative metadata could not be committed; the uploaded object was cleaned up.", 503);
     }
     if (reconcileError) return httpError("Display derivative commit is ambiguous. Reload derivative history before retrying.", 503);
