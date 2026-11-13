@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { parseCADDisplayGLB, type CADDisplayMeshPreview } from "../../../../src/cad/glb-preview";
 import { createStlWebGLRenderer, type StlViewportControls } from "../../../../src/cad/stl-webgl-renderer";
 import styles from "./StlViewport.module.css";
@@ -91,6 +91,38 @@ function useCADDisplayRenderer(mesh: CADDisplayMeshPreview | null, identity: str
   return { rootRef, canvasRef, controlsRef, renderErrorRef };
 }
 
+function ViewportLoadingState({ loading, mesh, error }: { loading: boolean; mesh: CADDisplayMeshPreview | null; error: string | null }) {
+  if (mesh || error || !loading) return null;
+  return <div className={styles.viewportStatus} role="status">Loading verified display derivative…</div>;
+}
+
+function ViewportErrorState({ error, renderErrorRef }: {
+  error: string | null; renderErrorRef: RefObject<HTMLDivElement | null>;
+}) {
+  return <>
+    {error && <div className={styles.viewportStatus} role="alert">{error}</div>}
+    <div ref={renderErrorRef} className={styles.viewportStatus} role="alert" hidden />
+  </>;
+}
+
+function ViewportMeta({ mesh, controlsRef }: {
+  mesh: CADDisplayMeshPreview | null;
+  controlsRef: RefObject<StlViewportControls | null>;
+}) {
+  if (!mesh) return null;
+  return <>
+    <div className={styles.viewportMeta}>
+      <span className={styles.viewportMetaBadge}>{mesh.triangleCount.toLocaleString()} triangles · display derivative · preview only</span>
+      <div className={styles.viewportControls}>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateLeft()} aria-label="Rotate model left">Rotate left</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateRight()} aria-label="Rotate model right">Rotate right</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
+      </div>
+    </div>
+    <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>
+  </>;
+}
+
 export default function CADDisplayViewport({ src, label, sourceArtifactId, sourceArtifactSha256, artifactSha256 }: {
   src: string;
   label: string;
@@ -103,17 +135,8 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   const { rootRef, canvasRef, controlsRef, renderErrorRef } = useCADDisplayRenderer(mesh, identity);
   return <div ref={rootRef} className={styles.viewportRoot}>
     <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label} tabIndex={0} />
-    {!mesh && !error && loading && <div className={styles.viewportStatus} role="status">Loading verified display derivative…</div>}
-    {error && <div className={styles.viewportStatus} role="alert">{error}</div>}
-    <div ref={renderErrorRef} className={styles.viewportStatus} role="alert" hidden />
-    {mesh && !error && <div className={styles.viewportMeta}>
-      <span className={styles.viewportMetaBadge}>{mesh.triangleCount.toLocaleString()} triangles · display derivative · preview only</span>
-      <div className={styles.viewportControls}>
-        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateLeft()} aria-label="Rotate model left">Rotate left</button>
-        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateRight()} aria-label="Rotate model right">Rotate right</button>
-        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
-      </div>
-    </div>}
-    {mesh && !error && <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>}
+    <ViewportLoadingState loading={loading} mesh={mesh} error={error} />
+    <ViewportErrorState error={error} renderErrorRef={renderErrorRef} />
+    <ViewportMeta mesh={mesh} controlsRef={controlsRef} />
   </div>;
 }
