@@ -1,9 +1,9 @@
 # G2 Design — Geometry Identity, Immutable Revisions and Canonical Representation
 
-**Status:** Design proposal for review; no runtime implementation or database migration is included in this document.  
-**Prepared:** 8 November 2026  
-**Depends on:** G1 product-owned geometry operation facade and its acceptance gates.  
-**Architecture owner:** Geometry Platform.  
+**Status:** Design proposal for review; no runtime implementation or database migration is included in this document.
+**Prepared:** 8 November 2026
+**Depends on:** G1 product-owned geometry operation facade (merged in PR #139); G2 implementation remains gated on production schema review and migration acceptance.
+**Architecture owner:** Geometry Platform.
 **Persistence owner:** Existing project/artifact persistence; no parallel artifact registry.
 
 ## 1. Decision to make
@@ -13,7 +13,7 @@ G2 must establish a durable, provider-neutral identity for each exact geometry s
 The sequence is deliberate:
 
 1. G0 audited the current CAD and artifact architecture.
-2. G1 introduces the product-owned operation/provider boundary.
+2. G1 delivered the product-owned operation/provider boundary in PR #139.
 3. **G2 defines and persists immutable geometry revisions and canonical-representation lineage.**
 4. G3 introduces native mathematical primitives and measurements.
 5. G4 introduces selected topology structures and bounded solid construction.
@@ -53,7 +53,7 @@ The revision record identifies one canonical artifact. It may link related excha
 
 ## 3. Proposed domain contract
 
-The initial contract is intentionally narrow and matches the currently supported G1 cylinder operation.
+The initial contract is intentionally narrow and matches the G1 cylinder operation delivered in PR #139.
 
 ```ts
 type GeometryCanonicalFormat = "BREP";
