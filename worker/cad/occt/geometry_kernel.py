@@ -105,17 +105,17 @@ def pack_float32(values):
     return struct.pack("<" + "f" * len(values), *(float(value) for value in values))
 
 
-def tessellate_shape(shape, request):
+def validate_deflection(request):
     linear = request.get("linearDeflectionMm", 0.1)
     angular = request.get("angularDeflectionRad", 0.35)
     if not finite_positive(linear) or linear < 0.001 or linear > 5:
         raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
     if not finite_positive(angular) or angular < 0.01 or angular > 1.5707963267948966:
         raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
+    return float(linear), float(angular)
 
-    positions, triangles, normals, _uvs = shape.tessellate_with_uvs(
-        float(linear), float(angular), atlas_packing=False
-    )
+
+def validate_tessellation_counts(positions, triangles, normals):
     vertex_count = len(positions)
     triangle_count = len(triangles)
     if vertex_count < 3 or vertex_count > MAX_VERTICES:
@@ -124,15 +124,28 @@ def tessellate_shape(shape, request):
         raise ValueError("Tessellation triangle count is outside the supported 1 to 250000 range.")
     if len(normals) != vertex_count:
         raise ValueError("Tessellation normals do not align one-to-one with vertices.")
+    return vertex_count, triangle_count
 
-    flat_positions = [component for vertex in positions for component in (vertex.X, vertex.Y, vertex.Z)]
-    flat_normals = [component for normal in normals for component in (normal.X, normal.Y, normal.Z)]
-    flat_indices = [index for triangle in triangles for index in triangle]
-    if len(flat_indices) != triangle_count * 3 or any(
-        not isinstance(index, int) or index < 0 or index >= vertex_count for index in flat_indices
+
+def flatten_vectors(vectors):
+    return [component for vector in vectors for component in (vector.X, vector.Y, vector.Z)]
+
+
+def flatten_and_validate_indices(triangles, vertex_count):
+    indices = [index for triangle in triangles for index in triangle]
+    if len(indices) != len(triangles) * 3 or any(
+        not isinstance(index, int) or isinstance(index, bool) or index < 0 or index >= vertex_count
+        for index in indices
     ):
         raise ValueError("Tessellation contains an out-of-range triangle index.")
+    return indices
 
+
+def serialize_tessellation(positions, normals, triangles, linear, angular):
+    vertex_count, triangle_count = validate_tessellation_counts(positions, triangles, normals)
+    flat_positions = flatten_vectors(positions)
+    flat_normals = flatten_vectors(normals)
+    flat_indices = flatten_and_validate_indices(triangles, vertex_count)
     position_bytes = pack_float32(flat_positions)
     normal_bytes = pack_float32(flat_normals)
     index_bytes = struct.pack("<" + "I" * len(flat_indices), *flat_indices)
@@ -142,12 +155,20 @@ def tessellate_shape(shape, request):
         "positionsFloat32LE": base64.b64encode(position_bytes).decode("ascii"),
         "normalsFloat32LE": base64.b64encode(normal_bytes).decode("ascii"),
         "indicesUint32LE": base64.b64encode(index_bytes).decode("ascii"),
-        "linearDeflectionMm": float(linear),
-        "angularDeflectionRad": float(angular),
+        "linearDeflectionMm": linear,
+        "angularDeflectionRad": angular,
         "relativeDeflection": False,
         "units": "mm",
         "coordinateFrame": "MODEL",
     }
+
+
+def tessellate_shape(shape, request):
+    linear, angular = validate_deflection(request)
+    positions, triangles, normals, _uvs = shape.tessellate_with_uvs(
+        linear, angular, atlas_packing=False
+    )
+    return serialize_tessellation(positions, normals, triangles, linear, angular)
 
 
 def main():
