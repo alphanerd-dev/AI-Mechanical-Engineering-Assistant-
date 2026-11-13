@@ -284,24 +284,58 @@ function inspectDXF(bytes: Uint8Array, ext: string, declared: string): CADDrawin
 }
 
 /** Inspect and strictly bound a source drawing before private project storage. */
-export function inspectCADDrawingUpload(input: {
+export interface DrawingInspectionContext {
+  bytes: Uint8Array;
+  extension: string;
+  declaredMimeType: string;
+  prefix: string;
+}
+
+function validateDrawingBytes(bytes: Uint8Array): void {
+  if (!(bytes instanceof Uint8Array)) throw new Error("Drawing must contain 1 byte to 4 MiB.");
+  if (bytes.byteLength < 1) throw new Error("Drawing must contain 1 byte to 4 MiB.");
+  if (bytes.byteLength > MAX_DRAWING_BYTES) throw new Error("Drawing must contain 1 byte to 4 MiB.");
+}
+
+function createDrawingInspectionContext(input: {
+  filename: string;
+  declaredMimeType?: string;
+  bytes: Uint8Array;
+}): DrawingInspectionContext {
+  return {
+    bytes: input.bytes,
+    extension: validateDrawingFilename(input.filename),
+    declaredMimeType: input.declaredMimeType?.trim().toLowerCase() ?? "",
+    prefix: new TextDecoder().decode(input.bytes.subarray(0, Math.min(input.bytes.length, 512))).trimStart()
+  };
+}
+
+function inspectDrawingByFormat(context: DrawingInspectionContext): CADDrawingInspection | null {
+  const pdfInspection = inspectPDF({
+    bytes: context.bytes, extension: context.extension, declaredMimeType: context.declaredMimeType
+  });
+  if (pdfInspection) return pdfInspection;
+  const svgInspection = inspectSVG(
+    context.bytes, context.extension, context.declaredMimeType, context.prefix
+  );
+  if (svgInspection) return svgInspection;
+  return inspectDXF(context.bytes, context.extension, context.declaredMimeType);
+}
+
+function requireSupportedDrawingInspection(inspection: CADDrawingInspection | null): CADDrawingInspection {
+  if (!inspection) {
+    throw new Error("Unsupported drawing format. Accepted formats are PDF, safe-subset SVG and ASCII DXF.");
+  }
+  return inspection;
+}
+
+function inspectCADDrawingUpload(input: {
   filename: string;
   declaredMimeType?: string;
   bytes: Uint8Array;
 }): CADDrawingInspection {
-  const { filename, bytes } = input;
-  if (!(bytes instanceof Uint8Array)) throw new Error("Drawing must contain 1 byte to 4 MiB.");
-  if (bytes.byteLength < 1) throw new Error("Drawing must contain 1 byte to 4 MiB.");
-  if (bytes.byteLength > MAX_DRAWING_BYTES) throw new Error("Drawing must contain 1 byte to 4 MiB.");
-  const ext = validateDrawingFilename(filename);
-  const declared = input.declaredMimeType?.trim().toLowerCase() ?? "";
-  const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 512))).trimStart();
-  const pdfInspection = inspectPDF({ bytes, extension: ext, declaredMimeType: declared });
-  const svgInspection = pdfInspection ? null : inspectSVG(bytes, ext, declared, prefix);
-  const dxfInspection = pdfInspection || svgInspection ? null : inspectDXF(bytes, ext, declared);
-  const inspection = pdfInspection ?? svgInspection ?? dxfInspection;
-  if (!inspection) throw new Error("Unsupported drawing format. Accepted formats are PDF, safe-subset SVG and ASCII DXF.");
-  return inspection;
+  validateDrawingBytes(input.bytes);
+  return requireSupportedDrawingInspection(inspectDrawingByFormat(createDrawingInspectionContext(input)));
 }
 
 function BufferlessPrefix(bytes: Uint8Array, text: string): boolean {
