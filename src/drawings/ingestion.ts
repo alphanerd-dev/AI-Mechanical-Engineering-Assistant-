@@ -71,7 +71,7 @@ function validateSVG(markup: string): void {
         throw new Error("SVG contains a disallowed or duplicate attribute.");
       }
       seen.add(name);
-      if (!(name === "xmlns" && value === "http://www.w3.org/2000/svg") && /url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value)) {
+      if (!(name === "xmlns" && value === "http://www.w3.org/2000/svg") && /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
         throw new Error("SVG contains an external or executable attribute value.");
       }
       if ((name === "fill" || name === "stroke") && !/^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value)) {
@@ -116,7 +116,7 @@ export function inspectCADDrawingUpload(input: {
     return { format: "PDF", mediaType: "application/pdf", parserVersion: "pdf-source-1", warnings: ["PDF is stored as an immutable source; page rendering is performed by the viewer."] };
   }
   const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 512))).trimStart();
-  if (/^(?:<\?xml[\s\S]*?\?>\s*)?<svg(?:\s|>)/i.test(prefix)) {
+  if (/^<svg(?:\s|>)/i.test(prefix)) {
     if (ext !== "svg" || (declared && declared !== "image/svg+xml")) throw new Error("SVG filename or media type does not match its content.");
     const markup = decodeUtf8(bytes);
     validateSVG(markup);
