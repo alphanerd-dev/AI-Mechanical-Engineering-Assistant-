@@ -42,8 +42,17 @@ export function prepareManufacturingRelease(request:ManufacturingReleaseRequest)
   if(!bomArtifactsLinked)blockingReasons.push("Every BOM item must have an explicit linked artifact before release.");
 
   const required=[...new Set(request.requiredArtifactIds.filter(Boolean))];
-  const artifactsReady=request.requiredArtifactIds.length>0&&required.length===request.requiredArtifactIds.length;
-  if(!artifactsReady)blockingReasons.push("At least one required artifact id is missing.");
+  const linkedArtifacts=new Set([
+    ...request.processPlan.partArtifactIds,
+    ...request.bom.items.map(item=>item.artifactId).filter((artifactId):artifactId is string=>Boolean(artifactId?.trim()))
+  ]);
+  const everyRequiredArtifactIsLinked=required.every(artifactId=>linkedArtifacts.has(artifactId));
+  const everyPlanArtifactIsRequired=request.processPlan.partArtifactIds.every(artifactId=>required.includes(artifactId));
+  const everyBOMArtifactIsRequired=request.bom.items.every(item=>Boolean(item.artifactId?.trim())&&required.includes(item.artifactId!));
+  const artifactsReady=request.requiredArtifactIds.length>0&&
+    required.length===request.requiredArtifactIds.length&&
+    everyRequiredArtifactIsLinked&&everyPlanArtifactIsRequired&&everyBOMArtifactIsRequired;
+  if(!artifactsReady)blockingReasons.push("Every required artifact must be linked to the process plan or BOM, and all plan/BOM artifacts must be included.");
 
   let approvalReady=true;
   if(request.approval){
