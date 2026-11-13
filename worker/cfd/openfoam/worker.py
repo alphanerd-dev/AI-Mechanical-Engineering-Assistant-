@@ -101,15 +101,13 @@ def validate_flow_physics(data: dict[str, Any]) -> list[str]:
 
 def validate_mesh_settings(data: dict[str, Any]) -> list[str]:
     mesh = data.get("mesh")
+    errors: list[str] = []
     if isinstance(mesh, dict) and set(mesh) - {"cellsVertical"}:
-        return [
-            "mesh contains unsupported fields.",
-            "mesh.cellsVertical must be an integer between 20 and 200."
-        ]
+        errors.append("mesh contains unsupported fields.")
     cells = mesh.get("cellsVertical") if isinstance(mesh, dict) else None
     if not isinstance(cells, int) or isinstance(cells, bool) or not 20 <= cells <= 200:
-        return ["mesh.cellsVertical must be an integer between 20 and 200."]
-    return []
+        errors.append("mesh.cellsVertical must be an integer between 20 and 200.")
+    return errors
 
 
 def validate_solver_settings(data: dict[str, Any]) -> list[str]:
