@@ -13,6 +13,10 @@ permissions:
   security-events: write
   actions: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   eslint:
     name: Run ESLint scanning
