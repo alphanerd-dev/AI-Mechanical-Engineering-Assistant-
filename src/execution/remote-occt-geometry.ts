@@ -30,8 +30,14 @@ type WorkerResponse = {
   };
 };
 
-function decodeFloat32(value: string, expectedLength: number): Float32Array {
-  const bytes = Buffer.from(value, "base64");
+interface MeshBufferDecodeInput {
+  base64: string;
+  expectedLength: number;
+}
+
+function decodeFloat32(input: MeshBufferDecodeInput): Float32Array {
+  const { base64, expectedLength } = input;
+  const bytes = Buffer.from(base64, "base64");
   if (bytes.byteLength !== expectedLength * 4) throw new Error("Remote OCCT mesh float buffer length is inconsistent.");
   const output = new Float32Array(expectedLength);
   for (let index = 0; index < expectedLength; index += 1) output[index] = bytes.readFloatLE(index * 4);
@@ -39,8 +45,9 @@ function decodeFloat32(value: string, expectedLength: number): Float32Array {
   return output;
 }
 
-function decodeUint32(value: string, expectedLength: number): Uint32Array {
-  const bytes = Buffer.from(value, "base64");
+function decodeUint32(input: MeshBufferDecodeInput): Uint32Array {
+  const { base64, expectedLength } = input;
+  const bytes = Buffer.from(base64, "base64");
   if (bytes.byteLength !== expectedLength * 4) throw new Error("Remote OCCT mesh index buffer length is inconsistent.");
   const output = new Uint32Array(expectedLength);
   for (let index = 0; index < expectedLength; index += 1) output[index] = bytes.readUInt32LE(index * 4);
@@ -171,9 +178,9 @@ function validateRemoteMeshCounts(mesh: NonNullable<WorkerResponse["tessellation
 }
 
 function decodeRemoteMeshBuffers(mesh: NonNullable<WorkerResponse["tessellation"]>) {
-  const positions = decodeFloat32(mesh.positionsFloat32LE, mesh.vertexCount * 3);
-  const normals = decodeFloat32(mesh.normalsFloat32LE, mesh.vertexCount * 3);
-  const indices = decodeUint32(mesh.indicesUint32LE, mesh.triangleCount * 3);
+  const positions = decodeFloat32({ base64: mesh.positionsFloat32LE, expectedLength: mesh.vertexCount * 3 });
+  const normals = decodeFloat32({ base64: mesh.normalsFloat32LE, expectedLength: mesh.vertexCount * 3 });
+  const indices = decodeUint32({ base64: mesh.indicesUint32LE, expectedLength: mesh.triangleCount * 3 });
   if (indices.some((index) => index >= mesh.vertexCount)) {
     throw new Error("Remote OCCT geometry worker returned an out-of-range mesh index.");
   }
