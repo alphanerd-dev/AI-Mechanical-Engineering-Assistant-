@@ -279,8 +279,14 @@ function parseGeometryWorkerResponse(stdout: string): GeometryWorkerResponse {
   return response;
 }
 
-function decodeFloat32(value: string, expectedLength: number): Float32Array {
-  const bytes = Buffer.from(value, "base64");
+interface GeometryBufferDecodeInput {
+  base64: string;
+  expectedLength: number;
+}
+
+function decodeFloat32(input: GeometryBufferDecodeInput): Float32Array {
+  const { base64, expectedLength } = input;
+  const bytes = Buffer.from(base64, "base64");
   if (bytes.byteLength !== expectedLength * 4) throw new Error("OCCT mesh float buffer length is inconsistent.");
   const output = new Float32Array(expectedLength);
   for (let index = 0; index < expectedLength; index += 1) output[index] = bytes.readFloatLE(index * 4);
@@ -288,8 +294,9 @@ function decodeFloat32(value: string, expectedLength: number): Float32Array {
   return output;
 }
 
-function decodeUint32(value: string, expectedLength: number): Uint32Array {
-  const bytes = Buffer.from(value, "base64");
+function decodeUint32(input: GeometryBufferDecodeInput): Uint32Array {
+  const { base64, expectedLength } = input;
+  const bytes = Buffer.from(base64, "base64");
   if (bytes.byteLength !== expectedLength * 4) throw new Error("OCCT mesh index buffer length is inconsistent.");
   const output = new Uint32Array(expectedLength);
   for (let index = 0; index < expectedLength; index += 1) output[index] = bytes.readUInt32LE(index * 4);
@@ -312,9 +319,9 @@ function validateTessellationCounts(mesh: NonNullable<GeometryWorkerResponse["te
 }
 
 function decodeTessellationBuffers(mesh: NonNullable<GeometryWorkerResponse["tessellation"]>) {
-  const positions = decodeFloat32(mesh.positionsFloat32LE, mesh.vertexCount * 3);
-  const normals = decodeFloat32(mesh.normalsFloat32LE, mesh.vertexCount * 3);
-  const indices = decodeUint32(mesh.indicesUint32LE, mesh.triangleCount * 3);
+  const positions = decodeFloat32({ base64: mesh.positionsFloat32LE, expectedLength: mesh.vertexCount * 3 });
+  const normals = decodeFloat32({ base64: mesh.normalsFloat32LE, expectedLength: mesh.vertexCount * 3 });
+  const indices = decodeUint32({ base64: mesh.indicesUint32LE, expectedLength: mesh.triangleCount * 3 });
   if (indices.some((index) => index >= mesh.vertexCount)) {
     throw new Error("OCCT geometry worker returned an out-of-range mesh index.");
   }
