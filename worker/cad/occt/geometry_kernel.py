@@ -108,9 +108,9 @@ def pack_float32(values):
 def validate_deflection(request):
     linear = request.get("linearDeflectionMm", 0.1)
     angular = request.get("angularDeflectionRad", 0.35)
-    if not finite_positive(linear) or linear < 0.001 or linear > 5:
+    if isinstance(linear, bool) or not finite_positive(linear) or linear < 0.001 or linear > 5:
         raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
-    if not finite_positive(angular) or angular < 0.01 or angular > 1.5707963267948966:
+    if isinstance(angular, bool) or not finite_positive(angular) or angular < 0.01 or angular > 1.5707963267948966:
         raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
     return float(linear), float(angular)
 
