@@ -54,7 +54,7 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
             y_samples = write_case(case_dir, self.request)
             self.assertEqual(len(y_samples), 20)
             fv_models = (case_dir / "constant" / "fvModels").read_text()
-            self.assertIn("explicit (2.4 0 0)", fv_models)
+            self.assertIn("explicit (0.24 0 0)", fv_models)
             block_mesh = (case_dir / "system" / "blockMeshDict").read_text()
             self.assertIn("type cyclic;", block_mesh)
             self.assertIn("transform translational;", block_mesh)
