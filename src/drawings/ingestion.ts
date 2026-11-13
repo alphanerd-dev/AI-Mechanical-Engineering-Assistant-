@@ -64,15 +64,27 @@ function parseSVGAttributes(attributes: string): Array<{ name: string; value: st
   return parsed;
 }
 
-function validateSVGAttribute(name: string, value: string, seen: Set<string>): void {
+function validateSVGAttributeName(name: string, seen: Set<string>): void {
   if (!SVG_ATTRIBUTES.has(name) || name.toLowerCase().startsWith("on") || seen.has(name)) {
     throw new Error("SVG contains a disallowed or duplicate attribute.");
   }
   seen.add(name);
-  const canonicalNamespace = name === "xmlns" && value === "http://www.w3.org/2000/svg";
-  if (!canonicalNamespace && /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
+}
+
+function isCanonicalSVGNamespace(name: string, value: string): boolean {
+  return name === "xmlns" && value === "http://www.w3.org/2000/svg";
+}
+
+function validateSVGAttributeSecurity(name: string, value: string): void {
+  if (!isCanonicalSVGNamespace(name, value) &&
+      /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
     throw new Error("SVG contains an external or executable attribute value.");
   }
+}
+
+function validateSVGAttribute(name: string, value: string, seen: Set<string>): void {
+  validateSVGAttributeName(name, seen);
+  validateSVGAttributeSecurity(name, value);
   validateSVGAttributeValue(name, value);
 }
 
