@@ -28,62 +28,99 @@ function decodeUtf8(bytes: Uint8Array): string {
   }
 }
 
-function validateSVG(markup: string): void {
-  if (!markup.trim() || !/<svg(?:\s|>)/i.test(markup) || !/<\/svg\s*>/i.test(markup)) {
-    throw new Error("SVG drawing must contain a complete svg root element.");
-  }
-  if (/<!DOCTYPE|<!ENTITY|<\?|<script\b|<foreignObject\b|<iframe\b|<object\b|<embed\b|<image\b|<use\b|<style\b|<animate\b|<set\b/i.test(markup)) {
+function rejectUnsafeSVGMarkup(markup: string): void {
+  if (/<!DOCTYPE|<!ENTITY|<\\?|<script\\b|<foreignObject\\b|<iframe\\b|<object\\b|<embed\\b|<image\\b|<use\\b|<style\\b|<animate\\b|<set\\b/i.test(markup)) {
     throw new Error("SVG contains active, external, linked or unsupported XML content.");
   }
+}
+
+function parseSVGToken(token: string):
+  | { kind: "comment" }
+  | { kind: "text" }
+  | { kind: "closing"; tag: string }
+  | { kind: "opening"; tag: string; attributes: string; selfClosing: boolean } {
+  if (!token.startsWith("<")) return { kind: "text" };
+  if (/^<!--[\\s\\S]*-->$/.test(token)) return { kind: "comment" };
+  const closing = /^<\\/([A-Za-z][A-Za-z0-9]*)\\s*>$/.exec(token);
+  if (closing) return { kind: "closing", tag: closing[1].toLowerCase() };
+  const opening = /^<([A-Za-z][A-Za-z0-9]*)([\\s\\S]*?)\\s*(\\/?)>$/.exec(token);
+  if (!opening) throw new Error("SVG contains malformed or unsupported XML markup.");
+  return {
+    kind: "opening",
+    tag: opening[1].toLowerCase(),
+    attributes: opening[2],
+    selfClosing: opening[3] === "/"
+  };
+}
+
+function validateSVGAttributes(attributes: string): void {
+  const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  const seen = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(attributes)) !== null) {
+    const name = match[1];
+    const value = match[2] ?? match[3] ?? "";
+    if (!SVG_ATTRIBUTES.has(name) || name.toLowerCase().startsWith("on") || seen.has(name)) {
+      throw new Error("SVG contains a disallowed or duplicate attribute.");
+    }
+    seen.add(name);
+    const canonicalNamespace = name === "xmlns" && value === "http://www.w3.org/2000/svg";
+    if (!canonicalNamespace && /url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value)) {
+      throw new Error("SVG contains an external or executable attribute value.");
+    }
+    validateSVGAttributeValue(name, value);
+  }
+  if (attributes.replace(pattern, "").trim()) throw new Error("SVG contains malformed or unsupported attributes.");
+}
+
+function validateSVGAttributeValue(name: string, value: string): void {
+  if ((name === "fill" || name === "stroke") && !/^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value)) {
+    throw new Error("SVG paint attribute is outside the safe preview subset.");
+  }
+  if ((name === "transform" || name === "d") && !/^[a-z0-9(),.+\\-\\s]+$/i.test(value)) {
+    throw new Error("SVG geometry attribute contains unsupported syntax.");
+  }
+  if (value.length > 10000) throw new Error("SVG attribute exceeds the safe preview limit.");
+}
+
+function validateSVGText(token: string): void {
+  if (/&(?!(?:amp|lt|gt|quot|apos);)/i.test(token)) {
+    throw new Error("SVG contains an unsupported entity reference.");
+  }
+}
+
+function validateSVGStructure(markup: string): void {
   const tokens = markup.match(/<[^>]*>|[^<]+/g) ?? [];
   const stack: string[] = [];
   let rootSeen = false;
-  for (const token of tokens) {
-    if (!token.startsWith("<")) {
-      if (/&(?!(?:amp|lt|gt|quot|apos);)/i.test(token)) throw new Error("SVG contains an unsupported entity reference.");
+  for (const rawToken of tokens) {
+    const token = parseSVGToken(rawToken);
+    if (token.kind === "comment") continue;
+    if (token.kind === "text") {
+      validateSVGText(rawToken);
       continue;
     }
-    if (/^<!--[\s\S]*-->$/.test(token)) continue;
-    const closing = /^<\/([A-Za-z][A-Za-z0-9]*)\s*>$/.exec(token);
-    if (closing) {
-      const tag = closing[1].toLowerCase();
-      if (stack.pop() !== tag) throw new Error("SVG element nesting is malformed.");
+    if (token.kind === "closing") {
+      if (stack.pop() !== token.tag) throw new Error("SVG element nesting is malformed.");
       continue;
     }
-    const opening = /^<([A-Za-z][A-Za-z0-9]*)([\s\S]*?)\s*(\/?)>$/.exec(token);
-    if (!opening) throw new Error("SVG contains malformed or unsupported XML markup.");
-    const tag = opening[1].toLowerCase();
-    if (!SVG_TAGS.has(tag)) throw new Error("SVG contains unsupported element " + tag + ".");
+    if (!SVG_TAGS.has(token.tag)) throw new Error("SVG contains unsupported element " + token.tag + ".");
     if (!rootSeen) {
-      if (tag !== "svg" || stack.length !== 0) throw new Error("SVG root element must be svg.");
+      if (token.tag !== "svg" || stack.length !== 0) throw new Error("SVG root element must be svg.");
       rootSeen = true;
     }
-    const attributes = opening[2];
-    const attributePattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-    let match: RegExpExecArray | null;
-    const seen = new Set<string>();
-    while ((match = attributePattern.exec(attributes)) !== null) {
-      const name = match[1];
-      const value = match[2] ?? match[3] ?? "";
-      if (!SVG_ATTRIBUTES.has(name) || name.toLowerCase().startsWith("on") || seen.has(name)) {
-        throw new Error("SVG contains a disallowed or duplicate attribute.");
-      }
-      seen.add(name);
-      if (!(name === "xmlns" && value === "http://www.w3.org/2000/svg") && /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
-        throw new Error("SVG contains an external or executable attribute value.");
-      }
-      if ((name === "fill" || name === "stroke") && !/^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value)) {
-        throw new Error("SVG paint attribute is outside the safe preview subset.");
-      }
-      if ((name === "transform" || name === "d") && !/^[a-z0-9(),.+\-\s]+$/i.test(value)) {
-        throw new Error("SVG geometry attribute contains unsupported syntax.");
-      }
-      if (value.length > 10000) throw new Error("SVG attribute exceeds the safe preview limit.");
-    }
-    if (attributes.replace(attributePattern, "").trim()) throw new Error("SVG contains malformed or unsupported attributes.");
-    if (opening[3] !== "/") stack.push(tag);
+    validateSVGAttributes(token.attributes);
+    if (!token.selfClosing) stack.push(token.tag);
   }
   if (!rootSeen || stack.length !== 0) throw new Error("SVG document is incomplete or malformed.");
+}
+
+function validateSVG(markup: string): void {
+  if (!markup.trim() || !/^\\s*<svg(?:\\s|>)/i.test(markup) || !/<\\/svg\\s*>/i.test(markup)) {
+    throw new Error("SVG drawing must contain a complete svg root element.");
+  }
+  rejectUnsafeSVGMarkup(markup);
+  validateSVGStructure(markup);
 }
 
 function extension(name: string): string {
