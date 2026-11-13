@@ -56,25 +56,39 @@ function safeDisplayName(value: string): string {
   return base.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 180) || "drawing";
 }
 
-async function parseUploadRequest(request: Request): Promise<UploadRequest> {
+async function readDrawingUploadForm(request: Request): Promise<FormData> {
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) fail("Drawing upload exceeds the 4 MiB file limit.", 413);
-  let form: FormData;
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+    fail("Drawing upload exceeds the 4 MiB file limit.", 413);
+  }
   try {
-    form = await request.formData();
+    return await request.formData();
   } catch {
     fail("Drawing upload must use multipart/form-data.", 400);
   }
+}
+
+function parseDrawingUploadFields(form: FormData): Omit<UploadRequest, "file"> & { file: File } {
   const projectId = form.get("projectId");
   const modelIdentityId = form.get("modelIdentityId");
   const file = form.get("file");
   if (!isUuid(projectId) || (modelIdentityId !== null && !isUuid(modelIdentityId)) || !(file instanceof File)) {
     fail("A registered project, optional model identity and drawing file are required.", 400);
   }
-  if (file.size < 1 || file.size > MAX_FILE_BYTES) fail("Drawing must contain 1 byte to 4 MiB.", 413);
   return { projectId, modelIdentityId: modelIdentityId ?? null, file };
 }
 
+function validateDrawingUploadFile(file: File): void {
+  if (file.size < 1 || file.size > MAX_FILE_BYTES) {
+    fail("Drawing must contain 1 byte to 4 MiB.", 413);
+  }
+}
+
+async function parseUploadRequest(request: Request): Promise<UploadRequest> {
+  const parsed = parseDrawingUploadFields(await readDrawingUploadForm(request));
+  validateDrawingUploadFile(parsed.file);
+  return parsed;
+}
 async function authorizeUpload(projectId: string): Promise<UploadContext> {
   try {
     const authorization = await authorizeSupabaseRequest("TASK.EXECUTE", projectId);
