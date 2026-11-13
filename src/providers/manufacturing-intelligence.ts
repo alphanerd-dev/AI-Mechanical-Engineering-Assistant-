@@ -4,6 +4,7 @@ import {evaluateManufacturingDFM} from "../manufacturing/dfm.js";
 import {estimateManufacturingEconomics} from "../manufacturing/estimation.js";
 import {generateManufacturingBOM} from "../manufacturing/bom.js";
 import {prepareManufacturingRelease} from "../manufacturing/release.js";
+import {assessManufacturingReadiness,ManufacturingReadinessRequest} from "../manufacturing/readiness.js";
 
 export class ManufacturingIntelligenceProvider implements EngineeringProvider{
   readonly id="manufacturing.intelligence";
