@@ -1,10 +1,10 @@
 # G2 Design — Geometry Identity, Immutable Revisions and Canonical Representation
 
-**Status:** Design proposal for review; no runtime implementation or database migration is included in this document.
+**Status:** Design proposal; production schema audit completed 13 November 2026; implementation blocked on migration-ledger reconciliation and explicit migration approval.
 **Prepared:** 8 November 2026
-**Depends on:** G1 product-owned geometry operation facade (merged in PR #139); G2 implementation remains gated on production schema review and migration acceptance.
+**Depends on:** G1 product-owned geometry operation facade (merged in PR #139); G2 implementation remains gated on the [production schema audit](g2-production-schema-audit.md), migration-history reconciliation and explicit migration approval.
 **Architecture owner:** Geometry Platform.
-**Persistence owner:** Existing project/artifact persistence; no parallel artifact registry.
+**Persistence owner:** Existing project, CAD completion JSONB manifests and private Storage bucket; no parallel artifact registry.
 
 ## 1. Decision to make
 
@@ -49,7 +49,7 @@ For the current bounded CAD path:
 
 A derivative may be useful without being authoritative. Validation of a BREP does not validate a STEP, STL, 3MF, drawing or display mesh.
 
-The revision record identifies one canonical artifact. It may link related exchange and display derivatives through the existing artifact-lineage system. It must not duplicate their bytes or metadata.
+The revision record identifies one canonical artifact. It may link related exchange and display derivatives through the artifact records embedded in the source completion manifest and the existing Storage references. It must not duplicate their bytes or metadata.
 
 ## 3. Proposed domain contract
 
@@ -67,7 +67,7 @@ interface GeometryRevisionV1 {
   parentGeometryRevisionId: string | null;
   sourceOperationId: string;           // idempotent G1 operation ID
   canonicalArtifact: {
-    artifactId: string;                // existing artifact registry ID
+    artifactId: string;                // ID in the source completion JSONB manifest; not an FK
     artifactKind: "SOLID";
     format: GeometryCanonicalFormat;
     artifactSha256: string;            // exact output-byte digest
@@ -90,8 +90,8 @@ This is a conceptual contract for review, not code to copy blindly. Final TypeSc
 1. `geometryRevisionId` is opaque, unique and immutable.
 2. `geometryRevisionNumber` is a positive safe integer, monotonic within one `modelIdentityId`.
 3. `parentGeometryRevisionId` is null only for the first recorded revision; otherwise it identifies the exact prior head.
-4. `canonicalArtifact.artifactId` references an existing artifact in the existing artifact registry.
-5. The artifact belongs to the same project and logical model.
+4. `canonicalArtifact.artifactId` resolves to exactly one artifact record in the source completion's `artifact_records` or `engineering_artifacts` JSONB manifest; it is not a relational foreign key.
+5. The source completion, artifact record and Storage object are verified against the same project and logical model.
 6. The artifact kind and format are compatible with the operation's declared canonical result. G2 initially accepts only the supported BREP solid result.
 7. `artifactSha256` is recomputed or verified against the exact artifact bytes before revision creation.
 8. Units and coordinate frame are explicit. No provider defaults or filename inference.
@@ -105,8 +105,8 @@ This is a conceptual contract for review, not code to copy blindly. Final TypeSc
 ### Reuse existing owners
 
 - Existing CAD model identity remains the logical model owner.
-- Existing artifact registry remains the artifact metadata and storage-reference owner.
-- Existing object storage remains the owner of artifact bytes.
+- Existing `engineering_cad_completions.artifact_records` and `engineering_artifacts` JSONB arrays remain the artifact metadata owner; there is no normalized `engineering_artifacts` table.
+- The private `engineering-cad-artifacts` Storage bucket remains the owner of artifact bytes; object versioning is currently disabled.
 - Existing provenance and evidence systems remain the source of execution and validation lineage.
 - The geometry revision record is a new relationship/identity record only. It is not another artifact registry and stores no geometry bytes.
 
@@ -121,8 +121,10 @@ Subject to confirming the exact production schema and foreign-key names, use a d
 | `model_identity_id` | Existing logical CAD model |
 | `revision_number` | Monotonic geometry revision sequence |
 | `parent_revision_id` | Previous immutable revision |
-| `source_operation_id` | Idempotency and operation lineage |
-| `canonical_artifact_id` | Existing artifact record |
+| `source_completion_id` | Existing `engineering_cad_completions.id` that produced the canonical artifact |
+| `source_operation_id` | Existing completion `execution_id` for traceability/idempotency |
+| `canonical_artifact_id` | Artifact ID resolved from the source completion JSONB manifest; not an FK |
+| `storage_object_name` | Immutable revision-scoped path in the private CAD artifact bucket |
 | `canonical_artifact_sha256` | Exact canonical bytes digest |
 | `canonical_format` | Initial value BREP |
 | `units` | Initial value mm |
@@ -134,25 +136,27 @@ Subject to confirming the exact production schema and foreign-key names, use a d
 Candidate constraints:
 - Unique `(project_id, model_identity_id, revision_number)`.
 - Unique `(project_id, model_identity_id, source_operation_id)` for idempotent creation.
-- Foreign keys to the existing model and artifact records after the production schema audit confirms their canonical tables.
+- Composite FK `(project_id, model_identity_id)` to `engineering_cad_models(project_id, id)`.
+- Composite FK `(project_id, model_identity_id, source_completion_id)` to `engineering_cad_completions(project_id, model_identity_id, id)`, supported by an additive unique key on the completion relation.
+- Composite self-FK `(project_id, model_identity_id, parent_revision_id)` to the same-model revision key.
+- Server-side verification of `canonical_artifact_id` against the completion JSONB manifest, exact Storage object and SHA-256; no FK to JSONB or the Storage-managed schema.
 - Index `(project_id, model_identity_id, revision_number DESC)` for current-head lookup.
-- Composite project/model foreign-key checks to prevent cross-project references.
 
-Do not add a new artifact blob table, geometry object store or parallel model identity table.
+Do not add a new artifact blob table, geometry object store or parallel model identity table. The production schema audit found no normalized artifact table; see [G2 Production Schema Audit](g2-production-schema-audit.md).
 
 ### Head and concurrency
 
 Revision creation must be transactional:
 1. Resolve and authorize the project and model identity server-side.
-2. Read the current geometry revision head.
+2. Lock the existing `engineering_cad_models` row with `SELECT ... FOR UPDATE` and read the current geometry revision head.
 3. Require the caller's `expectedParentGeometryRevisionId` to match the current head (or null for first revision).
 4. Verify the canonical artifact and digest.
-5. Insert the immutable revision with the next revision number.
+5. Allocate `MAX(revision_number) + 1` while holding the model row lock, then insert the immutable revision with the next revision number.
 6. Commit atomically.
 
 A stale parent returns a conflict such as `STALE_GEOMETRY_REVISION`; the service must not silently rebase a geometry operation onto a different head.
 
-A repeated `sourceOperationId` with identical model and artifact binding returns the already-created revision. Reuse of the same operation ID with different artifact bytes is rejected.
+A repeated `sourceOperationId` / source completion with identical model and artifact binding returns the already-created revision. The existing completion table already has a partial unique index on `(project_id, execution_id)`. Reuse of the same operation ID with different artifact bytes is rejected.
 
 Do not maintain a mutable latest-revision pointer until there is a demonstrated query/performance need. If one is later introduced, update it in the same transaction and treat it as a cache/index, not the source of revision truth.
 
@@ -268,3 +272,7 @@ Those remain later, separately gated increments.
 9. Promote only after exact-head CI, non-production migration acceptance and review.
 
 No production schema or CAD route should change as part of this design-only increment.
+
+## Production schema gate
+
+The read-only production schema review is recorded in [G2 Production Schema Audit](g2-production-schema-audit.md). It confirms the existing CAD model/completion/Storage owners and identifies a migration-ledger version discrepancy for `engineering_chat_session_list_metadata`. No G2 migration may be authored for production rollout until that discrepancy is reconciled and the E2E migration rehearsal passes.
