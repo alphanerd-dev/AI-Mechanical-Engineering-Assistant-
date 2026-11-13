@@ -182,10 +182,22 @@ function validateSVGStructure(markup: string): void {
   if (!state.rootSeen || state.stack.length !== 0) throw new Error("SVG document is incomplete or malformed.");
 }
 
-function validateSVG(markup: string): void {
-  if (!markup.trim() || !/^\s*<svg(?:\s|>)/i.test(markup) || !/<\/svg\s*>/i.test(markup)) {
+function validateSVGRootOpening(markup: string): void {
+  if (!/^\s*<svg(?:\s|>)/i.test(markup)) {
     throw new Error("SVG drawing must contain a complete svg root element.");
   }
+}
+
+function validateSVGRootClosing(markup: string): void {
+  if (!/<\/svg\s*>/i.test(markup)) {
+    throw new Error("SVG drawing must contain a complete svg root element.");
+  }
+}
+
+function validateSVG(markup: string): void {
+  if (!markup.trim()) throw new Error("SVG drawing must contain a complete svg root element.");
+  validateSVGRootOpening(markup);
+  validateSVGRootClosing(markup);
   rejectUnsafeSVGMarkup(markup);
   validateSVGStructure(markup);
 }
@@ -195,11 +207,15 @@ function extension(name: string): string {
   return base.includes(".") ? base.split(".").pop()!.toLowerCase() : "";
 }
 
+function isSafeDrawingFilename(filename: string): boolean {
+  if (!filename.trim()) return false;
+  if (filename.length > 180) return false;
+  if (/[\r\n\0]/.test(filename)) return false;
+  return !filename.split(/[\\/]/).some((part) => part === "..");
+}
+
 function validateDrawingFilename(filename: string): string {
-  if (!filename.trim() || filename.length > 180 || /[\r\n\0]/.test(filename) ||
-      filename.split(/[\\/]/).some((part) => part === "..")) {
-    throw new Error("Drawing filename is invalid.");
-  }
+  if (!isSafeDrawingFilename(filename)) throw new Error("Drawing filename is invalid.");
   return extension(filename);
 }
 
@@ -208,7 +224,8 @@ function isPDFContent(bytes: Uint8Array): boolean {
 }
 
 function validatePDFUploadMetadata(extension: string, declaredMimeType: string): void {
-  if (extension !== "pdf" || (declaredMimeType && declaredMimeType !== "application/pdf")) {
+  if (extension !== "pdf") throw new Error("PDF filename or media type does not match its content.");
+  if (declaredMimeType && declaredMimeType !== "application/pdf") {
     throw new Error("PDF filename or media type does not match its content.");
   }
 }
@@ -228,11 +245,20 @@ function inspectPDF(input: { bytes: Uint8Array; extension: string; declaredMimeT
   };
 }
 
-function inspectSVG(bytes: Uint8Array, ext: string, declared: string, prefix: string): CADDrawingInspection | null {
-  if (!/^<svg(?:\s|>)/i.test(prefix)) return null;
-  if (ext !== "svg" || (declared && declared !== "image/svg+xml")) {
+function hasSVGRootPrefix(prefix: string): boolean {
+  return /^<svg(?:\s|>)/i.test(prefix);
+}
+
+function validateSVGUploadMetadata(extension: string, declaredMimeType: string): void {
+  if (extension !== "svg") throw new Error("SVG filename or media type does not match its content.");
+  if (declaredMimeType && declaredMimeType !== "image/svg+xml") {
     throw new Error("SVG filename or media type does not match its content.");
   }
+}
+
+function inspectSVG(bytes: Uint8Array, ext: string, declared: string, prefix: string): CADDrawingInspection | null {
+  if (!hasSVGRootPrefix(prefix)) return null;
+  validateSVGUploadMetadata(ext, declared);
   validateSVG(decodeUtf8(bytes));
   return {
     format: "SVG", mediaType: "image/svg+xml", parserVersion: "svg-safe-subset-1",
@@ -264,15 +290,16 @@ export function inspectCADDrawingUpload(input: {
   bytes: Uint8Array;
 }): CADDrawingInspection {
   const { filename, bytes } = input;
-  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > MAX_DRAWING_BYTES) {
-    throw new Error("Drawing must contain 1 byte to 4 MiB.");
-  }
+  if (!(bytes instanceof Uint8Array)) throw new Error("Drawing must contain 1 byte to 4 MiB.");
+  if (bytes.byteLength < 1) throw new Error("Drawing must contain 1 byte to 4 MiB.");
+  if (bytes.byteLength > MAX_DRAWING_BYTES) throw new Error("Drawing must contain 1 byte to 4 MiB.");
   const ext = validateDrawingFilename(filename);
   const declared = input.declaredMimeType?.trim().toLowerCase() ?? "";
   const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 512))).trimStart();
-  const inspection = inspectPDF({ bytes, extension: ext, declaredMimeType: declared }) ??
-    inspectSVG(bytes, ext, declared, prefix) ??
-    inspectDXF(bytes, ext, declared);
+  const pdfInspection = inspectPDF({ bytes, extension: ext, declaredMimeType: declared });
+  const svgInspection = pdfInspection ? null : inspectSVG(bytes, ext, declared, prefix);
+  const dxfInspection = pdfInspection || svgInspection ? null : inspectDXF(bytes, ext, declared);
+  const inspection = pdfInspection ?? svgInspection ?? dxfInspection;
   if (!inspection) throw new Error("Unsupported drawing format. Accepted formats are PDF, safe-subset SVG and ASCII DXF.");
   return inspection;
 }
