@@ -53,6 +53,17 @@ describe("OpenFOAM HTTP executor", () => {
     expect(capturedInit?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("rejects invalid numerical manifests before making a network request", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify(result), { status: 200 }));
+    const executor = new OpenFOAMHttpExecutor("https://worker.internal", "secret", fetcher);
+    await expect(executor.runLaminarChannel({
+      ...request,
+      meanVelocityMps: 1,
+      kinematicViscosityM2PerS: 1e-5
+    })).rejects.toThrow("Invalid OpenFOAM benchmark request");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("surfaces worker HTTP errors and malformed JSON", async () => {
     const failed = new OpenFOAMHttpExecutor(
       "https://worker.internal",
