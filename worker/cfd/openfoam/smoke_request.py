@@ -26,7 +26,7 @@ def request_json(url: str, token: str, payload: dict | None = None) -> dict:
         },
         method="GET" if payload is None else "POST",
     )
-    with urllib.request.urlopen(request, timeout=worker.MAX_BODY_BYTES) as response:
+    with urllib.request.urlopen(request, timeout=5) as response:
         return json.loads(response.read())
 
 
@@ -58,6 +58,18 @@ def main() -> None:
             health = request_json(f"{base_url}/health", token)
             assert health["ready"] is True
             assert health["solverVersion"] == "14"
+
+            unauthenticated = urllib.request.Request(
+                f"{base_url}/v1/cfd/laminar-channel",
+                data=json.dumps(request).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                urllib.request.urlopen(unauthenticated, timeout=5)
+                raise AssertionError("Unauthenticated CFD requests must be rejected.")
+            except urllib.error.HTTPError as error:
+                assert error.code == 401
 
             payload = json.dumps(request).encode("utf-8")
             http_request = urllib.request.Request(
