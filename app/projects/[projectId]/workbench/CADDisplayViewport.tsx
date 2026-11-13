@@ -7,26 +7,39 @@ import styles from "./StlViewport.module.css";
 
 type MeshLoadState = { key: string; mesh: CADDisplayMeshPreview | null; error: string | null };
 
-async function loadGLB(
-  src: string,
-  expectedSourceId: string,
-  expectedSourceSha256: string,
-  expectedArtifactSha256: string,
-  signal: AbortSignal
-) {
-  const response = await fetch(src, { signal, cache: "no-store" });
-  if (!response.ok) throw new Error("The signed display derivative could not be downloaded.");
-  const buffer = await response.arrayBuffer();
-  if (signal.aborted) return null;
+interface LoadGLBInput {
+  src: string;
+  expectedSourceId: string;
+  expectedSourceSha256: string;
+  expectedArtifactSha256: string;
+  signal: AbortSignal;
+}
+
+async function verifyDisplayArtifactDigest(buffer: ArrayBuffer, expectedSha256: string): Promise<void> {
   const digest = await crypto.subtle.digest("SHA-256", buffer);
-  const actualArtifactSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  if (actualArtifactSha256 !== expectedArtifactSha256) {
+  const actualSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  if (actualSha256 !== expectedSha256) {
     throw new Error("Display derivative bytes do not match the registered artifact SHA-256 digest.");
   }
-  const mesh = parseCADDisplayGLB(buffer);
-  if (mesh.sourceArtifactId !== expectedSourceId || mesh.sourceArtifactSha256 !== expectedSourceSha256) {
+}
+
+function verifyDisplaySourceLineage(mesh: CADDisplayMeshPreview, sourceId: string, sourceSha256: string): void {
+  if (mesh.sourceArtifactId !== sourceId) {
     throw new Error("Display derivative lineage does not match the selected canonical source artifact.");
   }
+  if (mesh.sourceArtifactSha256 !== sourceSha256) {
+    throw new Error("Display derivative lineage does not match the selected canonical source artifact.");
+  }
+}
+
+async function loadGLB(input: LoadGLBInput) {
+  const response = await fetch(input.src, { signal: input.signal, cache: "no-store" });
+  if (!response.ok) throw new Error("The signed display derivative could not be downloaded.");
+  const buffer = await response.arrayBuffer();
+  if (input.signal.aborted) return null;
+  await verifyDisplayArtifactDigest(buffer, input.expectedArtifactSha256);
+  const mesh = parseCADDisplayGLB(buffer);
+  verifyDisplaySourceLineage(mesh, input.expectedSourceId, input.expectedSourceSha256);
   return mesh;
 }
 
@@ -38,7 +51,13 @@ function useCADDisplayMesh(props: {
   useEffect(() => {
     if (!props.src) return;
     const controller = new AbortController();
-    void loadGLB(props.src, props.sourceArtifactId, props.sourceArtifactSha256, props.artifactSha256, controller.signal)
+    void loadGLB({
+      src: props.src,
+      expectedSourceId: props.sourceArtifactId,
+      expectedSourceSha256: props.sourceArtifactSha256,
+      expectedArtifactSha256: props.artifactSha256,
+      signal: controller.signal
+    })
       .then((mesh) => {
         if (!controller.signal.aborted && mesh) setState({ key, mesh, error: null });
       })
@@ -73,13 +92,16 @@ function reportViewportRenderError(cause: unknown, status: HTMLDivElement | null
   if (root) root.dataset.renderError = "true";
 }
 
-function mountCADDisplayRenderer(
-  canvas: HTMLCanvasElement,
-  mesh: CADDisplayMeshPreview,
-  status: HTMLDivElement | null,
-  root: HTMLDivElement | null,
-  controlsRef: MutableRefObject<StlViewportControls | null>
-): () => void {
+interface CADDisplayRendererInput {
+  canvas: HTMLCanvasElement;
+  mesh: CADDisplayMeshPreview;
+  status: HTMLDivElement | null;
+  root: HTMLDivElement | null;
+  controlsRef: MutableRefObject<StlViewportControls | null>;
+}
+
+function mountCADDisplayRenderer(input: CADDisplayRendererInput): () => void {
+  const { canvas, mesh, status, root, controlsRef } = input;
   let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
   try {
     renderer = createStlWebGLRenderer(canvas, mesh);
@@ -104,7 +126,7 @@ function useCADDisplayRenderer(mesh: CADDisplayMeshPreview | null, identity: str
     clearViewportRenderError(status, root);
     const canvas = canvasRef.current;
     if (!mesh || !canvas) return;
-    return mountCADDisplayRenderer(canvas, mesh, status, root, controlsRef);
+    return mountCADDisplayRenderer({ canvas, mesh, status, root, controlsRef });
   }, [mesh, identity]);
   return { rootRef, canvasRef, controlsRef, renderErrorRef };
 }
