@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getReasoningFramework, REASONING_FRAMEWORKS } from "../src/reasoning-frameworks/registry.js";
+import { createDefaultSkillManifestRegistry } from "../src/reasoning-frameworks/skill-registry.js";
 import { routeReasoningFramework } from "../src/reasoning-frameworks/router.js";
 import { createFrameworkReasoningRecord, REASONING_RECORD_ADVISORY_LIMITATION } from "../src/reasoning-frameworks/records.js";
 import {
@@ -18,6 +19,24 @@ describe("reasoning framework contracts", () => {
 
   it("keeps every built-in framework manifest schema-valid", () => {
     expect(REASONING_FRAMEWORKS.flatMap((framework) => validateFrameworkManifest(framework))).toEqual([]);
+  });
+
+  it("registers the bounded Engineering R&D profile with a version-pinned risk and capability policy", () => {
+    const registry = createDefaultSkillManifestRegistry();
+    const skill = registry.get("engineering-rd", "1.0.0");
+    expect(skill).toMatchObject({
+      id: "engineering-rd",
+      version: "1.0.0",
+      maximumRisk: "MEDIUM",
+      requiresApproval: true
+    });
+    expect(skill?.allowedCapabilities).toContain("ANALYSIS.SHAFT_STATIC_DESIGN");
+    expect(skill?.allowedCapabilities).not.toContain("ANALYSIS.STATIC_STRUCTURAL");
+    expect(registry.list()).toHaveLength(1);
+    const copy = registry.get("engineering-rd", "1.0.0")!;
+    copy.allowedCapabilities.push("CAD.EXECUTE_GENERATED_SOURCE");
+    expect(registry.get("engineering-rd", "1.0.0")?.allowedCapabilities)
+      .not.toContain("CAD.EXECUTE_GENERATED_SOURCE");
   });
 
   it("validates well-formed skill manifests using the schema", () => {

@@ -1,6 +1,50 @@
 import { parseSkillManifest } from "./validation";
 import type { SkillManifest } from "./types.js";
 
+const builtInSkills: SkillManifest[] = [
+  {
+    schemaVersion: 1,
+    id: "engineering-rd",
+    version: "1.0.0",
+    name: "Engineering R&D",
+    description: "A bounded cross-domain engineering research and design-planning profile. It structures problem definitions, assumptions, alternatives, analysis plans and verification plans; it does not execute engineering capabilities or certify results.",
+    domains: ["mechanical", "manufacturing", "energy", "product-development", "engineering-analysis"],
+    requiredInputs: ["task"],
+    outputs: ["problem-definition", "known-facts", "assumptions", "alternatives", "analysis-plan", "verification-plan"],
+    allowedCapabilities: [
+      "ANALYSIS.SHAFT_TORQUE",
+      "ANALYSIS.SHAFT_STATIC_DESIGN",
+      "ANALYSIS.SHAFT_SIZE",
+      "ANALYSIS.PUMP_HYDRAULIC_POWER",
+      "UNITS.CONVERT",
+      "UNITS.CHECK_DIMENSIONS",
+      "CONSTRAINT.EVALUATE",
+      "CONSTRAINT.SOLVE",
+      "MATH.SYMBOLIC_SOLVE",
+      "MATH.NUMERICAL_SOLVE",
+      "MATH.CROSS_VALIDATE",
+      "REQUIREMENT.CREATE",
+      "REQUIREMENT.TRACE",
+      "SYSTEM.DEFINE",
+      "SYSTEM.ALLOCATE_REQUIREMENT",
+      "MANUFACTURING.VALIDATE_PROCESS_PLAN",
+      "MANUFACTURING.EVALUATE_INSPECTION",
+      "DIGITAL_THREAD.LINK"
+    ],
+    maximumRisk: "MEDIUM",
+    requiresApproval: true
+  }
+];
+
+function freezeManifest(manifest: SkillManifest): SkillManifest {
+  const copy = structuredClone(manifest);
+  Object.freeze(copy.domains);
+  Object.freeze(copy.requiredInputs);
+  Object.freeze(copy.outputs);
+  Object.freeze(copy.allowedCapabilities);
+  return Object.freeze(copy);
+}
+
 export interface SkillManifestRegistry {
   register(value: unknown): SkillManifest;
   get(id: string, version?: string): SkillManifest | undefined;
@@ -24,7 +68,7 @@ export class InMemorySkillManifestRegistry implements SkillManifestRegistry {
     if (this.manifests.has(key)) {
       throw new Error(`Skill manifest version is already registered: ${manifest.id}@${manifest.version}.`);
     }
-    this.manifests.set(key, this.freezeManifest(manifest));
+    this.manifests.set(key, freezeManifest(manifest));
     return structuredClone(manifest);
   }
 
@@ -47,13 +91,8 @@ export class InMemorySkillManifestRegistry implements SkillManifestRegistry {
   private key(id: string, version: string): string {
     return `${id}@${version}`;
   }
+}
 
-  private freezeManifest(manifest: SkillManifest): SkillManifest {
-    const copy = structuredClone(manifest);
-    Object.freeze(copy.domains);
-    Object.freeze(copy.requiredInputs);
-    Object.freeze(copy.outputs);
-    Object.freeze(copy.allowedCapabilities);
-    return Object.freeze(copy);
-  }
+export function createDefaultSkillManifestRegistry(): InMemorySkillManifestRegistry {
+  return new InMemorySkillManifestRegistry(builtInSkills);
 }
