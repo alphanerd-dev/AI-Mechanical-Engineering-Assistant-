@@ -39,6 +39,10 @@ export class ManufacturingIntelligenceProvider implements EngineeringProvider{
           const output=prepareManufacturingRelease(request.input as any);
           return {capability:request.capability,provider:this.id,success:output.status!=="BLOCKED",output};
         }
+        case "MANUFACTURING.ASSESS_READINESS":{
+          const output=assessManufacturingReadiness(request.input as unknown as ManufacturingReadinessRequest);
+          return {capability:request.capability,provider:this.id,success:true,output};
+        }
         default:
           return {capability:request.capability,provider:this.id,success:false,error:"Unsupported manufacturing intelligence capability"};
       }
