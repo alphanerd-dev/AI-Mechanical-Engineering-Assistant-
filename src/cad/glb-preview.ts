@@ -159,7 +159,7 @@ function validateSingleEmbeddedBuffer(document: GLTFDocument, binaryLength: numb
   if (document.buffers?.length !== 1) throw new Error("GLB must declare exactly one binary buffer.");
   const buffer = document.buffers[0];
   if (!buffer) throw new Error("GLB binary buffer declaration is missing.");
-  if (buffer.uri !== undefined) throw new Error("GLB external buffers are not supported.");
+  if (buffer.uri !== undefined) throw new Error("GLB buffer declaration cannot reference external buffers.");
   if (buffer.byteLength !== binaryLength) throw new Error("GLB buffer length does not match its binary chunk.");
 }
 
