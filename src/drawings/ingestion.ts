@@ -116,8 +116,16 @@ function validateSVGPaintValue(name: string, value: string): void {
   if (!isSupportedSVGPaint(value)) throw new Error("SVG paint attribute is outside the safe preview subset.");
 }
 
+const SVG_GEOMETRY_ATTRIBUTES = new Set(["transform", "d"]);
+const SVG_GEOMETRY_VALUE_PATTERN = /^[a-z0-9(),.+\-\s]+$/i;
+
+function isSupportedSVGGeometrySyntax(value: string): boolean {
+  return SVG_GEOMETRY_VALUE_PATTERN.test(value);
+}
+
 function validateSVGGeometryValue(name: string, value: string): void {
-  if ((name === "transform" || name === "d") && !/^[a-z0-9(),.+\-\s]+$/i.test(value)) {
+  if (!SVG_GEOMETRY_ATTRIBUTES.has(name)) return;
+  if (!isSupportedSVGGeometrySyntax(value)) {
     throw new Error("SVG geometry attribute contains unsupported syntax.");
   }
 }
