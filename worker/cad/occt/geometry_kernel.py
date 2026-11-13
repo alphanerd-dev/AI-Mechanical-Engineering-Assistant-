@@ -136,7 +136,9 @@ def pack_float32(values):
 
 
 def validate_linear_deflection(value):
-    if isinstance(value, bool) or not finite_positive(value) or value < 0.001 or value > 5:
+    if isinstance(value, bool) or not finite_positive(value):
+        raise ValueError("linearDeflectionMm must be a finite positive number.")
+    if value < 0.001 or value > 5:
         raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
     return float(value)
 
