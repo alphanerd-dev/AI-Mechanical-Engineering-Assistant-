@@ -117,7 +117,7 @@ Required resolution:
 
 Do not run `migration repair`, rename/rewrite an applied migration, or push a new production migration as part of this review. Those actions require explicit database-owner approval.
 
-Supabase CLI v3 changed hosted database commands to target the local stack by default; hosted operations require explicit `--remote`, and non-interactive hosted mutations require `--yes`. See the [Supabase CLI v3 changelog](https://supabase.com/changelog?next=Y3Vyc29yOnYyOpK0MjAyNC0wMy0wNlQyMTo1NDo0MlrOAAGClUw%3D%3D&restPage=2). Use explicit project targeting and review the resolved target before any future migration command.
+Supabase CLI v3 changed hosted database commands to target the local stack by default; hosted operations require explicit `--remote`, and non-interactive hosted mutations require `--yes`. See the [Supabase CLI v3 changelog](https://supabase.com/changelog). Use explicit project targeting and review the resolved target before any future migration command.
 
 ## 6. Security and operational observations
 
