@@ -121,7 +121,8 @@ jobs:
           set -euo pipefail
           run_geometry() {
             local format="$1" filename="$2" operation="$3" output="$4"
-            printf '%s' "{\\"operation\\":\\"$operation\\",\\"format\\":\\"$format\\",\\"artifactPath\\":\\"/artifacts/$filename\\",\\"linearDeflectionMm\\":0.1,\\"angularDeflectionRad\\":0.35}" \\
+            request="$(python -c 'import json,sys; print(json.dumps({"operation":sys.argv[1],"format":sys.argv[2],"artifactPath":"/artifacts/"+sys.argv[3],"linearDeflectionMm":0.1,"angularDeflectionRad":0.35}))' "$operation" "$format" "$filename")"
+            printf '%s' "$request" \
               | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 64 --memory=1g --cpus=1 --tmpfs /tmp:rw,noexec,nosuid,size=32m --user 10001:10001 --mount type=bind,src="$PWD/.cad-intent-smoke",dst=/artifacts,readonly --mount type=bind,src="$PWD/worker/cad/occt",dst=/validator,readonly --env CAD_ARTIFACT_DIR=/artifacts --entrypoint python --pull=never ai-mechanical-engineering-assistant-build123d:0.13.0 /validator/geometry_kernel.py > "$output"
           }
           run_geometry BREP part.brep INSPECT .cad-intent-smoke/brep-inspect.json
