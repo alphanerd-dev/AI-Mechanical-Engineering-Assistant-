@@ -169,13 +169,21 @@ def flatten_vectors(vectors):
     return [component for vector in vectors for component in (vector.X, vector.Y, vector.Z)]
 
 
-def flatten_and_validate_indices(triangles, vertex_count):
-    indices = [index for triangle in triangles for index in triangle]
-    if len(indices) != len(triangles) * 3 or any(
-        not isinstance(index, int) or isinstance(index, bool) or index < 0 or index >= vertex_count
-        for index in indices
-    ):
+def flatten_triangle_indices(triangles):
+    return [index for triangle in triangles for index in triangle]
+
+
+def validate_triangle_indices(indices, vertex_count):
+    if any(not isinstance(index, int) or isinstance(index, bool) or index < 0 or index >= vertex_count
+           for index in indices):
         raise ValueError("Tessellation contains an out-of-range triangle index.")
+
+
+def flatten_and_validate_indices(triangles, vertex_count):
+    indices = flatten_triangle_indices(triangles)
+    if len(indices) != len(triangles) * 3:
+        raise ValueError("Tessellation contains malformed triangle data.")
+    validate_triangle_indices(indices, vertex_count)
     return indices
 
 
