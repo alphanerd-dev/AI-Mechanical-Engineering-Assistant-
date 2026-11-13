@@ -19,6 +19,7 @@ This index points to the current product and operational contracts. It also dist
 - [ADR — Proprietary geometry platform and progressive kernel ownership](architecture/adr-2026-11-08-proprietary-geometry-platform.md) — supersedes the earlier decision not to pursue a proprietary kernel; approves a product-owned platform and staged native algorithm development.
 - [Geometry Platform Charter](geometry-platform/README.md) — ownership boundaries, repository placement, conformance suite and G0–G7 delivery sequence.
 - [G2 Identity, Revision and Canonical Representation Design](geometry-platform/g2-identity-revision-design.md) — immutable geometry revision contract, artifact digest binding, concurrency and migration gates.
+- [G2 Production Schema Audit](geometry-platform/g2-production-schema-audit.md) — read-only production schema findings, artifact ownership, Storage/RLS contracts and migration-ledger blocker.
 - [G0 Repository Audit](geometry-platform/g0-repository-audit.md) — current CAD architecture inventory, gaps, worker trust boundaries and G1 contract proposal.
 - [ADR — Integrated engineering workspace strategy](architecture/adr-2026-11-08-integrated-engineering-workspace.md) — modular CAD/CAE/perception/manufacturing/lifecycle domains under shared engineering contracts.
 
