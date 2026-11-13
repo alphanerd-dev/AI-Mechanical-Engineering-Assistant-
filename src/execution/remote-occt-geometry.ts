@@ -89,9 +89,12 @@ function isSupportedAngularDeflection(value: number): boolean {
 }
 
 function validateRemoteDeflection(options?: { linearDeflectionMm: number; angularDeflectionRad: number }): void {
-  if (!options || !isSupportedLinearDeflection(options.linearDeflectionMm) ||
-      !isSupportedAngularDeflection(options.angularDeflectionRad)) {
-    throw new Error("Remote OCCT tessellation deflection is outside the supported bounds.");
+  if (!options) throw new Error("Remote OCCT tessellation deflection settings are required.");
+  if (!isSupportedLinearDeflection(options.linearDeflectionMm)) {
+    throw new Error("Remote OCCT linear tessellation deflection is outside the supported bounds.");
+  }
+  if (!isSupportedAngularDeflection(options.angularDeflectionRad)) {
+    throw new Error("Remote OCCT angular tessellation deflection is outside the supported bounds.");
   }
 }
 
