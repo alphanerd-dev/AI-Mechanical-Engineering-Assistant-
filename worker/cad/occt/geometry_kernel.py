@@ -61,7 +61,7 @@ def read_request():
     return request
 
 
-def resolve_artifact(artifact_path, expected_format):
+def validate_artifact_name(artifact_path, expected_format):
     if not isinstance(artifact_path, str) or not artifact_path.startswith("/artifacts/"):
         raise ValueError("artifactPath must identify a file inside /artifacts.")
     name = pathlib.PurePosixPath(artifact_path).name
@@ -70,7 +70,14 @@ def resolve_artifact(artifact_path, expected_format):
     suffix = ".brep" if expected_format == "BREP" else ".step"
     if not name.lower().endswith(suffix):
         raise ValueError("Geometry artifact extension does not match the declared format.")
-    root = pathlib.Path(os.environ.get("CAD_ARTIFACT_DIR", "/artifacts")).resolve(strict=True)
+    return name
+
+
+def resolve_artifact_root():
+    return pathlib.Path(os.environ.get("CAD_ARTIFACT_DIR", "/artifacts")).resolve(strict=True)
+
+
+def validate_artifact_file(root, name):
     candidate = (root / name).resolve(strict=True)
     candidate.relative_to(root)
     if candidate.parent != root or not candidate.is_file():
@@ -79,6 +86,12 @@ def resolve_artifact(artifact_path, expected_format):
     if size <= 0 or size > MAX_ARTIFACT_BYTES:
         raise ValueError("Geometry artifact must contain 1 byte to 100 MiB.")
     return candidate
+
+
+def resolve_artifact(artifact_path, expected_format):
+    name = validate_artifact_name(artifact_path, expected_format)
+    root = resolve_artifact_root()
+    return validate_artifact_file(root, name)
 
 
 def import_shape(path, geometry_format):
