@@ -8,6 +8,8 @@ RUN apt-get update \
     && add-apt-repository -y http://dl.openfoam.org/ubuntu \
     && apt-get update \
     && apt-get install -y --no-install-recommends openfoam14 \
+    && mkdir -p /licenses \
+    && cp /usr/share/doc/openfoam14/copyright /licenses/OPENFOAM-COPYRIGHT \
     && rm -rf /var/lib/apt/lists/*
 
 RUN printf '%s\n' \
