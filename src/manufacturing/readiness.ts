@@ -1,7 +1,7 @@
 import { CADDFMRule, evaluateCADDFM } from "../cad/dfm.js";
 import { CADGeometryMetrics } from "../cad/metrics.js";
 import { BOMComponentInput, BOMGenerationResult, generateManufacturingBOM } from "./bom.js";
-import { ManufacturingDFMResult } from "./dfm.js";
+import { evaluateManufacturingDFM, ManufacturingDFMResult } from "./dfm.js";
 import { ManufacturingReleaseResult, prepareManufacturingRelease } from "./release.js";
 import {
   ManufacturingInspectionAcceptance,
