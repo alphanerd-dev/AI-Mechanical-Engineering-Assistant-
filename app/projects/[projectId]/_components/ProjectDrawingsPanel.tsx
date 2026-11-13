@@ -28,17 +28,19 @@ function dateLabel(value: string): string {
   return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
 }
 
+async function readDrawingUploadId(response: Response): Promise<string> {
+  const body = await response.json().catch(() => ({}));
+  if (response.ok && body.drawing && typeof body.drawing.id === "string") return body.drawing.id;
+  throw new Error(typeof body.error === "string" ? body.error : "Drawing upload failed.");
+}
+
 async function submitDrawingUpload(projectId: string, modelIdentityId: string, file: File): Promise<string> {
   const form = new FormData();
   form.set("projectId", projectId);
   if (modelIdentityId) form.set("modelIdentityId", modelIdentityId);
   form.set("file", file);
   const response = await fetch("/api/cad/drawings", { method: "POST", body: form });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body.drawing || typeof body.drawing.id !== "string") {
-    throw new Error(typeof body.error === "string" ? body.error : "Drawing upload failed.");
-  }
-  return body.drawing.id;
+  return readDrawingUploadId(response);
 }
 
 export default function ProjectDrawingsPanel({ projectId, models }: {
