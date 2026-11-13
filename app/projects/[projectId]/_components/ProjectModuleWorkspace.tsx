@@ -480,6 +480,11 @@ function renderArtifactFallbackAction(selectedArtifact: CADArtifactViewEntry | n
   return null;
 }
 
+function canonicalGeometryKind(entry: CADArtifactViewEntry | null): "SOLID" | "STEP" | null {
+  if (!entry) return null;
+  return entry.artifact.kind === "SOLID" || entry.artifact.kind === "STEP" ? entry.artifact.kind : null;
+}
+
 function WorkbenchArtifactPreview({ projectId, selectedArtifact, models, visibility, onRefresh }: {
   projectId: string;
   selectedArtifact: CADArtifactViewEntry | null;
@@ -487,14 +492,14 @@ function WorkbenchArtifactPreview({ projectId, selectedArtifact, models, visibil
   visibility: ViewVisibility;
   onRefresh: () => void;
 }) {
-  if (selectedArtifact && visibility.geometry &&
-      (selectedArtifact.artifact.kind === "SOLID" || selectedArtifact.artifact.kind === "STEP")) {
+  const geometryKind = canonicalGeometryKind(selectedArtifact);
+  if (selectedArtifact && visibility.geometry && geometryKind) {
     return <CADGeometryDerivativePreview
       projectId={projectId}
       completionId={selectedArtifact.completion.id}
       sourceArtifactId={selectedArtifact.artifact.id}
       sourceName={selectedArtifact.artifact.name}
-      sourceKind={selectedArtifact.artifact.kind}
+      sourceKind={geometryKind}
       staleness={selectedArtifact.staleness}
       onRefresh={onRefresh}
     />;
