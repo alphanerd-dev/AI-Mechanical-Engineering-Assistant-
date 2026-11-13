@@ -45,10 +45,10 @@ function drawingUploadIdFromBody(body: unknown): string | null {
 }
 
 function drawingUploadError(body: unknown): string {
-  if (body && typeof body === "object" && !Array.isArray(body)) {
-    const error = (body as Record<string, unknown>).error;
-    if (typeof error === "string") return error;
-  }
+  const record = asObjectRecord(body);
+  if (!record) return "Drawing upload failed.";
+  const error = record.error;
+  if (typeof error === "string") return error;
   return "Drawing upload failed.";
 }
 
