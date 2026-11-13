@@ -1,4 +1,4 @@
-import { CADDFMRule, evaluateCADDFM } from "../cad/dfm.js";
+import { CADDFMRule } from "../cad/dfm.js";
 import { CADGeometryMetrics } from "../cad/metrics.js";
 import { BOMComponentInput, BOMGenerationResult, generateManufacturingBOM } from "./bom.js";
 import { evaluateManufacturingDFM, ManufacturingDFMResult } from "./dfm.js";
