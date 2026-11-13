@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { parseCADDisplayGLB, type CADDisplayMeshPreview } from "../../../../src/cad/glb-preview";
 import { createStlWebGLRenderer, type StlViewportControls } from "../../../../src/cad/stl-webgl-renderer";
 import styles from "./StlViewport.module.css";
@@ -57,6 +57,42 @@ function useCADDisplayMesh(props: {
   };
 }
 
+function clearViewportRenderError(status: HTMLDivElement | null, root: HTMLDivElement | null): void {
+  if (status) {
+    status.hidden = true;
+    status.textContent = "";
+  }
+  if (root) root.dataset.renderError = "false";
+}
+
+function reportViewportRenderError(cause: unknown, status: HTMLDivElement | null, root: HTMLDivElement | null): void {
+  if (status) {
+    status.hidden = false;
+    status.textContent = cause instanceof Error ? cause.message : "The display derivative could not be rendered.";
+  }
+  if (root) root.dataset.renderError = "true";
+}
+
+function mountCADDisplayRenderer(
+  canvas: HTMLCanvasElement,
+  mesh: CADDisplayMeshPreview,
+  status: HTMLDivElement | null,
+  root: HTMLDivElement | null,
+  controlsRef: MutableRefObject<StlViewportControls | null>
+): () => void {
+  let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
+  try {
+    renderer = createStlWebGLRenderer(canvas, mesh);
+    controlsRef.current = renderer.controls;
+  } catch (cause) {
+    reportViewportRenderError(cause, status, root);
+  }
+  return () => {
+    renderer?.destroy();
+    controlsRef.current = null;
+  };
+}
+
 function useCADDisplayRenderer(mesh: CADDisplayMeshPreview | null, identity: string) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -65,28 +101,10 @@ function useCADDisplayRenderer(mesh: CADDisplayMeshPreview | null, identity: str
   useEffect(() => {
     const status = renderErrorRef.current;
     const root = rootRef.current;
-    if (status) {
-      status.hidden = true;
-      status.textContent = "";
-    }
-    if (root) root.dataset.renderError = "false";
+    clearViewportRenderError(status, root);
     const canvas = canvasRef.current;
     if (!mesh || !canvas) return;
-    let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
-    try {
-      renderer = createStlWebGLRenderer(canvas, mesh);
-      controlsRef.current = renderer.controls;
-    } catch (cause) {
-      if (status) {
-        status.hidden = false;
-        status.textContent = cause instanceof Error ? cause.message : "The display derivative could not be rendered.";
-      }
-      if (root) root.dataset.renderError = "true";
-    }
-    return () => {
-      renderer?.destroy();
-      controlsRef.current = null;
-    };
+    return mountCADDisplayRenderer(canvas, mesh, status, root, controlsRef);
   }, [mesh, identity]);
   return { rootRef, canvasRef, controlsRef, renderErrorRef };
 }
