@@ -153,15 +153,27 @@ def validate_deflection(request):
     return linear, angular
 
 
+def validate_vertex_count(vertex_count):
+    if vertex_count < 3 or vertex_count > MAX_VERTICES:
+        raise ValueError("Tessellation vertex count is outside the supported 3 to 750000 range.")
+
+
+def validate_triangle_count(triangle_count):
+    if triangle_count < 1 or triangle_count > MAX_TRIANGLES:
+        raise ValueError("Tessellation triangle count is outside the supported 1 to 250000 range.")
+
+
+def validate_normal_count(normal_count, vertex_count):
+    if normal_count != vertex_count:
+        raise ValueError("Tessellation normals do not align one-to-one with vertices.")
+
+
 def validate_tessellation_counts(positions, triangles, normals):
     vertex_count = len(positions)
     triangle_count = len(triangles)
-    if vertex_count < 3 or vertex_count > MAX_VERTICES:
-        raise ValueError("Tessellation vertex count is outside the supported 3 to 750000 range.")
-    if triangle_count < 1 or triangle_count > MAX_TRIANGLES:
-        raise ValueError("Tessellation triangle count is outside the supported 1 to 250000 range.")
-    if len(normals) != vertex_count:
-        raise ValueError("Tessellation normals do not align one-to-one with vertices.")
+    validate_vertex_count(vertex_count)
+    validate_triangle_count(triangle_count)
+    validate_normal_count(len(normals), vertex_count)
     return vertex_count, triangle_count
 
 
