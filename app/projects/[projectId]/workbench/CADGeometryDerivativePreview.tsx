@@ -48,11 +48,42 @@ function displayDerivativeError(body: unknown): string {
   return "CAD display derivative generation failed.";
 }
 
+function parseDerivativeRecord(value: unknown): Derivative | null {
+  const record = readDerivativeErrorField(value);
+  if (!record) return null;
+  const converter = readDerivativeErrorField(record.converter);
+  const tessellation = readDerivativeErrorField(record.tessellation);
+  if (!converter || !tessellation) return null;
+  if (typeof record.artifactId !== "string" || !record.artifactId.trim()) return null;
+  if (typeof record.sourceArtifactId !== "string" || !record.sourceArtifactId.trim()) return null;
+  if (typeof record.sourceArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(record.sourceArtifactSha256)) return null;
+  if (typeof record.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(record.artifactSha256)) return null;
+  if (typeof converter.providerId !== "string" || !converter.providerId.trim()) return null;
+  if (typeof converter.version !== "string" || !converter.version.trim()) return null;
+  if (!Number.isSafeInteger(record.modelRevision) || Number(record.modelRevision) < 1) return null;
+  if (typeof tessellation.linearDeflectionMm !== "number" || !Number.isFinite(tessellation.linearDeflectionMm)) return null;
+  if (typeof tessellation.angularDeflectionRad !== "number" || !Number.isFinite(tessellation.angularDeflectionRad)) return null;
+  return {
+    artifactId: record.artifactId,
+    sourceArtifactId: record.sourceArtifactId,
+    sourceArtifactSha256: record.sourceArtifactSha256,
+    artifactSha256: record.artifactSha256,
+    converter: { providerId: converter.providerId, version: converter.version },
+    modelRevision: Number(record.modelRevision),
+    tessellation: {
+      linearDeflectionMm: tessellation.linearDeflectionMm,
+      angularDeflectionRad: tessellation.angularDeflectionRad
+    }
+  };
+}
+
 function parseDisplayDerivativeResponse(body: unknown): { signedUrl: string; derivative: Derivative } | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-  const record = body as Record<string, unknown>;
-  if (typeof record.signedUrl !== "string" || !record.derivative || typeof record.derivative !== "object") return null;
-  return { signedUrl: record.signedUrl, derivative: record.derivative as Derivative };
+  const record = readDerivativeErrorField(body);
+  if (!record) return null;
+  if (typeof record.signedUrl !== "string" || !record.signedUrl.trim()) return null;
+  const derivative = parseDerivativeRecord(record.derivative);
+  if (!derivative) return null;
+  return { signedUrl: record.signedUrl, derivative };
 }
 
 async function requestDisplayDerivative(input: PreviewRequest): Promise<{ signedUrl: string; derivative: Derivative }> {
