@@ -120,27 +120,40 @@ function validateDeflection(body: Row, operation: CADGeometryRequest["operation"
   return { linearDeflectionMm, angularDeflectionRad };
 }
 
-export async function parseCADGeometryRequest(request: Request): Promise<CADGeometryRequest> {
+async function readGeometryRequestBody(request: Request): Promise<unknown> {
   const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) fail("Geometry request exceeds the 16 KiB limit.", 413);
-  let body: unknown;
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    fail("Geometry request exceeds the 16 KiB limit.", 413);
+  }
   try {
     const raw = await request.text();
     if (Buffer.byteLength(raw, "utf8") > MAX_REQUEST_BYTES) fail("Geometry request exceeds the 16 KiB limit.", 413);
-    body = JSON.parse(raw);
+    return JSON.parse(raw) as unknown;
   } catch (error) {
     if (error instanceof CADGeometryAPIError) throw error;
     fail("Geometry request must be valid JSON.", 400);
   }
-  if (!isRecord(body)) fail("Geometry request must be a JSON object.", 400);
-  if (Object.keys(body).some((key) => !ALLOWED_FIELDS.has(key))) fail("Geometry request contains unsupported fields.", 400);
+}
+
+function validateGeometryRequestFields(body: Record<string, unknown>): CADGeometryRequest {
+  if (Object.keys(body).some((key) => !ALLOWED_FIELDS.has(key))) {
+    fail("Geometry request contains unsupported fields.", 400);
+  }
   const { projectId, completionId, sourceArtifactId, operation } = body;
   if (!isUuid(projectId) || !isUuid(completionId) || !nonEmpty(sourceArtifactId) ||
       sourceArtifactId.length > 160 || (operation !== "INSPECT" && operation !== "TESSELLATE")) {
     fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
   }
-  const deflection = validateDeflection(body, operation);
-  return { projectId, completionId, sourceArtifactId, operation, ...deflection };
+  return {
+    projectId, completionId, sourceArtifactId, operation,
+    ...validateDeflection(body, operation)
+  };
+}
+
+export async function parseCADGeometryRequest(request: Request): Promise<CADGeometryRequest> {
+  const body = await readGeometryRequestBody(request);
+  if (!isRecord(body)) fail("Geometry request must be a JSON object.", 400);
+  return validateGeometryRequestFields(body);
 }
 
 async function authorizeGeometryRequest(projectId: string): Promise<AuthorizedContext> {
