@@ -28,6 +28,21 @@ const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_STDOUT_BYTES = 40 * 1024 * 1024;
 const DEFAULT_MAX_STDERR_BYTES = 32_000;
 
+export interface CADGeometryExecutor {
+  inspect(source: CADGeometrySource): Promise<{
+    solids: number; shells: number; faces: number; edges: number; vertices: number; valid: boolean;
+  }>;
+  tessellate(source: CADGeometrySource, options: {
+    linearDeflectionMm: number;
+    angularDeflectionRad: number;
+  }): Promise<{
+    positions: Float32Array; normals: Float32Array; indices: Uint32Array;
+    linearDeflectionMm: number; angularDeflectionRad: number;
+    sourceArtifactId: string; sourceArtifactSha256: string;
+    providerId: string; providerVersion: string;
+  }>;
+}
+
 type GeometryOperation = "INSPECT" | "TESSELLATE";
 type GeometryWorkerResponse = {
   status: "COMPLETED" | "FAILED";
@@ -97,7 +112,7 @@ function decodeUint32(value: string, expectedLength: number): Uint32Array {
 }
 
 /** Executes real OCCT import/inspection/tessellation in a no-network, read-only container. */
-export class DockerOCCTGeometryExecutor {
+export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
   private readonly image: string;
   private readonly scriptPath: string;
   private readonly dockerBinary: string;
