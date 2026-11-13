@@ -83,14 +83,22 @@ function validateSVGAttributes(attributes: string): void {
   }
 }
 
-function validateSVGAttributeValue(name: string, value: string): void {
+function validateSVGPaintValue(name: string, value: string): void {
   if ((name === "fill" || name === "stroke") && !/^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value)) {
     throw new Error("SVG paint attribute is outside the safe preview subset.");
   }
+}
+
+function validateSVGGeometryValue(name: string, value: string): void {
   if ((name === "transform" || name === "d") && !/^[a-z0-9(),.+\-\s]+$/i.test(value)) {
     throw new Error("SVG geometry attribute contains unsupported syntax.");
   }
+}
+
+function validateSVGAttributeValue(name: string, value: string): void {
   if (value.length > 10000) throw new Error("SVG attribute exceeds the safe preview limit.");
+  validateSVGPaintValue(name, value);
+  validateSVGGeometryValue(name, value);
 }
 
 function validateSVGText(token: string): void {
