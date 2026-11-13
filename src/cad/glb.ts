@@ -1,6 +1,8 @@
-import { CADDisplayMesh, isCADDisplayMesh } from "./renderer-contract.js";
+import { isCADDisplayMesh, type CADDisplayMesh } from "./renderer-contract.js";
 
 const MAX_GLB_BYTES = 32 * 1024 * 1024;
+const MAX_VERTICES = 750_000;
+const MAX_TRIANGLES = 250_000;
 
 function align4(value: number): number {
   return (value + 3) & ~3;
@@ -31,20 +33,21 @@ function encodeUint32(values: Uint32Array): Buffer {
   return output;
 }
 
-/** Build a binary glTF 2.0 derivative without modifying or replacing canonical CAD bytes. */
-export function createCADDisplayGLB(mesh: CADDisplayMesh): Buffer {
+function validateDisplayMesh(mesh: CADDisplayMesh): void {
   if (!isCADDisplayMesh(mesh) || !mesh.normals || !mesh.indices) {
     throw new Error("A validated position/normal/index CAD display mesh is required.");
   }
   const vertexCount = mesh.positions.length / 3;
   const triangleCount = mesh.indices.length / 3;
-  if (vertexCount > 750_000 || triangleCount > 250_000) {
+  if (vertexCount > MAX_VERTICES || triangleCount > MAX_TRIANGLES) {
     throw new Error("CAD display mesh exceeds the configured GLB vertex or triangle limit.");
   }
+}
 
+function createBinaryChunk(mesh: CADDisplayMesh) {
   const positions = encodeFloat32(mesh.positions);
-  const normals = encodeFloat32(mesh.normals);
-  const indices = encodeUint32(mesh.indices);
+  const normals = encodeFloat32(mesh.normals!);
+  const indices = encodeUint32(mesh.indices!);
   const positionOffset = 0;
   const normalOffset = align4(positions.length);
   const indexOffset = align4(normalOffset + normals.length);
@@ -53,21 +56,21 @@ export function createCADDisplayGLB(mesh: CADDisplayMesh): Buffer {
   positions.copy(binary, positionOffset);
   normals.copy(binary, normalOffset);
   indices.copy(binary, indexOffset);
+  return { binary, positions, normals, indices, positionOffset, normalOffset, indexOffset };
+}
 
+function buildGLTFDocument(mesh: CADDisplayMesh, chunks: ReturnType<typeof createBinaryChunk>) {
   const bounds = componentBounds(mesh.positions);
-  const document = {
+  const maximumIndex = mesh.indices!.reduce((maximum, index) => Math.max(maximum, index), 0);
+  const vertexCount = mesh.positions.length / 3;
+  return {
     asset: { version: "2.0", generator: "AI Mechanical Engineering Assistant / " + mesh.sourceArtifactId },
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ mesh: 0 }],
-    meshes: [{
-      primitives: [{
-        attributes: { POSITION: 0, NORMAL: 1 },
-        indices: 2,
-        material: 0,
-        mode: 4
-      }]
-    }],
+    meshes: [{ primitives: [{
+      attributes: { POSITION: 0, NORMAL: 1 }, indices: 2, material: 0, mode: 4
+    }] }],
     materials: [{
       pbrMetallicRoughness: {
         baseColorFactor: [0.2588, 0.7843, 0.7059, 1],
@@ -76,16 +79,16 @@ export function createCADDisplayGLB(mesh: CADDisplayMesh): Buffer {
       },
       doubleSided: false
     }],
-    buffers: [{ byteLength: binary.length }],
+    buffers: [{ byteLength: chunks.binary.length }],
     bufferViews: [
-      { buffer: 0, byteOffset: positionOffset, byteLength: positions.length, target: 34962 },
-      { buffer: 0, byteOffset: normalOffset, byteLength: normals.length, target: 34962 },
-      { buffer: 0, byteOffset: indexOffset, byteLength: indices.length, target: 34963 }
+      { buffer: 0, byteOffset: chunks.positionOffset, byteLength: chunks.positions.length, target: 34962 },
+      { buffer: 0, byteOffset: chunks.normalOffset, byteLength: chunks.normals.length, target: 34962 },
+      { buffer: 0, byteOffset: chunks.indexOffset, byteLength: chunks.indices.length, target: 34963 }
     ],
     accessors: [
       { bufferView: 0, byteOffset: 0, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.min, max: bounds.max },
       { bufferView: 1, byteOffset: 0, componentType: 5126, count: vertexCount, type: "VEC3" },
-      { bufferView: 2, byteOffset: 0, componentType: 5125, count: mesh.indices.length, type: "SCALAR", min: [0], max: [mesh.indices.reduce((maximum, index) => Math.max(maximum, index), 0)] }
+      { bufferView: 2, byteOffset: 0, componentType: 5125, count: mesh.indices!.length, type: "SCALAR", min: [0], max: [maximumIndex] }
     ],
     extras: {
       sourceArtifactId: mesh.sourceArtifactId,
@@ -94,11 +97,13 @@ export function createCADDisplayGLB(mesh: CADDisplayMesh): Buffer {
       coordinateFrame: mesh.coordinateFrame
     }
   };
+}
+
+function serializeGLB(document: ReturnType<typeof buildGLTFDocument>, binary: Buffer): Buffer {
   const json = Buffer.from(JSON.stringify(document), "utf8");
   const jsonLength = align4(json.length);
   const totalLength = 12 + 8 + jsonLength + 8 + binary.length;
   if (totalLength > MAX_GLB_BYTES) throw new Error("Generated GLB exceeds the 32 MiB display derivative limit.");
-
   const glb = Buffer.alloc(totalLength);
   glb.writeUInt32LE(0x46546c67, 0);
   glb.writeUInt32LE(2, 4);
@@ -112,4 +117,12 @@ export function createCADDisplayGLB(mesh: CADDisplayMesh): Buffer {
   glb.writeUInt32LE(0x004e4942, binaryHeaderOffset + 4);
   binary.copy(glb, binaryHeaderOffset + 8);
   return glb;
+}
+
+/** Build a binary glTF 2.0 derivative without modifying or replacing canonical CAD bytes. */
+export function createCADDisplayGLB(mesh: CADDisplayMesh): Buffer {
+  validateDisplayMesh(mesh);
+  const chunks = createBinaryChunk(mesh);
+  const document = buildGLTFDocument(mesh, chunks);
+  return serializeGLB(document, chunks.binary);
 }
