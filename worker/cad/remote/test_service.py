@@ -154,7 +154,7 @@ def verify_geometry_operations(artifacts: dict) -> None:
 def verify_rejections(source: str, dimensions: dict[str, object]) -> None:
     code, rejected = request("/v1/cad/execute", {
         "id": "ci-cad-execution-002", "backend": "build123d",
-        "source": source + "raise RuntimeError('source must never execute')\\n",
+        "source": source + "raise RuntimeError('source must never execute')\n",
         "filename": "shaft.py", "timeoutMs": 60000, "parameters": dimensions
     }, allow_error=True)
     assert code == 400 and "template" in str(rejected.get("error", "")).lower(), rejected
