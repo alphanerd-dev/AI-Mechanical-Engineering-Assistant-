@@ -6,6 +6,16 @@ import {generateManufacturingBOM} from "../manufacturing/bom.js";
 import {prepareManufacturingRelease} from "../manufacturing/release.js";
 import {assessManufacturingReadiness,ManufacturingReadinessRequest} from "../manufacturing/readiness.js";
 
+type DFMRequest = Parameters<typeof evaluateManufacturingDFM>[0];
+type EconomicsRequest = Parameters<typeof estimateManufacturingEconomics>[0];
+type ReleaseRequest = Parameters<typeof prepareManufacturingRelease>[0];
+interface ManufacturingBOMRequest {
+  id: string;
+  projectId: string;
+  revision: string;
+  components: Parameters<typeof generateManufacturingBOM>[3];
+}
+
 export class ManufacturingIntelligenceProvider implements EngineeringProvider{
   readonly id="manufacturing.intelligence";
   readonly capabilities=[
@@ -27,16 +37,16 @@ export class ManufacturingIntelligenceProvider implements EngineeringProvider{
     try{
       switch(request.capability){
         case "MANUFACTURING.CHECK_DFM":
-          return {capability:request.capability,provider:this.id,success:true,output:evaluateManufacturingDFM(request.input as any)};
+          return {capability:request.capability,provider:this.id,success:true,output:evaluateManufacturingDFM(request.input as unknown as DFMRequest)};
         case "MANUFACTURING.ESTIMATE_ECONOMICS":
-          return {capability:request.capability,provider:this.id,success:true,output:estimateManufacturingEconomics(request.input as any)};
+          return {capability:request.capability,provider:this.id,success:true,output:estimateManufacturingEconomics(request.input as unknown as EconomicsRequest)};
         case "MANUFACTURING.GENERATE_BOM":{
-          const input=request.input as any;
+          const input=request.input as unknown as ManufacturingBOMRequest;
           const output=generateManufacturingBOM(input.id,input.projectId,input.revision,input.components);
           return {capability:request.capability,provider:this.id,success:output.status==="GENERATED",output};
         }
         case "MANUFACTURING.PREPARE_RELEASE":{
-          const output=prepareManufacturingRelease(request.input as any);
+          const output=prepareManufacturingRelease(request.input as unknown as ReleaseRequest);
           return {capability:request.capability,provider:this.id,success:output.status!=="BLOCKED",output};
         }
         case "MANUFACTURING.ASSESS_READINESS":{
