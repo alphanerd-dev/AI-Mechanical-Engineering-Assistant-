@@ -303,7 +303,8 @@ export async function POST(request: Request) {
   const { data: existing, error: existingError } = await db.from("engineering_cad_display_derivatives")
     .select("*").eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
     .eq("source_artifact_id", sourceArtifactId).eq("source_artifact_sha256", digest)
-    .eq("model_revision", sourceRevision).eq("linear_deflection_mm", linearDeflectionMm)
+    .eq("model_revision", sourceRevision).eq("converter_provider_id", result.value.providerId)
+    .eq("converter_version", result.value.providerVersion).eq("linear_deflection_mm", linearDeflectionMm)
     .eq("angular_deflection_rad", angularDeflectionRad).maybeSingle();
   if (existingError) return httpError("Display derivative idempotency lookup failed.", 503);
   if (existing) {
