@@ -20,7 +20,7 @@ export class ManufacturingIntelligenceProvider implements EngineeringProvider{
     domain:"manufacturing",
     status:"PILOT",
     capabilities:this.capabilities,
-    version:"1.0"
+    version:"1.1"
   };
 
   async execute(request:CapabilityRequest):Promise<CapabilityResult>{
