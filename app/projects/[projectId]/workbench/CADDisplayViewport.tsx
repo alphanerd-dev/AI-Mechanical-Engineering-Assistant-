@@ -5,13 +5,19 @@ import { parseCADDisplayGLB, type CADDisplayMeshPreview } from "../../../../src/
 import { createStlWebGLRenderer, type StlViewportControls } from "../../../../src/cad/stl-webgl-renderer";
 import styles from "./StlViewport.module.css";
 
-type State = { src: string; mesh: CADDisplayMeshPreview | null; error: string | null };
+type State = {
+  src: string; sourceArtifactId: string; sourceArtifactSha256: string;
+  mesh: CADDisplayMeshPreview | null; error: string | null;
+};
 
-async function loadGLB(src: string, expectedSourceId: string, expectedSha256: string, signal: AbortSignal) {
+async function loadGLB(src: string, expectedSourceId: string, expectedSha256: string, expectedArtifactSha256: string, signal: AbortSignal) {
   const response = await fetch(src, { signal, cache: "no-store" });
   if (!response.ok) throw new Error("The signed display derivative could not be downloaded.");
   const buffer = await response.arrayBuffer();
   if (signal.aborted) return null;
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  const actualArtifactSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  if (actualArtifactSha256 !== expectedArtifactSha256) throw new Error("Display derivative bytes do not match the registered artifact SHA-256 digest.");
   const mesh = parseCADDisplayGLB(buffer);
   if (mesh.sourceArtifactId !== expectedSourceId || mesh.sourceArtifactSha256 !== expectedSha256) {
     throw new Error("Display derivative lineage does not match the selected canonical source artifact.");
@@ -19,34 +25,37 @@ async function loadGLB(src: string, expectedSourceId: string, expectedSha256: st
   return mesh;
 }
 
-export default function CADDisplayViewport({ src, label, sourceArtifactId, sourceArtifactSha256 }: {
+export default function CADDisplayViewport({ src, label, sourceArtifactId, sourceArtifactSha256, artifactSha256 }: {
   src: string;
   label: string;
   sourceArtifactId: string;
   sourceArtifactSha256: string;
+  artifactSha256: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controlsRef = useRef<StlViewportControls | null>(null);
   const renderErrorRef = useRef<HTMLDivElement | null>(null);
-  const [state, setState] = useState<State>({ src: "", mesh: null, error: null });
+  const [state, setState] = useState<State>({ src: "", sourceArtifactId: "", sourceArtifactSha256: "", mesh: null, error: null });
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadGLB(src, sourceArtifactId, sourceArtifactSha256, controller.signal)
+    void loadGLB(src, sourceArtifactId, sourceArtifactSha256, artifactSha256, controller.signal)
       .then((mesh) => {
-        if (!controller.signal.aborted && mesh) setState({ src, mesh, error: null });
+        if (!controller.signal.aborted && mesh) setState({ src, sourceArtifactId, sourceArtifactSha256, mesh, error: null });
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setState({
-          src, mesh: null, error: cause instanceof Error ? cause.message : "Display derivative could not be loaded."
+          src, sourceArtifactId, sourceArtifactSha256, mesh: null,
+          error: cause instanceof Error ? cause.message : "Display derivative could not be loaded."
         });
       });
     return () => controller.abort();
-  }, [src, sourceArtifactId, sourceArtifactSha256]);
+  }, [src, sourceArtifactId, sourceArtifactSha256, artifactSha256]);
 
   useEffect(() => {
-    const mesh = state.src === src ? state.mesh : null;
+    const matches = state.src === src && state.sourceArtifactId === sourceArtifactId && state.sourceArtifactSha256 === sourceArtifactSha256;
+    const mesh = matches ? state.mesh : null;
     const canvas = canvasRef.current;
     const renderError = renderErrorRef.current;
     const root = rootRef.current;
@@ -73,8 +82,9 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
     };
   }, [src, state.mesh, state.src]);
 
-  const mesh = state.src === src ? state.mesh : null;
-  const error = state.src === src ? state.error : null;
+  const matches = state.src === src && state.sourceArtifactId === sourceArtifactId && state.sourceArtifactSha256 === sourceArtifactSha256;
+  const mesh = matches ? state.mesh : null;
+  const error = matches ? state.error : null;
   return <div ref={rootRef} className={styles.viewportRoot}>
     <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label} tabIndex={0} />
     {!mesh && !error && <div className={styles.viewportStatus} role="status">Loading verified display derivative…</div>}
