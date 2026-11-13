@@ -103,24 +103,37 @@ function validateDeflection(options: { linearDeflectionMm: number; angularDeflec
   }
 }
 
-function validateGeometrySource(source: CADGeometrySource, operation: GeometryOperation, options?: {
-  linearDeflectionMm: number; angularDeflectionRad: number;
-}): void {
+function validateGeometrySourceContract(source: CADGeometrySource): void {
   const errors = validateCADGeometrySource(source);
   if (errors.length) throw new Error(errors.join("; "));
+  if (source.units !== "mm" || source.coordinateFrame !== "MODEL") {
+    throw new Error("The current OCCT geometry worker accepts millimetre model-frame sources only.");
+  }
+}
+
+function validateGeometrySourceBytes(source: CADGeometrySource): void {
   if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 || source.bytes.byteLength > MAX_SOURCE_BYTES) {
     throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
   }
   if (!/^[a-f0-9]{64}$/.test(source.sha256) || sha256(source.bytes) !== source.sha256) {
     throw new Error("OCCT geometry source bytes do not match the declared SHA-256 digest.");
   }
-  if (source.units !== "mm" || source.coordinateFrame !== "MODEL") {
-    throw new Error("The current OCCT geometry worker accepts millimetre model-frame sources only.");
-  }
-  if (operation === "TESSELLATE") {
-    if (!options) throw new Error("Tessellation settings are required.");
-    validateDeflection(options);
-  }
+}
+
+function validateGeometryOperationOptions(operation: GeometryOperation, options?: {
+  linearDeflectionMm: number; angularDeflectionRad: number;
+}): void {
+  if (operation !== "TESSELLATE") return;
+  if (!options) throw new Error("Tessellation settings are required.");
+  validateDeflection(options);
+}
+
+function validateGeometrySource(source: CADGeometrySource, operation: GeometryOperation, options?: {
+  linearDeflectionMm: number; angularDeflectionRad: number;
+}): void {
+  validateGeometrySourceContract(source);
+  validateGeometrySourceBytes(source);
+  validateGeometryOperationOptions(operation, options);
 }
 
 function buildDockerArgs(
