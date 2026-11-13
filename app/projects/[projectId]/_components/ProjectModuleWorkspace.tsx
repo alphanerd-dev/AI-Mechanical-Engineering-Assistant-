@@ -489,33 +489,44 @@ function shouldShowGeometryPreview(visibility: ViewVisibility): boolean {
   return visibility.geometry;
 }
 
-function WorkbenchArtifactPreview({ projectId, selectedArtifact, models, visibility, onRefresh }: {
+type WorkbenchArtifactPreviewProps = {
   projectId: string;
   selectedArtifact: CADArtifactViewEntry | null;
   models: CadModel[];
   visibility: ViewVisibility;
   onRefresh: () => void;
-}) {
-  const geometryKind = canonicalGeometryKind(selectedArtifact);
-  if (selectedArtifact && geometryKind && shouldShowGeometryPreview(visibility)) {
-    return <CADGeometryDerivativePreview
-      projectId={projectId}
-      completionId={selectedArtifact.completion.id}
-      sourceArtifactId={selectedArtifact.artifact.id}
-      sourceName={selectedArtifact.artifact.name}
-      sourceKind={geometryKind}
-      staleness={selectedArtifact.staleness}
-      onRefresh={onRefresh}
-    />;
-  }
-  const preview = renderSelectedArtifactPreview(selectedArtifact, visibility);
-  if (preview) return preview;
+};
+
+function renderGeometryDerivativePreview(props: WorkbenchArtifactPreviewProps) {
+  const entry = props.selectedArtifact;
+  if (!entry) return null;
+  if (!shouldShowGeometryPreview(props.visibility)) return null;
+  const geometryKind = canonicalGeometryKind(entry);
+  if (!geometryKind) return null;
+  return <CADGeometryDerivativePreview
+    projectId={props.projectId}
+    completionId={entry.completion.id}
+    sourceArtifactId={entry.artifact.id}
+    sourceName={entry.artifact.name}
+    sourceKind={geometryKind}
+    staleness={entry.staleness}
+    onRefresh={props.onRefresh}
+  />;
+}
+
+function renderWorkbenchEmptyState(props: WorkbenchArtifactPreviewProps) {
   return <div className="viewportEmptyCopy">
     <Box size={28} aria-hidden="true" />
-    <strong>{viewportEmptyTitle(selectedArtifact, visibility)}</strong>
-    <p>{viewportEmptyDetail(selectedArtifact, models.length, visibility)}</p>
-    {renderArtifactFallbackAction(selectedArtifact)}
+    <strong>{viewportEmptyTitle(props.selectedArtifact, props.visibility)}</strong>
+    <p>{viewportEmptyDetail(props.selectedArtifact, props.models.length, props.visibility)}</p>
+    {renderArtifactFallbackAction(props.selectedArtifact)}
   </div>;
+}
+
+function WorkbenchArtifactPreview(props: WorkbenchArtifactPreviewProps) {
+  const preview = renderGeometryDerivativePreview(props) ??
+    renderSelectedArtifactPreview(props.selectedArtifact, props.visibility);
+  return preview ?? renderWorkbenchEmptyState(props);
 }
 
 function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifact, onSelectArtifact, visibility, onRefresh }: {
