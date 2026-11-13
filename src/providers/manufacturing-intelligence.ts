@@ -12,7 +12,8 @@ export class ManufacturingIntelligenceProvider implements EngineeringProvider{
     "MANUFACTURING.CHECK_DFM",
     "MANUFACTURING.ESTIMATE_ECONOMICS",
     "MANUFACTURING.GENERATE_BOM",
-    "MANUFACTURING.PREPARE_RELEASE"
+    "MANUFACTURING.PREPARE_RELEASE",
+    "MANUFACTURING.ASSESS_READINESS"
   ];
   readonly descriptor:ProviderDescriptor={
     id:this.id,
