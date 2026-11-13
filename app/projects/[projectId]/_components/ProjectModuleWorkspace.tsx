@@ -488,7 +488,7 @@ function canonicalGeometryKind(entry: CADArtifactViewEntry | null): "SOLID" | "S
 function shouldShowGeometryPreview(
   entry: CADArtifactViewEntry | null,
   kind: "SOLID" | "STEP" | null,
-  visibility: WorkbenchVisibility
+  visibility: ViewVisibility
 ): boolean {
   return entry !== null && visibility.geometry && kind !== null;
 }
