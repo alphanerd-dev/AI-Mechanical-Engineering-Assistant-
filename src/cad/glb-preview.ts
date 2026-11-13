@@ -171,19 +171,38 @@ function readGLBChunks(buffer: ArrayBuffer): { document: GLTFDocument; binary: D
   return { document, binary: readGLBBinaryChunk(buffer, view, document, binaryHeader) };
 }
 
-function validateSourceLineage(document: GLTFDocument): {
+type ValidSourceLineage = {
   sourceArtifactId: string;
   sourceArtifactSha256: string;
   units: "mm";
   coordinateFrame: "MODEL";
-} {
-  const extras = document.extras;
-  if (!extras || typeof extras.sourceArtifactId !== "string" || !extras.sourceArtifactId.trim() ||
-      typeof extras.sourceArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(extras.sourceArtifactSha256) ||
-      extras.units !== "mm" || extras.coordinateFrame !== "MODEL") {
-    throw new Error("GLB source lineage, units or coordinate frame is invalid.");
+};
+
+function validateSourceArtifactId(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("GLB source artifact identity is invalid.");
   }
-  return extras;
+}
+
+function validateSourceArtifactDigest(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) {
+    throw new Error("GLB source artifact digest is invalid.");
+  }
+}
+
+function validateSourceCoordinateFrame(extras: NonNullable<GLTFDocument["extras"]>): void {
+  if (extras.units !== "mm" || extras.coordinateFrame !== "MODEL") {
+    throw new Error("GLB source units or coordinate frame is invalid.");
+  }
+}
+
+function validateSourceLineage(document: GLTFDocument): ValidSourceLineage {
+  const extras = document.extras;
+  if (!extras) throw new Error("GLB source lineage is missing.");
+  validateSourceArtifactId(extras.sourceArtifactId);
+  validateSourceArtifactDigest(extras.sourceArtifactSha256);
+  validateSourceCoordinateFrame(extras);
+  return extras as ValidSourceLineage;
 }
 
 function hasSingleTrianglePrimitive(document: GLTFDocument): boolean {
