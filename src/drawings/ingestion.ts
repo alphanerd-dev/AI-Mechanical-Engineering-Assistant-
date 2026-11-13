@@ -103,10 +103,17 @@ function validateSVGAttributes(attributes: string): void {
   }
 }
 
+function isSVGPaintAttribute(name: string): boolean {
+  return name === "fill" || name === "stroke";
+}
+
+function isSupportedSVGPaint(value: string): boolean {
+  return /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
+}
+
 function validateSVGPaintValue(name: string, value: string): void {
-  if ((name === "fill" || name === "stroke") && !/^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value)) {
-    throw new Error("SVG paint attribute is outside the safe preview subset.");
-  }
+  if (!isSVGPaintAttribute(name)) return;
+  if (!isSupportedSVGPaint(value)) throw new Error("SVG paint attribute is outside the safe preview subset.");
 }
 
 function validateSVGGeometryValue(name: string, value: string): void {
