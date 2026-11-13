@@ -7,6 +7,7 @@ executes CAD source, mutates source geometry, repairs topology or writes to the 
 """
 import base64
 import json
+from typing import NamedTuple
 import math
 import os
 import pathlib
@@ -195,9 +196,18 @@ def flatten_triangle_indices(triangles):
     return [index for triangle in triangles for index in triangle]
 
 
+def is_valid_triangle_index(index, vertex_count):
+    if not isinstance(index, int):
+        return False
+    if isinstance(index, bool):
+        return False
+    if index < 0:
+        return False
+    return index < vertex_count
+
+
 def validate_triangle_indices(indices, vertex_count):
-    if any(not isinstance(index, int) or isinstance(index, bool) or index < 0 or index >= vertex_count
-           for index in indices):
+    if any(not is_valid_triangle_index(index, vertex_count) for index in indices):
         raise ValueError("Tessellation contains an out-of-range triangle index.")
 
 
@@ -209,7 +219,20 @@ def flatten_and_validate_indices(triangles, vertex_count):
     return indices
 
 
-def serialize_tessellation(positions, normals, triangles, linear, angular):
+class TessellationData(NamedTuple):
+    positions: list
+    normals: list
+    triangles: list
+    linear_deflection: float
+    angular_deflection: float
+
+
+def serialize_tessellation(data):
+    positions = data.positions
+    normals = data.normals
+    triangles = data.triangles
+    linear = data.linear_deflection
+    angular = data.angular_deflection
     vertex_count, triangle_count = validate_tessellation_counts(positions, triangles, normals)
     flat_positions = flatten_vectors(positions)
     flat_normals = flatten_vectors(normals)
@@ -236,7 +259,7 @@ def tessellate_shape(shape, request):
     positions, triangles, normals, _uvs = shape.tessellate_with_uvs(
         linear, angular, atlas_packing=False
     )
-    return serialize_tessellation(positions, normals, triangles, linear, angular)
+    return serialize_tessellation(TessellationData(positions, normals, triangles, linear, angular))
 
 
 def main():
