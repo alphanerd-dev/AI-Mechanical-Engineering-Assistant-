@@ -198,7 +198,7 @@ describe("V1.21 CAM boundary",()=>{
     const provider=new CAMBoundaryProvider();
     const result=await provider.execute({capability:"MANUFACTURING.CAM_PLAN",risk:"HIGH",input:{partArtifactId:"part.step",process:"MILLING",operationIds:["OP-1"],parameters:{}}});
     expect(result.success).toBe(false);
-    expect((result.output as any).status).toBe("UNAVAILABLE");
+    expect((result.output as {status:string}).status).toBe("UNAVAILABLE");
   });
 });
 
