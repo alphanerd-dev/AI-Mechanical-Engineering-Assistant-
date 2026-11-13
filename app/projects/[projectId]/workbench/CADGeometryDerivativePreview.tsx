@@ -9,6 +9,7 @@ type Derivative = {
   sourceArtifactId: string;
   sourceArtifactSha256: string;
   artifactSha256: string;
+  artifactSha256: string;
   converter: { providerId: string; version: string };
   modelRevision: number;
   tessellation: { linearDeflectionMm: number; angularDeflectionRad: number };
@@ -82,6 +83,7 @@ export default function CADGeometryDerivativePreview({ projectId, completionId, 
         label={sourceName}
         sourceArtifactId={state.derivative.sourceArtifactId}
         sourceArtifactSha256={state.derivative.sourceArtifactSha256}
+        artifactSha256={state.derivative.artifactSha256}
       />
       <p className="moduleSmallNote">
         GLB · R{state.derivative.modelRevision} · {state.derivative.tessellation.linearDeflectionMm} mm linear deflection · {state.derivative.converter.providerId} {state.derivative.converter.version} · display only
