@@ -33,6 +33,7 @@ function readAccessor(document: GLTFDocument, binary: DataView, accessorIndex: n
   const accessor = document.accessors?.[accessorIndex];
   if (!accessor || accessor.type !== type || accessor.componentType !== componentType ||
       accessor.normalized === true || !Number.isSafeInteger(accessor.count) ||
+      !Number.isSafeInteger(accessor.byteOffset ?? 0) || (accessor.byteOffset ?? 0) < 0 ||
       accessor.count! < 1 || accessor.count! > maxCount ||
       !Number.isSafeInteger(accessor.bufferView)) {
     throw new Error("GLB accessor metadata is invalid or outside preview limits.");
