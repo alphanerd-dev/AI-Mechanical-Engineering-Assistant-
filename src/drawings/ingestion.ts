@@ -144,7 +144,7 @@ function extension(name: string): string {
 
 function validateDrawingFilename(filename: string): string {
   if (!filename.trim() || filename.length > 180 || /[\r\n\0]/.test(filename) ||
-      filename.split(/[\\\\/]/).some((part) => part === "..")) {
+      filename.split(/[\\/]/).some((part) => part === "..")) {
     throw new Error("Drawing filename is invalid.");
   }
   return extension(filename);
