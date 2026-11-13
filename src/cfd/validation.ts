@@ -15,6 +15,10 @@ function finitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function boundedPositive(value: unknown, minimum: number, maximum: number): value is number {
+  return finitePositive(value) && value >= minimum && value <= maximum;
+}
+
 function validInteger(value: unknown, minimum: number, maximum: number): value is number {
   return typeof value === "number" &&
     Number.isInteger(value) &&
@@ -36,12 +40,12 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
   if (candidate.caseId !== "laminar-channel-poiseuille-v1") {
     errors.push("Only the versioned laminar-channel Poiseuille benchmark is supported.");
   }
-  if (!finitePositive(candidate.meanVelocityMps)) errors.push("meanVelocityMps must be finite and positive.");
-  if (!finitePositive(candidate.heightM)) errors.push("heightM must be finite and positive.");
-  if (!finitePositive(candidate.depthM)) errors.push("depthM must be finite and positive.");
-  if (!finitePositive(candidate.densityKgM3)) errors.push("densityKgM3 must be finite and positive.");
-  if (!finitePositive(candidate.kinematicViscosityM2PerS)) {
-    errors.push("kinematicViscosityM2PerS must be finite and positive.");
+  if (!boundedPositive(candidate.meanVelocityMps, 1e-4, 100)) errors.push("meanVelocityMps must be between 1e-4 and 100 m/s.");
+  if (!boundedPositive(candidate.heightM, 1e-4, 10)) errors.push("heightM must be between 1e-4 and 10 m.");
+  if (!boundedPositive(candidate.depthM, 1e-4, 10)) errors.push("depthM must be between 1e-4 and 10 m.");
+  if (!boundedPositive(candidate.densityKgM3, 0.1, 20000)) errors.push("densityKgM3 must be between 0.1 and 20000 kg/m3.");
+  if (!boundedPositive(candidate.kinematicViscosityM2PerS, 1e-9, 1e-2)) {
+    errors.push("kinematicViscosityM2PerS must be between 1e-9 and 1e-2 m2/s.");
   }
 
   if (
@@ -53,6 +57,11 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
       candidate.kinematicViscosityM2PerS;
     if (!Number.isFinite(reynoldsNumber) || reynoldsNumber >= 1000) {
       errors.push("The benchmark is restricted to laminar cases with hydraulic-diameter Reynolds number below 1000.");
+    }
+    const bodyForce = 12 * candidate.kinematicViscosityM2PerS *
+      candidate.meanVelocityMps / (candidate.heightM * candidate.heightM);
+    if (!Number.isFinite(bodyForce) || bodyForce <= 0) {
+      errors.push("The derived Poiseuille body-force acceleration is outside the finite numeric range.");
     }
   }
 
