@@ -64,10 +64,18 @@ function parseSVGAttributes(attributes: string): Array<{ name: string; value: st
   return parsed;
 }
 
+function isAllowedSVGAttributeName(name: string): boolean {
+  return SVG_ATTRIBUTES.has(name);
+}
+
+function isSVGEventAttribute(name: string): boolean {
+  return name.toLowerCase().startsWith("on");
+}
+
 function validateSVGAttributeName(name: string, seen: Set<string>): void {
-  if (!SVG_ATTRIBUTES.has(name) || name.toLowerCase().startsWith("on") || seen.has(name)) {
-    throw new Error("SVG contains a disallowed or duplicate attribute.");
-  }
+  if (!isAllowedSVGAttributeName(name)) throw new Error("SVG contains a disallowed attribute.");
+  if (isSVGEventAttribute(name)) throw new Error("SVG event attributes are not supported.");
+  if (seen.has(name)) throw new Error("SVG contains a duplicate attribute.");
   seen.add(name);
 }
 
