@@ -297,9 +297,11 @@ async function loadCanonicalSource(
 
 function createRemoteGeometryAdapter(): DockerOCCTGeometryKernelAdapter | null {
   const remote = getRemoteCADWorkerConfig();
+  if (remote.configured) {
+    return new DockerOCCTGeometryKernelAdapter(new RemoteOCCTGeometryExecutor(remote.value));
+  }
   if (remote.error) fail(remote.error, 503);
-  if (!remote.configured) return null;
-  return new DockerOCCTGeometryKernelAdapter(new RemoteOCCTGeometryExecutor(remote.value));
+  return null;
 }
 
 function readOCCTImageReference(): string {
