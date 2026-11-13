@@ -48,6 +48,10 @@ def finite_positive(value: Any) -> bool:
     return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0
 
 
+def bounded_positive(value: Any, minimum: float, maximum: float) -> bool:
+    return finite_positive(value) and minimum <= value <= maximum
+
+
 def validate_request(data: Any) -> list[str]:
     if not isinstance(data, dict):
         return ["Request body must be a JSON object."]
@@ -60,9 +64,16 @@ def validate_request(data: Any) -> list[str]:
         errors.append("Request contains unsupported fields.")
     if data.get("caseId") != "laminar-channel-poiseuille-v1":
         errors.append("Unsupported caseId.")
-    for field in ("meanVelocityMps", "heightM", "depthM", "densityKgM3", "kinematicViscosityM2PerS"):
-        if not finite_positive(data.get(field)):
-            errors.append(f"{field} must be finite and positive.")
+    bounds = {
+        "meanVelocityMps": (1e-4, 100.0),
+        "heightM": (1e-4, 10.0),
+        "depthM": (1e-4, 10.0),
+        "densityKgM3": (0.1, 20000.0),
+        "kinematicViscosityM2PerS": (1e-9, 1e-2),
+    }
+    for field, (minimum, maximum) in bounds.items():
+        if not bounded_positive(data.get(field), minimum, maximum):
+            errors.append(f"{field} must be between {minimum:g} and {maximum:g}.")
 
     if all(finite_positive(data.get(field)) for field in (
         "meanVelocityMps", "heightM", "kinematicViscosityM2PerS"
@@ -70,6 +81,12 @@ def validate_request(data: Any) -> list[str]:
         reynolds = 2 * data["heightM"] * data["meanVelocityMps"] / data["kinematicViscosityM2PerS"]
         if not math.isfinite(reynolds) or reynolds >= 1000:
             errors.append("Hydraulic-diameter Reynolds number must be below 1000.")
+        body_force = (
+            12 * data["kinematicViscosityM2PerS"] * data["meanVelocityMps"]
+            / (data["heightM"] * data["heightM"])
+        )
+        if not math.isfinite(body_force) or body_force <= 0:
+            errors.append("Derived Poiseuille body-force acceleration is outside the finite numeric range.")
 
     mesh = data.get("mesh")
     if isinstance(mesh, dict) and set(mesh) - {"cellsVertical"}:
