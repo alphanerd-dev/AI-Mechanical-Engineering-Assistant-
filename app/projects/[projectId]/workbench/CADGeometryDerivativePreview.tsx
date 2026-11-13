@@ -112,15 +112,36 @@ function parseDerivativeTessellation(value: unknown): Derivative["tessellation"]
   return { linearDeflectionMm, angularDeflectionRad };
 }
 
+interface ParsedDerivativeParts {
+  identity: DerivativeIdentity | null;
+  converter: Derivative["converter"] | null;
+  modelRevision: number | null;
+  tessellation: Derivative["tessellation"] | null;
+}
+
+function isCompleteDerivativeParts(
+  parts: ParsedDerivativeParts
+): parts is {
+  identity: DerivativeIdentity;
+  converter: Derivative["converter"];
+  modelRevision: number;
+  tessellation: Derivative["tessellation"];
+} {
+  return Object.values(parts).every(value => value !== null);
+}
+
 function parseDerivativeRecord(value: unknown): Derivative | null {
   const record = readDerivativeErrorField(value);
   if (!record) return null;
-  const identity = parseDerivativeIdentity(record);
-  const converter = parseDerivativeConverter(record.converter);
-  const modelRevision = parseDerivativeRevision(record.modelRevision);
-  const tessellation = parseDerivativeTessellation(record.tessellation);
-  if (!identity || !converter || modelRevision === null || !tessellation) return null;
-  return { ...identity, converter, modelRevision, tessellation };
+  const parts: ParsedDerivativeParts = {
+    identity: parseDerivativeIdentity(record),
+    converter: parseDerivativeConverter(record.converter),
+    modelRevision: parseDerivativeRevision(record.modelRevision),
+    tessellation: parseDerivativeTessellation(record.tessellation)
+  };
+  return isCompleteDerivativeParts(parts)
+    ? { ...parts.identity, converter: parts.converter, modelRevision: parts.modelRevision, tessellation: parts.tessellation }
+    : null;
 }
 
 function parseDisplayDerivativeResponse(body: unknown): { signedUrl: string; derivative: Derivative } | null {
