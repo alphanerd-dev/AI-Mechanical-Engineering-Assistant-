@@ -176,28 +176,38 @@ def parse_geometry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], byt
     return request, artifact, digest
 
 
-def validate_linear_geometry_deflection(value: Any) -> float:
+def validate_numeric_deflection(value: Any, label: str) -> float:
     if not isinstance(value, (int, float)):
-        raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
+        raise ValueError(label)
     if isinstance(value, bool):
-        raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
-    if value < 0.001:
-        raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
-    if value > 5:
-        raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
+        raise ValueError(label)
     return float(value)
+
+
+def validate_deflection_minimum(value: float, minimum: float, label: str) -> None:
+    if value < minimum:
+        raise ValueError(label)
+
+
+def validate_deflection_maximum(value: float, maximum: float, label: str) -> None:
+    if value > maximum:
+        raise ValueError(label)
+
+
+def validate_linear_geometry_deflection(value: Any) -> float:
+    label = "linearDeflectionMm must be between 0.001 and 5 mm."
+    numeric = validate_numeric_deflection(value, label)
+    validate_deflection_minimum(numeric, 0.001, label)
+    validate_deflection_maximum(numeric, 5, label)
+    return numeric
 
 
 def validate_angular_geometry_deflection(value: Any) -> float:
-    if not isinstance(value, (int, float)):
-        raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
-    if isinstance(value, bool):
-        raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
-    if value < 0.01:
-        raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
-    if value > 1.5707963267948966:
-        raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
-    return float(value)
+    label = "angularDeflectionRad must be between 0.01 and pi/2 radians."
+    numeric = validate_numeric_deflection(value, label)
+    validate_deflection_minimum(numeric, 0.01, label)
+    validate_deflection_maximum(numeric, 1.5707963267948966, label)
+    return numeric
 
 
 def validate_geometry_deflection(payload: dict[str, Any]) -> dict[str, float]:
