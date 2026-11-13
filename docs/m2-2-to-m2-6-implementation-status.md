@@ -2,7 +2,7 @@
 
 **Implementation branch:** `feat/m2-2-to-m2-6-geometry-runtime`  
 **Baseline:** PR #140 geometry/viewer foundation  
-**Implementation PR:** #150 (draft; corrected exact-head verification pending)  
+**Implementation PR:** #151 (draft; corrected exact-head verification pending)  
 **Status date:** 13 November 2026
 
 ## Engineering boundary
@@ -18,7 +18,7 @@ Implemented in this branch:
 - Added a project-authorized geometry API. It loads an accepted completion, checks project ownership, model revision, source artifact registration and private storage membership, downloads the exact source bytes and independently verifies SHA-256 before processing.
 - Added GLB 2.0 display derivative generation. The GLB embeds source artifact ID/digest, units and coordinate frame in its extras.
 - Persists derivative bytes in the existing private CAD artifact bucket, records metadata in the new table and writes a durable `EVIDENCE_WRITE` audit event.
-- Adds idempotency keyed by source identity/digest, model revision, converter identity/version and tessellation settings.
+- Adds idempotency keyed by source identity/digest, model revision, converter identity/version and tessellation settings. A database trigger serializes derivative insertion against model revision changes to prevent a stale in-flight worker result from being registered as current.
 - Adds a read endpoint that issues short-lived signed URLs and classifies derivatives as CURRENT, STALE or UNVERIFIABLE by comparing current source digest and model revision.
 - Derivative persistence does not modify canonical completion records or validation/approval state.
 
@@ -64,7 +64,7 @@ Implemented:
 
 Verification already observed:
 - The first implementation batch passed GitHub Actions run #43504028624, including `npm test`, `npm run build`, OCCT worker protocol tests, and actual generated BREP/STEP import/inspection/tessellation in the pinned build123d runtime.
-- Subsequent remote transport, persistence API, GLB preview and drawing ingestion changes are included in PR #150. CI run #43506210572 verified the OCCT/FEA worker builds and real BREP/STEP geometry smoke, but its Next.js type check found two TypeScript issues in geometry deflection narrowing and ArrayBuffer typing in the GLB preview test. Those were corrected; the current head requires a fresh full CI run.
+- PR #150 CI run #43507164295 verified the test suite and worker-side geometry flows, but its changed-file ESLint gate found one initial drawing-list effect issue and one viewport dependency warning. Those were corrected in PR #151. Its production build was still in progress at the time this status was updated; PR #151 must complete all exact-head checks before the batch is considered verified.
 
 Remaining:
 - Verify the remote worker endpoint and persistence API together in the current exact-head CI and deployed preview.
