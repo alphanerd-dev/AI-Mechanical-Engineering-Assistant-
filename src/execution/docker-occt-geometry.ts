@@ -403,10 +403,14 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
     angularDeflectionRad: number;
   }): Promise<GeometryWorkerResponse> {
     validateGeometrySource(source, operation, options);
-    const sandbox = await prepareGeometrySandbox(
-      this.scriptPath, this.image, source, operation, options,
-      { pidsLimit: this.pidsLimit, memoryLimit: this.memoryLimit, cpus: this.cpus }
-    );
+    const sandbox = await prepareGeometrySandbox({
+      scriptPathInput: this.scriptPath,
+      image: this.image,
+      source,
+      operation,
+      options,
+      limits: { pidsLimit: this.pidsLimit, memoryLimit: this.memoryLimit, cpus: this.cpus }
+    });
     try {
       const runOptions: CADCommandRunOptions = {
         timeoutMs: this.timeoutMs, maxStdoutBytes: this.maxStdoutBytes, maxStderrBytes: this.maxStderrBytes
