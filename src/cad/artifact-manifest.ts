@@ -27,7 +27,15 @@ function validDate(value: unknown): value is string {
   return nonEmptyString(value) && !Number.isNaN(Date.parse(value));
 }
 
-function stableArtifactToken(projectId: string, executionId: string, sourceSha256: string, providerId: string): string {
+interface StableArtifactTokenInput {
+  projectId: string;
+  executionId: string;
+  sourceSha256: string;
+  providerId: string;
+}
+
+function stableArtifactToken(input: StableArtifactTokenInput): string {
+  const { projectId, executionId, sourceSha256, providerId } = input;
   return createCADSourceSha256(projectId + "\u0000" + executionId + "\u0000" + sourceSha256 + "\u0000" + providerId).slice(0, 24);
 }
 
@@ -75,11 +83,14 @@ function linkArtifactLineage(artifacts: CADArtifact[]): void {
   }
 }
 
-function validateProvenanceContext(
-  projectId: string,
-  execution: CADExecutionResult,
-  context: CADArtifactManifestContext
-): string[] {
+interface ProvenanceContextInput {
+  projectId: string;
+  execution: CADExecutionResult;
+  context: CADArtifactManifestContext;
+}
+
+function validateProvenanceContext(input: ProvenanceContextInput): string[] {
+  const { projectId, execution, context } = input;
   const errors = validateCADModelIdentity(context.modelIdentity, projectId).errors;
   const request = context.request;
   if (!nonEmptyString(request?.id)) errors.push("CAD execution request id is required.");
@@ -101,12 +112,15 @@ function modelRevisionProvenance(identity: CADModelIdentity): { modelRevision?: 
   return {};
 }
 
-function createExecutionProvenance(
-  projectId: string,
-  execution: CADExecutionResult,
-  context: CADArtifactManifestContext,
-  generatedAt: string
-): CADExecutionProvenance {
+interface ExecutionProvenanceInput {
+  projectId: string;
+  execution: CADExecutionResult;
+  context: CADArtifactManifestContext;
+  generatedAt: string;
+}
+
+function createExecutionProvenance(input: ExecutionProvenanceInput): CADExecutionProvenance {
+  const { projectId, execution, context, generatedAt } = input;
   const request = context.request;
   return {
     schemaVersion: 1,
@@ -124,18 +138,21 @@ function createExecutionProvenance(
   };
 }
 
-function buildProvenance(
-  projectId: string,
-  execution: CADExecutionResult,
-  context: CADArtifactManifestContext
-): { provenance?: CADExecutionProvenance; errors: string[] } {
+interface BuildProvenanceInput {
+  projectId: string;
+  execution: CADExecutionResult;
+  context: CADArtifactManifestContext;
+}
+
+function buildProvenance(input: BuildProvenanceInput): { provenance?: CADExecutionProvenance; errors: string[] } {
+  const { projectId, execution, context } = input;
   const generatedAt = context.generatedAt ?? new Date().toISOString();
-  const errors = validateProvenanceContext(projectId, execution, context);
+  const errors = validateProvenanceContext({ projectId, execution, context });
   if (!validDate(generatedAt)) errors.push("CAD provenance generatedAt must be a valid date string.");
   if (errors.length) return { errors };
   return {
     errors,
-    provenance: createExecutionProvenance(projectId, execution, context, generatedAt)
+    provenance: createExecutionProvenance({ projectId, execution, context, generatedAt })
   };
 }
 
@@ -171,7 +188,7 @@ export function normalizeCADExecutionResult(
 
   let provenance: CADExecutionProvenance | undefined;
   if (context) {
-    const result = buildProvenance(projectId.trim(), execution, context);
+    const result = buildProvenance({ projectId: projectId.trim(), execution, context });
     if (result.errors.length || !result.provenance) {
       return noArtifacts(warnings, result.errors.length ? result.errors : ["CAD provenance could not be established."]);
     }
@@ -190,7 +207,7 @@ export function normalizeCADExecutionResult(
   const seenPaths = new Set<string>();
   const artifacts: CADArtifact[] = [];
   const token = provenance
-    ? stableArtifactToken(projectId.trim(), provenance.executionId, provenance.sourceSha256, provenance.providerId)
+    ? stableArtifactToken({ projectId: projectId.trim(), executionId: provenance.executionId, sourceSha256: provenance.sourceSha256, providerId: provenance.providerId })
     : String(Date.now());
 
   for (const [kind, rawPath] of paths) {
