@@ -485,6 +485,14 @@ function canonicalGeometryKind(entry: CADArtifactViewEntry | null): "SOLID" | "S
   return entry.artifact.kind === "SOLID" || entry.artifact.kind === "STEP" ? entry.artifact.kind : null;
 }
 
+function shouldShowGeometryPreview(
+  entry: CADArtifactViewEntry | null,
+  kind: "SOLID" | "STEP" | null,
+  visibility: WorkbenchVisibility
+): boolean {
+  return entry !== null && visibility.geometry && kind !== null;
+}
+
 function WorkbenchArtifactPreview({ projectId, selectedArtifact, models, visibility, onRefresh }: {
   projectId: string;
   selectedArtifact: CADArtifactViewEntry | null;
@@ -493,7 +501,7 @@ function WorkbenchArtifactPreview({ projectId, selectedArtifact, models, visibil
   onRefresh: () => void;
 }) {
   const geometryKind = canonicalGeometryKind(selectedArtifact);
-  if (selectedArtifact && visibility.geometry && geometryKind) {
+  if (shouldShowGeometryPreview(selectedArtifact, geometryKind, visibility)) {
     return <CADGeometryDerivativePreview
       projectId={projectId}
       completionId={selectedArtifact.completion.id}
