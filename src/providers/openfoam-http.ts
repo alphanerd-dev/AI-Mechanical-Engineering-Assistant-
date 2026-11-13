@@ -10,37 +10,64 @@ const ARTIFACT_FILENAMES = new Set([
 ]);
 const JOB_ID_PATTERN = /^[a-f0-9]{32}$/;
 
+type WorkerFetch = typeof fetch;
+
+function assertValidRequest(request: OpenFOAMLaminarChannelRequest): void {
+  const errors = validateOpenFOAMLaminarChannelRequest(request);
+  if (errors.length) {
+    throw new Error(`Invalid OpenFOAM benchmark request: ${errors.join("; ")}`);
+  }
+}
+
+async function workerError(response: Response, operation: string): Promise<Error> {
+  const detail = (await response.text()).slice(0, 1000);
+  return new Error(`OpenFOAM ${operation} returned HTTP ${response.status}: ${detail}`);
+}
+
+async function readWorkerResult(response: Response): Promise<OpenFOAMLaminarChannelResult> {
+  if (!response.ok) throw await workerError(response, "worker");
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("OpenFOAM worker returned an invalid JSON response.");
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("OpenFOAM worker response must be a JSON object.");
+  }
+  return payload as OpenFOAMLaminarChannelResult;
+}
+
+function normalizeWorkerUrl(baseUrl: string): string {
+  const parsed = new URL(baseUrl);
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error("OpenFOAM worker URL must use HTTP or HTTPS.");
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("OpenFOAM worker URL must not contain credentials, query parameters or fragments.");
+  }
+  if (parsed.pathname !== "/" && parsed.pathname !== "") {
+    throw new Error("OpenFOAM worker URL must identify the service root.");
+  }
+  return parsed.origin;
+}
+
 export class OpenFOAMHttpExecutor implements OpenFOAMExecutor {
   private readonly baseUrl: string;
 
   constructor(
     baseUrl: string,
     private readonly token: string,
-    private readonly fetcher: typeof fetch = fetch
+    private readonly fetcher: WorkerFetch = fetch
   ) {
-    const parsed = new URL(baseUrl);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      throw new Error("OpenFOAM worker URL must use HTTP or HTTPS.");
-    }
-    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
-      throw new Error("OpenFOAM worker URL must not contain credentials, query parameters or fragments.");
-    }
-    if (parsed.pathname !== "/" && parsed.pathname !== "") {
-      throw new Error("OpenFOAM worker URL must identify the service root.");
-    }
-    if (!token.trim()) {
-      throw new Error("OpenFOAM worker bearer token is required.");
-    }
-    this.baseUrl = parsed.origin;
+    this.baseUrl = normalizeWorkerUrl(baseUrl);
+    if (!token.trim()) throw new Error("OpenFOAM worker bearer token is required.");
   }
 
   async runLaminarChannel(
     request: OpenFOAMLaminarChannelRequest
   ): Promise<OpenFOAMLaminarChannelResult> {
-    const requestErrors = validateOpenFOAMLaminarChannelRequest(request);
-    if (requestErrors.length) {
-      throw new Error(`Invalid OpenFOAM benchmark request: ${requestErrors.join("; ")}`);
-    }
+    assertValidRequest(request);
     const response = await this.fetcher(
       `${this.baseUrl}/v1/cfd/laminar-channel`,
       {
@@ -53,20 +80,7 @@ export class OpenFOAMHttpExecutor implements OpenFOAMExecutor {
         signal: AbortSignal.timeout(request.solver.timeoutSeconds * 1000)
       }
     );
-    if (!response.ok) {
-      const detail = (await response.text()).slice(0, 1000);
-      throw new Error(`OpenFOAM worker returned HTTP ${response.status}: ${detail}`);
-    }
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new Error("OpenFOAM worker returned an invalid JSON response.");
-    }
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      throw new Error("OpenFOAM worker response must be a JSON object.");
-    }
-    return payload as OpenFOAMLaminarChannelResult;
+    return readWorkerResult(response);
   }
 
   async downloadArtifact(jobId: string, filename: string): Promise<Uint8Array> {
@@ -81,10 +95,7 @@ export class OpenFOAMHttpExecutor implements OpenFOAMExecutor {
         signal: AbortSignal.timeout(30_000)
       }
     );
-    if (!response.ok) {
-      const detail = (await response.text()).slice(0, 1000);
-      throw new Error(`OpenFOAM artifact download returned HTTP ${response.status}: ${detail}`);
-    }
+    if (!response.ok) throw await workerError(response, "artifact download");
     return new Uint8Array(await response.arrayBuffer());
   }
 }
