@@ -85,7 +85,7 @@ export function createCADDisplayGLB(mesh: CADDisplayMesh): Buffer {
     accessors: [
       { bufferView: 0, byteOffset: 0, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.min, max: bounds.max },
       { bufferView: 1, byteOffset: 0, componentType: 5126, count: vertexCount, type: "VEC3" },
-      { bufferView: 2, byteOffset: 0, componentType: 5125, count: indices.length, type: "SCALAR", min: [0], max: [mesh.indices.reduce((maximum, index) => Math.max(maximum, index), 0)] }
+      { bufferView: 2, byteOffset: 0, componentType: 5125, count: mesh.indices.length, type: "SCALAR", min: [0], max: [mesh.indices.reduce((maximum, index) => Math.max(maximum, index), 0)] }
     ],
     extras: {
       sourceArtifactId: mesh.sourceArtifactId,
