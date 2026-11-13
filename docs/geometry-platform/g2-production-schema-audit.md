@@ -1,10 +1,28 @@
-# G2 Production Schema Audit — 13 November 2026
+# G2 Production and E2E Schema Audit — 13 November 2026
 
-**Status:** Read-only schema review complete; G2 migration remains blocked pending migration-ledger reconciliation and explicit migration approval.
-**Environment:** Production Supabase project, PostgreSQL 17.11.0.003 (GA).
-**Method:** Supabase project metadata, migration ledger, `information_schema`, `pg_constraint`, `pg_indexes`, `pg_policies`, Storage bucket metadata and aggregate referential-integrity checks. No application rows, artifact bytes or Storage object contents were read. No database writes, migrations or project-setting changes were performed.
+**Status:** Read-only production/E2E schema comparison complete; G2 migration remains blocked pending migration-ledger reconciliation and explicit migration approval.
+**Environments:** Production and E2E Supabase projects, PostgreSQL 17.11.0.003 (GA).
+**Method:** Supabase project metadata, both migration ledgers, `information_schema`, `pg_constraint`, `pg_indexes`, `pg_policies`, Storage bucket metadata and aggregate referential-integrity checks. No application rows, artifact bytes or Storage object contents were read. No database writes, migrations or project-setting changes were performed.
 
-## 1. Verified existing ownership
+
+## 1. Production/E2E schema comparison
+
+The read-only comparison found the following audited schema surfaces identical between production and E2E:
+
+| Surface | Production | E2E | Result |
+|---|---:|---:|---|
+| Public base tables | 9 | 9 | Same table names |
+| Public columns | 111 | 111 | Exact metadata match |
+| Public constraints | 73 | 73 | Exact definitions match |
+| Public indexes | 30 | 30 | Exact definitions match |
+| Public RLS policies | 18 | 18 | Exact policy metadata match |
+| CAD Storage bucket | 1 | 1 | Same private bucket configuration |
+| CAD Storage object policies | 3 | 3 | Exact policy definitions match |
+| Storage RLS | enabled | enabled | Same for `storage.objects` and `storage.buckets` |
+
+The public table set is identical, including the absence of point-cloud tables. The audited CAD model/completion constraints, indexes, public RLS policies and private Storage policy/bucket settings match. This is strong evidence that the current audited schemas are aligned even though their migration ledgers are not. It is not a full comparison of every PostgreSQL role, extension, function, trigger or platform setting.
+
+## 2. Verified existing ownership
 
 The production schema contains these relevant relations:
 
@@ -19,7 +37,7 @@ There is **no normalized `engineering_artifacts` table**. Artifact metadata is c
 
 This changes the G2 relational design: an artifact ID inside JSONB cannot be a normal foreign-key target. G2 must bind a geometry revision to its source completion row and validate the selected artifact ID, digest and Storage object against that completion's manifest. It must not invent or assume an existing relational artifact registry.
 
-## 2. Existing CAD identity and completion constraints
+## 3. Existing CAD identity and completion constraints
 
 ### `engineering_cad_models`
 
@@ -42,7 +60,7 @@ This changes the G2 relational design: an artifact ID inside JSONB cannot be a n
 
 The read-only aggregate preflight returned zero completions with a null model identity, zero orphaned model references and zero cross-project model mismatches at audit time. This is evidence for a composite-key migration rehearsal, not a substitute for repeating the preflight immediately before migration.
 
-## 3. Existing Storage contract
+## 4. Existing Storage contract
 
 The `engineering-cad-artifacts` bucket is private, has a 100 MiB per-object limit, has no configured MIME allowlist, and has Storage versioning disabled.
 
@@ -60,7 +78,7 @@ Consequences for G2:
 4. Validate content type and file size in the server-side artifact validator; the bucket currently has no MIME allowlist.
 5. Do not add a foreign key into the Storage-managed `storage.objects` schema. Resolve the object through the existing Storage contract and server-side checks.
 
-## 4. G2 relational design derived from the live schema
+## 5. G2 relational design derived from the live schema
 
 A dedicated `engineering_geometry_revisions` relation remains appropriate, but it is a **geometry lineage index**, not an artifact registry and not a blob store.
 
@@ -98,14 +116,19 @@ For revision allocation, lock the `engineering_cad_models` row with `SELECT ... 
 
 A content-addressed object path such as `{project_id}/{model_id}/revisions/{geometry_revision_id}/{sha256}.brep` is compatible with the current Storage project-prefix policy and avoids reliance on disabled object versioning. Exact extension and MIME policy remain subject to the canonical artifact validator.
 
-## 5. Migration ledger discrepancy — blocking gate
+## 6. Migration ledger discrepancy — blocking gate
 
-The production migration ledger contains 17 entries. Its latest entry is:
+The production migration ledger contains 17 entries; E2E contains 18. Ten shared migration names have different version timestamps. The latest matching migration names are recorded as:
 
 - Production ledger: `20261105150148` — `engineering_chat_session_list_metadata`.
+- E2E ledger: `20261104173125` — `engineering_chat_session_list_metadata`.
 - Repository file on current `main`: `20261101200000_engineering_chat_session_list_metadata.sql`.
 
-The production schema contains the expected `chat_title` and `message_count` columns and `engineering_chat_sessions_project_updated_idx`, so the resulting schema effect is present. However, the migration version differs from the checked-in filename. This is migration-history drift and must be reconciled before introducing a G2 migration. Tracking: [issue #145](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/145).
+Other environment-only entries:
+- Production only: `20261021161424_add_missing_cad_foreign_key_indexes`.
+- E2E only: `20261021175904_v2_2_point_cloud_upload_persistence` and `20261101055943_align_e2e_core_schema_remove_point_cloud_objects`. The final audited public table set is identical, so no point-cloud table remains in either environment.
+
+The production schema contains the expected `chat_title` and `message_count` columns and `engineering_chat_sessions_project_updated_idx`, so the resulting schema effect is present. However, the migration version differs from the checked-in filename. This is migration-history drift across production, E2E and the repository. The audited schema surfaces currently match, but the migration histories do not. Reconcile the full histories before introducing a G2 migration. Tracking: [issue #145](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/145).
 
 Required resolution:
 
@@ -119,7 +142,7 @@ Do not run `migration repair`, rename/rewrite an applied migration, or push a ne
 
 Supabase CLI v3 changed hosted database commands to target the local stack by default; hosted operations require explicit `--remote`, and non-interactive hosted mutations require `--yes`. See the [Supabase CLI v3 changelog](https://supabase.com/changelog). Use explicit project targeting and review the resolved target before any future migration command.
 
-## 6. Security and operational observations
+## 7. Security and operational observations
 
 - The audited CAD model, completion and Storage policies are project-scoped. Keep the new revision relation behind the same server authorization boundary.
 - `engineering_audit_events`, `engineering_audit_chain_head` and `engineering_execution_jobs` have RLS enabled but no client policies. This is consistent with server/service-role-only access; preserve that boundary and verify server routes before adding any direct policy.
@@ -129,7 +152,7 @@ Supabase CLI v3 changed hosted database commands to target the local stack by de
 
 Supabase requires RLS on exposed tables; see [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security). Since 30 October 2026, new public tables are no longer automatically exposed through the Data API by default; see the [Data API exposure change](https://supabase.com/changelog?tags=data+apis). G2 should remain server-mediated and explicitly privilege-scoped.
 
-## 7. Acceptance gates before G2 implementation
+## 8. Acceptance gates before G2 implementation
 
 - [ ] Reconcile the production/repository migration ledger discrepancy.
 - [ ] Capture and review a fresh production schema snapshot immediately before migration.
@@ -141,4 +164,4 @@ Supabase requires RLS on exposed tables; see [Row Level Security](https://supaba
 - [ ] Review rollback/forward-recovery and backup posture.
 - [ ] Obtain explicit approval before production migration or route cutover.
 
-**Audit conclusion:** The live schema supports an additive geometry-revision lineage relation without creating a second artifact registry. The migration-ledger discrepancy is the current blocker. No schema change has been made.
+**Audit conclusion:** The audited production and E2E schema surfaces match and support an additive geometry-revision lineage relation without creating a second artifact registry. The migration-ledger divergence is the current blocker because future migration tooling may treat already-applied schema changes as pending. No schema change has been made.
