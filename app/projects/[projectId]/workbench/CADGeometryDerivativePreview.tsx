@@ -54,15 +54,37 @@ function nonEmptyRecordString(record: Record<string, unknown>, key: string): str
   return value.trim() ? value : null;
 }
 
-function parseDerivativeIdentity(record: Record<string, unknown>) {
-  const artifactId = nonEmptyRecordString(record, "artifactId");
-  const sourceArtifactId = nonEmptyRecordString(record, "sourceArtifactId");
-  const sourceArtifactSha256 = nonEmptyRecordString(record, "sourceArtifactSha256");
-  const artifactSha256 = nonEmptyRecordString(record, "artifactSha256");
-  if (!artifactId || !sourceArtifactId || !sourceArtifactSha256 || !artifactSha256) return null;
-  if (!/^[a-f0-9]{64}$/.test(sourceArtifactSha256)) return null;
-  if (!/^[a-f0-9]{64}$/.test(artifactSha256)) return null;
-  return { artifactId, sourceArtifactId, sourceArtifactSha256, artifactSha256 };
+interface DerivativeIdentity {
+  artifactId: string;
+  sourceArtifactId: string;
+  sourceArtifactSha256: string;
+  artifactSha256: string;
+}
+
+type PartialDerivativeIdentity = {
+  artifactId: string | null;
+  sourceArtifactId: string | null;
+  sourceArtifactSha256: string | null;
+  artifactSha256: string | null;
+};
+
+function sha256RecordString(record: Record<string, unknown>, key: string): string | null {
+  const value = nonEmptyRecordString(record, key);
+  return value && /^[a-f0-9]{64}$/.test(value) ? value : null;
+}
+
+function isCompleteDerivativeIdentity(value: PartialDerivativeIdentity): value is DerivativeIdentity {
+  return Object.values(value).every(item => typeof item === "string" && item.length > 0);
+}
+
+function parseDerivativeIdentity(record: Record<string, unknown>): DerivativeIdentity | null {
+  const identity: PartialDerivativeIdentity = {
+    artifactId: nonEmptyRecordString(record, "artifactId"),
+    sourceArtifactId: nonEmptyRecordString(record, "sourceArtifactId"),
+    sourceArtifactSha256: sha256RecordString(record, "sourceArtifactSha256"),
+    artifactSha256: sha256RecordString(record, "artifactSha256")
+  };
+  return isCompleteDerivativeIdentity(identity) ? identity : null;
 }
 
 function parseDerivativeConverter(value: unknown): Derivative["converter"] | null {
