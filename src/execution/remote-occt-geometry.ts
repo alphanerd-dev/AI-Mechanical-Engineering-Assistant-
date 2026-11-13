@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CADGeometrySource } from "../cad/geometry-kernel-contract.js";
+import { validateCADGeometrySource, type CADGeometrySource } from "../cad/geometry-kernel-contract.js";
 import type { CADGeometryExecutor } from "./docker-occt-geometry.js";
 import type { RemoteCADWorkerConfig } from "./remote-cad-worker.js";
 
@@ -55,6 +55,8 @@ export class RemoteOCCTGeometryExecutor implements CADGeometryExecutor {
     linearDeflectionMm: number;
     angularDeflectionRad: number;
   }): Promise<WorkerResponse> {
+    const sourceErrors = validateCADGeometrySource(source);
+    if (sourceErrors.length) throw new Error(sourceErrors.join("; "));
     if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 ||
         source.bytes.byteLength > MAX_REMOTE_GEOMETRY_BYTES) {
       throw new Error("Remote OCCT geometry source must contain 1 byte to 4 MiB.");
