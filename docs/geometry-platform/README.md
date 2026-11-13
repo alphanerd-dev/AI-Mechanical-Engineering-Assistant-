@@ -1,6 +1,6 @@
 # Geometry Platform — Architecture Charter
 
-**Status:** G0 audit and G1 bounded Geometry Platform API are merged; G2 immutable-revision design is under review; no native kernel is delivered.  
+**Status:** G0 audit and G1 bounded Geometry Platform API are merged; G2 immutable-revision design and read-only production schema audit are complete; implementation is blocked on migration-ledger reconciliation ([issue #145](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/145)); no native kernel is delivered.
 **Repository boundary:** This repository, initially alongside the existing CAD modules.  
 **Product rule:** AI proposes. Deterministic systems execute. Validation decides. Evidence proves.
 
@@ -167,9 +167,9 @@ The adapter does not own execution, persistence, validation, identity, rendering
 
 ## G2 — next geometry milestone
 
-The [G2 Identity, Revision and Canonical Representation Design](g2-identity-revision-design.md) defines immutable geometry revision identity, exact artifact-byte digests, parent/head relationships, canonical/derivative distinctions, idempotency, optimistic concurrency and legacy migration gates. It is a design proposal only: no runtime code, database migration or production route change is included.
+The [G2 Identity, Revision and Canonical Representation Design](g2-identity-revision-design.md) defines immutable geometry revision identity, exact artifact-byte digests, parent/head relationships, canonical/derivative distinctions, idempotency, optimistic concurrency and legacy migration gates. The [G2 Production Schema Audit](g2-production-schema-audit.md) verifies the live project/CAD-completion/Storage ownership model and identifies migration-ledger drift. No runtime code, database migration or production route change is included.
 
-G2 must reuse existing CAD model identity, artifact storage, provenance and evidence owners. Do not create a second artifact registry or reinterpret the existing CAD metadata revision as a geometry revision. The G2 implementation remains gated on production schema review and explicit migration acceptance. Native mathematical primitives must not precede the G2 identity/revision contract.
+G2 must reuse existing CAD model identity, artifact storage, provenance and evidence owners. Do not create a second artifact registry or reinterpret the existing CAD metadata revision as a geometry revision. The G2 implementation remains blocked until the production/repository migration ledger is reconciled, the E2E migration rehearsal passes and the database owner explicitly approves the production migration. Native mathematical primitives must not precede the G2 identity/revision contract.
 
 The source-level G0 audit lists the required file-level inventory:
 - Geometry and CAD domain types.
