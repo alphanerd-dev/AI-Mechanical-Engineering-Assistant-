@@ -32,14 +32,26 @@ jobs:
       - name: Install application dependencies
         run: npm ci
 
-      - name: Install pinned ESLint scanner
-        run: npm install --no-save --package-lock=false eslint@9.31.0 eslint-config-next@16.0.0 @microsoft/eslint-formatter-sarif@3.1.0
+      - name: Install pinned ESLint scanner in isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner_dir="$RUNNER_TEMP/eslint-tools"
+          mkdir -p "$scanner_dir"
+          npm install --prefix "$scanner_dir" --no-save --package-lock=false --ignore-scripts --no-audit --no-fund \
+            eslint@9.31.0 eslint-config-next@16.0.0 @microsoft/eslint-formatter-sarif@3.1.0
+          mkdir -p node_modules/@microsoft
+          rm -rf node_modules/eslint node_modules/eslint-config-next node_modules/@microsoft/eslint-formatter-sarif
+          ln -s "$scanner_dir/node_modules/eslint" node_modules/eslint
+          ln -s "$scanner_dir/node_modules/eslint-config-next" node_modules/eslint-config-next
+          ln -s "$scanner_dir/node_modules/@microsoft/eslint-formatter-sarif" node_modules/@microsoft/eslint-formatter-sarif
+          echo "ESLINT_BIN=$scanner_dir/node_modules/.bin/eslint" >> "$GITHUB_ENV"
 
       - name: Run repository-wide ESLint scan
         id: repository-scan
         env:
           SARIF_ESLINT_IGNORE_SUPPRESSED: "true"
-        run: npx eslint . --config eslint.config.mjs --ext .js,.jsx,.ts,.tsx,.mjs,.cjs --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif
+        run: "$ESLINT_BIN" . --config eslint.config.mjs --ext .js,.jsx,.ts,.tsx,.mjs,.cjs --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif
         continue-on-error: true
 
       - name: Report repository-wide ESLint baseline
@@ -75,7 +87,7 @@ jobs:
             echo "No changed JavaScript or TypeScript source files required the ESLint gate."
             exit 0
           fi
-          xargs -0 -r npx eslint --config eslint.config.mjs --max-warnings 0 < /tmp/eslint-changed-files
+          xargs -0 -r "$ESLINT_BIN" --config eslint.config.mjs --max-warnings 0 < /tmp/eslint-changed-files
 
       - name: Upload analysis results to GitHub
         if: always() && hashFiles('eslint-results.sarif') != ''
