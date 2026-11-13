@@ -83,7 +83,7 @@ def main() -> None:
 
     code, readiness = request("/v1/readiness")
     assert code == 200 and readiness.get("ready") is True, readiness
-    assert {"CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP"}.issubset(set(readiness.get("capabilities", []))), readiness
+    assert {"CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP", "CAD.INSPECT_GEOMETRY", "CAD.TESSELLATE_GEOMETRY"}.issubset(set(readiness.get("capabilities", []))), readiness
 
     dimensions = {"kind": "CYLINDER", "name": "shaft", "diameterMm": 30.0, "lengthMm": 200.0, "units": "mm"}
     source = source_template("shaft", 30.0, 200.0)
@@ -119,6 +119,32 @@ def main() -> None:
     assert abs(verdict["boundingBoxMm"]["z"] - 200.0) <= 0.01
     assert verdict["artifactSha256"] == hashlib.sha256(solid).hexdigest()
     assert all(item["passed"] for item in verdict["dimensionChecks"])
+
+    for geometry_format, artifact_key in (("BREP", "solid"), ("STEP", "step")):
+        geometry_bytes = base64.b64decode(artifacts[artifact_key]["contentBase64"], validate=True)
+        geometry_digest = hashlib.sha256(geometry_bytes).hexdigest()
+        for operation in ("INSPECT", "TESSELLATE"):
+            geometry_payload = {
+                "operation": operation,
+                "format": geometry_format,
+                "artifactBase64": base64.b64encode(geometry_bytes).decode("ascii"),
+                "artifactSha256": geometry_digest,
+                "linearDeflectionMm": 0.1,
+                "angularDeflectionRad": 0.35
+            }
+            code, geometry = request("/v1/cad/geometry", geometry_payload)
+            assert code == 200 and geometry.get("status") == "COMPLETED", geometry
+            assert geometry.get("artifactSha256") == geometry_digest, geometry
+            assert geometry["topology"]["valid"] is True, geometry
+            assert geometry["topology"]["solids"] == 1, geometry
+            if operation == "TESSELLATE":
+                mesh = geometry["tessellation"]
+                vertex_count = mesh["vertexCount"]
+                triangle_count = mesh["triangleCount"]
+                assert vertex_count >= 3 and triangle_count >= 1, geometry
+                assert len(base64.b64decode(mesh["positionsFloat32LE"])) == vertex_count * 3 * 4
+                assert len(base64.b64decode(mesh["normalsFloat32LE"])) == vertex_count * 3 * 4
+                assert len(base64.b64decode(mesh["indicesUint32LE"])) == triangle_count * 3 * 4
 
     code, rejected = request("/v1/cad/execute", {
         "id": "ci-cad-execution-002",
