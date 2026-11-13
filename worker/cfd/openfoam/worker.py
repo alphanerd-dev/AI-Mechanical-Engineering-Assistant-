@@ -363,7 +363,7 @@ relaxationFactors
 
 def detect_openfoam_version() -> str:
     completed = subprocess.run(
-        [FOAM_ENV, "bash", "-c", 'printf "%s\\n" "$WM_PROJECT_VERSION"'],
+        [FOAM_ENV, "--version"],
         capture_output=True,
         text=True,
         timeout=10,
@@ -371,7 +371,7 @@ def detect_openfoam_version() -> str:
         env=os.environ.copy(),
     )
     version_output = completed.stdout + completed.stderr
-    match = re.search(r"(?:OpenFOAM-)?(\d+)", version_output)
+    match = re.search(r"OpenFOAM-(\d+)", version_output)
     if completed.returncode != 0 or not match or match.group(1) != "14":
         raise RuntimeError("The worker requires the OpenFOAM Foundation 14 runtime.")
     return match.group(1)
