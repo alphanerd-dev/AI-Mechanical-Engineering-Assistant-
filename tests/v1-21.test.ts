@@ -222,7 +222,7 @@ describe("V1.21 routed capabilities",()=>{
     const readiness=await router.execute({
       capability:"MANUFACTURING.ASSESS_READINESS",
       risk:"HIGH",
-      input:readinessRequest()
+      input:readinessRequest() as unknown as Record<string,unknown>
     });
     expect(readiness.success).toBe(true);
     expect((readiness.output as {status:string}).status).toBe("READY_FOR_HUMAN_APPROVAL");
