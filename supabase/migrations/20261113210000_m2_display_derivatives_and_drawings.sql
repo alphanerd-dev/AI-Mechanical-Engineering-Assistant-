@@ -23,7 +23,8 @@ create table public.engineering_cad_display_derivatives (
   check (storage_object_path like project_id::text || '/%'),
   check (position('..' in storage_object_path) = 0),
   unique (project_id, model_identity_id, source_artifact_id, source_artifact_sha256,
-          model_revision, linear_deflection_mm, angular_deflection_rad)
+          model_revision, converter_provider_id, converter_version,
+          linear_deflection_mm, angular_deflection_rad)
 );
 
 create index engineering_cad_display_derivatives_project_model_idx
