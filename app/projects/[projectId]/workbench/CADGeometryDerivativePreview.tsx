@@ -48,33 +48,57 @@ function displayDerivativeError(body: unknown): string {
   return "CAD display derivative generation failed.";
 }
 
+function nonEmptyRecordString(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  if (typeof value !== "string") return null;
+  return value.trim() ? value : null;
+}
+
+function parseDerivativeIdentity(record: Record<string, unknown>) {
+  const artifactId = nonEmptyRecordString(record, "artifactId");
+  const sourceArtifactId = nonEmptyRecordString(record, "sourceArtifactId");
+  const sourceArtifactSha256 = nonEmptyRecordString(record, "sourceArtifactSha256");
+  const artifactSha256 = nonEmptyRecordString(record, "artifactSha256");
+  if (!artifactId || !sourceArtifactId || !sourceArtifactSha256 || !artifactSha256) return null;
+  if (!/^[a-f0-9]{64}$/.test(sourceArtifactSha256)) return null;
+  if (!/^[a-f0-9]{64}$/.test(artifactSha256)) return null;
+  return { artifactId, sourceArtifactId, sourceArtifactSha256, artifactSha256 };
+}
+
+function parseDerivativeConverter(value: unknown): Derivative["converter"] | null {
+  const record = readDerivativeErrorField(value);
+  if (!record) return null;
+  const providerId = nonEmptyRecordString(record, "providerId");
+  const version = nonEmptyRecordString(record, "version");
+  if (!providerId || !version) return null;
+  return { providerId, version };
+}
+
+function parseDerivativeRevision(value: unknown): number | null {
+  if (!Number.isSafeInteger(value)) return null;
+  const revision = Number(value);
+  return revision >= 1 ? revision : null;
+}
+
+function parseDerivativeTessellation(value: unknown): Derivative["tessellation"] | null {
+  const record = readDerivativeErrorField(value);
+  if (!record) return null;
+  const linearDeflectionMm = record.linearDeflectionMm;
+  const angularDeflectionRad = record.angularDeflectionRad;
+  if (typeof linearDeflectionMm !== "number" || !Number.isFinite(linearDeflectionMm)) return null;
+  if (typeof angularDeflectionRad !== "number" || !Number.isFinite(angularDeflectionRad)) return null;
+  return { linearDeflectionMm, angularDeflectionRad };
+}
+
 function parseDerivativeRecord(value: unknown): Derivative | null {
   const record = readDerivativeErrorField(value);
   if (!record) return null;
-  const converter = readDerivativeErrorField(record.converter);
-  const tessellation = readDerivativeErrorField(record.tessellation);
-  if (!converter || !tessellation) return null;
-  if (typeof record.artifactId !== "string" || !record.artifactId.trim()) return null;
-  if (typeof record.sourceArtifactId !== "string" || !record.sourceArtifactId.trim()) return null;
-  if (typeof record.sourceArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(record.sourceArtifactSha256)) return null;
-  if (typeof record.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(record.artifactSha256)) return null;
-  if (typeof converter.providerId !== "string" || !converter.providerId.trim()) return null;
-  if (typeof converter.version !== "string" || !converter.version.trim()) return null;
-  if (!Number.isSafeInteger(record.modelRevision) || Number(record.modelRevision) < 1) return null;
-  if (typeof tessellation.linearDeflectionMm !== "number" || !Number.isFinite(tessellation.linearDeflectionMm)) return null;
-  if (typeof tessellation.angularDeflectionRad !== "number" || !Number.isFinite(tessellation.angularDeflectionRad)) return null;
-  return {
-    artifactId: record.artifactId,
-    sourceArtifactId: record.sourceArtifactId,
-    sourceArtifactSha256: record.sourceArtifactSha256,
-    artifactSha256: record.artifactSha256,
-    converter: { providerId: converter.providerId, version: converter.version },
-    modelRevision: Number(record.modelRevision),
-    tessellation: {
-      linearDeflectionMm: tessellation.linearDeflectionMm,
-      angularDeflectionRad: tessellation.angularDeflectionRad
-    }
-  };
+  const identity = parseDerivativeIdentity(record);
+  const converter = parseDerivativeConverter(record.converter);
+  const modelRevision = parseDerivativeRevision(record.modelRevision);
+  const tessellation = parseDerivativeTessellation(record.tessellation);
+  if (!identity || !converter || modelRevision === null || !tessellation) return null;
+  return { ...identity, converter, modelRevision, tessellation };
 }
 
 function parseDisplayDerivativeResponse(body: unknown): { signedUrl: string; derivative: Derivative } | null {
