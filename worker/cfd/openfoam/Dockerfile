@@ -16,10 +16,11 @@ RUN printf '%s\n' \
     '#!/usr/bin/env bash' \
     'set -eo pipefail' \
     'source /opt/openfoam14/etc/bashrc' \
+    'if [[ "${1:-}" == "--version" ]]; then foamVersion 2>&1; exit 0; fi' \
     'exec "$@"' \
     > /usr/local/bin/foam-env \
     && chmod 0755 /usr/local/bin/foam-env \
-    && bash -lc 'source /opt/openfoam14/etc/bashrc && foamVersion | grep -q "14"'
+    && /usr/local/bin/foam-env --version | grep -q "OpenFOAM-14"
 
 RUN groupadd --system --gid 10001 openfoam \
     && useradd --system --uid 10001 --gid openfoam --home-dir /home/openfoam --create-home openfoam \
