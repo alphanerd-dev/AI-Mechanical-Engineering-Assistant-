@@ -19,67 +19,69 @@ function validInteger(value: unknown, minimum: number, maximum: number): value i
   return Number.isInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
 }
 
-export function validateOpenFOAMLaminarChannelRequest(
-  request: OpenFOAMLaminarChannelRequest
-): string[] {
+export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[] {
   const errors: string[] = [];
-  if (request.caseId !== "laminar-channel-poiseuille-v1") {
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    return ["The OpenFOAM benchmark request must be an object."];
+  }
+  const candidate = request as Partial<OpenFOAMLaminarChannelRequest>;
+  if (candidate.caseId !== "laminar-channel-poiseuille-v1") {
     errors.push("Only the versioned laminar-channel Poiseuille benchmark is supported.");
   }
-  if (!finitePositive(request.meanVelocityMps)) errors.push("meanVelocityMps must be finite and positive.");
-  if (!finitePositive(request.heightM)) errors.push("heightM must be finite and positive.");
-  if (!finitePositive(request.lengthM)) errors.push("lengthM must be finite and positive.");
-  if (!finitePositive(request.depthM)) errors.push("depthM must be finite and positive.");
-  if (!finitePositive(request.densityKgM3)) errors.push("densityKgM3 must be finite and positive.");
-  if (!finitePositive(request.kinematicViscosityM2PerS)) {
+  if (!finitePositive(candidate.meanVelocityMps)) errors.push("meanVelocityMps must be finite and positive.");
+  if (!finitePositive(candidate.heightM)) errors.push("heightM must be finite and positive.");
+  if (!finitePositive(candidate.lengthM)) errors.push("lengthM must be finite and positive.");
+  if (!finitePositive(candidate.depthM)) errors.push("depthM must be finite and positive.");
+  if (!finitePositive(candidate.densityKgM3)) errors.push("densityKgM3 must be finite and positive.");
+  if (!finitePositive(candidate.kinematicViscosityM2PerS)) {
     errors.push("kinematicViscosityM2PerS must be finite and positive.");
   }
 
   if (
-    finitePositive(request.heightM) &&
-    finitePositive(request.lengthM) &&
-    request.lengthM < 10 * request.heightM
+    finitePositive(candidate.heightM) &&
+    finitePositive(candidate.lengthM) &&
+    candidate.lengthM < 10 * candidate.heightM
   ) {
     errors.push("The channel length must be at least ten times its height for the fully developed benchmark.");
   }
 
   if (
-    finitePositive(request.meanVelocityMps) &&
-    finitePositive(request.heightM) &&
-    finitePositive(request.kinematicViscosityM2PerS)
+    finitePositive(candidate.meanVelocityMps) &&
+    finitePositive(candidate.heightM) &&
+    finitePositive(candidate.kinematicViscosityM2PerS)
   ) {
-    const reynoldsNumber = request.meanVelocityMps * 2 * request.heightM / request.kinematicViscosityM2PerS;
+    const reynoldsNumber = candidate.meanVelocityMps * 2 * candidate.heightM / candidate.kinematicViscosityM2PerS;
     if (!Number.isFinite(reynoldsNumber) || reynoldsNumber >= 1000) {
       errors.push("The benchmark is restricted to laminar cases with hydraulic-diameter Reynolds number below 1000.");
     }
   }
 
-  if (!validInteger(request.mesh?.cellsAxial, 40, 1000)) {
+  if (!validInteger(candidate.mesh?.cellsAxial, 40, 1000)) {
     errors.push("mesh.cellsAxial must be an integer between 40 and 1000.");
   }
-  if (!validInteger(request.mesh?.cellsVertical, 8, 200)) {
+  if (!validInteger(candidate.mesh?.cellsVertical, 8, 200)) {
     errors.push("mesh.cellsVertical must be an integer between 8 and 200.");
   }
   if (
-    validInteger(request.mesh?.cellsAxial, 40, 1000) &&
-    validInteger(request.mesh?.cellsVertical, 8, 200) &&
-    request.mesh.cellsAxial * request.mesh.cellsVertical > 100000
+    validInteger(candidate.mesh?.cellsAxial, 40, 1000) &&
+    validInteger(candidate.mesh?.cellsVertical, 8, 200) &&
+    candidate.mesh!.cellsAxial * candidate.mesh!.cellsVertical > 100000
   ) {
     errors.push("The benchmark mesh is limited to 100000 cells.");
   }
 
-  if (!validInteger(request.solver?.maxIterations, 50, 10000)) {
+  if (!validInteger(candidate.solver?.maxIterations, 50, 10000)) {
     errors.push("solver.maxIterations must be an integer between 50 and 10000.");
   }
   if (
-    typeof request.solver?.residualTolerance !== "number" ||
+    typeof candidate.solver?.residualTolerance !== "number" ||
     !Number.isFinite(request.solver.residualTolerance) ||
     request.solver.residualTolerance < 1e-10 ||
     request.solver.residualTolerance > 1e-3
   ) {
     errors.push("solver.residualTolerance must be between 1e-10 and 1e-3.");
   }
-  if (!validInteger(request.solver?.timeoutSeconds, 5, 600)) {
+  if (!validInteger(candidate.solver?.timeoutSeconds, 5, 600)) {
     errors.push("solver.timeoutSeconds must be an integer between 5 and 600.");
   }
   return errors;
@@ -107,11 +109,11 @@ export function expectedPoiseuillePressureDropPa(
   >
 ): number {
   return 12 *
-    request.densityKgM3 *
-    request.kinematicViscosityM2PerS *
-    request.lengthM *
-    request.meanVelocityMps /
-    (request.heightM * request.heightM);
+    candidate.densityKgM3 *
+    candidate.kinematicViscosityM2PerS *
+    candidate.lengthM *
+    candidate.meanVelocityMps /
+    (candidate.heightM * candidate.heightM);
 }
 
 function validateArtifactSet(artifacts: OpenFOAMRunArtifact[]): string[] {
