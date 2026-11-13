@@ -5,9 +5,8 @@ import {evaluateTaskReady} from "../task-graph/ready.js";
 import {validateEngineeringTaskGraph,transitionTask} from "../task-graph/validation.js";
 import {TaskGraphExecutionResult} from "./task-graph-adapter.js";
 import {AgentActionProposal,AgentRunLimits} from "../agents/runtime.js";
-import {BOUNDED_AUTONOMY_HARD_LIMITS} from "./bounded-autonomy-policy.js";
-import {isJsonValue,isPlainRecord,taskRiskRank,validateLimits} from "./bounded-autonomy-validation.js";
-import {taskForAction,validateActionShape,validateCreateTaskAction,validateTaskAction} from "./bounded-autonomy-action-validation.js";
+import {validateLimits} from "./bounded-autonomy-validation.js";
+import {validateActionShape} from "./bounded-autonomy-action-validation.js";
 export {BOUNDED_AUTONOMY_HARD_LIMITS} from "./bounded-autonomy-policy.js";
 
 export interface BoundedAutonomyRequest{
