@@ -29,7 +29,9 @@ function dateLabel(value: string): string {
 }
 
 function asObjectRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value === null) return null;
+  if (typeof value !== "object") return null;
+  if (Array.isArray(value)) return null;
   return value as Record<string, unknown>;
 }
 
