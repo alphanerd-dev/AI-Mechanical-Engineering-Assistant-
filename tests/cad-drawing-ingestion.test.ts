@@ -3,7 +3,7 @@ import { inspectCADDrawingUpload } from "../src/drawings/ingestion.js";
 
 const dxf = [
   "0","SECTION","2","HEADER","9","$INSUNITS","70","4","0","ENDSEC",
-  "0","SECTION","2","ENTITIES","0","LINE","8","FRAME","10","0","20","0","11","100","21","0",
+  "0","SECTION","2","ENTITIES","0","LINE","8","FRAME","10","0","20","0","11","100","21","50",
   "0","ENDSEC","0","EOF"
 ].join("\n");
 const bytes = (value: string) => new TextEncoder().encode(value);
@@ -37,7 +37,7 @@ describe("project drawing ingestion inspection", () => {
     });
     expect(result).toMatchObject({
       format: "DXF", units: "mm", entityCount: 1,
-      bounds: { minX: 0, minY: 0, maxX: 100, maxY: 0 }
+      bounds: { minX: 0, minY: 0, maxX: 100, maxY: 50 }
     });
   });
 
