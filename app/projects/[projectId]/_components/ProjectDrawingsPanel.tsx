@@ -64,7 +64,30 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
     await loadDrawings();
   }, [loadDrawings]);
 
-  useEffect(() => { void loadDrawings(); }, [loadDrawings]);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/cad/drawings?projectId=" + encodeURIComponent(projectId), { cache: "no-store" })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || !Array.isArray(body.drawings)) {
+          throw new Error(typeof body.error === "string" ? body.error : "Project drawings could not be loaded.");
+        }
+        return body.drawings as DrawingRecord[];
+      })
+      .then((items) => {
+        if (!active) return;
+        setDrawings(items);
+        setSelectedId((current) => items.some((item) => item.id === current) ? current : items[0]?.id ?? "");
+        setError(null);
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Project drawings could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [projectId]);
 
   const upload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
