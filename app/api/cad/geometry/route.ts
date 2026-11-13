@@ -1,4 +1,4 @@
-import { executeCADGeometryRequest, listCADDisplayDerivatives } from "../../../../src/cad/geometry-api-service";
+import { executeCADGeometryRequest, listCADDisplayDerivatives } from "./service";
 
 export const runtime = "nodejs";
 export const maxDuration = 150;
