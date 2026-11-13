@@ -64,6 +64,49 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
   return { state, generate, reset };
 }
 
+function DerivativeEmptyState({ state, unavailable, sourceKind, generate }: {
+  state: State;
+  unavailable: boolean;
+  sourceKind: "SOLID" | "STEP";
+  generate: () => Promise<void>;
+}) {
+  return <>
+    <Box size={28} aria-hidden="true" />
+    <strong>{state.loading ? "Generating display derivative…" : "Canonical geometry ready for preview"}</strong>
+    <p>
+      {unavailable
+        ? "This completion is historical or its model link is unverifiable. Generate a new accepted completion before creating a current display derivative."
+        : "Generate a digest-bound GLB display derivative from the accepted " + sourceKind + " artifact. This operation does not validate or approve geometry."}
+    </p>
+    {state.error && <p role="alert" className="moduleError"><AlertCircle size={13} />{state.error}</p>}
+    <button type="button" className="button workspacePrimaryAction" onClick={() => void generate()} disabled={state.loading || unavailable}>
+      {state.loading ? <LoaderCircle size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+      {state.loading ? "Processing geometry…" : "Generate 3D preview"}
+    </button>
+  </>;
+}
+
+function DerivativeReadyState({ state, sourceName, reset }: {
+  state: State;
+  sourceName: string;
+  reset: () => void;
+}) {
+  if (!state.signedUrl || !state.derivative) return null;
+  return <>
+    <CADDisplayViewport
+      src={state.signedUrl}
+      label={sourceName}
+      sourceArtifactId={state.derivative.sourceArtifactId}
+      sourceArtifactSha256={state.derivative.sourceArtifactSha256}
+      artifactSha256={state.derivative.artifactSha256}
+    />
+    <p className="moduleSmallNote">
+      GLB · R{state.derivative.modelRevision} · {state.derivative.tessellation.linearDeflectionMm} mm linear deflection · {state.derivative.converter.providerId} {state.derivative.converter.version} · display only
+    </p>
+    <button type="button" className="button secondaryButton" onClick={reset}>Regenerate preview</button>
+  </>;
+}
+
 export default function CADGeometryDerivativePreview({ projectId, completionId, sourceArtifactId, sourceName, sourceKind, staleness, onRefresh }: {
   projectId: string;
   completionId: string;
@@ -78,30 +121,8 @@ export default function CADGeometryDerivativePreview({ projectId, completionId, 
   });
   const unavailable = staleness !== "LATEST_ACCEPTED";
   return <div className="viewportEmptyCopy">
-    {!state.signedUrl && <Box size={28} aria-hidden="true" />}
-    {!state.signedUrl && <strong>{state.loading ? "Generating display derivative…" : "Canonical geometry ready for preview"}</strong>}
-    {!state.signedUrl && <p>
-      {unavailable
-        ? "This completion is historical or its model link is unverifiable. Generate a new accepted completion before creating a current display derivative."
-        : "Generate a digest-bound GLB display derivative from the accepted " + sourceKind + " artifact. This operation does not validate or approve geometry."}
-    </p>}
-    {state.error && <p role="alert" className="moduleError"><AlertCircle size={13} />{state.error}</p>}
-    {!state.signedUrl && <button type="button" className="button workspacePrimaryAction" onClick={() => void generate()} disabled={state.loading || unavailable}>
-      {state.loading ? <LoaderCircle size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-      {state.loading ? "Processing geometry…" : "Generate 3D preview"}
-    </button>}
-    {state.signedUrl && state.derivative && <>
-      <CADDisplayViewport
-        src={state.signedUrl}
-        label={sourceName}
-        sourceArtifactId={state.derivative.sourceArtifactId}
-        sourceArtifactSha256={state.derivative.sourceArtifactSha256}
-        artifactSha256={state.derivative.artifactSha256}
-      />
-      <p className="moduleSmallNote">
-        GLB · R{state.derivative.modelRevision} · {state.derivative.tessellation.linearDeflectionMm} mm linear deflection · {state.derivative.converter.providerId} {state.derivative.converter.version} · display only
-      </p>
-      <button type="button" className="button secondaryButton" onClick={reset}>Regenerate preview</button>
-    </>}
+    {!state.signedUrl
+      ? <DerivativeEmptyState state={state} unavailable={unavailable} sourceKind={sourceKind} generate={generate} />
+      : <DerivativeReadyState state={state} sourceName={sourceName} reset={reset} />}
   </div>;
 }
