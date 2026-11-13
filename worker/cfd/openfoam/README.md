@@ -22,9 +22,11 @@ TOKEN="$(openssl rand -hex 32)"
 mkdir -p ./openfoam-artifacts
 chmod 700 ./openfoam-artifacts
 
+docker network create --internal openfoam-private >/dev/null 2>&1 || true
+
 docker run --rm \
   --read-only \
-  --network none \
+  --network openfoam-private \
   --cap-drop=ALL \
   --security-opt=no-new-privileges \
   --pids-limit 128 \
@@ -38,7 +40,7 @@ docker run --rm \
   ai-mechanical-engineering-assistant-openfoam:14
 ```
 
-For a production deployment, place the worker on a private network, store the bearer token in a secret manager, and enforce CPU, memory, disk, process and wall-clock limits at the orchestrator. Do not expose the worker directly to the public internet.
+The example uses an internal Docker network so the host can reach the localhost-published port without giving the worker outbound internet access. For production, place the worker on a private network, store the bearer token in a secret manager, and enforce CPU, memory, disk, process and wall-clock limits at the orchestrator. Do not expose the worker directly to the public internet. CI uses `--network none` and runs its HTTP smoke client inside the same container.
 
 ## HTTP contract
 
