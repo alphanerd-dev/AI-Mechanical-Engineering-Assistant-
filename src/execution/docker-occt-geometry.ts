@@ -125,7 +125,6 @@ function validateGeometrySource(source: CADGeometrySource, operation: GeometryOp
 
 function buildDockerArgs(
   image: string,
-  dockerBinary: string,
   root: string,
   scriptDirectory: string,
   scriptPath: string,
@@ -292,7 +291,7 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
   }): Promise<GeometryWorkerResponse> {
     validateGeometrySource(source, operation, options);
     const sandbox = await prepareGeometrySandbox(
-      this.scriptPath, this.image, this.dockerBinary, source, operation, options,
+      this.scriptPath, this.image, source, operation, options,
       { pidsLimit: this.pidsLimit, memoryLimit: this.memoryLimit, cpus: this.cpus }
     );
     try {
