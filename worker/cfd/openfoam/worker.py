@@ -33,6 +33,7 @@ ARTIFACT_NAMES = {
     "solver.log",
 }
 WORKER_TOKEN = os.environ.get("OPENFOAM_WORKER_TOKEN", "")
+FOAM_VERSION = "unverified"
 
 
 class WorkerError(Exception):
@@ -343,6 +344,22 @@ relaxationFactors
     return y_samples
 
 
+def detect_openfoam_version() -> str:
+    completed = subprocess.run(
+        [FOAM_ENV, "foamVersion"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        env=os.environ.copy(),
+    )
+    version_output = completed.stdout + completed.stderr
+    match = re.search(r"OpenFOAM-(\\d+)", version_output)
+    if completed.returncode != 0 or not match or match.group(1) != "14":
+        raise RuntimeError("The worker requires the OpenFOAM Foundation 14 runtime.")
+    return match.group(1)
+
+
 def run_tool(case_dir: Path, tool: str, timeout: float) -> subprocess.CompletedProcess[str]:
     if tool not in {"blockMesh", "checkMesh", "foamRun"}:
         raise WorkerError("Unsupported OpenFOAM utility.")
@@ -525,7 +542,7 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
                 "jobId": job_id,
                 "status": "COMPLETED",
                 "solver": "OpenFOAM",
-                "solverVersion": "14",
+                "solverVersion": FOAM_VERSION,
                 "converged": converged,
                 "meshCells": actual_mesh_cells,
                 "massFluxKgS": mass_flux,
@@ -624,10 +641,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    global FOAM_VERSION
     if not WORKER_TOKEN:
         raise RuntimeError("OPENFOAM_WORKER_TOKEN must be configured before the worker starts.")
     Path.home().mkdir(parents=True, exist_ok=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    FOAM_VERSION = detect_openfoam_version()
     server = HTTPServer((HOST, PORT), Handler)
     print(f"OpenFOAM 14 worker listening on {HOST}:{PORT}", flush=True)
     server.serve_forever()
