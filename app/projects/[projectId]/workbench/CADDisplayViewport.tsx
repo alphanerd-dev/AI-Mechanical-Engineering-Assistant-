@@ -83,7 +83,8 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
     };
   }, [src, sourceArtifactId, sourceArtifactSha256, artifactSha256, state.mesh, state.src]);
 
-  const matches = state.src === src && state.sourceArtifactId === sourceArtifactId && state.sourceArtifactSha256 === sourceArtifactSha256;
+  const matches = state.src === src && state.sourceArtifactId === sourceArtifactId &&
+    state.sourceArtifactSha256 === sourceArtifactSha256 && state.artifactSha256 === artifactSha256;
   const mesh = matches ? state.mesh : null;
   const error = matches ? state.error : null;
   return <div ref={rootRef} className={styles.viewportRoot}>
