@@ -397,14 +397,17 @@ def final_residuals(log_text: str) -> dict[str, float]:
         log_text,
     )
     u_matches = re.findall(
-        r"Solving for U[xyz], Initial residual = [^,]+, Final residual = (" + NUMBER.pattern + r")",
+        r"Solving for (U[xyz]), Initial residual = [^,]+, Final residual = (" + NUMBER.pattern + r")",
         log_text,
     )
     if not p_matches or not u_matches:
         raise WorkerError("Could not extract final pressure and velocity residuals from the solver log.")
+    final_velocity_residuals: dict[str, float] = {}
+    for component, value in u_matches:
+        final_velocity_residuals[component] = float(value)
     return {
         "pressure": float(p_matches[-1]),
-        "velocity": max(float(value) for value in u_matches[-3:]),
+        "velocity": max(final_velocity_residuals.values()),
     }
 
 
