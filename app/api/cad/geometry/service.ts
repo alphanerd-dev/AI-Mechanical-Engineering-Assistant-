@@ -458,50 +458,76 @@ async function persistDerivativeAudit(
   }
 }
 
+async function uploadDerivativeBytes(serviceDb: ServiceDatabase, storagePath: string, bytes: Buffer): Promise<void> {
+  const { error } = await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).upload(storagePath, bytes, {
+    upsert: false, contentType: "model/gltf-binary", cacheControl: "3600"
+  });
+  if (error) fail("Private display derivative upload failed.", 503);
+}
+
+async function removeUncommittedDerivative(serviceDb: ServiceDatabase, artifactId: string, projectId: string, storagePath: string) {
+  await serviceDb.from("engineering_cad_display_derivatives").delete().eq("id", artifactId).eq("project_id", projectId);
+  await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
+}
+
+async function insertDerivativeRow(
+  serviceDb: ServiceDatabase,
+  context: AuthorizedContext,
+  request: CADGeometryRequest,
+  generated: GeneratedDerivative
+): Promise<void> {
+  const { derivative, storagePath, row } = generated;
+  const { error: insertError } = await serviceDb.from("engineering_cad_display_derivatives")
+    .insert({ ...row, created_by: context.subject });
+  if (!insertError) return;
+  const { data, error } = await serviceDb.from("engineering_cad_display_derivatives")
+    .select("id").eq("id", derivative.artifactId).eq("project_id", request.projectId).maybeSingle();
+  if (data) return;
+  if (error) fail("Display derivative commit is ambiguous. Reload derivative history before retrying.", 503);
+  await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
+  if (insertError.code === "40001" || insertError.message?.includes("CAD model revision changed")) {
+    fail("The CAD model revision changed during tessellation. The temporary derivative was discarded; retry against the current accepted artifact.", 409);
+  }
+  fail("Display derivative metadata could not be committed; the uploaded object was cleaned up.", 503);
+}
+
+async function persistDerivativeAuditOrRollback(
+  context: AuthorizedContext,
+  request: CADGeometryRequest,
+  generated: GeneratedDerivative
+): Promise<void> {
+  try {
+    await persistDerivativeAudit(context.serviceDb, context.subject, request.projectId, generated.derivative);
+  } catch (error) {
+    if (error instanceof CADGeometryAuditAmbiguousError) throw error;
+    await removeUncommittedDerivative(
+      context.serviceDb, generated.derivative.artifactId, request.projectId, generated.storagePath
+    );
+    throw new CADGeometryAPIError("Display derivative audit persistence failed; the uncommitted derivative was rolled back.", 503);
+  }
+}
+
+async function createDerivativeSignedUrl(db: Database, storagePath: string): Promise<string> {
+  const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+    .createSignedUrl(storagePath, CAD_SIGNED_URL_TTL_SECONDS);
+  if (error || !data?.signedUrl) {
+    fail("Display derivative was persisted but its short-lived read URL could not be created. Reload derivative history.", 503);
+  }
+  return data.signedUrl;
+}
+
 async function persistGeneratedDerivative(
   context: AuthorizedContext,
   request: CADGeometryRequest,
   generated: GeneratedDerivative
 ): Promise<NextResponse> {
-  const { derivative, bytes, storagePath, row } = generated;
-  const { error: uploadError } = await context.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).upload(storagePath, bytes, {
-    upsert: false, contentType: "model/gltf-binary", cacheControl: "3600"
-  });
-  if (uploadError) fail("Private display derivative upload failed.", 503);
-
-  const insertRow = { ...row, created_by: context.subject };
-  const { error: insertError } = await context.serviceDb.from("engineering_cad_display_derivatives").insert(insertRow);
-  if (insertError) {
-    const { data, error: reconcileError } = await context.serviceDb.from("engineering_cad_display_derivatives")
-      .select("id").eq("id", derivative.artifactId).eq("project_id", request.projectId).maybeSingle();
-    if (!data && !reconcileError) {
-      await context.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
-      if (insertError.code === "40001" || insertError.message?.includes("CAD model revision changed")) {
-        fail("The CAD model revision changed during tessellation. The temporary derivative was discarded; retry against the current accepted artifact.", 409);
-      }
-      fail("Display derivative metadata could not be committed; the uploaded object was cleaned up.", 503);
-    }
-    if (reconcileError) fail("Display derivative commit is ambiguous. Reload derivative history before retrying.", 503);
-  }
-
-  try {
-    await persistDerivativeAudit(context.serviceDb, context.subject, request.projectId, derivative);
-  } catch (error) {
-    if (error instanceof CADGeometryAuditAmbiguousError) throw error;
-    await context.serviceDb.from("engineering_cad_display_derivatives").delete()
-      .eq("id", derivative.artifactId).eq("project_id", request.projectId);
-    await context.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
-    throw new CADGeometryAPIError("Display derivative audit persistence failed; the uncommitted derivative was rolled back.", 503);
-  }
-
-  const { data: signed, error: signError } = await context.db.storage.from(CAD_ARTIFACT_BUCKET)
-    .createSignedUrl(storagePath, CAD_SIGNED_URL_TTL_SECONDS);
-  if (signError || !signed?.signedUrl) {
-    fail("Display derivative was persisted but its short-lived read URL could not be created. Reload derivative history.", 503);
-  }
+  await uploadDerivativeBytes(context.serviceDb, generated.storagePath, generated.bytes);
+  await insertDerivativeRow(context.serviceDb, context, request, generated);
+  await persistDerivativeAuditOrRollback(context, request, generated);
+  const signedUrl = await createDerivativeSignedUrl(context.db, generated.storagePath);
   return NextResponse.json({
-    derivative,
-    signedUrl: signed.signedUrl,
+    derivative: generated.derivative,
+    signedUrl,
     signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS,
     created: true
   }, { status: 201, headers: { "cache-control": "no-store" } });
