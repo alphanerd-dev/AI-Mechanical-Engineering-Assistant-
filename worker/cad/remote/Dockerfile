@@ -17,6 +17,7 @@ WORKDIR /opt/cad-worker
 COPY worker/cad/remote/service.py /opt/cad-worker/service.py
 COPY worker/cad/remote/execute_cad.py /opt/cad-worker/execute_cad.py
 COPY worker/cad/occt/validate_brep.py /opt/cad-worker/validate_brep.py
+COPY worker/cad/occt/geometry_kernel.py /opt/cad-worker/geometry_kernel.py
 
 RUN chown -R cadworker:cadworker /opt/cad-worker
 
