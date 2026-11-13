@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -17,6 +18,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 HOST = os.environ.get("OPENFOAM_WORKER_HOST", "0.0.0.0")
 PORT = int(os.environ.get("OPENFOAM_WORKER_PORT", "8080"))
@@ -30,20 +32,31 @@ ARTIFACT_NAMES = {
     "pressure-field",
     "solver.log",
 }
+WORKER_TOKEN = os.environ.get("OPENFOAM_WORKER_TOKEN", "")
 
 
 class WorkerError(Exception):
     pass
 
 
+class WorkerTimeout(WorkerError):
+    pass
+
+
 def finite_positive(value: Any) -> bool:
-    return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0
 
 
 def validate_request(data: Any) -> list[str]:
     if not isinstance(data, dict):
         return ["Request body must be a JSON object."]
     errors: list[str] = []
+    allowed_keys = {
+        "caseId", "meanVelocityMps", "heightM", "depthM", "densityKgM3",
+        "kinematicViscosityM2PerS", "mesh", "solver"
+    }
+    if set(data) - allowed_keys:
+        errors.append("Request contains unsupported fields.")
     if data.get("caseId") != "laminar-channel-poiseuille-v1":
         errors.append("Unsupported caseId.")
     for field in ("meanVelocityMps", "heightM", "depthM", "densityKgM3", "kinematicViscosityM2PerS"):
@@ -58,6 +71,8 @@ def validate_request(data: Any) -> list[str]:
             errors.append("Hydraulic-diameter Reynolds number must be below 1000.")
 
     mesh = data.get("mesh")
+    if isinstance(mesh, dict) and set(mesh) - {"cellsVertical"}:
+        errors.append("mesh contains unsupported fields.")
     cells = mesh.get("cellsVertical") if isinstance(mesh, dict) else None
     if not isinstance(cells, int) or isinstance(cells, bool) or not 20 <= cells <= 200:
         errors.append("mesh.cellsVertical must be an integer between 20 and 200.")
@@ -66,11 +81,13 @@ def validate_request(data: Any) -> list[str]:
     if not isinstance(solver, dict):
         errors.append("solver must be an object.")
         solver = {}
+    elif set(solver) - {"maxIterations", "residualTolerance", "timeoutSeconds"}:
+        errors.append("solver contains unsupported fields.")
     iterations = solver.get("maxIterations")
     if not isinstance(iterations, int) or isinstance(iterations, bool) or not 50 <= iterations <= 10000:
         errors.append("solver.maxIterations must be an integer between 50 and 10000.")
     tolerance = solver.get("residualTolerance")
-    if not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or not 1e-10 <= tolerance <= 1e-3:
+    if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or not 1e-10 <= tolerance <= 1e-3:
         errors.append("solver.residualTolerance must be between 1e-10 and 1e-3.")
     timeout = solver.get("timeoutSeconds")
     if not isinstance(timeout, int) or isinstance(timeout, bool) or not 5 <= timeout <= 600:
@@ -434,8 +451,12 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
                 (case_dir / f"log.{tool}").write_text(output, encoding="utf-8")
                 if completed.returncode != 0:
                     raise WorkerError(f"{tool} failed with exit code {completed.returncode}.")
-                if tool == "checkMesh" and "Mesh OK" not in output:
-                    raise WorkerError("OpenFOAM checkMesh did not report Mesh OK.")
+                if tool == "checkMesh":
+                    if "Mesh OK" not in output:
+                        raise WorkerError("OpenFOAM checkMesh did not report Mesh OK.")
+                    cell_matches = re.findall(r"^\\s*cells:\\s*(\\d+)", output, flags=re.MULTILINE)
+                    if not cell_matches or int(cell_matches[-1]) != int(request["mesh"]["cellsVertical"]):
+                        raise WorkerError("OpenFOAM checkMesh cell count does not match the requested mesh.")
 
             solver_log = logs[-1]
             residuals = final_residuals(solver_log)
@@ -497,7 +518,7 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
             }
         except subprocess.TimeoutExpired as error:
             shutil.rmtree(artifact_dir, ignore_errors=True)
-            raise WorkerError("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
+            raise WorkerTimeout("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
         except Exception:
             shutil.rmtree(artifact_dir, ignore_errors=True)
             raise
@@ -505,6 +526,20 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "OpenFOAM14Worker/0.1"
+
+    def _authorized(self) -> bool:
+        if not WORKER_TOKEN:
+            return False
+        supplied = self.headers.get("Authorization", "")
+        expected = f"Bearer {WORKER_TOKEN}"
+        return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
+
+    def _send_bytes(self, status: int, payload: bytes, media_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", media_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _send_json(self, status: int, payload: dict[str, Any]) -> None:
         encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -518,11 +553,34 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._send_json(200, {"ready": True, "solver": "OpenFOAM", "solverVersion": "14"})
             return
+        if self.path.startswith("/v1/cfd/artifacts/"):
+            if not self._authorized():
+                self._send_json(401, {"error": "Unauthorized."})
+                return
+            parts = [unquote(part) for part in urlsplit(self.path).path.split("/") if part]
+            if len(parts) != 5 or parts[:3] != ["v1", "cfd", "artifacts"]:
+                self._send_json(404, {"error": "Not found."})
+                return
+            job_id, filename = parts[3], parts[4]
+            if not re.fullmatch(r"[a-f0-9]{32}", job_id) or filename not in ARTIFACT_NAMES:
+                self._send_json(404, {"error": "Not found."})
+                return
+            artifact_path = (ARTIFACT_ROOT / job_id / filename).resolve()
+            expected_parent = (ARTIFACT_ROOT / job_id).resolve()
+            if artifact_path.parent != expected_parent or not artifact_path.is_file():
+                self._send_json(404, {"error": "Not found."})
+                return
+            media_type = "application/gzip" if filename.endswith(".gz") else "text/plain"
+            self._send_bytes(200, artifact_path.read_bytes(), media_type)
+            return
         self._send_json(404, {"error": "Not found."})
 
     def do_POST(self) -> None:
         if self.path != "/v1/cfd/laminar-channel":
             self._send_json(404, {"error": "Not found."})
+            return
+        if not self._authorized():
+            self._send_json(401, {"error": "Unauthorized."})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -536,10 +594,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             result = execute_case(data)
             self._send_json(200, result)
+        except WorkerTimeout as error:
+            self._send_json(504, {"error": str(error)})
         except WorkerError as error:
             self._send_json(422, {"error": str(error)})
-        except subprocess.TimeoutExpired:
-            self._send_json(504, {"error": "OpenFOAM execution timed out."})
         except Exception:
             self._send_json(500, {"error": "OpenFOAM worker failed unexpectedly."})
 
@@ -548,6 +606,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    if not WORKER_TOKEN:
+        raise RuntimeError("OPENFOAM_WORKER_TOKEN must be configured before the worker starts.")
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     server = HTTPServer((HOST, PORT), Handler)
     print(f"OpenFOAM 14 worker listening on {HOST}:{PORT}", flush=True)
