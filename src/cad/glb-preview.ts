@@ -160,7 +160,12 @@ function readGLBChunks(buffer: ArrayBuffer): { document: GLTFDocument; binary: D
   return { document, binary: readGLBBinaryChunk(buffer, view, document, binaryHeader) };
 }
 
-function validateSourceLineage(document: GLTFDocument) {
+function validateSourceLineage(document: GLTFDocument): {
+  sourceArtifactId: string;
+  sourceArtifactSha256: string;
+  units: "mm";
+  coordinateFrame: "MODEL";
+} {
   const extras = document.extras;
   if (!extras || typeof extras.sourceArtifactId !== "string" || !extras.sourceArtifactId.trim() ||
       typeof extras.sourceArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(extras.sourceArtifactSha256) ||
