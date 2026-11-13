@@ -31,11 +31,17 @@ async function postDisplayDerivative(input: PreviewRequest): Promise<Response> {
   });
 }
 
+function readDerivativeErrorField(body: unknown): Record<string, unknown> | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  return body as Record<string, unknown>;
+}
+
 function displayDerivativeError(body: unknown): string {
-  if (body && typeof body === "object" && !Array.isArray(body)) {
-    const record = body as Record<string, unknown>;
-    if (typeof record.error === "string") return record.error;
-    if (Array.isArray(record.errors)) return record.errors.filter((item): item is string => typeof item === "string").join("; ");
+  const record = readDerivativeErrorField(body);
+  if (!record) return "CAD display derivative generation failed.";
+  if (typeof record.error === "string") return record.error;
+  if (Array.isArray(record.errors)) {
+    return record.errors.filter((item): item is string => typeof item === "string").join("; ");
   }
   return "CAD display derivative generation failed.";
 }
