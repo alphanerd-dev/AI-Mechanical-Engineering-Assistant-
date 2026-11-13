@@ -61,10 +61,8 @@ function validateSVG(markup: string): void {
     const attributes = opening[2];
     const attributePattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
     let match: RegExpExecArray | null;
-    let consumed = "";
     const seen = new Set<string>();
     while ((match = attributePattern.exec(attributes)) !== null) {
-      consumed += match[0];
       const name = match[1];
       const value = match[2] ?? match[3] ?? "";
       if (!SVG_ATTRIBUTES.has(name) || name.toLowerCase().startsWith("on") || seen.has(name)) {
