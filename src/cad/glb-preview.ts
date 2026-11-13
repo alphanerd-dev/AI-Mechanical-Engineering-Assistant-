@@ -175,13 +175,22 @@ function validateSourceLineage(document: GLTFDocument): {
   return extras;
 }
 
+function hasSingleTrianglePrimitive(document: GLTFDocument): boolean {
+  const primitives = document.meshes?.[0]?.primitives;
+  return document.meshes?.length === 1 && primitives?.length === 1 && primitives[0].mode === 4;
+}
+
+function hasSingleMeshNode(document: GLTFDocument): boolean {
+  return document.nodes?.length === 1 && document.nodes[0].mesh === 0;
+}
+
+function hasSingleSceneRoot(document: GLTFDocument): boolean {
+  const roots = document.scenes?.[0]?.nodes;
+  return document.scenes?.length === 1 && document.scene === 0 && roots?.length === 1 && roots[0] === 0;
+}
+
 function hasSingleMeshScene(document: GLTFDocument): boolean {
-  return document.meshes?.length === 1 &&
-    document.meshes[0].primitives?.length === 1 &&
-    document.meshes[0].primitives[0].mode === 4 &&
-    document.nodes?.length === 1 && document.nodes[0].mesh === 0 &&
-    document.scenes?.length === 1 && document.scene === 0 &&
-    document.scenes[0].nodes?.length === 1 && document.scenes[0].nodes[0] === 0;
+  return hasSingleTrianglePrimitive(document) && hasSingleMeshNode(document) && hasSingleSceneRoot(document);
 }
 
 function readSingleMeshPrimitive(document: GLTFDocument): GLTFPrimitive {
