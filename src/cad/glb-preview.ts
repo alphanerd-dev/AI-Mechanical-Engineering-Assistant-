@@ -43,10 +43,10 @@ function readAccessor(document: GLTFDocument, binary: DataView, accessorIndex: n
     throw new Error("GLB buffer view is invalid or uses an unsupported interleaved layout.");
   }
   const components = type === "VEC3" ? 3 : 1;
-  const componentBytes = componentType === 5126 ? 4 : 4;
+  const componentBytes = 4;
   const requiredBytes = accessor.count! * components * componentBytes;
   const offset = (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
-  if (offset < 0 || requiredBytes > view.byteLength! || offset + requiredBytes > binary.byteLength) {
+  if (offset < 0 || (accessor.byteOffset ?? 0) + requiredBytes > view.byteLength! || offset + requiredBytes > binary.byteLength) {
     throw new Error("GLB accessor points outside its declared binary buffer view.");
   }
   if (componentType === 5126) {
