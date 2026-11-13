@@ -236,29 +236,47 @@ Current real-world economic outcomes remain **NOT MEASURED** until matched user 
 
 ## 10. Current verified baseline (13 November 2026)
 
-### Merged foundations and production
-- PR #138 G0 geometry architecture, PR #139 G1 geometry API, PR #141 parallel development programme, PR #142 Engineering R&D skill profile, and PR #131 user-facing UI refinement are merged.
-- The Vercel production application is READY on `main` commit `fb64bfdb5908fd49a5f9a26b89a62083b7b0bcba`. No production deployment was initiated by the current development cycle.
+### Merged foundations
+- PR #131 — Engineering OS v11.2 UI foundation.
+- PR #138 — G0 geometry architecture.
+- PR #139 — G1 bounded geometry operation API.
+- PR #141 — parallel engineering development programme.
+- PR #142 — Engineering R&D skill profile.
+- Production `main` was READY at commit `fb64bfdb5908fd49a5f9a26b89a62083b7b0bcba` at the start of this development cycle. No production deployment was initiated by this cycle.
 
-### Active pull requests and branches
-- **PR #143 — G2 immutable geometry identity/revision design:** open draft. Production schema inspection and migration-history comparison are recorded in issue #145. No G2 migration has been applied.
-- **PR #144 — bounded LLM operational authority:** open draft. The ADR has been corrected to reflect that production already contains the V2.0.29/V2.0.30 durable execution-job schema. Production worker/feature-flag readiness and authenticated E2E remain unverified; no agent route or feature flag was enabled.
-- **PR #154 — M2.2–M2.6 CAD/FEA/drawing implementation:** open draft. The latest source contains additional maintainability refactors beyond the latest full integration run. A run on earlier commit `ba4fda0079160be6ff7b1f09b984f5f60eb14e78` passed the CAD intent-to-verified-artifact path, BREP/STEP import, topology inspection and tessellation, plus FEA worker build and smoke tests. Exact-head CI remains required.
-- **PR #140:** historical foundation included in PR #154's commit ancestry; do not merge separately while the overlapping continuation remains under review.
-- **Manufacturing readiness pilot:** implementation branch `feat/manufacturing-readiness-pilot`. It adds a deterministic machined-part readiness assessment and strengthens artifact-link validation. Exact-head CI and provider-router tests remain required before the branch is considered verified.
+### Active pull requests and verified status
 
-### Current verification and release gates
-- PR #154 CodeQL and Codacy scans passed on the monitored CI run; ESLint and additional worker/build jobs were still running at the last inspection.
-- CodeScene's latest report improved from 9 to 3 new-code files below 10.00, with no findings suppressed. Remaining low scores include primitive/string-heavy parser APIs and a Clean Code Collective complex-conditional threshold of 2 branches that flags ordinary guard clauses. No CodeScene project settings were changed.
-- The PR #154 M0 preview deployment is READY but is built from earlier commit `f49a01110c602015365d7cbe426783fba9b7d918`, not the current PR head. The normal application preview is blocked by Vercel's build-rate limit. Temporary preview access still requires Vercel team authorization; browser acceptance is pending.
-- The production migration reconciliation workflow was skipped. No production database migration, migration-history repair, Auth configuration change, feature-flag change or production promotion was performed.
-- Issue #145 remains open because the exact reason for the final production migration timestamp mismatch is not proven and the canonical history repair has not been approved.
-- Issue #146 remains open because leaked-password protection is disabled in both production and E2E; enabling it requires product-owner approval after E2E authentication-flow testing.
+| PR | Scope | Current status |
+|---|---|---|
+| #140 | M2.1 revision-aware CAD lineage and viewer foundation | Superseded as a standalone merge candidate by the consolidated continuation in PR #154; its changes are included in that branch. Do not merge separately while #154 is under review. |
+| #143 | G2 immutable geometry identity/revision design and schema audit | Draft; exact-head Engineering Core CI, ESLint, CodeQL and Codacy passed. No migration has been applied. |
+| #144 | Bounded LLM operational authority | Draft; exact-head Engineering Core CI, ESLint, CodeQL and Codacy passed. No production agent route or feature flag is enabled. |
+| #154 | Consolidated M2.2–M2.6 CAD, OCCT, GLB viewport and drawing workflows | Draft; exact-head Engineering Core CI, CodeQL and Codacy passed on the monitored head. ESLint initially failed during scanner installation because npm resolved unavailable `ai@7.0.173`; the isolated scanner workflow has now been applied and fresh exact-head checks are running. |
+| #155 | Deterministic machined-part manufacturing readiness | Draft; exact-head full Engineering Core CI, production TypeScript build, ESLint, CodeQL and Codacy passed at `8414998fb2e3c34f2e684c3dfac11e3da28771dc`. |
+| #156 | OpenFOAM 14 bounded CFD benchmark and isolated worker | Draft; worker contract, authenticated HTTP service, artifact retrieval, TypeScript executor and real-solver CI smoke test have been implemented. Exact-head CI and actual numerical acceptance remain in progress; do not claim CFD execution is verified until the worker smoke and provider acceptance gate pass. |
+
+### Implementation boundaries
+
+- **PR #154 supersedes PR #140** as the reviewable M2.1–M2.6 CAD/drawing delivery. PR #140 remains open only as a historical foundation; it should not be merged independently.
+- PR #143 is design/audit documentation. The G2 migration remains blocked by migration-history reconciliation in issue #145 and requires a separate approved migration rehearsal.
+- PR #144 introduces bounded model-directed planning and operational authority, but does not authorize direct production execution. Its exact-head automated checks pass; authenticated preview/browser acceptance and production worker readiness remain separate gates.
+- PR #154 implements CAD/drawing workflows through isolated OCCT and existing geometry providers. Its latest source requires fresh ESLint and preview/browser acceptance after the scanner workflow correction.
+- PR #155 provides deterministic manufacturing-readiness assessment and artifact-link checks. It returns `READY_FOR_HUMAN_APPROVAL`, `BLOCKED` or `INCOMPLETE`; it does not issue a production release, CNC program or machine-control command.
+- PR #156 contains a real OpenFOAM 14 worker image and authenticated API, but the web application provider remains unconfigured until it is attached to the durable execution boundary. The capability remains experimental; no general-purpose CFD claim is made.
+
+### Data, security and release gates
+- No production Supabase migration, migration-history repair, Auth configuration change, feature-flag change, merge or production promotion was performed by this cycle.
+- The PR #154 M2 migration remains additive and un-applied to production. Preview RLS, private storage, signed URL, trigger and audit-chain E2E remain required.
+- Issue #145 remains open: the cause of the final production migration timestamp mismatch has not been proven and canonical history repair has not been approved.
+- Issue #146 remains open: leaked-password protection is disabled in production and E2E. Enabling it requires product-owner approval after authentication-flow testing.
+- PR #154 still requires authenticated BREP/STEP → OCCT → GLB → private storage → signed URL → browser viewport E2E, drawing upload/list/preview E2E, cross-project denial tests, and desktop/mobile browser acceptance.
+- PR #156's worker smoke must run with network disabled, read-only root filesystem, dropped capabilities and bounded CPU/memory. The returned artifacts must be downloaded and SHA-256 checked, then the actual solver result must pass the independent TypeScript analytical acceptance gate.
+- No merge, deployment, destructive migration, production worker activation or external service purchase was performed.
 
 ### Product maturity boundaries
-- Manufacturing DFM, process-plan validation, inspection acceptance and BOM generation are pilot capabilities. Economics and release evaluation remain experimental; CAM reports unavailable without a real toolpath runtime. Machine matching, quality nonconformance, ERP/MES and maintenance analytics remain research-only.
-- The new manufacturing readiness workflow returns `READY_FOR_HUMAN_APPROVAL`, `BLOCKED` or `INCOMPLETE`; it does not perform a production release or machine action.
-- OpenFOAM CFD, broad multi-CAD interoperability, scan-to-CAD, advanced robotics and electromechanical integration remain separate roadmap increments. Do not describe them as shipped.
+- Manufacturing DFM, process-plan validation, inspection acceptance, BOM generation and readiness assessment remain pilot/advisory capabilities. Economics and release evaluation remain experimental; CAM reports unavailable without a real toolpath runtime. Machine matching, quality nonconformance, ERP/MES and maintenance analytics remain research-only.
+- The OpenFOAM worker supports one bounded laminar plane-Poiseuille benchmark only. Turbulence, multiphase flow, heat transfer, arbitrary dictionaries, general-purpose CFD and production certification are not supported.
+- Broad multi-CAD interoperability, scan-to-CAD, advanced robotics and electromechanical integration remain separate roadmap increments.
 - Current real-world economic outcomes remain **NOT MEASURED** until matched user trials are collected.
 
 Update this section only when new evidence changes the recorded state. The Implementation Plan and Engineering Capabilities document remain authoritative for current product maturity.
