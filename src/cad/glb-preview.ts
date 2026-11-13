@@ -311,12 +311,15 @@ function isAccessorIndex(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
-function validatePrimitiveAttributes(primitive: GLTFPrimitive): void {
+function hasValidPrimitiveAttributes(primitive: GLTFPrimitive): boolean {
   const attributes = primitive.attributes;
-  if (!isRecord(attributes)) throw new Error("GLB mesh attributes are incomplete.");
-  if (!isAccessorIndex(attributes.POSITION)) throw new Error("GLB mesh attributes are incomplete.");
-  if (!isAccessorIndex(attributes.NORMAL)) throw new Error("GLB mesh attributes are incomplete.");
-  if (!isAccessorIndex(primitive.indices)) throw new Error("GLB mesh attributes are incomplete.");
+  if (!isRecord(attributes)) return false;
+  return [attributes.POSITION, attributes.NORMAL, primitive.indices].every(isAccessorIndex);
+}
+
+function validatePrimitiveAttributes(primitive: GLTFPrimitive): void {
+  if (hasValidPrimitiveAttributes(primitive)) return;
+  throw new Error("GLB mesh attributes are incomplete.");
 }
 
 function validateSingleMeshScene(document: GLTFDocument): GLTFPrimitive {
