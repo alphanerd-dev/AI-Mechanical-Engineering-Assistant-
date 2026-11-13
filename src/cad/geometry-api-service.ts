@@ -503,6 +503,52 @@ export async function executeCADGeometryRequest(request: Request): Promise<NextR
   }
 }
 
+interface DerivativeLineage {
+  models: Map<string, Row>;
+  completions: Map<string, Row>;
+}
+
+async function loadDerivativeLineage(db: Database, projectId: string, rows: Row[]): Promise<DerivativeLineage> {
+  const modelIds = [...new Set(rows.map((row) => row.model_identity_id).filter(isUuid))];
+  const completionIds = [...new Set(rows.map((row) => row.completion_id).filter(isUuid))];
+  const [modelsResult, completionsResult] = await Promise.all([
+    modelIds.length ? db.from("engineering_cad_models").select("id,revision").eq("project_id", projectId).in("id", modelIds) : Promise.resolve({ data: [], error: null }),
+    completionIds.length ? db.from("engineering_cad_completions").select("id,artifact_records").eq("project_id", projectId).in("id", completionIds) : Promise.resolve({ data: [], error: null })
+  ]);
+  if (modelsResult.error || completionsResult.error) fail("CAD derivative lineage could not be resolved.", 503);
+  return {
+    models: new Map((modelsResult.data ?? []).map((row) => [row.id, row])),
+    completions: new Map((completionsResult.data ?? []).map((row) => [row.id, row]))
+  };
+}
+
+function currentSourceForDerivative(row: Row, completion: Row | undefined) {
+  const source = Array.isArray(completion?.artifact_records)
+    ? completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === row.source_artifact_id)
+    : null;
+  if (!isRecord(source)) return null;
+  return {
+    id: String(source.id),
+    provenance: isRecord(source.provenance) ? {
+      artifactSha256: typeof source.provenance.artifactSha256 === "string" ? source.provenance.artifactSha256 : undefined
+    } : undefined
+  };
+}
+
+async function serializeDerivativeRow(db: Database, row: Row, lineage: DerivativeLineage) {
+  const derivative = derivativeFromRow(row);
+  const model = lineage.models.get(String(row.model_identity_id));
+  const completion = lineage.completions.get(String(row.completion_id));
+  const state = classifyCADDisplayDerivative(
+    derivative,
+    currentSourceForDerivative(row, completion),
+    model ? { id: String(model.id), revision: Number(model.revision) } : null
+  );
+  const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+    .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+  return { ...derivative, state, signedUrl: !error && data?.signedUrl ? data.signedUrl : null };
+}
+
 export async function listCADDisplayDerivatives(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId")?.trim();
@@ -520,39 +566,8 @@ export async function listCADDisplayDerivatives(request: Request): Promise<NextR
     const { data: rows, error } = await query;
     if (error) fail("CAD display derivative history is unavailable.", 503);
     const values = rows ?? [];
-    const modelIds = [...new Set(values.map((row) => row.model_identity_id).filter(isUuid))];
-    const completionIds = [...new Set(values.map((row) => row.completion_id).filter(isUuid))];
-    const [modelsResult, completionsResult] = await Promise.all([
-      modelIds.length ? db.from("engineering_cad_models").select("id,revision").eq("project_id", projectId).in("id", modelIds) : Promise.resolve({ data: [], error: null }),
-      completionIds.length ? db.from("engineering_cad_completions").select("id,artifact_records").eq("project_id", projectId).in("id", completionIds) : Promise.resolve({ data: [], error: null })
-    ]);
-    if (modelsResult.error || completionsResult.error) fail("CAD derivative lineage could not be resolved.", 503);
-    const models = new Map((modelsResult.data ?? []).map((row) => [row.id, row]));
-    const completions = new Map((completionsResult.data ?? []).map((row) => [row.id, row]));
-    const derivatives = await Promise.all(values.map(async (row) => {
-      const derivative = derivativeFromRow(row as unknown as Row);
-      const model = models.get(row.model_identity_id);
-      const completion = completions.get(row.completion_id);
-      const source = Array.isArray(completion?.artifact_records)
-        ? completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === row.source_artifact_id)
-        : null;
-      const currentSource = isRecord(source) ? {
-        id: String(source.id),
-        provenance: isRecord(source.provenance) ? {
-          artifactSha256: typeof source.provenance.artifactSha256 === "string" ? source.provenance.artifactSha256 : undefined
-        } : undefined
-      } : null;
-      const state = classifyCADDisplayDerivative(derivative, currentSource, model ? {
-        id: model.id, revision: Number(model.revision)
-      } : null);
-      const { data: signed, error: signError } = await db.storage.from(CAD_ARTIFACT_BUCKET)
-        .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
-      return {
-        ...derivative,
-        state,
-        signedUrl: !signError && signed?.signedUrl ? signed.signedUrl : null
-      };
-    }));
+    const lineage = await loadDerivativeLineage(db, projectId, values);
+    const derivatives = await Promise.all(values.map((row) => serializeDerivativeRow(db, row as unknown as Row, lineage)));
     return NextResponse.json({ projectId, derivatives, signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS }, {
       headers: { "cache-control": "no-store" }
     });
