@@ -142,6 +142,56 @@ function extension(name: string): string {
   return base.includes(".") ? base.split(".").pop()!.toLowerCase() : "";
 }
 
+function validateDrawingFilename(filename: string): string {
+  if (!filename.trim() || filename.length > 180 || /[\\r\\n\\0]/.test(filename) ||
+      filename.split(/[\\\\/]/).some((part) => part === "..")) {
+    throw new Error("Drawing filename is invalid.");
+  }
+  return extension(filename);
+}
+
+function inspectPDF(bytes: Uint8Array, ext: string, declared: string): CADDrawingInspection | null {
+  if (bytes.byteLength < 5 || !BufferlessPrefix(bytes, "%PDF-")) return null;
+  if (ext !== "pdf" || (declared && declared !== "application/pdf")) {
+    throw new Error("PDF filename or media type does not match its content.");
+  }
+  const tail = new TextDecoder("latin1").decode(bytes.subarray(Math.max(0, bytes.length - 2048)));
+  if (!tail.includes("%%EOF")) throw new Error("PDF drawing is missing its terminal EOF marker.");
+  return {
+    format: "PDF", mediaType: "application/pdf", parserVersion: "pdf-source-1",
+    warnings: ["PDF is stored as an immutable source; page rendering is performed by the viewer."]
+  };
+}
+
+function inspectSVG(bytes: Uint8Array, ext: string, declared: string, prefix: string): CADDrawingInspection | null {
+  if (!/^<svg(?:\\s|>)/i.test(prefix)) return null;
+  if (ext !== "svg" || (declared && declared !== "image/svg+xml")) {
+    throw new Error("SVG filename or media type does not match its content.");
+  }
+  validateSVG(decodeUtf8(bytes));
+  return {
+    format: "SVG", mediaType: "image/svg+xml", parserVersion: "svg-safe-subset-1",
+    warnings: ["SVG preview is sanitized again by the browser before rendering."]
+  };
+}
+
+function inspectDXF(bytes: Uint8Array, ext: string, declared: string): CADDrawingInspection | null {
+  const supportedTypes = ["application/dxf", "image/vnd.dxf", "application/octet-stream"];
+  if (ext !== "dxf") return null;
+  if (declared && !supportedTypes.includes(declared)) {
+    throw new Error("DXF media type does not match the declared file format.");
+  }
+  const source = decodeUtf8(bytes);
+  if (/[^\\x09\\x0a\\x0d\\x20-\\x7e]/.test(source)) {
+    throw new Error("DXF preview currently accepts ASCII-compatible text only.");
+  }
+  const parsed = parseDXF(source);
+  return {
+    format: "DXF", mediaType: "application/dxf", parserVersion: "dxf-preview-1",
+    units: parsed.units, entityCount: parsed.entities.length, bounds: parsed.bounds, warnings: parsed.warnings
+  };
+}
+
 /** Inspect and strictly bound a source drawing before private project storage. */
 export function inspectCADDrawingUpload(input: {
   filename: string;
@@ -152,38 +202,14 @@ export function inspectCADDrawingUpload(input: {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > MAX_DRAWING_BYTES) {
     throw new Error("Drawing must contain 1 byte to 4 MiB.");
   }
-  if (typeof filename !== "string" || !filename.trim() || filename.length > 180 ||
-      /[\r\n\0]/.test(filename) || filename.split(/[\\/]/).some((part) => part === "..")) {
-    throw new Error("Drawing filename is invalid.");
-  }
-  const ext = extension(filename);
+  const ext = validateDrawingFilename(filename);
   const declared = input.declaredMimeType?.trim().toLowerCase() ?? "";
-  if (bytes.byteLength >= 5 && BufferlessPrefix(bytes, "%PDF-")) {
-    if (ext !== "pdf" || (declared && declared !== "application/pdf")) throw new Error("PDF filename or media type does not match its content.");
-    const tail = new TextDecoder("latin1").decode(bytes.subarray(Math.max(0, bytes.length - 2048)));
-    if (!tail.includes("%%EOF")) throw new Error("PDF drawing is missing its terminal EOF marker.");
-    return { format: "PDF", mediaType: "application/pdf", parserVersion: "pdf-source-1", warnings: ["PDF is stored as an immutable source; page rendering is performed by the viewer."] };
-  }
   const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 512))).trimStart();
-  if (/^<svg(?:\s|>)/i.test(prefix)) {
-    if (ext !== "svg" || (declared && declared !== "image/svg+xml")) throw new Error("SVG filename or media type does not match its content.");
-    const markup = decodeUtf8(bytes);
-    validateSVG(markup);
-    return { format: "SVG", mediaType: "image/svg+xml", parserVersion: "svg-safe-subset-1", warnings: ["SVG preview is sanitized again by the browser before rendering."] };
-  }
-  if (ext === "dxf" && (!declared || ["application/dxf", "image/vnd.dxf", "application/octet-stream"].includes(declared))) {
-    if (declared && !["application/dxf", "image/vnd.dxf", "application/octet-stream"].includes(declared)) {
-      throw new Error("DXF media type does not match the declared file format.");
-    }
-    const source = decodeUtf8(bytes);
-    if (/[^\x09\x0a\x0d\x20-\x7e]/.test(source)) throw new Error("DXF preview currently accepts ASCII-compatible text only.");
-    const parsed = parseDXF(source);
-    return {
-      format: "DXF", mediaType: "application/dxf", parserVersion: "dxf-preview-1",
-      units: parsed.units, entityCount: parsed.entities.length, bounds: parsed.bounds, warnings: parsed.warnings
-    };
-  }
-  throw new Error("Unsupported drawing format. Accepted formats are PDF, safe-subset SVG and ASCII DXF.");
+  const inspection = inspectPDF(bytes, ext, declared) ??
+    inspectSVG(bytes, ext, declared, prefix) ??
+    inspectDXF(bytes, ext, declared);
+  if (!inspection) throw new Error("Unsupported drawing format. Accepted formats are PDF, safe-subset SVG and ASCII DXF.");
+  return inspection;
 }
 
 function BufferlessPrefix(bytes: Uint8Array, text: string): boolean {
