@@ -168,13 +168,25 @@ function validateDrawingFilename(filename: string): string {
   return extension(filename);
 }
 
-function inspectPDF(bytes: Uint8Array, ext: string, declared: string): CADDrawingInspection | null {
-  if (bytes.byteLength < 5 || !BufferlessPrefix(bytes, "%PDF-")) return null;
-  if (ext !== "pdf" || (declared && declared !== "application/pdf")) {
+function isPDFContent(bytes: Uint8Array): boolean {
+  return bytes.byteLength >= 5 && BufferlessPrefix(bytes, "%PDF-");
+}
+
+function validatePDFUploadMetadata(extension: string, declaredMimeType: string): void {
+  if (extension !== "pdf" || (declaredMimeType && declaredMimeType !== "application/pdf")) {
     throw new Error("PDF filename or media type does not match its content.");
   }
+}
+
+function validatePDFEndMarker(bytes: Uint8Array): void {
   const tail = new TextDecoder("latin1").decode(bytes.subarray(Math.max(0, bytes.length - 2048)));
   if (!tail.includes("%%EOF")) throw new Error("PDF drawing is missing its terminal EOF marker.");
+}
+
+function inspectPDF(input: { bytes: Uint8Array; extension: string; declaredMimeType: string }): CADDrawingInspection | null {
+  if (!isPDFContent(input.bytes)) return null;
+  validatePDFUploadMetadata(input.extension, input.declaredMimeType);
+  validatePDFEndMarker(input.bytes);
   return {
     format: "PDF", mediaType: "application/pdf", parserVersion: "pdf-source-1",
     warnings: ["PDF is stored as an immutable source; page rendering is performed by the viewer."]
@@ -223,7 +235,7 @@ export function inspectCADDrawingUpload(input: {
   const ext = validateDrawingFilename(filename);
   const declared = input.declaredMimeType?.trim().toLowerCase() ?? "";
   const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 512))).trimStart();
-  const inspection = inspectPDF(bytes, ext, declared) ??
+  const inspection = inspectPDF({ bytes, extension: ext, declaredMimeType: declared }) ??
     inspectSVG(bytes, ext, declared, prefix) ??
     inspectDXF(bytes, ext, declared);
   if (!inspection) throw new Error("Unsupported drawing format. Accepted formats are PDF, safe-subset SVG and ASCII DXF.");
