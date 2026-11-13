@@ -53,24 +53,34 @@ function parseSVGToken(token: string):
   };
 }
 
-function validateSVGAttributes(attributes: string): void {
-  const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  const seen = new Set<string>();
+function parseSVGAttributes(attributes: string): Array<{ name: string; value: string }> {
+  const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  const parsed: Array<{ name: string; value: string }> = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(attributes)) !== null) {
-    const name = match[1];
-    const value = match[2] ?? match[3] ?? "";
-    if (!SVG_ATTRIBUTES.has(name) || name.toLowerCase().startsWith("on") || seen.has(name)) {
-      throw new Error("SVG contains a disallowed or duplicate attribute.");
-    }
-    seen.add(name);
-    const canonicalNamespace = name === "xmlns" && value === "http://www.w3.org/2000/svg";
-    if (!canonicalNamespace && /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
-      throw new Error("SVG contains an external or executable attribute value.");
-    }
-    validateSVGAttributeValue(name, value);
+    parsed.push({ name: match[1], value: match[2] ?? match[3] ?? "" });
   }
   if (attributes.replace(pattern, "").trim()) throw new Error("SVG contains malformed or unsupported attributes.");
+  return parsed;
+}
+
+function validateSVGAttribute(name: string, value: string, seen: Set<string>): void {
+  if (!SVG_ATTRIBUTES.has(name) || name.toLowerCase().startsWith("on") || seen.has(name)) {
+    throw new Error("SVG contains a disallowed or duplicate attribute.");
+  }
+  seen.add(name);
+  const canonicalNamespace = name === "xmlns" && value === "http://www.w3.org/2000/svg";
+  if (!canonicalNamespace && /url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value)) {
+    throw new Error("SVG contains an external or executable attribute value.");
+  }
+  validateSVGAttributeValue(name, value);
+}
+
+function validateSVGAttributes(attributes: string): void {
+  const seen = new Set<string>();
+  for (const attribute of parseSVGAttributes(attributes)) {
+    validateSVGAttribute(attribute.name, attribute.value, seen);
+  }
 }
 
 function validateSVGAttributeValue(name: string, value: string): void {
