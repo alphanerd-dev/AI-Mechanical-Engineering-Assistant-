@@ -2,13 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { EngineeringTask, EngineeringTaskGraph } from "../../../../src/task-graph/types";
-import type { FrameworkReasoningRecord, ReasoningFrameworkManifest } from "../../../../src/reasoning-frameworks/types";
+import type { FrameworkReasoningRecord, ReasoningFrameworkManifest, SkillManifest } from "../../../../src/reasoning-frameworks/types";
 
 type WorkbenchPayload = {
   projectId: string;
   taskGraph: EngineeringTaskGraph;
   workspaceRevision: number;
   frameworks: ReasoningFrameworkManifest[];
+  skills: SkillManifest[];
   storageMode: "DURABLE" | "DEMO_EPHEMERAL";
   persisted: boolean;
   modelConfigured: boolean;
@@ -49,9 +50,26 @@ async function readApiResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
+function getSkillRiskError(risk: EngineeringTask["risk"], skill?: SkillManifest): string | undefined {
+  if (!skill) return undefined;
+  const riskRank = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 } as const;
+  if (riskRank[risk] <= riskRank[skill.maximumRisk]) return undefined;
+  return "The selected skill supports up to " + skill.maximumRisk + " risk. Choose a lower task risk or remove the skill profile.";
+}
+
+function prepareTaskCreation(inputJson: string, framework: ReasoningFrameworkManifest | undefined, skill: SkillManifest | undefined, risk: EngineeringTask["risk"]) {
+  const input = parseInputJson(inputJson);
+  if (!framework) throw new Error("Choose a registered reasoning framework.");
+  const skillError = getSkillRiskError(risk, skill);
+  if (skillError) throw new Error(skillError);
+  return { input, framework, skill };
+}
+
 export default function ReasoningWorkbench({ projectId }: { projectId: string }) {
   const [taskGraph, setTaskGraph] = useState<EngineeringTaskGraph>();
   const [frameworks, setFrameworks] = useState<ReasoningFrameworkManifest[]>([]);
+  const [skills, setSkills] = useState<SkillManifest[]>([]);
+  const [skillId, setSkillId] = useState("");
   const [workspaceRevision, setWorkspaceRevision] = useState<number>(0);
   const [storageMode, setStorageMode] = useState<"DURABLE" | "DEMO_EPHEMERAL">("DURABLE");
   const [modelConfigured, setModelConfigured] = useState(false);
@@ -83,6 +101,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
   const isLoading = loading || loadedProjectId !== projectId;
   const routingDecision = selectedTask?.reasoning?.routingDecision;
   const selectedFramework = frameworks.find((framework) => framework.id === frameworkId);
+  const selectedSkill = skills.find((skill) => skill.id === skillId);
   const selectedTaskFramework = frameworks.find((framework) =>
     framework.id === routingDecision?.frameworkId &&
     framework.version === routingDecision?.frameworkVersion
@@ -94,6 +113,8 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     setStorageMode(payload.storageMode);
     if ("frameworks" in payload) {
       setFrameworks(payload.frameworks);
+      setSkills(payload.skills ?? []);
+      if (skillId && !(payload.skills ?? []).some((item) => item.id === skillId)) setSkillId("");
       if (payload.frameworks.length && !payload.frameworks.some((item) => item.id === frameworkId)) {
         setFrameworkId(payload.frameworks[0].id);
       }
@@ -162,15 +183,11 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
     if (busyAction) return;
     setError(undefined);
     setNotice(undefined);
-    let input: Record<string, unknown>;
+    let prepared: ReturnType<typeof prepareTaskCreation>;
     try {
-      input = parseInputJson(newInputsJson);
+      prepared = prepareTaskCreation(newInputsJson, selectedFramework, selectedSkill, risk);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Task inputs are invalid.");
-      return;
-    }
-    if (!selectedFramework) {
-      setError("Choose a registered reasoning framework.");
+      setError(caught instanceof Error ? caught.message : "Task inputs or skill profile are invalid.");
       return;
     }
 
@@ -183,13 +200,12 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
         taskType,
         risk,
         uncertainty,
-        frameworkId: selectedFramework.id,
-        frameworkVersion: selectedFramework.version,
-        input
+        frameworkId: prepared.framework.id,
+        frameworkVersion: prepared.framework.version,
+        ...(prepared.skill ? { skillId: prepared.skill.id, skillVersion: prepared.skill.version } : {}),
+        input: prepared.input
       });
-      if (payload.task) {
-        setSelectedTaskId(payload.task.id);
-      }
+      if (payload.task) setSelectedTaskId(payload.task.id);
       setName("");
       setGoal("");
       setNewInputsJson("{}");
@@ -284,8 +300,18 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
                   <input value={taskType} onChange={(event) => setTaskType(event.target.value)} required maxLength={80} disabled={Boolean(busyAction)} />
                 </label>
                 <label>Risk
-                  <select value={risk} onChange={(event) => setRisk(event.target.value as EngineeringTask["risk"])} disabled={Boolean(busyAction)}>
-                    <option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="CRITICAL">Critical</option>
+                  <select value={risk} onChange={(event) => {
+                    const nextRisk = event.target.value as EngineeringTask["risk"];
+                    const riskError = getSkillRiskError(nextRisk, selectedSkill);
+                    if (riskError) {
+                      setError(riskError);
+                      if (selectedSkill) setRisk(selectedSkill.maximumRisk);
+                      return;
+                    }
+                    setError(undefined);
+                    setRisk(nextRisk);
+                  }} disabled={Boolean(busyAction)} aria-label="Task risk">
+                    <option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH" disabled={Boolean(getSkillRiskError("HIGH", selectedSkill))}>High</option><option value="CRITICAL" disabled={Boolean(getSkillRiskError("CRITICAL", selectedSkill))}>Critical</option>
                   </select>
                 </label>
               </div>
@@ -301,6 +327,13 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
                   </select>
                 </label>
               </div>
+              <label>Skill profile (optional)
+                <select value={skillId} onChange={(event) => { const nextSkillId = event.target.value; const nextSkill = skills.find((skill) => skill.id === nextSkillId); setSkillId(nextSkillId); if (nextSkill && getSkillRiskError(risk, nextSkill)) setRisk(nextSkill.maximumRisk); }} disabled={Boolean(busyAction) || skills.length === 0}>
+                  <option value="">No skill profile</option>
+                  {skills.map((skill) => <option key={skill.id + "@" + skill.version} value={skill.id}>{skill.name} · v{skill.version}</option>)}
+                </select>
+              </label>
+              {selectedSkill && <p className="reasoningHint"><strong>Skill scope:</strong> {selectedSkill.description}<br /><strong>Risk ceiling:</strong> {selectedSkill.maximumRisk}; <strong>human approval:</strong> {selectedSkill.requiresApproval ? "required" : "not required"}; <strong>capability allowlist:</strong> {selectedSkill.allowedCapabilities.length} registered capabilities. The model may propose steps but cannot execute them.</p>}
               {selectedFramework && <p className="reasoningHint"><strong>Purpose:</strong> {selectedFramework.purpose}<br /><strong>Required inputs:</strong> {selectedFramework.requiredInputs.join(", ") || "None declared"}; the non-empty task goal is supplied as the <code>task</code> input.</p>}
               <label>Initial task inputs (JSON object)
                 <textarea value={newInputsJson} onChange={(event) => setNewInputsJson(event.target.value)} rows={4} spellCheck={false} className="codeField" disabled={Boolean(busyAction)} />
@@ -325,7 +358,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
                   <span>{task.goal}</span>
                   <span className="reasoningTaskItemBottom">
                     <small>{decision?.frameworkId ? `${decision.frameworkId}@${decision.frameworkVersion ?? "?"}` : "No framework pinned"}</small>
-                    <small>{decision?.status ?? "NOT ROUTED"} · {recordCount} RECORD{recordCount === 1 ? "" : "S"}</small>
+                    <small>{task.reasoning?.skillManifest?.id ? "SKILL " + task.reasoning.skillManifest.id : "NO SKILL"} · {decision?.status ?? "NOT ROUTED"} · {recordCount} RECORD{recordCount === 1 ? "" : "S"}</small>
                   </span>
                 </button>;
               })}
@@ -339,7 +372,7 @@ export default function ReasoningWorkbench({ projectId }: { projectId: string })
             {!selectedTask ? <p className="muted">Create or select a task to inspect its routing decision, inputs, and reasoning records.</p> : <>
               <div className="reasoningTaskSummary">
                 <div><span className="tag">TASK</span><h3>{selectedTask.name}</h3><p>{selectedTask.goal}</p></div>
-                <div className="reasoningSummaryPills"><span className="pill">{selectedTask.status}</span><span className="pill">{selectedTask.risk} RISK</span></div>
+                <div className="reasoningSummaryPills"><span className="pill">{selectedTask.status}</span><span className="pill">{selectedTask.risk} RISK</span>{selectedTask.reasoning?.skillManifest && <span className="pill">{selectedTask.reasoning.skillManifest.name} · v{selectedTask.reasoning.skillManifest.version}</span>}</div>
               </div>
               <div className="reasoningRouteCard">
                 <div className="reasoningRouteHeader"><strong>Framework route</strong><span className={`pill route-${routingDecision?.status?.toLowerCase() ?? "none"}`}>{routingDecision?.status ?? "NOT ROUTED"}</span></div>
