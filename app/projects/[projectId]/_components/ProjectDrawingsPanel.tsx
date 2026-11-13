@@ -28,6 +28,19 @@ function dateLabel(value: string): string {
   return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
 }
 
+async function submitDrawingUpload(projectId: string, modelIdentityId: string, file: File): Promise<string> {
+  const form = new FormData();
+  form.set("projectId", projectId);
+  if (modelIdentityId) form.set("modelIdentityId", modelIdentityId);
+  form.set("file", file);
+  const response = await fetch("/api/cad/drawings", { method: "POST", body: form });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.drawing || typeof body.drawing.id !== "string") {
+    throw new Error(typeof body.error === "string" ? body.error : "Drawing upload failed.");
+  }
+  return body.drawing.id;
+}
+
 export default function ProjectDrawingsPanel({ projectId, models }: {
   projectId: string;
   models: Array<{ id: string; name: string }>;
@@ -96,17 +109,11 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
     setError(null);
     setNotice(null);
     try {
-      const form = new FormData();
-      form.set("projectId", projectId);
-      if (modelIdentityId) form.set("modelIdentityId", modelIdentityId);
-      form.set("file", file);
-      const response = await fetch("/api/cad/drawings", { method: "POST", body: form });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !body.drawing) throw new Error(typeof body.error === "string" ? body.error : "Drawing upload failed.");
+      const drawingId = await submitDrawingUpload(projectId, modelIdentityId, file);
       setFile(null);
       setNotice("Drawing uploaded to private project storage. Preview is read-only and does not validate dimensions.");
       await refresh();
-      if (body.drawing.id) setSelectedId(body.drawing.id);
+      setSelectedId(drawingId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Drawing upload failed.");
     } finally {
