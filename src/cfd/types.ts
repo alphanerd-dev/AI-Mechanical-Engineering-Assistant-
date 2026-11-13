@@ -30,6 +30,7 @@ export interface OpenFOAMRunArtifact {
 }
 
 export interface OpenFOAMLaminarChannelResult {
+  jobId?: string;
   status: "COMPLETED" | "FAILED";
   solver: "OpenFOAM";
   solverVersion: string;
