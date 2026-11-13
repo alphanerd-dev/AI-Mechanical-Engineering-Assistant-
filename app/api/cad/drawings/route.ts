@@ -1,4 +1,4 @@
-import { listProjectDrawings, uploadProjectDrawing } from "../../../../src/drawings/api-service";
+import { listProjectDrawings, uploadProjectDrawing } from "./service";
 
 export const runtime = "nodejs";
 
