@@ -61,13 +61,18 @@ function readAccessor(document: GLTFDocument, binary: DataView, accessorIndex: n
   return { count: accessor.count!, values };
 }
 
-function normalizeAndExpand(positions: Float32Array, normals: Float32Array, indices: Uint32Array) {
+function validateMeshBuffers(positions: Float32Array, normals: Float32Array, indices: Uint32Array): number {
   const vertexCount = positions.length / 3;
+  const triangleCount = indices.length / 3;
   if (vertexCount < 3 || vertexCount > MAX_VERTICES || normals.length !== positions.length ||
-      indices.length < 3 || indices.length % 3 !== 0 || indices.length / 3 > MAX_TRIANGLES ||
+      indices.length < 3 || indices.length % 3 !== 0 || triangleCount > MAX_TRIANGLES ||
       indices.some((index) => index >= vertexCount)) {
     throw new Error("GLB mesh counts, normals or indices are invalid.");
   }
+  return triangleCount;
+}
+
+function computeMeshNormalization(positions: Float32Array) {
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
   for (let index = 0; index < positions.length; index += 3) {
@@ -85,6 +90,10 @@ function normalizeAndExpand(positions: Float32Array, normals: Float32Array, indi
     ));
   }
   if (!Number.isFinite(radius) || radius < 1e-12) throw new Error("GLB mesh has zero-size geometry.");
+  return { center, radius };
+}
+
+function expandIndexedMesh(positions: Float32Array, normals: Float32Array, indices: Uint32Array, center: number[], radius: number) {
   const expandedPositions = new Float32Array(indices.length * 3);
   const expandedNormals = new Float32Array(indices.length * 3);
   for (let index = 0; index < indices.length; index += 1) {
@@ -100,11 +109,16 @@ function normalizeAndExpand(positions: Float32Array, normals: Float32Array, indi
     expandedNormals[targetOffset + 1] = ny / magnitude;
     expandedNormals[targetOffset + 2] = nz / magnitude;
   }
-  return { positions: expandedPositions, normals: expandedNormals, triangleCount: indices.length / 3 };
+  return { positions: expandedPositions, normals: expandedNormals };
 }
 
-/** Parse the bounded GLB v2 profile emitted by createCADDisplayGLB; external buffers are rejected. */
-export function parseCADDisplayGLB(buffer: ArrayBuffer): CADDisplayMeshPreview {
+function normalizeAndExpand(positions: Float32Array, normals: Float32Array, indices: Uint32Array) {
+  const triangleCount = validateMeshBuffers(positions, normals, indices);
+  const { center, radius } = computeMeshNormalization(positions);
+  return { ...expandIndexedMesh(positions, normals, indices, center, radius), triangleCount };
+}
+
+function readGLBChunks(buffer: ArrayBuffer): { document: GLTFDocument; binary: DataView } {
   if (buffer.byteLength < 28 || buffer.byteLength > MAX_GLB_BYTES) {
     throw new Error("GLB is empty or exceeds the 32 MiB preview limit.");
   }
@@ -132,12 +146,20 @@ export function parseCADDisplayGLB(buffer: ArrayBuffer): CADDisplayMeshPreview {
       document.buffers[0].uri !== undefined || document.buffers[0].byteLength !== binaryLength) {
     throw new Error("GLB binary chunk or buffer declaration is invalid.");
   }
+  return { document, binary: new DataView(buffer, binaryHeader + 8, binaryLength) };
+}
+
+function validateSourceLineage(document: GLTFDocument) {
   const extras = document.extras;
   if (!extras || typeof extras.sourceArtifactId !== "string" || !extras.sourceArtifactId.trim() ||
       typeof extras.sourceArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(extras.sourceArtifactSha256) ||
       extras.units !== "mm" || extras.coordinateFrame !== "MODEL") {
     throw new Error("GLB source lineage, units or coordinate frame is invalid.");
   }
+  return extras;
+}
+
+function validateSingleMeshScene(document: GLTFDocument) {
   if (document.meshes?.length !== 1 || document.meshes[0].primitives?.length !== 1 ||
       document.meshes[0].primitives[0].mode !== 4 || document.nodes?.length !== 1 ||
       document.nodes[0].mesh !== 0 || document.scenes?.length !== 1 ||
@@ -149,16 +171,28 @@ export function parseCADDisplayGLB(buffer: ArrayBuffer): CADDisplayMeshPreview {
       !Number.isSafeInteger(primitive.attributes.NORMAL) || !Number.isSafeInteger(primitive.indices)) {
     throw new Error("GLB mesh attributes are incomplete.");
   }
-  const binary = new DataView(buffer, binaryHeader + 8, binaryLength);
-  const positionAccessor = readAccessor(document, binary, primitive.attributes.POSITION!, "VEC3", 5126, MAX_VERTICES);
-  const normalAccessor = readAccessor(document, binary, primitive.attributes.NORMAL!, "VEC3", 5126, MAX_VERTICES);
+  return primitive;
+}
+
+function readTriangleMesh(document: GLTFDocument, binary: DataView, primitive: NonNullable<GLTFDocument["meshes"]>[number]["primitives"] extends (infer T)[] | undefined ? T : never) {
+  const positionAccessor = readAccessor(document, binary, primitive.attributes!.POSITION!, "VEC3", 5126, MAX_VERTICES);
+  const normalAccessor = readAccessor(document, binary, primitive.attributes!.NORMAL!, "VEC3", 5126, MAX_VERTICES);
   const indexAccessor = readAccessor(document, binary, primitive.indices!, "SCALAR", 5125, MAX_TRIANGLES * 3);
   if (positionAccessor.count !== normalAccessor.count) throw new Error("GLB positions and normals do not share the same vertex count.");
-  const expanded = normalizeAndExpand(
+  return normalizeAndExpand(
     positionAccessor.values as Float32Array,
     normalAccessor.values as Float32Array,
     indexAccessor.values as Uint32Array
   );
+}
+
+/** Parse the bounded GLB v2 profile emitted by createCADDisplayGLB; external buffers are rejected. */
+/** Parse the bounded GLB v2 profile emitted by createCADDisplayGLB; external buffers are rejected. */
+export function parseCADDisplayGLB(buffer: ArrayBuffer): CADDisplayMeshPreview {
+  const { document, binary } = readGLBChunks(buffer);
+  const extras = validateSourceLineage(document);
+  const primitive = validateSingleMeshScene(document);
+  const expanded = readTriangleMesh(document, binary, primitive);
   return {
     ...expanded,
     sourceArtifactId: extras.sourceArtifactId,
