@@ -289,15 +289,30 @@ function createRemoteGeometryAdapter(): DockerOCCTGeometryKernelAdapter | null {
   return new DockerOCCTGeometryKernelAdapter(new RemoteOCCTGeometryExecutor(remote.value));
 }
 
-function readLocalGeometryRuntimeConfig() {
+function readOCCTImageReference(): string {
   const image = process.env.CAD_OCCT_IMAGE?.trim() ?? "";
-  const dockerBinary = process.env.CAD_DOCKER_BINARY?.trim() || "docker";
-  const workerScriptPath = path.resolve(process.env.CAD_OCCT_GEOMETRY_WORKER_PATH?.trim() ||
-    path.join(process.cwd(), "worker/cad/occt/geometry_kernel.py"));
-  if (!image || !dockerBinary || /[\r\n\0]/.test(dockerBinary)) {
-    fail("The trusted OCCT geometry runtime is not configured.", 503);
-  }
-  return { image, dockerBinary, workerScriptPath };
+  if (!image) fail("The trusted OCCT geometry image is not configured.", 503);
+  return image;
+}
+
+function readDockerExecutable(): string {
+  const executable = process.env.CAD_DOCKER_BINARY?.trim() || "docker";
+  if (/[\r\n\0]/.test(executable)) fail("The trusted Docker executable is invalid.", 503);
+  return executable;
+}
+
+function resolveOCCTWorkerScriptPath(): string {
+  const configuredPath = process.env.CAD_OCCT_GEOMETRY_WORKER_PATH?.trim();
+  const defaultPath = path.join(process.cwd(), "worker/cad/occt/geometry_kernel.py");
+  return path.resolve(configuredPath || defaultPath);
+}
+
+function readLocalGeometryRuntimeConfig() {
+  return {
+    image: readOCCTImageReference(),
+    dockerBinary: readDockerExecutable(),
+    workerScriptPath: resolveOCCTWorkerScriptPath()
+  };
 }
 
 function validateProductionGeometryImage(image: string): void {
