@@ -398,6 +398,20 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
     this.runner = resolved.runner;
   }
 
+  private async executeSandbox(sandbox: PreparedGeometrySandbox): Promise<GeometryWorkerResponse> {
+    const runOptions: CADCommandRunOptions = {
+      timeoutMs: this.timeoutMs, maxStdoutBytes: this.maxStdoutBytes, maxStderrBytes: this.maxStderrBytes
+    };
+    const execution = await this.runner.run(this.dockerBinary, sandbox.args, sandbox.payload, runOptions);
+    if (execution.timedOut) throw new Error("OCCT geometry operation timed out.");
+    if (execution.outputLimitExceeded) throw new Error("OCCT geometry worker exceeded its output limit.");
+    if (execution.error) throw new Error("OCCT geometry worker could not start: " + execution.error);
+    if (execution.exitCode !== 0) {
+      throw new Error("OCCT geometry worker exited unsuccessfully. " + execution.stderr.trim().slice(-2000));
+    }
+    return parseGeometryWorkerResponse(execution.stdout);
+  }
+
   async call(operation: GeometryOperation, source: CADGeometrySource, options?: {
     linearDeflectionMm: number;
     angularDeflectionRad: number;
@@ -412,17 +426,7 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
       limits: { pidsLimit: this.pidsLimit, memoryLimit: this.memoryLimit, cpus: this.cpus }
     });
     try {
-      const runOptions: CADCommandRunOptions = {
-        timeoutMs: this.timeoutMs, maxStdoutBytes: this.maxStdoutBytes, maxStderrBytes: this.maxStderrBytes
-      };
-      const execution = await this.runner.run(this.dockerBinary, sandbox.args, sandbox.payload, runOptions);
-      if (execution.timedOut) throw new Error("OCCT geometry operation timed out.");
-      if (execution.outputLimitExceeded) throw new Error("OCCT geometry worker exceeded its output limit.");
-      if (execution.error) throw new Error("OCCT geometry worker could not start: " + execution.error);
-      if (execution.exitCode !== 0) {
-        throw new Error("OCCT geometry worker exited unsuccessfully. " + execution.stderr.trim().slice(-2000));
-      }
-      return parseGeometryWorkerResponse(execution.stdout);
+      return await this.executeSandbox(sandbox);
     } finally {
       await rm(sandbox.root, { recursive: true, force: true });
     }
