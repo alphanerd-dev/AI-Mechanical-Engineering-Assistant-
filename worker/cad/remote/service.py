@@ -336,7 +336,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    if not GENERATOR_SCRIPT.is_file() or not VALIDATOR_SCRIPT.is_file():
+    if not GENERATOR_SCRIPT.is_file() or not VALIDATOR_SCRIPT.is_file() or not GEOMETRY_SCRIPT.is_file():
         raise RuntimeError("Trusted CAD worker scripts are missing.")
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     server.daemon_threads = True
