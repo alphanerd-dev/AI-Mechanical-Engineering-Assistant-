@@ -164,7 +164,7 @@ function inspectPDF(bytes: Uint8Array, ext: string, declared: string): CADDrawin
 }
 
 function inspectSVG(bytes: Uint8Array, ext: string, declared: string, prefix: string): CADDrawingInspection | null {
-  if (!/^<svg(?:\\s|>)/i.test(prefix)) return null;
+  if (!/^<svg(?:\s|>)/i.test(prefix)) return null;
   if (ext !== "svg" || (declared && declared !== "image/svg+xml")) {
     throw new Error("SVG filename or media type does not match its content.");
   }
