@@ -60,6 +60,15 @@ export interface ManufacturingReadinessResult {
   productionReleasePerformed: false;
 }
 
+interface ReadinessEvaluations {
+  dfm: ManufacturingDFMResult;
+  processPlan: ManufacturingPlanValidation;
+  bom: BOMGenerationResult;
+  inspection: ManufacturingInspectionAcceptance;
+  release: ManufacturingReleaseResult;
+  bomProjectMatches: boolean;
+}
+
 function createBlockedRelease(releaseId: string, reason: string): ManufacturingReleaseResult {
   return {
     status: "BLOCKED",
@@ -74,10 +83,12 @@ function uniqueReasons(reasons: string[]): string[] {
   return [...new Set(reasons.filter(Boolean))];
 }
 
-export function assessManufacturingReadiness(
-  request: ManufacturingReadinessRequest
-): ManufacturingReadinessResult {
-  const dfm = evaluateManufacturingDFM({ metrics: request.metrics, rules: request.dfmRules, process: request.process });
+function evaluateReadinessInputs(request: ManufacturingReadinessRequest): ReadinessEvaluations {
+  const dfm = evaluateManufacturingDFM({
+    metrics: request.metrics,
+    rules: request.dfmRules,
+    process: request.process
+  });
   const processPlan = validateManufacturingProcessPlan(request.processPlan);
   const bom = generateManufacturingBOM(
     request.bom.id,
@@ -97,55 +108,77 @@ export function assessManufacturingReadiness(
         bom: bom.bom,
         requiredArtifactIds: request.requiredArtifactIds
       })
-    : createBlockedRelease(request.releaseId, "A structurally generated BOM is required before release readiness can be evaluated.");
+    : createBlockedRelease(
+        request.releaseId,
+        "A structurally generated BOM is required before release readiness can be evaluated."
+      );
+  return { dfm, processPlan, bom, inspection, release, bomProjectMatches };
+}
 
-  const hasExplicitFailure =
-    dfm.status === "FAIL" ||
-    processPlan.status === "FAIL" ||
-    inspection.status === "REJECTED" ||
-    !bomProjectMatches;
-  const hasIncompleteInput =
-    dfm.status === "INCOMPLETE" ||
-    processPlan.status === "INCOMPLETE" ||
-    bom.status === "INCOMPLETE" ||
-    inspection.status === "INCOMPLETE";
+function hasExplicitFailure(evaluations: ReadinessEvaluations): boolean {
+  return evaluations.dfm.status === "FAIL" ||
+    evaluations.processPlan.status === "FAIL" ||
+    evaluations.inspection.status === "REJECTED" ||
+    !evaluations.bomProjectMatches;
+}
 
-  let status: ManufacturingReadinessStatus;
-  if (hasExplicitFailure) {
-    status = "BLOCKED";
-  } else if (hasIncompleteInput) {
-    status = "INCOMPLETE";
-  } else if (release.status === "BLOCKED") {
-    status = "BLOCKED";
-  } else {
-    status = "READY_FOR_HUMAN_APPROVAL";
-  }
+function hasIncompleteInput(evaluations: ReadinessEvaluations): boolean {
+  return evaluations.dfm.status === "INCOMPLETE" ||
+    evaluations.processPlan.status === "INCOMPLETE" ||
+    evaluations.bom.status === "INCOMPLETE" ||
+    evaluations.inspection.status === "INCOMPLETE";
+}
 
-  const projectMismatchReason = bomProjectMatches
+function deriveReadinessStatus(evaluations: ReadinessEvaluations): ManufacturingReadinessStatus {
+  if (hasExplicitFailure(evaluations) || evaluations.release.status === "BLOCKED") return "BLOCKED";
+  if (hasIncompleteInput(evaluations)) return "INCOMPLETE";
+  return "READY_FOR_HUMAN_APPROVAL";
+}
+
+function collectBlockingReasons(evaluations: ReadinessEvaluations): string[] {
+  const projectMismatch = evaluations.bomProjectMatches
     ? []
     : ["BOM projectId must match the manufacturing process plan projectId."];
-  const blockingReasons = uniqueReasons([
-    ...dfm.blockingReasons,
-    ...processPlan.errors,
-    ...bom.validation.errors,
-    ...(inspection.status === "ACCEPTED" ? [] : [inspection.reason]),
-    ...projectMismatchReason,
-    ...release.blockingReasons
+  const inspectionReason = evaluations.inspection.status === "ACCEPTED"
+    ? []
+    : [evaluations.inspection.reason];
+  return uniqueReasons([
+    ...evaluations.dfm.blockingReasons,
+    ...evaluations.processPlan.errors,
+    ...evaluations.bom.validation.errors,
+    ...inspectionReason,
+    ...projectMismatch,
+    ...evaluations.release.blockingReasons
   ]);
+}
 
+function buildReadinessChecks(evaluations: ReadinessEvaluations): ManufacturingReadinessResult["checks"] {
   return {
-    status,
+    dfm: evaluations.dfm.status === "PASS",
+    processPlan: evaluations.processPlan.status === "PASS",
+    bom: evaluations.bom.status === "GENERATED" && evaluations.bomProjectMatches,
+    inspection: evaluations.inspection.status === "ACCEPTED",
+    artifacts: evaluations.release.checks.artifacts && evaluations.release.checks.bom
+  };
+}
+
+export function assessManufacturingReadiness(
+  request: ManufacturingReadinessRequest
+): ManufacturingReadinessResult {
+  const evaluations = evaluateReadinessInputs(request);
+  return {
+    status: deriveReadinessStatus(evaluations),
     releaseId: request.releaseId,
     projectId: request.processPlan.projectId,
-    checks: {
-      dfm: dfm.status === "PASS",
-      processPlan: processPlan.status === "PASS",
-      bom: bom.status === "GENERATED" && bomProjectMatches,
-      inspection: inspection.status === "ACCEPTED",
-      artifacts: release.checks.artifacts && release.checks.bom
+    checks: buildReadinessChecks(evaluations),
+    blockingReasons: collectBlockingReasons(evaluations),
+    evaluations: {
+      dfm: evaluations.dfm,
+      processPlan: evaluations.processPlan,
+      bom: evaluations.bom,
+      inspection: evaluations.inspection,
+      release: evaluations.release
     },
-    blockingReasons,
-    evaluations: { dfm, processPlan, bom, inspection, release },
     humanApprovalRequired: true,
     productionReleasePerformed: false
   };
