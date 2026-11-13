@@ -33,6 +33,7 @@ RUN python3 -m unittest -v test_worker
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    HOME=/tmp/openfoam-home \
     OPENFOAM_ARTIFACT_DIR=/artifacts
 
 USER 10001:10001
