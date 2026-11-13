@@ -113,11 +113,16 @@ function geometryRequestPayload(
   };
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null) return false;
+  if (typeof value !== "object") return false;
+  if (Array.isArray(value)) return false;
+  return true;
+}
+
 function workerRecord(payload: unknown): Record<string, unknown> {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    throw new Error("Remote OCCT geometry worker returned malformed JSON.");
-  }
-  return payload as Record<string, unknown>;
+  if (!isPlainRecord(payload)) throw new Error("Remote OCCT geometry worker returned malformed JSON.");
+  return payload;
 }
 
 function validWorkerEnvelope(result: Record<string, unknown>, digest: string): boolean {
@@ -150,11 +155,19 @@ function validateTopology(topology: WorkerResponse["topology"]) {
   return topology;
 }
 
+function validateRemoteVertexCount(vertexCount: number): void {
+  if (!Number.isSafeInteger(vertexCount)) throw new Error("Remote OCCT geometry worker returned invalid tessellation counts.");
+  if (vertexCount < 3 || vertexCount > 750_000) throw new Error("Remote OCCT geometry worker returned invalid tessellation counts.");
+}
+
+function validateRemoteTriangleCount(triangleCount: number): void {
+  if (!Number.isSafeInteger(triangleCount)) throw new Error("Remote OCCT geometry worker returned invalid tessellation counts.");
+  if (triangleCount < 1 || triangleCount > 250_000) throw new Error("Remote OCCT geometry worker returned invalid tessellation counts.");
+}
+
 function validateRemoteMeshCounts(mesh: NonNullable<WorkerResponse["tessellation"]>): void {
-  if (!Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 || mesh.vertexCount > 750_000 ||
-      !Number.isSafeInteger(mesh.triangleCount) || mesh.triangleCount < 1 || mesh.triangleCount > 250_000) {
-    throw new Error("Remote OCCT geometry worker returned invalid tessellation counts.");
-  }
+  validateRemoteVertexCount(mesh.vertexCount);
+  validateRemoteTriangleCount(mesh.triangleCount);
 }
 
 function decodeRemoteMeshBuffers(mesh: NonNullable<WorkerResponse["tessellation"]>) {
