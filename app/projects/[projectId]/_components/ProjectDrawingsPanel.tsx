@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertCircle, FilePlus2, FileText, RefreshCw, Upload } from "lucide-react";
 import DrawingViewer from "../../../../src/drawings/DrawingViewer";
-import type { CadModel } from "./ProjectModuleWorkspace.types";
-import styles from "./ProjectModuleWorkspace.module.css";
+import styles from "./ProjectDrawingsPanel.module.css";
 
 type DrawingRecord = {
   id: string;
@@ -87,40 +86,40 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
     }
   };
 
-  return <section className="modulePanel">
-    <header className="modulePanelHeader">
+  return <section className={styles.panel}>
+    <header className={styles.header}>
       <div><h2>Project drawings</h2><p>Upload and inspect PDF, safe-subset SVG and bounded ASCII DXF source drawings.</p></div>
-      <button type="button" className="button secondaryButton" onClick={() => void refresh()} disabled={loading}>
+      <button type="button" className={styles.secondary} onClick={() => void refresh()} disabled={loading}>
         <RefreshCw size={13} aria-hidden="true" /> Refresh
       </button>
     </header>
-    <form onSubmit={upload} className="moduleStack">
-      <div className="moduleTwoColumn">
-        <label className="moduleField"><span>Attach to CAD model (optional)</span>
+    <form onSubmit={upload} className={styles.form}>
+      <div className={styles.formGrid}>
+        <label className={styles.field}><span>Attach to CAD model (optional)</span>
           <select value={modelIdentityId} onChange={(event) => setModelIdentityId(event.target.value)}>
             <option value="">Project-level drawing</option>
             {models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
           </select>
         </label>
-        <label className="moduleField"><span>Drawing file · max 4 MiB</span>
+        <label className={styles.field}><span>Drawing file · max 4 MiB</span>
           <input type="file" accept=".pdf,.svg,.dxf,application/pdf,image/svg+xml,application/dxf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         </label>
       </div>
-      <div className="moduleHeaderActions">
-        <button type="submit" className="button workspacePrimaryAction" disabled={!file || uploading}>
+      <div className={styles.actions}>
+        <button type="submit" className={styles.primary} disabled={!file || uploading}>
           <Upload size={13} aria-hidden="true" /> {uploading ? "Uploading…" : "Upload drawing"}
         </button>
-        {file && <span className="moduleSmallNote">{file.name} · {(file.size / 1024).toFixed(1)} KiB</span>}
+        {file && <span className={styles.meta}>{file.name} · {(file.size / 1024).toFixed(1)} KiB</span>}
       </div>
     </form>
-    {error && <p className="moduleError" role="alert"><AlertCircle size={13} />{error}</p>}
-    {notice && <p className="moduleNotice" role="status">{notice}</p>}
-    <div className="moduleTwoColumn">
-      <div className="moduleStack">
+    {error && <p className={styles.error} role="alert"><AlertCircle size={13} />{error}</p>}
+    {notice && <p className={styles.notice} role="status">{notice}</p>}
+    <div className={styles.contentGrid}>
+      <div className={styles.column}>
         <h3>Stored drawings · {drawings.length}</h3>
-        {loading ? <p className="moduleSmallNote">Loading project drawings…</p> :
-          drawings.length === 0 ? <div className="moduleEmptyState"><span className="moduleEmptyIcon"><FilePlus2 size={20} /></span><strong>No drawings uploaded</strong><p>Upload a PDF, safe-subset SVG or ASCII DXF to begin.</p></div> :
-          drawings.map((drawing) => <button key={drawing.id} type="button" className="moduleArtifactRow" aria-pressed={selected?.id === drawing.id} onClick={() => setSelectedId(drawing.id)}>
+        {loading ? <p className={styles.meta}>Loading project drawings…</p> :
+          drawings.length === 0 ? <div className={styles.empty}><span><FilePlus2 size={20} /></span><strong>No drawings uploaded</strong><p>Upload a PDF, safe-subset SVG or ASCII DXF to begin.</p></div> :
+          drawings.map((drawing) => <button key={drawing.id} type="button" className={styles.drawingRow} aria-pressed={selected?.id === drawing.id} onClick={() => setSelectedId(drawing.id)}>
             <FileText size={15} aria-hidden="true" />
             <span><strong>{drawing.displayName}</strong><small>{drawing.format} · {dateLabel(drawing.createdAt)} · {drawing.units ?? "units not recorded"}</small></span>
           </button>)}
@@ -128,8 +127,8 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
       <div className="moduleStack">
         <h3>Read-only preview</h3>
         {selected?.signedUrl ? <DrawingViewer key={selected.id} src={selected.signedUrl} mediaType={selected.mediaType} label={selected.displayName} /> :
-          <div className="moduleEmptyState"><span className="moduleEmptyIcon"><FileText size={20} /></span><strong>No drawing selected</strong><p>Choose an uploaded drawing with an available short-lived access URL.</p></div>}
-        {selected && <p className="moduleSmallNote">
+          <div className={styles.empty}><span><FileText size={20} /></span><strong>No drawing selected</strong><p>Choose an uploaded drawing with an available short-lived access URL.</p></div>}
+        {selected && <p className={styles.meta}>
           SHA-256 {selected.sha256.slice(0, 16)}… · {selected.entityCount === null ? selected.parserVersion : selected.entityCount + " parsed entities"} · Source drawing is not a validated CAD model.
         </p>}
       </div>
