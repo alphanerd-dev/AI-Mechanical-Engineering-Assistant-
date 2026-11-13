@@ -129,6 +129,21 @@ function missing(value:unknown):boolean{
   return false;
 }
 
+function appendInputPathErrors(
+  child:unknown,
+  path:string,
+  descendants:readonly string[],
+  allowedPaths:readonly string[],
+  errors:string[]
+):void{
+  if(descendants.length===0) return;
+  if(!isPlainRecord(child)){
+    errors.push("Task input path must be an object to satisfy the registered nested contract: "+path+".");
+    return;
+  }
+  errors.push(...inputPathErrors(child,allowedPaths,path));
+}
+
 function inputPathErrors(
   value:Record<string,unknown>,
   allowedPaths:readonly string[],
@@ -142,13 +157,7 @@ function inputPathErrors(
       errors.push("Task input contains a field outside the registered capability contract: "+path+".");
       continue;
     }
-    if(descendants.length>0){
-      if(!isPlainRecord(child)){
-        errors.push("Task input path must be an object to satisfy the registered nested contract: "+path+".");
-      }else{
-        errors.push(...inputPathErrors(child,allowedPaths,path));
-      }
-    }
+    appendInputPathErrors(child,path,descendants,allowedPaths,errors);
   }
   return errors;
 }
