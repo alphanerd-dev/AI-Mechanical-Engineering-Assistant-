@@ -679,7 +679,7 @@ async function serializeDerivativeRows(db: Database, projectId: string, rows: Ro
   return Promise.all(rows.map((row) => serializeDerivativeRow(db, row as unknown as Row, lineage)));
 }
 
-async function listCADDisplayDerivatives(request: Request): Promise<NextResponse> {
+export async function listCADDisplayDerivatives(request: Request): Promise<NextResponse> {
   try {
     const { projectId, modelIdentityId } = parseDerivativeListQuery(request);
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
