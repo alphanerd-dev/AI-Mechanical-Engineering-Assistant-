@@ -197,7 +197,7 @@ export async function POST(request: Request) {
   }
 
   const { data: completion, error: completionError } = await db.from("engineering_cad_completions")
-    .select("id,project_id,model_identity_id,status,artifact_records,storage_objects")
+    .select("id,project_id,model_identity_id,status,specification,artifact_records,storage_objects")
     .eq("id", completionId).eq("project_id", projectId).maybeSingle();
   if (completionError) return httpError("CAD completion could not be loaded.", 503);
   if (!completion || completion.status !== "ACCEPTED" || !isUuid(completion.model_identity_id)) {
@@ -223,7 +223,10 @@ export async function POST(request: Request) {
   if (!sourceSha256 || !Number.isSafeInteger(sourceRevision) || sourceRevision !== Number(model.revision)) {
     return httpError("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
   }
-  if (artifact.units !== "mm") return httpError("Only millimetre CAD artifacts are supported by this geometry worker.", 422);
+  const artifactParameters = isRecord(artifact.parameters) ? artifact.parameters : {};
+  const completionSpecification = isRecord(completion.specification) ? completion.specification : {};
+  const sourceUnits = artifact.units ?? artifactParameters.units ?? completionSpecification.units;
+  if (sourceUnits !== "mm") return httpError("Only explicitly declared millimetre CAD artifacts are supported by this geometry worker.", 422);
   const objectPath = storageObjectPath(artifact.uri, projectId);
   const storedPaths = Array.isArray(completion.storage_objects) ? completion.storage_objects : [];
   if (!objectPath || !storedPaths.includes(objectPath)) return httpError("The canonical source artifact is not registered in this completion's private storage manifest.", 403);
