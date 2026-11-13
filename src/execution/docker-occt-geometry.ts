@@ -151,7 +151,6 @@ function buildDockerArgs(
 async function prepareGeometrySandbox(
   scriptPathInput: string,
   image: string,
-  dockerBinary: string,
   source: CADGeometrySource,
   operation: GeometryOperation,
   options: { linearDeflectionMm: number; angularDeflectionRad: number } | undefined,
@@ -173,7 +172,7 @@ async function prepareGeometrySandbox(
       operation, format: source.format, artifactPath: ARTIFACT_ROOT + "/" + filename,
       ...(options ? { linearDeflectionMm: options.linearDeflectionMm, angularDeflectionRad: options.angularDeflectionRad } : {})
     });
-    const args = buildDockerArgs(image, dockerBinary, root, scriptDirectory, scriptPath, limits);
+    const args = buildDockerArgs(image, root, scriptDirectory, scriptPath, limits);
     return { root, args, payload };
   } catch (error) {
     await rm(root, { recursive: true, force: true });
