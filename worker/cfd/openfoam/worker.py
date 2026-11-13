@@ -624,6 +624,7 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     if not WORKER_TOKEN:
         raise RuntimeError("OPENFOAM_WORKER_TOKEN must be configured before the worker starts.")
+    Path.home().mkdir(parents=True, exist_ok=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     server = HTTPServer((HOST, PORT), Handler)
     print(f"OpenFOAM 14 worker listening on {HOST}:{PORT}", flush=True)
