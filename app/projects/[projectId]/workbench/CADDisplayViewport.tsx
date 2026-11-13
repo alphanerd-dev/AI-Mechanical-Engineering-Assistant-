@@ -81,7 +81,8 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
       renderer?.destroy();
       controlsRef.current = null;
     };
-  }, [src, sourceArtifactId, sourceArtifactSha256, artifactSha256, state.mesh, state.src]);
+  }, [src, sourceArtifactId, sourceArtifactSha256, artifactSha256, state.mesh, state.src,
+    state.artifactSha256, state.sourceArtifactId, state.sourceArtifactSha256]);
 
   const matches = state.src === src && state.sourceArtifactId === sourceArtifactId &&
     state.sourceArtifactSha256 === sourceArtifactSha256 && state.artifactSha256 === artifactSha256;
