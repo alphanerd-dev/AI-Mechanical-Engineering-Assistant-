@@ -69,12 +69,12 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
   if (!validInteger(candidate.mesh?.cellsAxial, 40, 1000)) {
     errors.push("mesh.cellsAxial must be an integer between 40 and 1000.");
   }
-  if (!validInteger(candidate.mesh?.cellsVertical, 8, 200)) {
+  if (!validInteger(candidate.mesh?.cellsVertical, 20, 200)) {
     errors.push("mesh.cellsVertical must be an integer between 8 and 200.");
   }
   if (
     validInteger(candidate.mesh?.cellsAxial, 40, 1000) &&
-    validInteger(candidate.mesh?.cellsVertical, 8, 200) &&
+    validInteger(candidate.mesh?.cellsVertical, 20, 200) &&
     candidate.mesh!.cellsAxial * candidate.mesh!.cellsVertical > 100000
   ) {
     errors.push("The benchmark mesh is limited to 100000 cells.");
