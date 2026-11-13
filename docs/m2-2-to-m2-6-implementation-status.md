@@ -2,7 +2,7 @@
 
 **Implementation branch:** `feat/m2-2-to-m2-6-geometry-runtime`  
 **Baseline:** PR #140 geometry/viewer foundation  
-**Implementation PR:** #147 (draft; exact-head verification still required)  
+**Implementation PR:** #149 (draft; exact-head verification in progress)  
 **Status date:** 13 November 2026
 
 ## Engineering boundary
@@ -64,7 +64,7 @@ Implemented:
 
 Verification already observed:
 - The first implementation batch passed GitHub Actions run #43504028624, including `npm test`, `npm run build`, OCCT worker protocol tests, and actual generated BREP/STEP import/inspection/tessellation in the pinned build123d runtime.
-- Subsequent remote transport, persistence API, GLB preview and drawing ingestion changes were committed after that run and are not covered by that earlier pass. They require a new exact-head CI run.
+- Subsequent remote transport, persistence API, GLB preview and drawing ingestion changes are included in PR #149. Exact-head CI run #43506210572 is in progress; do not treat the full batch as verified until it completes.
 
 Remaining:
 - Verify the remote worker endpoint and persistence API together in the current exact-head CI and deployed preview.
