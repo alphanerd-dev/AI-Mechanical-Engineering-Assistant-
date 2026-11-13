@@ -68,14 +68,31 @@ async function readDrawingUploadForm(request: Request): Promise<FormData> {
   }
 }
 
-function parseDrawingUploadFields(form: FormData): Omit<UploadRequest, "file"> & { file: File } {
-  const projectId = form.get("projectId");
-  const modelIdentityId = form.get("modelIdentityId");
-  const file = form.get("file");
-  if (!isUuid(projectId) || (modelIdentityId !== null && !isUuid(modelIdentityId)) || !(file instanceof File)) {
-    fail("A registered project, optional model identity and drawing file are required.", 400);
-  }
-  return { projectId, modelIdentityId: modelIdentityId ?? null, file };
+function parseUploadProjectId(form: FormData): string {
+  const value = form.get("projectId");
+  if (!isUuid(value)) fail("A registered project UUID is required.", 400);
+  return value;
+}
+
+function parseUploadModelIdentityId(form: FormData): string | null {
+  const value = form.get("modelIdentityId");
+  if (value === null) return null;
+  if (!isUuid(value)) fail("The optional CAD model identity UUID is invalid.", 400);
+  return value;
+}
+
+function parseUploadFile(form: FormData): File {
+  const value = form.get("file");
+  if (!(value instanceof File)) fail("A drawing file is required.", 400);
+  return value;
+}
+
+function parseDrawingUploadFields(form: FormData): UploadRequest {
+  return {
+    projectId: parseUploadProjectId(form),
+    modelIdentityId: parseUploadModelIdentityId(form),
+    file: parseUploadFile(form)
+  };
 }
 
 function validateDrawingUploadFile(file: File): void {
