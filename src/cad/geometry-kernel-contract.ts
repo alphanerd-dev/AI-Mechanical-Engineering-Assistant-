@@ -1,9 +1,9 @@
 /**
  * Product-owned geometry-kernel seam.
  *
- * The currently deployed OCCT process is a BREP validator, not a general STEP/BREP
- * import, topology-query or tessellation service. Do not register an OCCT adapter
- * until every method below has a real, isolated worker implementation.
+ * Provider-neutral geometry operations over exact, digest-bound source bytes.
+ * A provider must execute in an isolated worker and must not infer validation,
+ * acceptance or human approval from successful import or tessellation.
  */
 export type CADGeometryInputFormat = "BREP" | "STEP";
 export type CADGeometryOperationStatus = "COMPLETED" | "UNSUPPORTED" | "FAILED";
@@ -122,7 +122,7 @@ export function unavailableGeometryResult<T>(operation: string): CADGeometryResu
   return {
     status: "UNSUPPORTED",
     errors: [],
-    limitations: [operation + " is not implemented by the current OCCT validation worker."]
+    limitations: [operation + " is not supported by the currently configured geometry provider."]
   };
 }
 
