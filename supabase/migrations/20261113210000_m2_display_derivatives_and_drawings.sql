@@ -4,7 +4,7 @@
 create table public.engineering_cad_display_derivatives (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.engineering_projects(id) on delete cascade,
-  model_identity_id uuid not null references public.engineering_cad_models(id) on delete restrict,
+  model_identity_id uuid not null references public.engineering_cad_models(id) on delete cascade,
   completion_id uuid not null references public.engineering_cad_completions(id) on delete cascade,
   source_artifact_id text not null check (length(trim(source_artifact_id)) between 1 and 160),
   source_artifact_sha256 text not null check (source_artifact_sha256 ~ '^[a-f0-9]{64}$'),
