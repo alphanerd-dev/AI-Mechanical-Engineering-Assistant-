@@ -80,11 +80,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isSafeImageReference(image: string): boolean {
+  return image.length > 0 && !image.startsWith("-") && !/[\r\n\0]/.test(image);
+}
+
 function validImage(value: string): string {
   const image = value.trim();
-  if (!image || image.startsWith("-") || /[\r\n\0]/.test(image)) {
-    throw new Error("OCCT geometry image must be a trusted image reference.");
-  }
+  if (!isSafeImageReference(image)) throw new Error("OCCT geometry image must be a trusted image reference.");
   return image;
 }
 
@@ -92,15 +94,21 @@ function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+function validateLinearDeflection(value: number): void {
+  if (!Number.isFinite(value)) throw new Error("linearDeflectionMm must be finite.");
+  if (value < 0.001) throw new Error("linearDeflectionMm must be between 0.001 and 5 mm.");
+  if (value > 5) throw new Error("linearDeflectionMm must be between 0.001 and 5 mm.");
+}
+
+function validateAngularDeflection(value: number): void {
+  if (!Number.isFinite(value)) throw new Error("angularDeflectionRad must be finite.");
+  if (value < 0.01) throw new Error("angularDeflectionRad must be between 0.01 and pi/2 radians.");
+  if (value > Math.PI / 2) throw new Error("angularDeflectionRad must be between 0.01 and pi/2 radians.");
+}
+
 function validateDeflection(options: { linearDeflectionMm: number; angularDeflectionRad: number }): void {
-  if (!Number.isFinite(options.linearDeflectionMm) ||
-      options.linearDeflectionMm < 0.001 || options.linearDeflectionMm > 5) {
-    throw new Error("linearDeflectionMm must be between 0.001 and 5 mm.");
-  }
-  if (!Number.isFinite(options.angularDeflectionRad) ||
-      options.angularDeflectionRad < 0.01 || options.angularDeflectionRad > Math.PI / 2) {
-    throw new Error("angularDeflectionRad must be between 0.01 and pi/2 radians.");
-  }
+  validateLinearDeflection(options.linearDeflectionMm);
+  validateAngularDeflection(options.angularDeflectionRad);
 }
 
 function validateGeometrySourceContract(source: CADGeometrySource): void {
@@ -111,13 +119,24 @@ function validateGeometrySourceContract(source: CADGeometrySource): void {
   }
 }
 
-function validateGeometrySourceBytes(source: CADGeometrySource): void {
-  if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 || source.bytes.byteLength > MAX_SOURCE_BYTES) {
-    throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
-  }
-  if (!/^[a-f0-9]{64}$/.test(source.sha256) || sha256(source.bytes) !== source.sha256) {
+function validateGeometrySourceByteLength(bytes: Uint8Array): void {
+  if (bytes.byteLength < 1) throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
+  if (bytes.byteLength > MAX_SOURCE_BYTES) throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
+}
+
+function validateGeometrySourceDigest(source: CADGeometrySource): void {
+  if (!/^[a-f0-9]{64}$/.test(source.sha256)) {
     throw new Error("OCCT geometry source bytes do not match the declared SHA-256 digest.");
   }
+  if (sha256(source.bytes) !== source.sha256) {
+    throw new Error("OCCT geometry source bytes do not match the declared SHA-256 digest.");
+  }
+}
+
+function validateGeometrySourceBytes(source: CADGeometrySource): void {
+  if (!(source.bytes instanceof Uint8Array)) throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
+  validateGeometrySourceByteLength(source.bytes);
+  validateGeometrySourceDigest(source);
 }
 
 function validateGeometryOperationOptions(operation: GeometryOperation, options?: {
@@ -136,13 +155,16 @@ function validateGeometrySource(source: CADGeometrySource, operation: GeometryOp
   validateGeometryOperationOptions(operation, options);
 }
 
-function buildDockerArgs(
-  image: string,
-  root: string,
-  scriptDirectory: string,
-  scriptPath: string,
-  limits: { pidsLimit: number; memoryLimit: string; cpus: number }
-): string[] {
+interface DockerArgumentOptions {
+  image: string;
+  root: string;
+  scriptDirectory: string;
+  scriptPath: string;
+  limits: { pidsLimit: number; memoryLimit: string; cpus: number };
+}
+
+function buildDockerArgs(input: DockerArgumentOptions): string[] {
+  const { image, root, scriptDirectory, scriptPath, limits } = input;
   const hostUid = typeof process.getuid === "function" ? process.getuid() : undefined;
   const hostGid = typeof process.getgid === "function" ? process.getgid() : undefined;
   const uid = hostUid !== undefined && hostUid > 0 ? hostUid : 10001;
@@ -211,7 +233,9 @@ async function prepareGeometrySandbox(input: GeometrySandboxRequest): Promise<Pr
   try {
     await writeGeometrySource(root, input.source);
     const payload = createGeometryWorkerPayload(input.source, input.operation, input.options);
-    const args = buildDockerArgs(input.image, root, scriptDirectory, scriptPath, input.limits);
+    const args = buildDockerArgs({
+      image: input.image, root, scriptDirectory, scriptPath, limits: input.limits
+    });
     return { root, args, payload };
   } catch (error) {
     await rm(root, { recursive: true, force: true });
@@ -272,12 +296,19 @@ function decodeUint32(value: string, expectedLength: number): Uint32Array {
   return output;
 }
 
+function validateTessellationVertexCount(vertexCount: number): void {
+  if (!Number.isSafeInteger(vertexCount)) throw new Error("OCCT geometry worker returned invalid tessellation counts.");
+  if (vertexCount < 3 || vertexCount > MAX_VERTICES) throw new Error("OCCT geometry worker returned invalid tessellation counts.");
+}
+
+function validateTessellationTriangleCount(triangleCount: number): void {
+  if (!Number.isSafeInteger(triangleCount)) throw new Error("OCCT geometry worker returned invalid tessellation counts.");
+  if (triangleCount < 1 || triangleCount > MAX_TRIANGLES) throw new Error("OCCT geometry worker returned invalid tessellation counts.");
+}
+
 function validateTessellationCounts(mesh: NonNullable<GeometryWorkerResponse["tessellation"]>): void {
-  if (!Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 ||
-      mesh.vertexCount > MAX_VERTICES || !Number.isSafeInteger(mesh.triangleCount) ||
-      mesh.triangleCount < 1 || mesh.triangleCount > MAX_TRIANGLES) {
-    throw new Error("OCCT geometry worker returned invalid tessellation counts.");
-  }
+  validateTessellationVertexCount(mesh.vertexCount);
+  validateTessellationTriangleCount(mesh.triangleCount);
 }
 
 function decodeTessellationBuffers(mesh: NonNullable<GeometryWorkerResponse["tessellation"]>) {
@@ -319,16 +350,24 @@ interface ResolvedDockerGeometryOptions {
 }
 
 function validateGeometryTimeout(timeoutMs: number): void {
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
-    throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
-  }
+  if (!Number.isInteger(timeoutMs)) throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
+  if (timeoutMs < 100) throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
+  if (timeoutMs > 120_000) throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
+}
+
+function validateStdoutLimit(stdoutBytes: number): void {
+  if (!Number.isInteger(stdoutBytes)) throw new Error("OCCT geometry output limits are invalid.");
+  if (stdoutBytes < 1024) throw new Error("OCCT geometry output limits are invalid.");
+}
+
+function validateStderrLimit(stderrBytes: number): void {
+  if (!Number.isInteger(stderrBytes)) throw new Error("OCCT geometry output limits are invalid.");
+  if (stderrBytes < 0) throw new Error("OCCT geometry output limits are invalid.");
 }
 
 function validateGeometryOutputLimits(stdoutBytes: number, stderrBytes: number): void {
-  if (!Number.isInteger(stdoutBytes) || stdoutBytes < 1024 ||
-      !Number.isInteger(stderrBytes) || stderrBytes < 0) {
-    throw new Error("OCCT geometry output limits are invalid.");
-  }
+  validateStdoutLimit(stdoutBytes);
+  validateStderrLimit(stderrBytes);
 }
 
 function resolveExecutionLimits(options: DockerOCCTGeometryOptions) {
@@ -340,15 +379,29 @@ function resolveExecutionLimits(options: DockerOCCTGeometryOptions) {
   return { timeoutMs, maxStdoutBytes, maxStderrBytes };
 }
 
+function validateMemoryLimit(memoryLimit: string): void {
+  if (!/^[0-9]+(?:\.[0-9]+)?[kKmMgG]?$/.test(memoryLimit)) {
+    throw new Error("OCCT geometry resource limits are invalid.");
+  }
+}
+
+function validateCPUCount(cpus: number): void {
+  if (!Number.isFinite(cpus)) throw new Error("OCCT geometry resource limits are invalid.");
+  if (cpus <= 0 || cpus > 8) throw new Error("OCCT geometry resource limits are invalid.");
+}
+
+function validatePIDLimit(pidsLimit: number): void {
+  if (!Number.isInteger(pidsLimit)) throw new Error("OCCT geometry resource limits are invalid.");
+  if (pidsLimit < 16 || pidsLimit > 512) throw new Error("OCCT geometry resource limits are invalid.");
+}
+
 function resolveContainerLimits(options: DockerOCCTGeometryOptions) {
   const memoryLimit = options.memoryLimit ?? "1g";
   const cpus = options.cpus ?? 1;
   const pidsLimit = options.pidsLimit ?? 64;
-  if (!/^[0-9]+(?:\.[0-9]+)?[kKmMgG]?$/.test(memoryLimit) ||
-      !Number.isFinite(cpus) || cpus <= 0 || cpus > 8 ||
-      !Number.isInteger(pidsLimit) || pidsLimit < 16 || pidsLimit > 512) {
-    throw new Error("OCCT geometry resource limits are invalid.");
-  }
+  validateMemoryLimit(memoryLimit);
+  validateCPUCount(cpus);
+  validatePIDLimit(pidsLimit);
   return { memoryLimit, cpus, pidsLimit };
 }
 
@@ -371,15 +424,31 @@ function resolveDockerGeometryOptions(options: DockerOCCTGeometryOptions): Resol
   };
 }
 
-function assertGeometryCommandSucceeded(
-  execution: Awaited<ReturnType<CADCommandRunner["run"]>>
-): void {
+type GeometryCommandResult = Awaited<ReturnType<CADCommandRunner["run"]>>;
+
+function assertGeometryDidNotTimeOut(execution: GeometryCommandResult): void {
   if (execution.timedOut) throw new Error("OCCT geometry operation timed out.");
+}
+
+function assertGeometryOutputWithinLimit(execution: GeometryCommandResult): void {
   if (execution.outputLimitExceeded) throw new Error("OCCT geometry worker exceeded its output limit.");
+}
+
+function assertGeometryRunnerStarted(execution: GeometryCommandResult): void {
   if (execution.error) throw new Error("OCCT geometry worker could not start: " + execution.error);
+}
+
+function assertGeometryProcessSucceeded(execution: GeometryCommandResult): void {
   if (execution.exitCode !== 0) {
     throw new Error("OCCT geometry worker exited unsuccessfully. " + execution.stderr.trim().slice(-2000));
   }
+}
+
+function assertGeometryCommandSucceeded(execution: GeometryCommandResult): void {
+  assertGeometryDidNotTimeOut(execution);
+  assertGeometryOutputWithinLimit(execution);
+  assertGeometryRunnerStarted(execution);
+  assertGeometryProcessSucceeded(execution);
 }
 
 /** Executes real OCCT import/inspection/tessellation in a no-network, read-only container. */
