@@ -4,7 +4,7 @@ This increment establishes an experimental provider contract and an independent 
 
 ## Supported case
 
-The only accepted case is `laminar-channel-poiseuille-v1`: steady, incompressible, Newtonian, laminar plane-Poiseuille flow between parallel no-slip plates, with a fixed mean inlet velocity and zero-gauge-pressure outlet.
+The only accepted case is `laminar-channel-poiseuille-v1`: steady, incompressible, Newtonian, laminar plane-Poiseuille flow between parallel no-slip plates. The worker must generate the analytical parabolic inlet profile from the requested mean velocity and use a zero-gauge-pressure outlet; it must not use a uniform inlet profile for this fully developed benchmark.
 
 The manifest intentionally excludes arbitrary OpenFOAM dictionaries, custom boundary-condition strings, user-supplied code and arbitrary solver selection. The first worker must generate case dictionaries from this typed manifest.
 
@@ -28,7 +28,7 @@ These are prototype acceptance thresholds. They must be calibrated against mesh-
 ## Worker requirements
 
 The future worker must:
-- Use the OpenFOAM Foundation 14 runtime in a separately packaged process/container; do not link OpenFOAM into the TypeScript application.
+- Use the OpenFOAM Foundation 14 runtime in a separately packaged process/container; do not link OpenFOAM into the TypeScript application. OpenFOAM is GPL-licensed; any worker-image distribution must preserve the applicable source and license notices.
 - Generate case files only from the validated manifest and a versioned trusted template.
 - Run with no network access, non-root UID, read-only root filesystem, isolated temporary workspace, bounded CPU/memory/disk, and a hard wall-clock timeout.
 - Record OpenFOAM version, template digest, mesh settings, solver settings, residual history, mesh checks, mass balance and output hashes.
