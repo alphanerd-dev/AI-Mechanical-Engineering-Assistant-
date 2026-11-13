@@ -86,13 +86,13 @@ describe("V1.21 BOM and release",()=>{
   });
   it("blocks release when a BOM item is missing an artifact link",()=>{
     const bom=generateManufacturingBOM("BOM-1","P-1","A",[{partNumber:"PN-1",name:"Plate",revision:"A",quantity:1,unit:"EA"}]).bom!;
-    const result=prepareManufacturingRelease({releaseId:"REL-1",processPlan:plan,bom,requiredArtifactIds:["part.step"]});
+    const result=prepareManufacturingRelease({releaseId:"REL-1",processPlan:plan,bom,requiredArtifactIds:["part.step","b.step"]});
     expect(result.status).toBe("BLOCKED");
     expect(result.checks.bom).toBe(false);
   });
   it("keeps a structurally ready release unreleased without human approval",()=>{
     const bom=generateManufacturingBOM("BOM-1","P-1","A",[{partNumber:"PN-1",name:"Plate",revision:"A",quantity:1,unit:"EA",artifactId:"b.step"}]).bom!;
-    const result=prepareManufacturingRelease({releaseId:"REL-1",processPlan:plan,bom,requiredArtifactIds:["part.step"]});
+    const result=prepareManufacturingRelease({releaseId:"REL-1",processPlan:plan,bom,requiredArtifactIds:["part.step","b.step"]});
     expect(result.status).toBe("READY");
     expect(result.checks.approval).toBe(false);
   });
@@ -102,7 +102,7 @@ describe("V1.21 BOM and release",()=>{
       releaseId:"REL-1",
       processPlan:plan,
       bom,
-      requiredArtifactIds:["part.step"],
+      requiredArtifactIds:["part.step","b.step"],
       approval:{approvedBy:"Engineer",approvedAt:"2026-10-06T19:00:00+01:00"}
     });
     expect(result.status).toBe("RELEASED");
