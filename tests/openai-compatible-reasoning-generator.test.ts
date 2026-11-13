@@ -31,7 +31,7 @@ const generationRequest: ModelReasoningGenerationRequest = {
   instructions: "Return JSON only."
 };
 
-const reasoningProposal = {
+const proposal = {
   status: "PROPOSED",
   assumptions: [],
   output: { nextStep: "List facts." },
@@ -40,19 +40,36 @@ const reasoningProposal = {
   requiredGates: []
 };
 
-function jsonResponse(payload:unknown):Response{
-  return new Response(JSON.stringify(payload),{
-    status:200,
-    headers:{"content-type":"application/json"}
+type GeneratorOverrides = {
+  endpoint?: string;
+  model?: string;
+  apiKey?: string;
+  timeoutMs?: number;
+};
+
+function createGenerator(
+  fetchImpl: typeof fetch,
+  overrides: GeneratorOverrides = {}
+): OpenAICompatibleModelReasoningGenerator {
+  return new OpenAICompatibleModelReasoningGenerator({
+    endpoint: overrides.endpoint ?? "https://model.example/v1/chat/completions",
+    model: overrides.model ?? "reasoning-model",
+    ...(overrides.apiKey ? { apiKey: overrides.apiKey } : {}),
+    ...(overrides.timeoutMs ? { timeoutMs: overrides.timeoutMs } : {}),
+    fetchImpl
   });
 }
 
-function openAIMessageResponse(content:unknown):Response{
-  return jsonResponse({choices:[{message:{content:JSON.stringify(content)}}]});
+function openAIResponse(): Response {
+  return new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(proposal) } }]
+  }), { status: 200, headers: { "content-type": "application/json" } });
 }
 
-function geminiContentResponse(content:unknown):Response{
-  return jsonResponse({candidates:[{content:{parts:[{text:JSON.stringify(content)}]}}]});
+function geminiResponse(): Response {
+  return new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ text: JSON.stringify(proposal) }] } }]
+  }), { status: 200, headers: { "content-type": "application/json" } });
 }
 
 describe("OpenAI-compatible reasoning transport", () => {
@@ -62,17 +79,16 @@ describe("OpenAI-compatible reasoning transport", () => {
     const fetchImpl: typeof fetch = async (input, init) => {
       capturedUrl = input;
       capturedInit = init;
-      return openAIMessageResponse(reasoningProposal);
+      return openAIResponse();
     };
 
-    const generator = new OpenAICompatibleModelReasoningGenerator({
+    const generator = createGenerator(fetchImpl, {
       endpoint: "https://model.example/v1/chat/completions",
       model: "reasoning-model",
-      apiKey: "server-secret",
-      fetchImpl
+      apiKey: "server-secret"
     });
     const result = await generator.generate(generationRequest);
-    expect(result).toEqual(reasoningProposal);
+    expect(result).toEqual(proposal);
     expect(capturedUrl).toBe("https://model.example/v1/chat/completions");
     expect(capturedInit?.method).toBe("POST");
     expect((capturedInit?.headers as Record<string, string>).authorization).toBe("Bearer server-secret");
@@ -85,21 +101,13 @@ describe("OpenAI-compatible reasoning transport", () => {
 
   it("supports a generic structured action-planning request without changing the reasoning adapter", async () => {
     let capturedInit: RequestInit | undefined;
-    const generator = new OpenAICompatibleModelReasoningGenerator({
-      endpoint: "https://model.example/v1/chat/completions",
-      model: "engineering-agent",
-      fetchImpl: async (_input, init) => {
-        capturedInit = init;
-        return openAIMessageResponse({ baseGraphRevision: 7, actions: [{ kind: "STOP", reason: "No work." }] });
-      }
-    });
-
-    const result = await generator.generateStructured({
-      instructions: "Return a strict engineering action plan.",
-      input: { taskGraph: { revision: 7 }, authorizedCapabilities: ["ANALYSIS.SHAFT_TORQUE"] },
-      maxOutputTokens: 2200
-    });
-    expect(result).toEqual({ baseGraphRevision: 7, actions: [{ kind: "STOP", reason: "No work." }] });
+    const response = { baseGraphRevision: 7, actions: [{ kind: "STOP", reason: "No work." }] };
+    const generator = createGenerator(async (_input, init) => {
+      capturedInit = init;
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(response) } }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }, { endpoint: "https://model.example/v1/chat/completions", model: "engineering-agent" });
+    const result = await generator.generateStructured({ instructions: "Return a strict engineering action plan.", input: { taskGraph: { revision: 7 }, authorizedCapabilities: ["ANALYSIS.SHAFT_TORQUE"] }, maxOutputTokens: 2200 });
+    expect(result).toEqual(response);
     const body = JSON.parse(String(capturedInit?.body));
     expect(body.max_tokens).toBe(2200);
     expect(body.messages[0].content).toContain("strict engineering action plan");
@@ -111,29 +119,28 @@ describe("OpenAI-compatible reasoning transport", () => {
       name: "uses the OpenAI-compatible protocol for Gemini chat completions",
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-3.8-flash",
-      response: openAIMessageResponse,
+      response: openAIResponse,
       protocol: "openai" as const
     },
     {
       name: "keeps native Gemini generateContent requests on the native protocol",
       endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent",
       model: "gemini-test",
-      response: geminiContentResponse,
+      response: geminiResponse,
       protocol: "native" as const
     }
   ])("$name", async ({ endpoint, model, response, protocol }) => {
     let capturedInit: RequestInit | undefined;
-    const generator = new OpenAICompatibleModelReasoningGenerator({
+    const generator = createGenerator(async (_input, init) => {
+      capturedInit = init;
+      return response();
+    }, {
       endpoint,
       model,
-      apiKey: "placeholder-test-key",
-      fetchImpl: async (_input, init) => {
-        capturedInit = init;
-        return response(reasoningProposal);
-      }
+      apiKey: "placeholder-test-key"
     });
 
-    expect(await generator.generate(generationRequest)).toEqual(reasoningProposal);
+    expect(await generator.generate(generationRequest)).toEqual(proposal);
     const headers = capturedInit?.headers as Record<string, string>;
     const body = JSON.parse(String(capturedInit?.body));
     if (protocol === "openai") {
@@ -154,24 +161,52 @@ describe("OpenAI-compatible reasoning transport", () => {
     }
   });
 
-  it("fails closed when transport output is missing or malformed", async () => {
-    const noMessage = new OpenAICompatibleModelReasoningGenerator({
-      endpoint: "https://model.example/v1/chat/completions",
-      model: "reasoning-model",
-      fetchImpl: async () => new Response(JSON.stringify({ choices: [] }), { status: 200 })
+  it("normalizes Google's OpenAI-compatible API base URL to the chat-completions endpoint", async () => {
+    let capturedUrl: RequestInfo | URL | undefined;
+    const generator = createGenerator(async (input) => {
+      capturedUrl = input;
+      return openAIResponse();
+    }, {
+      endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/",
+      model: "gemini-test",
+      apiKey: "placeholder-test-key"
     });
+
+    expect(await generator.generate(generationRequest)).toEqual(proposal);
+    expect(capturedUrl).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+  });
+
+  it("keeps native Gemini generateContent requests on the native protocol", async () => {
+    let capturedInit: RequestInit | undefined;
+    const generator = createGenerator(async (_input, init) => {
+      capturedInit = init;
+      return geminiResponse();
+    }, {
+      endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent",
+      model: "gemini-test",
+      apiKey: "placeholder-test-key"
+    });
+
+    expect(await generator.generate(generationRequest)).toEqual(proposal);
+    expect((capturedInit?.headers as Record<string, string>)["x-goog-api-key"]).toBe("placeholder-test-key");
+    expect((capturedInit?.headers as Record<string, string>).authorization).toBeUndefined();
+    const body = JSON.parse(String(capturedInit?.body));
+    expect(body.systemInstruction.parts[0].text).toBe("Return JSON only.");
+    expect(body.contents).toHaveLength(1);
+    expect(body).not.toHaveProperty("messages");
+    expect(body).not.toHaveProperty("model");
+  });
+
+  it("fails closed when transport output is missing or malformed", async () => {
+    const noMessage = createGenerator(async () => new Response(JSON.stringify({ choices: [] }), { status: 200 }));
     await expect(noMessage.generate(generationRequest)).rejects.toMatchObject({
       name: "ModelTransportError",
       code: "MODEL_MISSING_RESPONSE_CONTENT"
     });
 
-    const malformed = new OpenAICompatibleModelReasoningGenerator({
-      endpoint: "https://model.example/v1/chat/completions",
-      model: "reasoning-model",
-      fetchImpl: async () => new Response(JSON.stringify({
-        choices: [{ message: { content: "{not-json" } }]
-      }), { status: 200 })
-    });
+    const malformed = createGenerator(async () => new Response(JSON.stringify({
+      choices: [{ message: { content: "{not-json" } }]
+    }), { status: 200 }));
     await expect(malformed.generate(generationRequest)).rejects.toMatchObject({
       name: "ModelTransportError",
       code: "MODEL_INVALID_PROPOSAL_JSON",
