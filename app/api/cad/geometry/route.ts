@@ -254,6 +254,23 @@ export async function POST(request: Request) {
   } catch (error) {
     return httpError(error instanceof Error ? error.message : "OCCT geometry runtime is not configured.", 503);
   }
+  if (operation === "TESSELLATE") {
+    const { data: existing, error: existingError } = await db.from("engineering_cad_display_derivatives")
+      .select("*").eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
+      .eq("source_artifact_id", sourceArtifactId).eq("source_artifact_sha256", digest)
+      .eq("model_revision", sourceRevision).eq("converter_provider_id", adapter.providerId)
+      .eq("converter_version", adapter.providerVersion).eq("linear_deflection_mm", linearDeflectionMm)
+      .eq("angular_deflection_rad", angularDeflectionRad).maybeSingle();
+    if (existingError) return httpError("Display derivative idempotency lookup failed.", 503);
+    if (existing) {
+      const { data: signed, error: signError } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+        .createSignedUrl(String(existing.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+      if (signError || !signed?.signedUrl) return httpError("Existing display derivative could not be signed.", 503);
+      return NextResponse.json({ derivative: derivativeFromRow(existing as unknown as Row), signedUrl: signed.signedUrl,
+        signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS, created: false }, { headers: { "cache-control": "no-store" } });
+    }
+  }
+
   if (operation === "INSPECT") {
     const inspected = await adapter.inspect(source);
     return NextResponse.json({
@@ -304,21 +321,6 @@ export async function POST(request: Request) {
   };
   const derivativeValidation = validateCADDisplayDerivative(derivative);
   if (!derivativeValidation.valid) return httpError("Generated display derivative failed its metadata contract.", 422);
-
-  const { data: existing, error: existingError } = await db.from("engineering_cad_display_derivatives")
-    .select("*").eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
-    .eq("source_artifact_id", sourceArtifactId).eq("source_artifact_sha256", digest)
-    .eq("model_revision", sourceRevision).eq("converter_provider_id", result.value.providerId)
-    .eq("converter_version", result.value.providerVersion).eq("linear_deflection_mm", linearDeflectionMm)
-    .eq("angular_deflection_rad", angularDeflectionRad).maybeSingle();
-  if (existingError) return httpError("Display derivative idempotency lookup failed.", 503);
-  if (existing) {
-    const { data: signed, error: signError } = await db.storage.from(CAD_ARTIFACT_BUCKET)
-      .createSignedUrl(String(existing.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
-    if (signError || !signed?.signedUrl) return httpError("Existing display derivative could not be signed.", 503);
-    return NextResponse.json({ derivative: derivativeFromRow(existing as unknown as Row), signedUrl: signed.signedUrl,
-      signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS, created: false }, { headers: { "cache-control": "no-store" } });
-  }
 
   const derivativePath = projectId + "/" + completion.model_identity_id + "/" + completionId + "/display-" + derivativeId + ".glb";
   const { error: uploadError } = await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).upload(derivativePath, glb, {
