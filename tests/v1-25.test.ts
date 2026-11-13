@@ -9,7 +9,7 @@ import {
   OpenFOAMLaminarChannelResult
 } from "../src/cfd/types.js";
 import {
-  expectedPoiseuillePressureDropPa,
+  expectedPoiseuilleMassFluxKgS,
   poiseuilleAxialVelocity,
   validateOpenFOAMLaminarChannelRequest,
   validateOpenFOAMLaminarChannelResult
@@ -20,28 +20,24 @@ const request: OpenFOAMLaminarChannelRequest = {
   caseId: OPENFOAM_LAMINAR_CHANNEL_CASE_ID,
   meanVelocityMps: 0.2,
   heightM: 0.01,
-  lengthM: 0.2,
   depthM: 0.001,
   densityKgM3: 1000,
   kinematicViscosityM2PerS: 1e-5,
-  mesh: { cellsAxial: 400, cellsVertical: 20 },
+  mesh: { cellsVertical: 20 },
   solver: { maxIterations: 2000, residualTolerance: 1e-7, timeoutSeconds: 120 }
 };
 
 const artifactHash = "a".repeat(64);
-const sampleCoordinates = [0, 0.0025, 0.005, 0.0075, 0.01];
+const sampleCoordinates = [0, 0.00125, 0.0025, 0.00375, 0.005];
 
 function validResult(overrides: Partial<OpenFOAMLaminarChannelResult> = {}): OpenFOAMLaminarChannelResult {
-  const massFlux = request.densityKgM3 * request.meanVelocityMps * request.heightM * request.depthM;
   return {
     status: "COMPLETED",
     solver: "OpenFOAM",
     solverVersion: "14",
     converged: true,
-    meshCells: request.mesh.cellsAxial * request.mesh.cellsVertical,
-    pressureDropPa: expectedPoiseuillePressureDropPa(request),
-    massFluxInKgS: massFlux,
-    massFluxOutKgS: massFlux,
+    meshCells: request.mesh.cellsVertical,
+    massFluxKgS: expectedPoiseuilleMassFluxKgS(request),
     residuals: { pressure: 1e-8, velocity: 1e-8 },
     velocityProfile: sampleCoordinates.map(yM => ({
       yM,
@@ -77,52 +73,54 @@ describe("V1.25 OpenFOAM request contract", () => {
   it("rejects excessive mesh size and unbounded solver settings", () => {
     const errors = validateOpenFOAMLaminarChannelRequest({
       ...request,
-      mesh: { cellsAxial: 1000, cellsVertical: 200 },
+      mesh: { cellsVertical: 201 },
       solver: { maxIterations: 20000, residualTolerance: 1e-9, timeoutSeconds: 900 }
     });
-    expect(errors.some(error => error.includes("100000 cells"))).toBe(true);
+    expect(errors.some(error => error.includes("cellsVertical"))).toBe(true);
     expect(errors.some(error => error.includes("maxIterations"))).toBe(true);
     expect(errors.some(error => error.includes("timeoutSeconds"))).toBe(true);
   });
 });
 
 describe("V1.25 analytical Poiseuille reference", () => {
-  it("returns zero velocity at both walls and 1.5 times mean velocity at the centreline", () => {
+  it("returns zero velocity at the wall and 1.5 times mean velocity at the centreline", () => {
     expect(poiseuilleAxialVelocity(0, request.heightM, request.meanVelocityMps)).toBe(0);
     expect(poiseuilleAxialVelocity(request.heightM / 2, request.heightM, request.meanVelocityMps)).toBeCloseTo(0.3);
     expect(poiseuilleAxialVelocity(request.heightM, request.heightM, request.meanVelocityMps)).toBe(0);
   });
 
-  it("calculates the analytical pressure drop for a plane channel", () => {
-    expect(expectedPoiseuillePressureDropPa(request)).toBeCloseTo(48);
+  it("calculates the analytical full-channel mass flow", () => {
+    expect(expectedPoiseuilleMassFluxKgS(request)).toBeCloseTo(0.002);
   });
 });
 
 describe("V1.25 independent CFD result validation", () => {
-  it("accepts a solver result matching the analytical profile and conservation limits", () => {
+  it("accepts a solver result matching the analytical profile and integrated mass flow", () => {
     const validation = validateOpenFOAMLaminarChannelResult(request, validResult());
     expect(validation.status).toBe("PASS");
     expect(validation.normalizedProfileRmse).toBeCloseTo(0);
-    expect(validation.pressureRelativeError).toBeCloseTo(0);
-    expect(validation.massBalanceRelativeError).toBeCloseTo(0);
+    expect(validation.massFluxRelativeError).toBeCloseTo(0);
   });
 
-  it("rejects pressure-drop and mass-conservation deviations", () => {
+  it("rejects integrated mass-flow and velocity-profile deviations", () => {
     const result = validResult({
-      pressureDropPa: expectedPoiseuillePressureDropPa(request) * 1.1,
-      massFluxOutKgS: (validResult().massFluxOutKgS ?? 0) * 1.02
+      massFluxKgS: expectedPoiseuilleMassFluxKgS(request) * 1.02,
+      velocityProfile: validResult().velocityProfile.map(sample => ({
+        ...sample,
+        axialVelocityMps: sample.axialVelocityMps * 1.1
+      }))
     });
     const validation = validateOpenFOAMLaminarChannelResult(request, result);
     expect(validation.status).toBe("FAIL");
-    expect(validation.blockingReasons.some(reason => reason.includes("Pressure drop"))).toBe(true);
-    expect(validation.blockingReasons.some(reason => reason.includes("Mass conservation"))).toBe(true);
+    expect(validation.blockingReasons.some(reason => reason.includes("mass-flow"))).toBe(true);
+    expect(validation.blockingReasons.some(reason => reason.includes("velocity profile"))).toBe(true);
   });
 
   it("fails closed on out-of-domain profile coordinates and unsafe artifact paths", () => {
     const result = validResult({
       velocityProfile: [
         ...validResult().velocityProfile.slice(0, 4),
-        { yM: request.heightM * 1.1, axialVelocityMps: 0 }
+        { yM: request.heightM * 0.6, axialVelocityMps: 0 }
       ],
       artifacts: validResult().artifacts.map(artifact => ({
         ...artifact,
