@@ -170,18 +170,34 @@ function validateSourceLineage(document: GLTFDocument) {
   return extras;
 }
 
-function validateSingleMeshScene(document: GLTFDocument) {
-  if (document.meshes?.length !== 1 || document.meshes[0].primitives?.length !== 1 ||
-      document.meshes[0].primitives[0].mode !== 4 || document.nodes?.length !== 1 ||
-      document.nodes[0].mesh !== 0 || document.scenes?.length !== 1 ||
-      document.scene !== 0 || document.scenes[0].nodes?.length !== 1 || document.scenes[0].nodes[0] !== 0) {
+function hasSingleMeshScene(document: GLTFDocument): boolean {
+  return document.meshes?.length === 1 &&
+    document.meshes[0].primitives?.length === 1 &&
+    document.meshes[0].primitives[0].mode === 4 &&
+    document.nodes?.length === 1 && document.nodes[0].mesh === 0 &&
+    document.scenes?.length === 1 && document.scene === 0 &&
+    document.scenes[0].nodes?.length === 1 && document.scenes[0].nodes[0] === 0;
+}
+
+function readSingleMeshPrimitive(document: GLTFDocument): GLTFPrimitive {
+  if (!hasSingleMeshScene(document)) {
     throw new Error("GLB must contain one bounded triangle mesh and one scene node.");
   }
-  const primitive = document.meshes[0].primitives![0];
-  if (!isRecord(primitive.attributes) || !Number.isSafeInteger(primitive.attributes.POSITION) ||
-      !Number.isSafeInteger(primitive.attributes.NORMAL) || !Number.isSafeInteger(primitive.indices)) {
-    throw new Error("GLB mesh attributes are incomplete.");
-  }
+  return document.meshes![0].primitives![0];
+}
+
+function validatePrimitiveAttributes(primitive: GLTFPrimitive): void {
+  const attributes = primitive.attributes;
+  const valid = isRecord(attributes) &&
+    Number.isSafeInteger(attributes.POSITION) &&
+    Number.isSafeInteger(attributes.NORMAL) &&
+    Number.isSafeInteger(primitive.indices);
+  if (!valid) throw new Error("GLB mesh attributes are incomplete.");
+}
+
+function validateSingleMeshScene(document: GLTFDocument): GLTFPrimitive {
+  const primitive = readSingleMeshPrimitive(document);
+  validatePrimitiveAttributes(primitive);
   return primitive;
 }
 
