@@ -86,19 +86,31 @@ function geometryRequestPayload(
   };
 }
 
-function parseWorkerResponse(payload: unknown, responseOk: boolean, digest: string): WorkerResponse {
+function workerRecord(payload: unknown): Record<string, unknown> {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("Remote OCCT geometry worker returned malformed JSON.");
   }
-  const result = payload as Record<string, unknown>;
-  const protocolValid = result.status === "COMPLETED" && result.artifactSha256 === digest &&
+  return payload as Record<string, unknown>;
+}
+
+function validWorkerEnvelope(result: Record<string, unknown>, digest: string): boolean {
+  return result.status === "COMPLETED" && result.artifactSha256 === digest &&
     typeof result.providerId === "string" && typeof result.providerVersion === "string" &&
     Array.isArray(result.errors) && Array.isArray(result.limitations);
-  if (!responseOk || !protocolValid) {
-    const detail = Array.isArray(result.errors)
-      ? result.errors.filter((item): item is string => typeof item === "string").join("; ")
-      : typeof result.error === "string" ? result.error : "";
-    throw new Error((detail.trim() || "Remote OCCT geometry response failed its digest or protocol contract.").slice(0, 500));
+}
+
+function workerFailureMessage(result: Record<string, unknown>): string {
+  if (Array.isArray(result.errors)) {
+    return result.errors.filter((item): item is string => typeof item === "string").join("; ");
+  }
+  return typeof result.error === "string" ? result.error : "";
+}
+
+function parseWorkerResponse(payload: unknown, responseOk: boolean, digest: string): WorkerResponse {
+  const result = workerRecord(payload);
+  if (!responseOk || !validWorkerEnvelope(result, digest)) {
+    const detail = workerFailureMessage(result).trim();
+    throw new Error((detail || "Remote OCCT geometry response failed its digest or protocol contract.").slice(0, 500));
   }
   return result as unknown as WorkerResponse;
 }
