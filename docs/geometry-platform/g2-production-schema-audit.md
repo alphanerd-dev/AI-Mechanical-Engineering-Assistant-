@@ -140,14 +140,16 @@ Required resolution:
 
 Do not run `migration repair`, rename/rewrite an applied migration, or push a new production migration as part of this review. Those actions require explicit database-owner approval.
 
+The existing `.github/workflows/production-supabase-migration-reconciliation.yml` is a manual production workflow pinned to Supabase CLI `2.98.2`. Its repair path is narrowly scoped to six known legacy timestamps for V2.0.23–V2.0.28 and then applies V2.0.29/V2.0.30. It does not reconcile the current ten shared timestamp differences or the E2E-only point-cloud history. Do not dispatch its `reconcile_and_apply` operation for this issue; its scope must be reviewed and expanded separately after database-owner approval.
+
 Supabase CLI v3 changed hosted database commands to target the local stack by default; hosted operations require explicit `--remote`, and non-interactive hosted mutations require `--yes`. See the [Supabase CLI v3 changelog](https://supabase.com/changelog). Use explicit project targeting and review the resolved target before any future migration command.
 
 ## 7. Security and operational observations
 
-- The audited CAD model, completion and Storage policies are project-scoped. Keep the new revision relation behind the same server authorization boundary.
+- The audited CAD model, completion and Storage policies are project-scoped and match across production/E2E. Keep the new revision relation behind the same server authorization boundary.
 - `engineering_audit_events`, `engineering_audit_chain_head` and `engineering_execution_jobs` have RLS enabled but no client policies. This is consistent with server/service-role-only access; preserve that boundary and verify server routes before adding any direct policy.
 - The authenticated `SECURITY DEFINER` function `update_engineering_project_name` was inspected. It uses an empty `search_path`, requires `auth.uid()`, checks project ownership and expected revision, locks the project row, and updates project/workspace state in one transaction. The advisor warning is therefore a review item, not an automatic reason to remove the function.
-- Supabase's security advisor also reports leaked-password protection disabled. This is a separate Auth hardening task tracked in [issue #146](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/146); no Auth setting was changed.
+- Supabase's security advisor reports leaked-password protection disabled in both production and E2E. This is a separate Auth hardening task tracked in [issue #146](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/146); no Auth setting was changed.
 - Informational unused-index findings were not acted on. Low traffic/low row counts are not evidence that foreign-key or query-supporting indexes should be removed.
 
 Supabase requires RLS on exposed tables; see [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security). Since 30 October 2026, new public tables are no longer automatically exposed through the Data API by default; see the [Data API exposure change](https://supabase.com/changelog?tags=data+apis). G2 should remain server-mediated and explicitly privilege-scoped.
