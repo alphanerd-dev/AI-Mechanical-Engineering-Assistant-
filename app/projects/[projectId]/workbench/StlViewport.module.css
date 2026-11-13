@@ -66,3 +66,6 @@
   .viewportControls button { flex: 1; }
   .viewportHint { top: var(--space-2); left: var(--space-3); right: auto; }
 }
+
+.viewportRoot[data-render-error="true"] .viewportMeta,
+.viewportRoot[data-render-error="true"] .viewportHint { display: none; }
