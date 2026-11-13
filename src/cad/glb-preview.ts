@@ -155,12 +155,29 @@ function validateGLTFAssetVersion(document: GLTFDocument): void {
   if (document.asset?.version !== "2.0") throw new Error("GLB asset version must be 2.0.");
 }
 
-function validateSingleEmbeddedBuffer(document: GLTFDocument, binaryLength: number): void {
-  if (document.buffers?.length !== 1) throw new Error("GLB must declare exactly one binary buffer.");
-  const buffer = document.buffers[0];
+function requireSingleGLBBuffer(document: GLTFDocument): NonNullable<GLTFDocument["buffers"]>[number] {
+  const buffers = document.buffers;
+  if (!buffers || buffers.length !== 1) throw new Error("GLB must declare exactly one binary buffer.");
+  const buffer = buffers[0];
   if (!buffer) throw new Error("GLB binary buffer declaration is missing.");
+  return buffer;
+}
+
+function validateEmbeddedGLBBufferUri(buffer: NonNullable<GLTFDocument["buffers"]>[number]): void {
   if (buffer.uri !== undefined) throw new Error("GLB buffer declaration cannot reference external buffers.");
+}
+
+function validateEmbeddedGLBBufferLength(
+  buffer: NonNullable<GLTFDocument["buffers"]>[number],
+  binaryLength: number
+): void {
   if (buffer.byteLength !== binaryLength) throw new Error("GLB buffer length does not match its binary chunk.");
+}
+
+function validateSingleEmbeddedBuffer(document: GLTFDocument, binaryLength: number): void {
+  const buffer = requireSingleGLBBuffer(document);
+  validateEmbeddedGLBBufferUri(buffer);
+  validateEmbeddedGLBBufferLength(buffer, binaryLength);
 }
 
 function validateGLBBufferDeclaration(document: GLTFDocument, binaryLength: number): void {
