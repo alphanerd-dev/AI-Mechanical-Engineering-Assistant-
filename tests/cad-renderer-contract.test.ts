@@ -49,7 +49,7 @@ describe("CAD renderer and geometry-kernel contracts", () => {
   it("reports unsupported geometry operations instead of pretending the validator can tessellate", () => {
     expect(unavailableGeometryResult("STEP import")).toMatchObject({
       status: "UNSUPPORTED",
-      limitations: ["STEP import is not implemented by the current OCCT validation worker."]
+      limitations: ["STEP import is not supported by the currently configured geometry provider."]
     });
   });
 });
