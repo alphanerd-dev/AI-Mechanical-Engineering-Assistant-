@@ -71,7 +71,7 @@ function validateSVG(markup: string): void {
         throw new Error("SVG contains a disallowed or duplicate attribute.");
       }
       seen.add(name);
-      if (/url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
+      if (!(name === "xmlns" && value === "http://www.w3.org/2000/svg") && /url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value)) {
         throw new Error("SVG contains an external or executable attribute value.");
       }
       if ((name === "fill" || name === "stroke") && !/^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value)) {
