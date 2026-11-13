@@ -29,7 +29,7 @@ function decodeUtf8(bytes: Uint8Array): string {
 }
 
 function rejectUnsafeSVGMarkup(markup: string): void {
-  if (/<!DOCTYPE|<!ENTITY|<\\?|<script\\b|<foreignObject\\b|<iframe\\b|<object\\b|<embed\\b|<image\\b|<use\\b|<style\\b|<animate\\b|<set\\b/i.test(markup)) {
+  if (/<!DOCTYPE|<!ENTITY|<\?|<script\b|<foreignObject\b|<iframe\b|<object\b|<embed\b|<image\b|<use\b|<style\b|<animate\b|<set\b/i.test(markup)) {
     throw new Error("SVG contains active, external, linked or unsupported XML content.");
   }
 }
@@ -40,10 +40,10 @@ function parseSVGToken(token: string):
   | { kind: "closing"; tag: string }
   | { kind: "opening"; tag: string; attributes: string; selfClosing: boolean } {
   if (!token.startsWith("<")) return { kind: "text" };
-  if (/^<!--[\\s\\S]*-->$/.test(token)) return { kind: "comment" };
-  const closing = /^<\\/([A-Za-z][A-Za-z0-9]*)\\s*>$/.exec(token);
+  if (/^<!--[\s\S]*-->$/.test(token)) return { kind: "comment" };
+  const closing = /^<\/([A-Za-z][A-Za-z0-9]*)\s*>$/.exec(token);
   if (closing) return { kind: "closing", tag: closing[1].toLowerCase() };
-  const opening = /^<([A-Za-z][A-Za-z0-9]*)([\\s\\S]*?)\\s*(\\/?)>$/.exec(token);
+  const opening = /^<([A-Za-z][A-Za-z0-9]*)([\s\S]*?)\s*(\/?)>$/.exec(token);
   if (!opening) throw new Error("SVG contains malformed or unsupported XML markup.");
   return {
     kind: "opening",
@@ -54,7 +54,7 @@ function parseSVGToken(token: string):
 }
 
 function validateSVGAttributes(attributes: string): void {
-  const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   const seen = new Set<string>();
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(attributes)) !== null) {
@@ -65,7 +65,7 @@ function validateSVGAttributes(attributes: string): void {
     }
     seen.add(name);
     const canonicalNamespace = name === "xmlns" && value === "http://www.w3.org/2000/svg";
-    if (!canonicalNamespace && /url\\s*\\(|javascript:|data:|https?:|file:|@import|expression\\s*\\(/i.test(value)) {
+    if (!canonicalNamespace && /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
       throw new Error("SVG contains an external or executable attribute value.");
     }
     validateSVGAttributeValue(name, value);
@@ -77,7 +77,7 @@ function validateSVGAttributeValue(name: string, value: string): void {
   if ((name === "fill" || name === "stroke") && !/^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value)) {
     throw new Error("SVG paint attribute is outside the safe preview subset.");
   }
-  if ((name === "transform" || name === "d") && !/^[a-z0-9(),.+\\-\\s]+$/i.test(value)) {
+  if ((name === "transform" || name === "d") && !/^[a-z0-9(),.+\-\s]+$/i.test(value)) {
     throw new Error("SVG geometry attribute contains unsupported syntax.");
   }
   if (value.length > 10000) throw new Error("SVG attribute exceeds the safe preview limit.");
@@ -116,7 +116,7 @@ function validateSVGStructure(markup: string): void {
 }
 
 function validateSVG(markup: string): void {
-  if (!markup.trim() || !/^\\s*<svg(?:\\s|>)/i.test(markup) || !/<\\/svg\\s*>/i.test(markup)) {
+  if (!markup.trim() || !/^\s*<svg(?:\s|>)/i.test(markup) || !/<\/svg\s*>/i.test(markup)) {
     throw new Error("SVG drawing must contain a complete svg root element.");
   }
   rejectUnsafeSVGMarkup(markup);
