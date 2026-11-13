@@ -143,13 +143,24 @@ function parseGLBJsonChunk(buffer: ArrayBuffer, view: DataView): { document: GLT
   }
 }
 
-function readGLBBinaryChunk(buffer: ArrayBuffer, view: DataView, document: GLTFDocument, binaryHeader: number): DataView {
+function validateGLBBinaryChunk(view: DataView, buffer: ArrayBuffer, binaryHeader: number): number {
   const binaryLength = view.getUint32(binaryHeader, true);
   const validChunk = view.getUint32(binaryHeader + 4, true) === 0x004e4942 &&
     binaryHeader + 8 + binaryLength === buffer.byteLength;
-  const validDocument = document.asset?.version === "2.0" && document.buffers?.length === 1 &&
-    document.buffers[0].uri === undefined && document.buffers[0].byteLength === binaryLength;
-  if (!validChunk || !validDocument) throw new Error("GLB binary chunk or buffer declaration is invalid.");
+  if (!validChunk) throw new Error("GLB binary chunk is invalid.");
+  return binaryLength;
+}
+
+function validateGLBBufferDeclaration(document: GLTFDocument, binaryLength: number): void {
+  const buffer = document.buffers?.[0];
+  const valid = document.asset?.version === "2.0" && document.buffers?.length === 1 &&
+    buffer.uri === undefined && buffer.byteLength === binaryLength;
+  if (!valid) throw new Error("GLB buffer declaration is invalid.");
+}
+
+function readGLBBinaryChunk(buffer: ArrayBuffer, view: DataView, document: GLTFDocument, binaryHeader: number): DataView {
+  const binaryLength = validateGLBBinaryChunk(view, buffer, binaryHeader);
+  validateGLBBufferDeclaration(document, binaryLength);
   return new DataView(buffer, binaryHeader + 8, binaryLength);
 }
 
