@@ -70,11 +70,17 @@ function validateRemoteSource(source: CADGeometrySource): string {
   return validateRemoteSourceBytes(source);
 }
 
+function isSupportedLinearDeflection(value: number): boolean {
+  return Number.isFinite(value) && value >= 0.001 && value <= 5;
+}
+
+function isSupportedAngularDeflection(value: number): boolean {
+  return Number.isFinite(value) && value >= 0.01 && value <= Math.PI / 2;
+}
+
 function validateRemoteDeflection(options?: { linearDeflectionMm: number; angularDeflectionRad: number }): void {
-  if (!options || !Number.isFinite(options.linearDeflectionMm) ||
-      options.linearDeflectionMm < 0.001 || options.linearDeflectionMm > 5 ||
-      !Number.isFinite(options.angularDeflectionRad) ||
-      options.angularDeflectionRad < 0.01 || options.angularDeflectionRad > Math.PI / 2) {
+  if (!options || !isSupportedLinearDeflection(options.linearDeflectionMm) ||
+      !isSupportedAngularDeflection(options.angularDeflectionRad)) {
     throw new Error("Remote OCCT tessellation deflection is outside the supported bounds.");
   }
 }
