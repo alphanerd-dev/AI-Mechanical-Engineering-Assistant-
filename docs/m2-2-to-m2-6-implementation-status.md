@@ -1,68 +1,106 @@
 # M2.2–M2.6 implementation status
 
-**Branch:** feat/m2-2-to-m2-6-geometry-viewer-foundation  
-**Intent:** deliver the shared contract, comparison and drawing-viewer foundations in one reviewable release candidate without promoting capabilities that the current workers cannot execute.
+**Implementation branch:** `feat/m2-2-to-m2-6-geometry-runtime`  
+**Baseline:** PR #140 geometry/viewer foundation  
+**Implementation PR:** #147 (draft; exact-head verification still required)  
+**Status date:** 13 November 2026
 
-## M2.2 — Revision-aware artifact lineage
+## Engineering boundary
 
-Implemented in this slice:
-- CAD model database metadata revision is carried through the API and CAD model identity contract.
-- Execution provenance captures the model metadata revision when supplied. It is explicitly not called a geometry revision.
-- Source-to-BREP and export lineage now describes the actual build process: build123d emits BREP, STEP, STL and 3MF in parallel from one in-memory shape. Export records point to the common generated source and retain the BREP as canonicalGeometryArtifactId; they do not claim that the STEP/STL/3MF was converted from persisted BREP bytes.
-- A strict display-derivative contract requires exact source digest, model identity/revision, converter/version, tessellation settings, units, coordinate frame and derivative digest.
-- The workbench identifies earlier accepted completions for the same model identity as HISTORICAL and leaves them inspectable.
+AI may propose an operation. The application authorizes the project and exact source artifact. A bounded deterministic worker imports and processes the source. The host verifies exact digests and persists display-only derivatives with lineage. Validation, acceptance and human approval remain separate states.
+
+Canonical BREP/STEP source bytes are never overwritten by display derivatives. A successful import or tessellation does not imply geometry validity, manufacturing suitability or approval.
+
+## M2.2 — Revision-aware artifact lineage and derivative persistence
+
+Implemented in this branch:
+- Added an immutable `engineering_cad_display_derivatives` record with project/model/completion identity, exact source digest, model metadata revision, converter/provider version, tessellation settings, units, coordinate frame, private storage path and derivative digest.
+- Added a project-authorized geometry API. It loads an accepted completion, checks project ownership, model revision, source artifact registration and private storage membership, downloads the exact source bytes and independently verifies SHA-256 before processing.
+- Added GLB 2.0 display derivative generation. The GLB embeds source artifact ID/digest, units and coordinate frame in its extras.
+- Persists derivative bytes in the existing private CAD artifact bucket, records metadata in the new table and writes a durable `EVIDENCE_WRITE` audit event.
+- Adds idempotency keyed by source identity/digest, model revision, converter identity/version and tessellation settings.
+- Adds a read endpoint that issues short-lived signed URLs and classifies derivatives as CURRENT, STALE or UNVERIFIABLE by comparing current source digest and model revision.
+- Derivative persistence does not modify canonical completion records or validation/approval state.
+
+Remaining:
+- The additive migration has not yet been applied to production. Preview/production schema rollout and RLS/storage policy verification remain deployment gates.
+- Model metadata revision is not a geometry revision. Exact source artifact identity and digest remain the geometry lineage anchor.
+- Concurrency and ambiguous-commit reconciliation are handled conservatively, but database/storage integration tests against a provisioned Supabase environment remain required.
+
+## M2.3 — Renderer comparison and selection evidence
+
+Implemented:
+- A static Babylon.js 9.35.0 vs Three.js 0.187.0 WebGL 2 benchmark with identical pre-tessellated workloads, warm/cold ordering rotation, initialization/first-render/frame sampling, picking and JSON export.
+- Five paired trials were executed at 1, 100, 500, 1,000 and 5,000 instances on a virtualized Linux/Chrome browser.
+- Both renderers completed all recorded trials; the 5,000-instance workload showed increased frame time and picking cost.
+- The measurements and limitations were recorded in PR #140.
+
+Not concluded:
+- The virtual desktop was refresh/virtualization constrained and does not represent a physical engineering workstation or mid-range Android GPU.
+- No Babylon.js vs Three.js production choice is justified by those observations. Paired trials on representative physical desktop and Android devices remain mandatory.
+
+## M2.4 — CAD viewport
+
+Implemented:
+- Reuses the existing isolated custom WebGL viewport lifecycle for lineage-verified GLB display derivatives.
+- Adds bounded GLB v2 parsing: no external buffers, fixed single-mesh profile, strict accessor/buffer checks, finite coordinates/normals, valid index bounds and source-lineage matching.
+- Adds read-only orbit, zoom, reset and keyboard controls for generated BREP/STEP display derivatives.
+- The workbench can request a derivative for a current accepted BREP/STEP artifact and display the returned private signed URL.
 
 Limitations:
-- The current model metadata revision is not a geometry revision. Geometry revision must be represented by immutable source artifact identity/digest and accepted completion lineage.
-- Currentness is inferred from the latest accepted completion for that model identity. A future revision-edit API and explicit geometry revision token should replace that coarse rule before general assemblies or collaborative editing.
-- Display derivative contract is not yet persisted in a separate derivative resource; it is ready to be used by an authorized conversion endpoint.
+- This is a single-mesh display viewport, not a full assembly scene graph, sectioning system, persistent selection/highlighting, topology-ID mapping or measurement/PMI environment.
+- Existing WebGL context-loss recovery, accessibility and mobile performance need physical-device E2E testing.
+- Babylon.js and Three.js remain benchmark candidates; neither is promoted to the production renderer by this PR.
 
-## M2.3 — Renderer abstraction and benchmark
+## M2.5 — OCCT geometry runtime
 
 Implemented:
-- Renderer-neutral display mesh, camera, capability, session and adapter contracts.
-- A static, isolated Babylon.js vs Three.js benchmark, pinned to Babylon.js 9.35.0 and Three.js 0.187.0.
-- WebGL 2-only comparison, identical repeated box transforms, orbit and picking sample loops, initialization/first-render/frame-time sampling and JSON export.
-- No renderer packages are added to the production application.
+- Added a fixed OpenCascade worker for BREP and STEP import, topology counts/validity inspection and tessellation with per-vertex normals.
+- Enforces direct-child artifact paths, format/extension agreement, bounded source size, linear/angular deflection bounds, finite mesh buffers, index bounds, 750k vertex cap and 250k triangle cap.
+- Added an isolated Docker transport with network disabled, read-only root and mounts, dropped Linux capabilities, no-new-privileges, resource limits and exact source SHA-256 verification.
+- Added an authenticated HTTPS geometry endpoint to the remote CAD worker. The remote transport is bounded to 4 MiB source artifacts; the local Docker transport accepts up to 100 MiB.
+- Added a provider adapter implementing the existing geometry-kernel contract. It reports operation results only; it does not set validation or approval state.
+- Added unit/protocol tests and actual BREP/STEP import/inspect/tessellate smoke checks to CI.
+
+Verification already observed:
+- The first implementation batch passed GitHub Actions run #43504028624, including `npm test`, `npm run build`, OCCT worker protocol tests, and actual generated BREP/STEP import/inspection/tessellation in the pinned build123d runtime.
+- Subsequent remote transport, persistence API, GLB preview and drawing ingestion changes were committed after that run and are not covered by that earlier pass. They require a new exact-head CI run.
+
+Remaining:
+- Verify the remote worker endpoint and persistence API together in the current exact-head CI and deployed preview.
+- Add representative real-world STEP assemblies, invalid files, high-face-count models, resource-exhaustion and cancellation tests.
+- No topology healing, repair, Boolean modelling or persistent BREP subshape identity is claimed.
+
+## M2.6 — Project drawing ingestion and viewer
+
+Implemented:
+- Added authenticated project-scoped drawing ingestion and listing APIs.
+- Supports bounded PDF source files, a strict SVG preview subset and ASCII DXF.
+- PDF signature/EOF, SVG active/external content rejection, and DXF parser/entity/bounds checks run before private storage.
+- Stores drawing bytes in the private CAD artifact bucket and immutable metadata in `engineering_cad_drawings`, including SHA-256, model association, media type, parser version, units, bounds and entity count.
+- Adds project/model association, role-gated upload, short-lived signed URLs and durable project-write audit events.
+- Adds a project workbench upload/list/preview panel. Drawing previews remain read-only and do not validate dimensions or drafting standards.
 
 Limitations:
-- The harness requires paired runs on target devices. No production renderer is selected from a single CI machine.
-- Its first workload is a renderer microbenchmark, not a full CAD assembly/section/topology test. The device matrix and engineering workloads in the implementation plan remain mandatory.
+- DWG is unsupported. DXF preview currently supports LINE, CIRCLE, ARC, LWPOLYLINE and TEXT; unsupported entities are reported rather than approximated.
+- PDF uses the browser's native viewer. SVG is restricted to a safe static subset and is sanitized again in the browser.
+- The serverless upload endpoint is limited to 4 MiB; the database record supports larger future direct-to-storage uploads.
 
-## M2.4 — Interactive CAD viewport adapter
+## Release gates still open
 
-Implemented:
-- The application-level adapter contract is defined and the existing STL preview remains isolated behind its own lifecycle module.
-- The workbench now has a format-aware drawing preview seam and explicit current/historical status.
+1. Run all checks against the final PR head, not an earlier intermediate commit.
+2. Apply the additive Supabase migration to a preview environment and verify table grants, RLS, private storage access, signed URL expiry and audit-chain persistence.
+3. Run authenticated end-to-end tests for BREP/STEP → OCCT → GLB → private storage → signed URL → browser viewport, including stale source and wrong-project denial.
+4. Run drawing upload/list/preview E2E tests for PDF, safe SVG, DXF, malformed files, spoofed MIME, unauthorized users and cross-project access.
+5. Deploy the preview and inspect desktop/mobile UI, console errors, network requests, WebGL fallback and cleanup.
+6. Repeat renderer trials on representative physical desktop and Android devices before selecting Babylon.js or Three.js.
+7. Keep PR #140 and this implementation PR unmerged until the above release gates pass.
 
-Not promoted:
-- Babylon.js or Three.js is not selected or integrated into the production CAD viewport. That work is deliberately blocked on M2.3 paired-device results and minimum gates. Adding one package now would make the comparison meaningless and create an unsupported production decision.
+## Explicit non-claims
 
-## M2.5 — OCCT geometry adapter
-
-Implemented:
-- A product-owned geometry-kernel contract for exact BREP/STEP source bytes, model revision, units, coordinate frame, topology summary and tessellation result.
-- Explicit unsupported operation response for geometry import/tessellation when the provider has not registered those operations.
-
-Not promoted:
-- The current remote OCCT worker only supports validate_geometry; it does not provide general STEP/BREP import, topology-query or tessellation endpoints. This PR does not claim otherwise.
-- Full OCCT adapter implementation requires a separately versioned worker API, pinned runtime image, file/CPU/memory/output limits, import fixtures, topology/volume/dimension conformance tests and an authorized private-artifact derivative persistence path.
-
-## M2.6 — Drawing visualization
-
-Implemented:
-- Bounded ASCII DXF parser for LINE, CIRCLE, ARC, LWPOLYLINE and TEXT.
-- Bounds, units and unsupported-entity warnings.
-- DXF layer visibility, zoom/fit controls and an explicit two-point Euclidean distance tool reporting declared drawing units.
-- SVG image-only sanitizer with a strict element/attribute allowlist; scripts, foreignObject, event attributes, styles, links and external resource references are removed.
-- Read-only PDF, sanitized SVG and basic DXF viewer component.
-- Viewer registry only enables preview when trusted artifact metadata declares one of the supported drawing media types.
-
-Limitations:
-- DWG is not supported. DXF spline, hatch, block, dimension and bulge-arc semantics are not implemented; unsupported content is reported. Layer toggling and distance readout are preview interactions, not full drafting-layer management or dimensional/standards validation.
-- The present CAD completion flow does not ingest arbitrary drawings. The viewer requires a project-authorized completion/artifact record with trusted mediaType and an API-issued short-lived signed URL.
-- PDF preview depends on the browser's native PDF support; it is not a PDF parser or drawing-standard validator.
-
-## Release gate
-
-This branch is a foundation release candidate, not proof that every M2.2–M2.6 exit gate has passed. In particular, the renderer choice, production renderer integration and OCCT import/tessellation are blocked on evidence and worker capability. Do not merge or deploy a production renderer/geometry importer until those gates are met.
+- A green build is not proof of engineering correctness.
+- Tessellation is not validation.
+- A display derivative is not canonical geometry.
+- A signed URL is not public access.
+- A latest accepted completion is not necessarily a latest geometry revision.
+- No solver, manufacturing, approval or drawing-standard validation is inferred from preview success.
