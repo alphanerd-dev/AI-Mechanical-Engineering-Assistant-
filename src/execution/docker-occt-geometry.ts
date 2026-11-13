@@ -273,7 +273,7 @@ function resolveContainerLimits(options: DockerOCCTGeometryOptions) {
   const memoryLimit = options.memoryLimit ?? "1g";
   const cpus = options.cpus ?? 1;
   const pidsLimit = options.pidsLimit ?? 64;
-  if (!/^[0-9]+(?:\\.[0-9]+)?[kKmMgG]?$/.test(memoryLimit) ||
+  if (!/^[0-9]+(?:\.[0-9]+)?[kKmMgG]?$/.test(memoryLimit) ||
       !Number.isFinite(cpus) || cpus <= 0 || cpus > 8 ||
       !Number.isInteger(pidsLimit) || pidsLimit < 16 || pidsLimit > 512) {
     throw new Error("OCCT geometry resource limits are invalid.");
@@ -283,7 +283,7 @@ function resolveContainerLimits(options: DockerOCCTGeometryOptions) {
 
 function resolveDockerBinary(options: DockerOCCTGeometryOptions): string {
   const dockerBinary = options.dockerBinary ?? "docker";
-  if (!dockerBinary.trim() || /[\\r\\n\\0]/.test(dockerBinary)) {
+  if (!dockerBinary.trim() || /[\r\n\0]/.test(dockerBinary)) {
     throw new Error("dockerBinary must be a trusted executable name or absolute path.");
   }
   return dockerBinary;
