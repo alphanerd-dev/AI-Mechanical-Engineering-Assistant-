@@ -314,6 +314,8 @@ SIMPLE
 {{
     nNonOrthogonalCorrectors 0;
     consistent yes;
+    pRefCell 0;
+    pRefValue 0;
     residualControl
     {{
         p {tolerance:.12g};
