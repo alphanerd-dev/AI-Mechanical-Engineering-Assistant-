@@ -14,6 +14,7 @@ import type { EngineeringWorkspaceSnapshot } from "../../../../src/workspace/typ
 import type { CalculationArtifact } from "../../../../src/artifacts/calculation-artifact";
 import { resolveCADArtifactViewer, type CADArtifactViewerRegistration } from "../../../../src/cad/viewer-registry.js";
 import DrawingViewer from "../../../../src/drawings/DrawingViewer";
+import ProjectDrawingsPanel from "./ProjectDrawingsPanel";
 
 type ModuleKey = "workbench" | "fea" | "pid" | "calculations" | "files" | "history" | "revisions" | "reports" | "settings";
 type ProjectRecord = {
@@ -360,6 +361,7 @@ function WorkbenchContent({ project, snapshot, tasks, artifacts, models, complet
       <WorkbenchViewport projectId={project.id} models={models} artifactEntries={cadArtifactEntries} selectedArtifact={selectedArtifact} onSelectArtifact={setSelectedArtifactKey} visibility={visibility} onRefresh={onRefresh} />
       <WorkbenchInspector models={models} artifacts={artifacts} acceptedCount={acceptedCompletions.length} artifactCount={cadArtifactEntries.length} selectedArtifact={selectedArtifact} tasks={tasks} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} latestArtifact={latestArtifact} visibility={visibility} onVisibilityChange={(key, checked) => setVisibility((current) => ({ ...current, [key]: checked }))} />
     </div>
+    <ProjectDrawingsPanel projectId={project.id} models={models} />
   </div>;
 }
 
