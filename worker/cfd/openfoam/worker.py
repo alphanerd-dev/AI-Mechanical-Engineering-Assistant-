@@ -431,7 +431,18 @@ def make_artifact(artifact_dir: Path, kind: str, filename: str, media_type: str)
     }
 
 
+def prune_artifacts(keep_latest: int = 50) -> None:
+    directories = [
+        child for child in ARTIFACT_ROOT.iterdir()
+        if child.is_dir() and re.fullmatch(r"[a-f0-9]{32}", child.name)
+    ]
+    directories.sort(key=lambda child: child.stat().st_mtime, reverse=True)
+    for stale in directories[keep_latest:]:
+        shutil.rmtree(stale, ignore_errors=True)
+
+
 def execute_case(request: dict[str, Any]) -> dict[str, Any]:
+    prune_artifacts()
     job_id = uuid.uuid4().hex
     artifact_dir = ARTIFACT_ROOT / job_id
     artifact_dir.mkdir(parents=True, exist_ok=False)
