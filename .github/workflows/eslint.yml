@@ -45,6 +45,8 @@ jobs:
           ln -s "$scanner_dir/node_modules/eslint" node_modules/eslint
           ln -s "$scanner_dir/node_modules/eslint-config-next" node_modules/eslint-config-next
           ln -s "$scanner_dir/node_modules/@microsoft/eslint-formatter-sarif" node_modules/@microsoft/eslint-formatter-sarif
+          rm -rf "$scanner_dir/node_modules/next"
+          ln -s "$GITHUB_WORKSPACE/node_modules/next" "$scanner_dir/node_modules/next"
           echo "ESLINT_BIN=$scanner_dir/node_modules/.bin/eslint" >> "$GITHUB_ENV"
 
       - name: Run repository-wide ESLint scan
