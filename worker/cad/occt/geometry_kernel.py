@@ -143,8 +143,16 @@ def validate_linear_deflection(value):
     return float(value)
 
 
+def is_supported_angular_deflection(value):
+    return (
+        not isinstance(value, bool)
+        and finite_positive(value)
+        and 0.01 <= value <= 1.5707963267948966
+    )
+
+
 def validate_angular_deflection(value):
-    if isinstance(value, bool) or not finite_positive(value) or value < 0.01 or value > 1.5707963267948966:
+    if not is_supported_angular_deflection(value):
         raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
     return float(value)
 
