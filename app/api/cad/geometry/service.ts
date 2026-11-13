@@ -282,19 +282,38 @@ async function loadCanonicalSource(
   return downloadCanonicalSource(context.serviceDb, request, completion, artifact);
 }
 
-function createGeometryAdapter(): DockerOCCTGeometryKernelAdapter {
+function createRemoteGeometryAdapter(): DockerOCCTGeometryKernelAdapter | null {
   const remote = getRemoteCADWorkerConfig();
-  if (remote.configured) return new DockerOCCTGeometryKernelAdapter(new RemoteOCCTGeometryExecutor(remote.value));
   if (remote.error) fail(remote.error, 503);
+  if (!remote.configured) return null;
+  return new DockerOCCTGeometryKernelAdapter(new RemoteOCCTGeometryExecutor(remote.value));
+}
+
+function readLocalGeometryRuntimeConfig() {
   const image = process.env.CAD_OCCT_IMAGE?.trim() ?? "";
   const dockerBinary = process.env.CAD_DOCKER_BINARY?.trim() || "docker";
   const workerScriptPath = path.resolve(process.env.CAD_OCCT_GEOMETRY_WORKER_PATH?.trim() ||
     path.join(process.cwd(), "worker/cad/occt/geometry_kernel.py"));
-  if (!image || !dockerBinary || /[\r\n\0]/.test(dockerBinary)) fail("The trusted OCCT geometry runtime is not configured.", 503);
+  if (!image || !dockerBinary || /[\r\n\0]/.test(dockerBinary)) {
+    fail("The trusted OCCT geometry runtime is not configured.", 503);
+  }
+  return { image, dockerBinary, workerScriptPath };
+}
+
+function validateProductionGeometryImage(image: string): void {
   if (process.env.NODE_ENV === "production" && !/@sha256:[a-f0-9]{64}$/i.test(image)) {
     fail("Production OCCT geometry images must be pinned by immutable SHA-256 digest.", 503);
   }
-  return new DockerOCCTGeometryKernelAdapter(new DockerOCCTGeometryExecutor({ image, workerScriptPath, dockerBinary }));
+}
+
+function createLocalGeometryAdapter(): DockerOCCTGeometryKernelAdapter {
+  const config = readLocalGeometryRuntimeConfig();
+  validateProductionGeometryImage(config.image);
+  return new DockerOCCTGeometryKernelAdapter(new DockerOCCTGeometryExecutor(config));
+}
+
+function createGeometryAdapter(): DockerOCCTGeometryKernelAdapter {
+  return createRemoteGeometryAdapter() ?? createLocalGeometryAdapter();
 }
 
 function derivativeFromRow(row: Row): CADDisplayDerivative {
