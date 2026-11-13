@@ -257,7 +257,9 @@ export function validateOpenFOAMLaminarChannelResult(
   if (!Array.isArray(output.velocityProfile) || output.velocityProfile.length < 5) {
     missing.push("At least five velocity-profile samples are required.");
   }
-  missing.push(...validateArtifactSet(output.artifacts));
+  const artifactErrors = validateArtifactSet(output.artifacts);
+  blockingReasons.push(...artifactErrors.filter(error => error.includes("unsafe path metadata")));
+  missing.push(...artifactErrors.filter(error => !error.includes("unsafe path metadata")));
 
   if (missing.length) {
     return {
