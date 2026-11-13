@@ -178,7 +178,7 @@ async function loadCurrentModel(db: Database, projectId: string, modelIdentityId
   return revision;
 }
 
-function resolveCanonicalArtifact(completion: Row, request: CADGeometryRequest, currentRevision: number) {
+function findCanonicalArtifact(completion: Row, request: CADGeometryRequest): Row {
   const artifact = Array.isArray(completion.artifact_records)
     ? completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === request.sourceArtifactId)
     : null;
@@ -187,21 +187,41 @@ function resolveCanonicalArtifact(completion: Row, request: CADGeometryRequest, 
       artifact.provenance.projectId !== request.projectId) {
     fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
   }
-  const sha256 = sourceDigest(artifact.provenance.artifactSha256);
-  const revision = Number(artifact.provenance.modelRevision);
+  return artifact;
+}
+
+function validateArtifactRevision(artifact: Row, currentRevision: number) {
+  const provenance = artifact.provenance as Row;
+  const sha256 = sourceDigest(provenance.artifactSha256);
+  const revision = Number(provenance.modelRevision);
   if (!sha256 || !Number.isSafeInteger(revision) || revision !== currentRevision) {
     fail("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
   }
+  return { sha256, revision };
+}
+
+function validateArtifactUnits(completion: Row, artifact: Row): void {
   const parameters = isRecord(artifact.parameters) ? artifact.parameters : {};
   const specification = isRecord(completion.specification) ? completion.specification : {};
   const units = artifact.units ?? parameters.units ?? specification.units;
   if (units !== "mm") fail("Only explicitly declared millimetre CAD artifacts are supported by this geometry worker.", 422);
-  const pathValue = storageObjectPath(artifact.uri, request.projectId);
+}
+
+function validateArtifactStorage(completion: Row, artifact: Row, projectId: string): string {
+  const pathValue = storageObjectPath(artifact.uri, projectId);
   const storedPaths = Array.isArray(completion.storage_objects) ? completion.storage_objects : [];
   if (!pathValue || !storedPaths.includes(pathValue)) {
     fail("The canonical source artifact is not registered in this completion's private storage manifest.", 403);
   }
-  return { artifact, sha256, revision, path: pathValue };
+  return pathValue;
+}
+
+function resolveCanonicalArtifact(completion: Row, request: CADGeometryRequest, currentRevision: number) {
+  const artifact = findCanonicalArtifact(completion, request);
+  const provenance = validateArtifactRevision(artifact, currentRevision);
+  validateArtifactUnits(completion, artifact);
+  const pathValue = validateArtifactStorage(completion, artifact, request.projectId);
+  return { artifact, ...provenance, path: pathValue };
 }
 
 async function downloadCanonicalSource(
