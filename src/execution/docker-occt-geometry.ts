@@ -242,6 +242,64 @@ function decodeTessellation(response: GeometryWorkerResponse, source: CADGeometr
   };
 }
 
+interface ResolvedDockerGeometryOptions {
+  image: string;
+  scriptPath: string;
+  dockerBinary: string;
+  timeoutMs: number;
+  maxStdoutBytes: number;
+  maxStderrBytes: number;
+  memoryLimit: string;
+  cpus: number;
+  pidsLimit: number;
+  runner: CADCommandRunner;
+}
+
+function resolveExecutionLimits(options: DockerOCCTGeometryOptions) {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxStdoutBytes = options.maxStdoutBytes ?? DEFAULT_MAX_STDOUT_BYTES;
+  const maxStderrBytes = options.maxStderrBytes ?? DEFAULT_MAX_STDERR_BYTES;
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
+    throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
+  }
+  if (!Number.isInteger(maxStdoutBytes) || maxStdoutBytes < 1024 ||
+      !Number.isInteger(maxStderrBytes) || maxStderrBytes < 0) {
+    throw new Error("OCCT geometry output limits are invalid.");
+  }
+  return { timeoutMs, maxStdoutBytes, maxStderrBytes };
+}
+
+function resolveContainerLimits(options: DockerOCCTGeometryOptions) {
+  const memoryLimit = options.memoryLimit ?? "1g";
+  const cpus = options.cpus ?? 1;
+  const pidsLimit = options.pidsLimit ?? 64;
+  if (!/^[0-9]+(?:\\.[0-9]+)?[kKmMgG]?$/.test(memoryLimit) ||
+      !Number.isFinite(cpus) || cpus <= 0 || cpus > 8 ||
+      !Number.isInteger(pidsLimit) || pidsLimit < 16 || pidsLimit > 512) {
+    throw new Error("OCCT geometry resource limits are invalid.");
+  }
+  return { memoryLimit, cpus, pidsLimit };
+}
+
+function resolveDockerBinary(options: DockerOCCTGeometryOptions): string {
+  const dockerBinary = options.dockerBinary ?? "docker";
+  if (!dockerBinary.trim() || /[\\r\\n\\0]/.test(dockerBinary)) {
+    throw new Error("dockerBinary must be a trusted executable name or absolute path.");
+  }
+  return dockerBinary;
+}
+
+function resolveDockerGeometryOptions(options: DockerOCCTGeometryOptions): ResolvedDockerGeometryOptions {
+  return {
+    image: validImage(options.image),
+    scriptPath: path.resolve(options.workerScriptPath),
+    dockerBinary: resolveDockerBinary(options),
+    ...resolveExecutionLimits(options),
+    ...resolveContainerLimits(options),
+    runner: options.runner ?? new NodeCADCommandRunner()
+  };
+}
+
 /** Executes real OCCT import/inspection/tessellation in a no-network, read-only container. */
 export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
   private readonly image: string;
@@ -256,32 +314,17 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
   private readonly runner: CADCommandRunner;
 
   constructor(options: DockerOCCTGeometryOptions) {
-    this.image = validImage(options.image);
-    this.scriptPath = path.resolve(options.workerScriptPath);
-    this.dockerBinary = options.dockerBinary ?? "docker";
-    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.maxStdoutBytes = options.maxStdoutBytes ?? DEFAULT_MAX_STDOUT_BYTES;
-    this.maxStderrBytes = options.maxStderrBytes ?? DEFAULT_MAX_STDERR_BYTES;
-    this.memoryLimit = options.memoryLimit ?? "1g";
-    this.cpus = options.cpus ?? 1;
-    this.pidsLimit = options.pidsLimit ?? 64;
-    this.runner = options.runner ?? new NodeCADCommandRunner();
-
-    if (!Number.isInteger(this.timeoutMs) || this.timeoutMs < 100 || this.timeoutMs > 120_000) {
-      throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
-    }
-    if (!Number.isInteger(this.maxStdoutBytes) || this.maxStdoutBytes < 1024 ||
-        !Number.isInteger(this.maxStderrBytes) || this.maxStderrBytes < 0) {
-      throw new Error("OCCT geometry output limits are invalid.");
-    }
-    if (!/^[0-9]+(?:\.[0-9]+)?[kKmMgG]?$/.test(this.memoryLimit) ||
-        !Number.isFinite(this.cpus) || this.cpus <= 0 || this.cpus > 8 ||
-        !Number.isInteger(this.pidsLimit) || this.pidsLimit < 16 || this.pidsLimit > 512) {
-      throw new Error("OCCT geometry resource limits are invalid.");
-    }
-    if (!this.dockerBinary.trim() || /[\r\n\0]/.test(this.dockerBinary)) {
-      throw new Error("dockerBinary must be a trusted executable name or absolute path.");
-    }
+    const resolved = resolveDockerGeometryOptions(options);
+    this.image = resolved.image;
+    this.scriptPath = resolved.scriptPath;
+    this.dockerBinary = resolved.dockerBinary;
+    this.timeoutMs = resolved.timeoutMs;
+    this.maxStdoutBytes = resolved.maxStdoutBytes;
+    this.maxStderrBytes = resolved.maxStderrBytes;
+    this.memoryLimit = resolved.memoryLimit;
+    this.cpus = resolved.cpus;
+    this.pidsLimit = resolved.pidsLimit;
+    this.runner = resolved.runner;
   }
 
   async call(operation: GeometryOperation, source: CADGeometrySource, options?: {
