@@ -25,15 +25,14 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   sourceArtifactId: string;
   sourceArtifactSha256: string;
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controlsRef = useRef<StlViewportControls | null>(null);
+  const renderErrorRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<State>({ src: "", mesh: null, error: null });
-  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ src: "", mesh: null, error: null });
-    setRenderError(null);
     void loadGLB(src, sourceArtifactId, sourceArtifactSha256, controller.signal)
       .then((mesh) => {
         if (!controller.signal.aborted && mesh) setState({ src, mesh, error: null });
@@ -49,13 +48,24 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   useEffect(() => {
     const mesh = state.src === src ? state.mesh : null;
     const canvas = canvasRef.current;
+    const renderError = renderErrorRef.current;
+    const root = rootRef.current;
+    if (renderError) {
+      renderError.hidden = true;
+      renderError.textContent = "";
+    }
+    if (root) root.dataset.renderError = "false";
     if (!mesh || !canvas) return;
     let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
     try {
       renderer = createStlWebGLRenderer(canvas, mesh);
       controlsRef.current = renderer.controls;
     } catch (cause) {
-      setRenderError(cause instanceof Error ? cause.message : "The display derivative could not be rendered.");
+      if (renderError) {
+        renderError.hidden = false;
+        renderError.textContent = cause instanceof Error ? cause.message : "The display derivative could not be rendered.";
+      }
+      if (root) root.dataset.renderError = "true";
     }
     return () => {
       renderer?.destroy();
@@ -65,12 +75,12 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
 
   const mesh = state.src === src ? state.mesh : null;
   const error = state.src === src ? state.error : null;
-  return <div className={styles.viewportRoot}>
+  return <div ref={rootRef} className={styles.viewportRoot}>
     <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label} tabIndex={0} />
     {!mesh && !error && <div className={styles.viewportStatus} role="status">Loading verified display derivative…</div>}
     {error && <div className={styles.viewportStatus} role="alert">{error}</div>}
-    {renderError && <div className={styles.viewportStatus} role="alert">{renderError}</div>}
-    {mesh && !error && !renderError && <div className={styles.viewportMeta}>
+    <div ref={renderErrorRef} className={styles.viewportStatus} role="alert" hidden />
+    {mesh && !error && <div className={styles.viewportMeta}>
       <span className={styles.viewportMetaBadge}>{mesh.triangleCount.toLocaleString()} triangles · display derivative · preview only</span>
       <div className={styles.viewportControls}>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateLeft()} aria-label="Rotate model left">Rotate left</button>
@@ -78,6 +88,6 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
       </div>
     </div>}
-    {mesh && !error && !renderError && <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>}
+    {mesh && !error && <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>}
   </div>;
 }
