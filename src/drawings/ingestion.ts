@@ -143,7 +143,7 @@ function extension(name: string): string {
 }
 
 function validateDrawingFilename(filename: string): string {
-  if (!filename.trim() || filename.length > 180 || /[\\r\\n\\0]/.test(filename) ||
+  if (!filename.trim() || filename.length > 180 || /[\r\n\0]/.test(filename) ||
       filename.split(/[\\\\/]/).some((part) => part === "..")) {
     throw new Error("Drawing filename is invalid.");
   }
@@ -182,7 +182,7 @@ function inspectDXF(bytes: Uint8Array, ext: string, declared: string): CADDrawin
     throw new Error("DXF media type does not match the declared file format.");
   }
   const source = decodeUtf8(bytes);
-  if (/[^\\x09\\x0a\\x0d\\x20-\\x7e]/.test(source)) {
+  if (/[^\x09\x0a\x0d\x20-\x7e]/.test(source)) {
     throw new Error("DXF preview currently accepts ASCII-compatible text only.");
   }
   const parsed = parseDXF(source);
