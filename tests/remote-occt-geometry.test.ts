@@ -91,6 +91,6 @@ describe("RemoteOCCTGeometryExecutor", () => {
     }));
     vi.stubGlobal("fetch", fetchStub);
     const executor = new RemoteOCCTGeometryExecutor(config);
-    await expect(executor.inspect(input)).rejects.toThrow("Remote OCCT geometry operation failed");
+    await expect(executor.inspect(input)).rejects.toThrow("digest or protocol contract");
   });
 });
