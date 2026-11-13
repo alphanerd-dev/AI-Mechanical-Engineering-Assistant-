@@ -62,14 +62,33 @@ function readAccessor(document: GLTFDocument, binary: DataView, accessorIndex: n
   return { count: accessor.count!, values };
 }
 
-function validateMeshBuffers(positions: Float32Array, normals: Float32Array, indices: Uint32Array): number {
+function validateVertexCount(positions: Float32Array): number {
   const vertexCount = positions.length / 3;
+  if (!Number.isInteger(vertexCount)) throw new Error("GLB mesh counts, normals or indices are invalid.");
+  if (vertexCount < 3 || vertexCount > MAX_VERTICES) throw new Error("GLB mesh counts, normals or indices are invalid.");
+  return vertexCount;
+}
+
+function validateNormalBuffer(positions: Float32Array, normals: Float32Array): void {
+  if (normals.length !== positions.length) throw new Error("GLB mesh counts, normals or indices are invalid.");
+}
+
+function validateTriangleCount(indices: Uint32Array): number {
+  if (indices.length < 3 || indices.length % 3 !== 0) throw new Error("GLB mesh counts, normals or indices are invalid.");
   const triangleCount = indices.length / 3;
-  if (vertexCount < 3 || vertexCount > MAX_VERTICES || normals.length !== positions.length ||
-      indices.length < 3 || indices.length % 3 !== 0 || triangleCount > MAX_TRIANGLES ||
-      indices.some((index) => index >= vertexCount)) {
-    throw new Error("GLB mesh counts, normals or indices are invalid.");
-  }
+  if (triangleCount > MAX_TRIANGLES) throw new Error("GLB mesh counts, normals or indices are invalid.");
+  return triangleCount;
+}
+
+function validateIndexRange(indices: Uint32Array, vertexCount: number): void {
+  if (indices.some((index) => index >= vertexCount)) throw new Error("GLB mesh counts, normals or indices are invalid.");
+}
+
+function validateMeshBuffers(positions: Float32Array, normals: Float32Array, indices: Uint32Array): number {
+  const vertexCount = validateVertexCount(positions);
+  validateNormalBuffer(positions, normals);
+  const triangleCount = validateTriangleCount(indices);
+  validateIndexRange(indices, vertexCount);
   return triangleCount;
 }
 
@@ -94,7 +113,16 @@ function computeMeshNormalization(positions: Float32Array) {
   return { center, radius };
 }
 
-function expandIndexedMesh(positions: Float32Array, normals: Float32Array, indices: Uint32Array, center: number[], radius: number) {
+interface IndexedMeshExpansionInput {
+  positions: Float32Array;
+  normals: Float32Array;
+  indices: Uint32Array;
+  center: number[];
+  radius: number;
+}
+
+function expandIndexedMesh(input: IndexedMeshExpansionInput) {
+  const { positions, normals, indices, center, radius } = input;
   const expandedPositions = new Float32Array(indices.length * 3);
   const expandedNormals = new Float32Array(indices.length * 3);
   for (let index = 0; index < indices.length; index += 1) {
@@ -116,25 +144,47 @@ function expandIndexedMesh(positions: Float32Array, normals: Float32Array, indic
 function normalizeAndExpand(positions: Float32Array, normals: Float32Array, indices: Uint32Array) {
   const triangleCount = validateMeshBuffers(positions, normals, indices);
   const { center, radius } = computeMeshNormalization(positions);
-  return { ...expandIndexedMesh(positions, normals, indices, center, radius), triangleCount };
+  return { ...expandIndexedMesh({ positions, normals, indices, center, radius }), triangleCount };
+}
+
+function validateGLBByteLength(byteLength: number): void {
+  if (byteLength < 28) throw new Error("GLB is empty or exceeds the 32 MiB preview limit.");
+  if (byteLength > MAX_GLB_BYTES) throw new Error("GLB is empty or exceeds the 32 MiB preview limit.");
+}
+
+function validateGLBMagicAndVersion(view: DataView): void {
+  if (view.getUint32(0, true) !== 0x46546c67) throw new Error("GLB header or declared file length is invalid.");
+  if (view.getUint32(4, true) !== 2) throw new Error("GLB header or declared file length is invalid.");
+}
+
+function validateGLBDeclaredLength(view: DataView, byteLength: number): void {
+  if (view.getUint32(8, true) !== byteLength) throw new Error("GLB header or declared file length is invalid.");
 }
 
 function validateGLBHeader(buffer: ArrayBuffer, view: DataView): void {
-  if (buffer.byteLength < 28 || buffer.byteLength > MAX_GLB_BYTES) {
-    throw new Error("GLB is empty or exceeds the 32 MiB preview limit.");
-  }
-  if (view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2 ||
-      view.getUint32(8, true) !== buffer.byteLength) {
-    throw new Error("GLB header or declared file length is invalid.");
-  }
+  validateGLBByteLength(buffer.byteLength);
+  validateGLBMagicAndVersion(view);
+  validateGLBDeclaredLength(view, buffer.byteLength);
+}
+
+function validateGLBJsonChunkType(view: DataView): void {
+  if (view.getUint32(16, true) !== 0x4e4f534a) throw new Error("GLB JSON chunk is invalid.");
+}
+
+function validateGLBJsonChunkLength(jsonLength: number): void {
+  if (jsonLength < 2) throw new Error("GLB JSON chunk is invalid.");
+  if (jsonLength % 4 !== 0) throw new Error("GLB JSON chunk is invalid.");
+}
+
+function validateGLBJsonChunkBounds(jsonLength: number, byteLength: number): void {
+  if (20 + jsonLength + 8 > byteLength) throw new Error("GLB JSON chunk is invalid.");
 }
 
 function parseGLBJsonChunk(buffer: ArrayBuffer, view: DataView): { document: GLTFDocument; binaryHeader: number } {
   const jsonLength = view.getUint32(12, true);
-  if (view.getUint32(16, true) !== 0x4e4f534a || jsonLength < 2 || jsonLength % 4 !== 0 ||
-      20 + jsonLength + 8 > buffer.byteLength) {
-    throw new Error("GLB JSON chunk is invalid.");
-  }
+  validateGLBJsonChunkType(view);
+  validateGLBJsonChunkLength(jsonLength);
+  validateGLBJsonChunkBounds(jsonLength, buffer.byteLength);
   try {
     const document = JSON.parse(new TextDecoder().decode(buffer.slice(20, 20 + jsonLength))) as GLTFDocument;
     return { document, binaryHeader: 20 + jsonLength };
