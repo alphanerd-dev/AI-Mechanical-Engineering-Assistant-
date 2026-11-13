@@ -161,31 +161,57 @@ function buildDockerArgs(
   ];
 }
 
-async function prepareGeometrySandbox(
-  scriptPathInput: string,
-  image: string,
-  source: CADGeometrySource,
-  operation: GeometryOperation,
-  options: { linearDeflectionMm: number; angularDeflectionRad: number } | undefined,
-  limits: { pidsLimit: number; memoryLimit: string; cpus: number }
-): Promise<PreparedGeometrySandbox> {
+interface GeometrySandboxRequest {
+  scriptPathInput: string;
+  image: string;
+  source: CADGeometrySource;
+  operation: GeometryOperation;
+  options?: { linearDeflectionMm: number; angularDeflectionRad: number };
+  limits: { pidsLimit: number; memoryLimit: string; cpus: number };
+}
+
+async function resolveGeometryWorkerScript(scriptPathInput: string): Promise<{ scriptPath: string; scriptDirectory: string }> {
   const scriptPath = await realpath(scriptPathInput);
   if (!(await stat(scriptPath)).isFile()) throw new Error("Configured OCCT geometry worker is not a regular file.");
   const scriptDirectory = path.dirname(scriptPath);
   if (scriptDirectory.includes(",") || /[\r\n\0]/.test(scriptDirectory)) {
     throw new Error("OCCT geometry worker path cannot be represented safely in Docker mount syntax.");
   }
+  return { scriptPath, scriptDirectory };
+}
+
+async function createGeometryArtifactRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "ama-occt-geometry-"));
+  await chmod(root, 0o755);
+  return root;
+}
+
+async function writeGeometrySource(root: string, source: CADGeometrySource): Promise<string> {
+  const filename = source.format === "BREP" ? "source.brep" : "source.step";
+  const sourcePath = path.join(root, filename);
+  await writeFile(sourcePath, Buffer.from(source.bytes));
+  await chmod(sourcePath, 0o444);
+  return filename;
+}
+
+function createGeometryWorkerPayload(
+  source: CADGeometrySource,
+  operation: GeometryOperation,
+  options?: { linearDeflectionMm: number; angularDeflectionRad: number }
+): string {
+  return JSON.stringify({
+    operation, format: source.format, artifactPath: ARTIFACT_ROOT + "/" + (source.format === "BREP" ? "source.brep" : "source.step"),
+    ...(options ? { linearDeflectionMm: options.linearDeflectionMm, angularDeflectionRad: options.angularDeflectionRad } : {})
+  });
+}
+
+async function prepareGeometrySandbox(input: GeometrySandboxRequest): Promise<PreparedGeometrySandbox> {
+  const { scriptPath, scriptDirectory } = await resolveGeometryWorkerScript(input.scriptPathInput);
+  const root = await createGeometryArtifactRoot();
   try {
-    await chmod(root, 0o755);
-    const filename = source.format === "BREP" ? "source.brep" : "source.step";
-    await writeFile(path.join(root, filename), Buffer.from(source.bytes));
-    await chmod(path.join(root, filename), 0o444);
-    const payload = JSON.stringify({
-      operation, format: source.format, artifactPath: ARTIFACT_ROOT + "/" + filename,
-      ...(options ? { linearDeflectionMm: options.linearDeflectionMm, angularDeflectionRad: options.angularDeflectionRad } : {})
-    });
-    const args = buildDockerArgs(image, root, scriptDirectory, scriptPath, limits);
+    await writeGeometrySource(root, input.source);
+    const payload = createGeometryWorkerPayload(input.source, input.operation, input.options);
+    const args = buildDockerArgs(input.image, root, scriptDirectory, scriptPath, input.limits);
     return { root, args, payload };
   } catch (error) {
     await rm(root, { recursive: true, force: true });
