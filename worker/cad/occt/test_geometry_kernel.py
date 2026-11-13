@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Deterministic protocol tests for the OCCT geometry-kernel worker."""
 import base64
-import contextlib
 import io
 import json
 import os
@@ -106,8 +105,9 @@ class GeometryKernelWorkerTests(unittest.TestCase):
         self.artifact.write_bytes(b"")
         empty = self.run_request(self.request())
         self.assertEqual(empty["status"], "FAILED")
-        self.artifact.write_bytes(b"x" * (geometry_kernel.MAX_ARTIFACT_BYTES + 1))
-        oversized = self.run_request(self.request())
+        with mock.patch.object(geometry_kernel, "MAX_ARTIFACT_BYTES", 4):
+            self.artifact.write_bytes(b"12345")
+            oversized = self.run_request(self.request())
         self.assertEqual(oversized["status"], "FAILED")
 
 
