@@ -11,6 +11,7 @@ const MAX_GLB_BYTES = 32 * 1024 * 1024;
 const MAX_VERTICES = 750_000;
 const MAX_TRIANGLES = 250_000;
 
+type GLTFPrimitive = { attributes?: { POSITION?: number; NORMAL?: number }; indices?: number; mode?: number };
 type GLTFDocument = {
   asset?: { version?: string };
   buffers?: Array<{ byteLength?: number; uri?: string }>;
@@ -174,7 +175,7 @@ function validateSingleMeshScene(document: GLTFDocument) {
   return primitive;
 }
 
-function readTriangleMesh(document: GLTFDocument, binary: DataView, primitive: NonNullable<GLTFDocument["meshes"]>[number]["primitives"] extends (infer T)[] | undefined ? T : never) {
+function readTriangleMesh(document: GLTFDocument, binary: DataView, primitive: GLTFPrimitive) {
   const positionAccessor = readAccessor(document, binary, primitive.attributes!.POSITION!, "VEC3", 5126, MAX_VERTICES);
   const normalAccessor = readAccessor(document, binary, primitive.attributes!.NORMAL!, "VEC3", 5126, MAX_VERTICES);
   const indexAccessor = readAccessor(document, binary, primitive.indices!, "SCALAR", 5125, MAX_TRIANGLES * 3);
