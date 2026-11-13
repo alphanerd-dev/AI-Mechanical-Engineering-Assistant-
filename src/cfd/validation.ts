@@ -75,9 +75,9 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
   }
   if (
     typeof candidate.solver?.residualTolerance !== "number" ||
-    !Number.isFinite(request.solver.residualTolerance) ||
-    request.solver.residualTolerance < 1e-10 ||
-    request.solver.residualTolerance > 1e-3
+    !Number.isFinite(candidate.solver!.residualTolerance) ||
+    candidate.solver!.residualTolerance < 1e-10 ||
+    candidate.solver!.residualTolerance > 1e-3
   ) {
     errors.push("solver.residualTolerance must be between 1e-10 and 1e-3.");
   }
@@ -109,11 +109,11 @@ export function expectedPoiseuillePressureDropPa(
   >
 ): number {
   return 12 *
-    candidate.densityKgM3 *
-    candidate.kinematicViscosityM2PerS *
-    candidate.lengthM *
-    candidate.meanVelocityMps /
-    (candidate.heightM * candidate.heightM);
+    request.densityKgM3 *
+    request.kinematicViscosityM2PerS *
+    request.lengthM *
+    request.meanVelocityMps /
+    (request.heightM * request.heightM);
 }
 
 function validateArtifactSet(artifacts: OpenFOAMRunArtifact[]): string[] {
