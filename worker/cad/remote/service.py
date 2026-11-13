@@ -181,6 +181,8 @@ def validate_numeric_deflection(value: Any, label: str) -> float:
         raise ValueError(label)
     if isinstance(value, bool):
         raise ValueError(label)
+    if value != value:
+        raise ValueError(label)
     return float(value)
 
 
