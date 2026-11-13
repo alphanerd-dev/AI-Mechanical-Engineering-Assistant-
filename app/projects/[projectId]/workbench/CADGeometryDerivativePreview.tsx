@@ -9,7 +9,6 @@ type Derivative = {
   sourceArtifactId: string;
   sourceArtifactSha256: string;
   artifactSha256: string;
-  artifactSha256: string;
   converter: { providerId: string; version: string };
   modelRevision: number;
   tessellation: { linearDeflectionMm: number; angularDeflectionRad: number };
