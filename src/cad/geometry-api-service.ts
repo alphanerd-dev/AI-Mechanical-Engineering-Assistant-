@@ -31,6 +31,8 @@ export class CADGeometryAPIError extends Error {
   }
 }
 
+class CADGeometryAuditAmbiguousError extends CADGeometryAPIError {}
+
 export interface CADGeometryRequest {
   projectId: string;
   completionId: string;
@@ -431,7 +433,7 @@ async function persistDerivativeAudit(
     const { data, error } = await serviceDb.from("engineering_audit_events").select("event_id")
       .eq("resource_type", "CAD_DISPLAY_DERIVATIVE").eq("resource_id", derivative.artifactId)
       .eq("action", "EVIDENCE_WRITE").maybeSingle();
-    if (data || error) fail("Display derivative was committed but its audit acknowledgement is ambiguous. Reload derivative history before retrying.", 503);
+    if (data || error) throw new CADGeometryAuditAmbiguousError("Display derivative was committed but its audit acknowledgement is ambiguous. Reload derivative history before retrying.", 503);
     fail("Display derivative audit persistence failed.", 503);
   }
 }
@@ -464,7 +466,8 @@ async function persistGeneratedDerivative(
 
   try {
     await persistDerivativeAudit(context.serviceDb, context.subject, request.projectId, derivative);
-  } catch {
+  } catch (error) {
+    if (error instanceof CADGeometryAuditAmbiguousError) throw error;
     await context.serviceDb.from("engineering_cad_display_derivatives").delete()
       .eq("id", derivative.artifactId).eq("project_id", request.projectId);
     await context.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
