@@ -11,6 +11,7 @@ import { EngineeringProvider, ProviderDescriptor } from "./contracts.js";
 
 export interface OpenFOAMExecutor {
   runLaminarChannel(request: OpenFOAMLaminarChannelRequest): Promise<OpenFOAMLaminarChannelResult>;
+  downloadArtifact?(jobId: string, filename: string): Promise<Uint8Array>;
 }
 
 export class OpenFOAMProvider implements EngineeringProvider {
