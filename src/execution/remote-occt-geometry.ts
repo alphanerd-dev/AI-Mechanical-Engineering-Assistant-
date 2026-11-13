@@ -131,20 +131,29 @@ function validateTopology(topology: WorkerResponse["topology"]) {
   return topology;
 }
 
-function decodeRemoteMesh(result: WorkerResponse, source: CADGeometrySource) {
-  const mesh = result.tessellation;
-  if (!mesh || !Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 || mesh.vertexCount > 750_000 ||
+function validateRemoteMeshCounts(mesh: NonNullable<WorkerResponse["tessellation"]>): void {
+  if (!Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 || mesh.vertexCount > 750_000 ||
       !Number.isSafeInteger(mesh.triangleCount) || mesh.triangleCount < 1 || mesh.triangleCount > 250_000) {
     throw new Error("Remote OCCT geometry worker returned invalid tessellation counts.");
   }
+}
+
+function decodeRemoteMeshBuffers(mesh: NonNullable<WorkerResponse["tessellation"]>) {
   const positions = decodeFloat32(mesh.positionsFloat32LE, mesh.vertexCount * 3);
   const normals = decodeFloat32(mesh.normalsFloat32LE, mesh.vertexCount * 3);
   const indices = decodeUint32(mesh.indicesUint32LE, mesh.triangleCount * 3);
   if (indices.some((index) => index >= mesh.vertexCount)) {
     throw new Error("Remote OCCT geometry worker returned an out-of-range mesh index.");
   }
+  return { positions, normals, indices };
+}
+
+function decodeRemoteMesh(result: WorkerResponse, source: CADGeometrySource) {
+  const mesh = result.tessellation;
+  if (!mesh) throw new Error("Remote OCCT geometry worker omitted tessellation.");
+  validateRemoteMeshCounts(mesh);
   return {
-    positions, normals, indices,
+    ...decodeRemoteMeshBuffers(mesh),
     linearDeflectionMm: mesh.linearDeflectionMm,
     angularDeflectionRad: mesh.angularDeflectionRad,
     sourceArtifactId: source.artifactId,
