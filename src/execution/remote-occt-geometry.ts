@@ -103,8 +103,8 @@ export class RemoteOCCTGeometryExecutor implements CADGeometryExecutor {
           !Array.isArray(result.errors) || !Array.isArray(result.limitations)) {
         const detail = Array.isArray(result.errors)
           ? result.errors.filter((item): item is string => typeof item === "string").join("; ")
-          : typeof result.error === "string" ? result.error : "Remote OCCT geometry operation failed.";
-        throw new Error(detail.slice(0, 500));
+          : typeof result.error === "string" ? result.error : "";
+        throw new Error((detail.trim() || "Remote OCCT geometry response failed its digest or protocol contract.").slice(0, 500));
       }
       return result as unknown as WorkerResponse;
     } catch (error) {
