@@ -43,21 +43,38 @@ def finite_positive(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
 
-def read_request():
+def read_request_bytes():
     raw = sys.stdin.read(MAX_REQUEST_BYTES + 1)
     if len(raw.encode("utf-8")) > MAX_REQUEST_BYTES:
         raise ValueError("Geometry request exceeds the 16384-byte limit.")
+    return raw
+
+
+def parse_request_object(raw):
     request = json.loads(raw)
     if not isinstance(request, dict):
         raise ValueError("Geometry request must be a JSON object.")
+    return request
+
+
+def validate_request_fields(request):
     allowed = {"operation", "format", "artifactPath", "linearDeflectionMm", "angularDeflectionRad"}
     unknown = sorted(set(request) - allowed)
     if unknown:
         raise ValueError("Geometry request contains unsupported fields: " + ", ".join(unknown))
+
+
+def validate_request_operation(request):
     if request.get("operation") not in {"INSPECT", "TESSELLATE"}:
         raise ValueError("Geometry operation must be INSPECT or TESSELLATE.")
     if request.get("format") not in {"BREP", "STEP"}:
         raise ValueError("Geometry format must be BREP or STEP.")
+
+
+def read_request():
+    request = parse_request_object(read_request_bytes())
+    validate_request_fields(request)
+    validate_request_operation(request)
     return request
 
 
