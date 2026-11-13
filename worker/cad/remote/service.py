@@ -35,6 +35,7 @@ ACTIVE_JOBS = 0
 MAX_CONCURRENCY = max(1, min(2, int(os.getenv("WORKER_MAX_CONCURRENCY", "1"))))
 EXECUTOR = threading.BoundedSemaphore(MAX_CONCURRENCY)
 VALIDATOR_SCRIPT = pathlib.Path("/opt/cad-worker/validate_brep.py")
+GEOMETRY_SCRIPT = pathlib.Path("/opt/cad-worker/geometry_kernel.py")
 GENERATOR_SCRIPT = pathlib.Path("/opt/cad-worker/execute_cad.py")
 ARTIFACT_NAMES = {
     "source": "source.py",
@@ -89,13 +90,13 @@ def runtime_readiness() -> dict[str, Any]:
     token_valid = bool(TOKEN_PATTERN.fullmatch(os.getenv("WORKER_API_TOKEN", "")))
     checks.append({"name": "server_authentication", "status": "PASS" if token_valid else "FAIL",
                    "detail": "A 256-bit bearer token is configured." if token_valid else "WORKER_API_TOKEN must be a 64-character lowercase hex token."})
-    scripts_ready = GENERATOR_SCRIPT.is_file() and VALIDATOR_SCRIPT.is_file()
+    scripts_ready = GENERATOR_SCRIPT.is_file() and VALIDATOR_SCRIPT.is_file() and GEOMETRY_SCRIPT.is_file()
     checks.append({"name": "trusted_worker_scripts", "status": "PASS" if scripts_ready else "FAIL",
-                   "detail": "The fixed generation and OCCT validation scripts are installed." if scripts_ready else "A required trusted worker script is missing."})
+                   "detail": "The fixed generation, validation and geometry-kernel scripts are installed." if scripts_ready else "A required trusted worker script is missing."})
     try:
         build123d_version = version("build123d")
-        from build123d import Cylinder, import_brep
-        library_ready = bool(build123d_version) and callable(Cylinder) and callable(import_brep)
+        from build123d import Cylinder, import_brep, import_step
+        library_ready = bool(build123d_version) and callable(Cylinder) and callable(import_brep) and callable(import_step)
         detail = "build123d and its OpenCascade bindings import successfully (" + build123d_version + ")."
     except Exception:
         library_ready = False
@@ -104,7 +105,7 @@ def runtime_readiness() -> dict[str, Any]:
     checks.append({"name": "build123d_occt_runtime", "status": "PASS" if library_ready else "FAIL", "detail": detail})
     ready = all(item["status"] == "PASS" for item in checks)
     return {"ready": ready, "status": "READY" if ready else "NOT_READY", "build123dVersion": build123d_version,
-            "capabilities": ["CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP"], "checks": checks}
+            "capabilities": ["CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP", "CAD.INSPECT_GEOMETRY", "CAD.TESSELLATE_GEOMETRY"], "checks": checks}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -127,7 +128,7 @@ class Handler(BaseHTTPRequestHandler):
         if not authorized(self):
             json_response(self, 401, {"error": "Unauthorized"})
             return
-        if self.path not in ("/v1/cad/execute", "/v1/cad/validate"):
+        if self.path not in ("/v1/cad/execute", "/v1/cad/validate", "/v1/cad/geometry"):
             json_response(self, 404, {"error": "Not found"})
             return
         try:
@@ -138,8 +139,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if self.path == "/v1/cad/execute":
                     response = self.execute_cad(payload)
-                else:
+                elif self.path == "/v1/cad/validate":
                     response = self.validate_cad(payload)
+                else:
+                    response = self.geometry(payload)
                 json_response(self, 200, response)
             finally:
                 EXECUTOR.release()
@@ -263,6 +266,70 @@ class Handler(BaseHTTPRequestHandler):
                 raise RuntimeError("OpenCascade validator response did not match the validation contract.")
             verdict["artifactSha256"] = hashlib.sha256(artifact).hexdigest()
             return verdict
+
+    def geometry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        allowed = {"operation", "format", "artifactBase64", "artifactSha256",
+                   "linearDeflectionMm", "angularDeflectionRad"}
+        if set(payload) - allowed:
+            raise ValueError("Geometry request contains unsupported fields.")
+        operation = payload.get("operation")
+        geometry_format = payload.get("format")
+        encoded = payload.get("artifactBase64")
+        digest = payload.get("artifactSha256")
+        if operation not in ("INSPECT", "TESSELLATE"):
+            raise ValueError("Geometry operation must be INSPECT or TESSELLATE.")
+        if geometry_format not in ("BREP", "STEP"):
+            raise ValueError("Geometry format must be BREP or STEP.")
+        if not isinstance(encoded, str) or len(encoded) > 6 * 1024 * 1024:
+            raise ValueError("A bounded geometry artifact base64 value is required.")
+        if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
+            raise ValueError("A SHA-256 geometry artifact digest is required.")
+        try:
+            artifact = base64.b64decode(encoded, validate=True)
+        except Exception:
+            raise ValueError("Geometry artifact base64 is malformed.")
+        if not artifact or len(artifact) > MAX_ARTIFACT_BYTES or hashlib.sha256(artifact).hexdigest() != digest:
+            raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+        request: dict[str, Any] = {
+            "operation": operation,
+            "format": geometry_format,
+            "artifactPath": "/artifacts/source.brep" if geometry_format == "BREP" else "/artifacts/source.step"
+        }
+        if operation == "TESSELLATE":
+            linear = payload.get("linearDeflectionMm", 0.1)
+            angular = payload.get("angularDeflectionRad", 0.35)
+            if not isinstance(linear, (int, float)) or isinstance(linear, bool) or not 0.001 <= linear <= 5:
+                raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
+            if not isinstance(angular, (int, float)) or isinstance(angular, bool) or not 0.01 <= angular <= 1.5707963267948966:
+                raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
+            request["linearDeflectionMm"] = float(linear)
+            request["angularDeflectionRad"] = float(angular)
+
+        with tempfile.TemporaryDirectory(prefix="occt-geometry-") as temp_root:
+            artifact_root = pathlib.Path(temp_root) / "artifacts"
+            artifact_root.mkdir(mode=0o700)
+            filename = "source.brep" if geometry_format == "BREP" else "source.step"
+            (artifact_root / filename).write_bytes(artifact)
+            env = dict(os.environ)
+            env["CAD_ARTIFACT_DIR"] = str(artifact_root)
+            result = subprocess.run(
+                [sys.executable, str(GEOMETRY_SCRIPT)],
+                input=json.dumps(request, separators=(",", ":")),
+                text=True, capture_output=True, timeout=MAX_VALIDATION_TIMEOUT_SECONDS,
+                env=env, cwd=temp_root, check=False
+            )
+            if result.returncode != 0 or not result.stdout.strip():
+                raise RuntimeError("OpenCascade geometry worker returned no structured result.")
+            try:
+                response = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                raise RuntimeError("OpenCascade geometry worker returned malformed JSON.")
+            if not isinstance(response, dict) or response.get("status") != "COMPLETED":
+                errors = response.get("errors") if isinstance(response, dict) else None
+                detail = "; ".join(item for item in errors if isinstance(item, str)) if isinstance(errors, list) else "Geometry operation failed."
+                raise ValueError(detail[:500])
+            response["artifactSha256"] = digest
+            return response
 
     def log_message(self, format: str, *args: Any) -> None:
         return
