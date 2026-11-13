@@ -208,24 +208,39 @@ function validateExecutionAction(
   return errors;
 }
 
+function specialistAllowlistErrors(specialistId:string,limits:AgentRunLimits):string[]{
+  if(limits.requireSpecialistAllowlist===true&&
+      (!limits.allowedSpecialists||!limits.allowedSpecialists.includes(specialistId)))
+    return ["Specialist is outside the required host allowlist: "+specialistId+"."];
+  if(limits.allowedSpecialists?.length&&!limits.allowedSpecialists.includes(specialistId))
+    return ["Specialist is outside the bounded agent policy: "+specialistId+"."];
+  return [];
+}
+
+function taskDelegationErrors(
+  task:EngineeringTask|undefined,
+  limits:AgentRunLimits,
+  router:CapabilityRouter
+):string[]{
+  if(!task) return [];
+  const errors=task.capability
+    ?capabilityErrors({capability:task.capability,risk:task.risk,input:task.input,limits,router,requireAllInputs:true}).errors
+    :["Task has no registered capability for specialist delegation."];
+  if(task.status!=="READY")
+    errors.push("Task must be READY before specialist delegation; current status is "+task.status+".");
+  return errors;
+}
+
 function validateDelegationAction(
   action:Extract<AgentActionProposal,{kind:"DELEGATE_SPECIALIST"}>,
   task:EngineeringTask|undefined,
   limits:AgentRunLimits,
   router:CapabilityRouter
 ):string[]{
-  const errors:string[]=[];
-  if(limits.requireSpecialistAllowlist===true&&
-      (!limits.allowedSpecialists||!limits.allowedSpecialists.includes(action.specialistId)))
-    errors.push("Specialist is outside the required host allowlist: "+action.specialistId+".");
-  else if(limits.allowedSpecialists?.length&&!limits.allowedSpecialists.includes(action.specialistId))
-    errors.push("Specialist is outside the bounded agent policy: "+action.specialistId+".");
-  if(!task) return errors;
-  if(task.capability) errors.push(...capabilityErrors({capability:task.capability,risk:task.risk,input:task.input,limits,router,requireAllInputs:true}).errors);
-  else errors.push("Task has no registered capability for specialist delegation.");
-  if(task.status!=="READY")
-    errors.push("Task must be READY before specialist delegation; current status is "+task.status+".");
-  return errors;
+  return [
+    ...specialistAllowlistErrors(action.specialistId,limits),
+    ...taskDelegationErrors(task,limits,router)
+  ];
 }
 
 export function validateTaskAction(
