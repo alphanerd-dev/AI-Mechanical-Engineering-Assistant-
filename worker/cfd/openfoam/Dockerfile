@@ -27,6 +27,7 @@ RUN groupadd --system --gid 10001 openfoam \
 WORKDIR /app
 COPY --chown=openfoam:openfoam worker.py /app/worker.py
 COPY --chown=openfoam:openfoam test_worker.py /app/test_worker.py
+COPY --chown=openfoam:openfoam smoke_request.py /app/smoke_request.py
 
 RUN python3 -m unittest -v test_worker
 
