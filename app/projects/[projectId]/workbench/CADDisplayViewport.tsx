@@ -110,7 +110,9 @@ function useCADDisplayRenderer(mesh: CADDisplayMeshPreview | null, identity: str
 }
 
 function ViewportLoadingState({ loading, mesh, error }: { loading: boolean; mesh: CADDisplayMeshPreview | null; error: string | null }) {
-  if (mesh || error || !loading) return null;
+  if (!loading) return null;
+  if (mesh) return null;
+  if (error) return null;
   return <div className={styles.viewportStatus} role="status">Loading verified display derivative…</div>;
 }
 
