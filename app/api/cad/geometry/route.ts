@@ -130,7 +130,9 @@ export async function GET(request: Request) {
         : null;
       const currentSource = isRecord(source) ? {
         id: String(source.id),
-        provenance: isRecord(source.provenance) ? { artifactSha256: source.provenance.artifactSha256 } : undefined
+        provenance: isRecord(source.provenance) ? {
+          artifactSha256: typeof source.provenance.artifactSha256 === "string" ? source.provenance.artifactSha256 : undefined
+        } : undefined
       } : null;
       const state = classifyCADDisplayDerivative(derivative, currentSource, model ? {
         id: model.id, revision: Number(model.revision)
