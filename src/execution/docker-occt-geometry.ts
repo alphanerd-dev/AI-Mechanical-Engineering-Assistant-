@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { validateCADGeometrySource, type CADGeometrySource } from "../cad/geometry-kernel-contract.js";
 import {
-  CADCommandRunner,
-  CADCommandRunOptions,
-  NodeCADCommandRunner
+  NodeCADCommandRunner,
+  type CADCommandRunner,
+  type CADCommandRunOptions
 } from "./docker-build123d-transport.js";
 
 export interface DockerOCCTGeometryOptions {
@@ -27,6 +27,9 @@ const WORKER_ROOT = "/validator";
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_STDOUT_BYTES = 40 * 1024 * 1024;
 const DEFAULT_MAX_STDERR_BYTES = 32_000;
+const MAX_SOURCE_BYTES = 100 * 1024 * 1024;
+const MAX_VERTICES = 750_000;
+const MAX_TRIANGLES = 250_000;
 
 export interface CADGeometryExecutor {
   inspect(source: CADGeometrySource): Promise<{
@@ -67,6 +70,12 @@ type GeometryWorkerResponse = {
   };
 };
 
+interface PreparedGeometrySandbox {
+  root: string;
+  args: string[];
+  payload: string;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -94,6 +103,106 @@ function validateDeflection(options: { linearDeflectionMm: number; angularDeflec
   }
 }
 
+function validateGeometrySource(source: CADGeometrySource, operation: GeometryOperation, options?: {
+  linearDeflectionMm: number; angularDeflectionRad: number;
+}): void {
+  const errors = validateCADGeometrySource(source);
+  if (errors.length) throw new Error(errors.join("; "));
+  if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 || source.bytes.byteLength > MAX_SOURCE_BYTES) {
+    throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
+  }
+  if (!/^[a-f0-9]{64}$/.test(source.sha256) || sha256(source.bytes) !== source.sha256) {
+    throw new Error("OCCT geometry source bytes do not match the declared SHA-256 digest.");
+  }
+  if (source.units !== "mm" || source.coordinateFrame !== "MODEL") {
+    throw new Error("The current OCCT geometry worker accepts millimetre model-frame sources only.");
+  }
+  if (operation === "TESSELLATE") {
+    if (!options) throw new Error("Tessellation settings are required.");
+    validateDeflection(options);
+  }
+}
+
+function buildDockerArgs(
+  image: string,
+  dockerBinary: string,
+  root: string,
+  scriptDirectory: string,
+  scriptPath: string,
+  limits: { pidsLimit: number; memoryLimit: string; cpus: number }
+): string[] {
+  const hostUid = typeof process.getuid === "function" ? process.getuid() : undefined;
+  const hostGid = typeof process.getgid === "function" ? process.getgid() : undefined;
+  const uid = hostUid !== undefined && hostUid > 0 ? hostUid : 10001;
+  const gid = hostGid !== undefined && hostGid > 0 ? hostGid : 10001;
+  return [
+    "run", "--rm", "--interactive", "--network", "none", "--read-only",
+    "--cap-drop=ALL", "--security-opt=no-new-privileges",
+    "--pids-limit", String(limits.pidsLimit), "--memory", limits.memoryLimit,
+    "--cpus", String(limits.cpus), "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m",
+    "--user", uid + ":" + gid,
+    "--mount", "type=bind,src=" + root + ",dst=" + ARTIFACT_ROOT + ",readonly",
+    "--mount", "type=bind,src=" + scriptDirectory + ",dst=" + WORKER_ROOT + ",readonly",
+    "--env", "CAD_ARTIFACT_DIR=" + ARTIFACT_ROOT,
+    "--entrypoint", "python", "--pull=never", image,
+    WORKER_ROOT + "/" + path.basename(scriptPath)
+  ];
+}
+
+async function prepareGeometrySandbox(
+  scriptPathInput: string,
+  image: string,
+  dockerBinary: string,
+  source: CADGeometrySource,
+  operation: GeometryOperation,
+  options: { linearDeflectionMm: number; angularDeflectionRad: number } | undefined,
+  limits: { pidsLimit: number; memoryLimit: string; cpus: number }
+): Promise<PreparedGeometrySandbox> {
+  const scriptPath = await realpath(scriptPathInput);
+  if (!(await stat(scriptPath)).isFile()) throw new Error("Configured OCCT geometry worker is not a regular file.");
+  const scriptDirectory = path.dirname(scriptPath);
+  if (scriptDirectory.includes(",") || /[\r\n\0]/.test(scriptDirectory)) {
+    throw new Error("OCCT geometry worker path cannot be represented safely in Docker mount syntax.");
+  }
+  const root = await mkdtemp(path.join(os.tmpdir(), "ama-occt-geometry-"));
+  try {
+    await chmod(root, 0o755);
+    const filename = source.format === "BREP" ? "source.brep" : "source.step";
+    await writeFile(path.join(root, filename), Buffer.from(source.bytes));
+    await chmod(path.join(root, filename), 0o444);
+    const payload = JSON.stringify({
+      operation, format: source.format, artifactPath: ARTIFACT_ROOT + "/" + filename,
+      ...(options ? { linearDeflectionMm: options.linearDeflectionMm, angularDeflectionRad: options.angularDeflectionRad } : {})
+    });
+    const args = buildDockerArgs(image, dockerBinary, root, scriptDirectory, scriptPath, limits);
+    return { root, args, payload };
+  } catch (error) {
+    await rm(root, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function parseGeometryWorkerResponse(stdout: string): GeometryWorkerResponse {
+  let response: unknown;
+  try { response = JSON.parse(stdout); }
+  catch { throw new Error("OCCT geometry worker returned malformed JSON."); }
+  if (!isRecord(response) || response.status !== "COMPLETED" ||
+      typeof response.providerId !== "string" || typeof response.providerVersion !== "string" ||
+      !Array.isArray(response.errors) || !Array.isArray(response.limitations)) {
+    const errors = isRecord(response) && Array.isArray(response.errors)
+      ? response.errors.filter((value): value is string => typeof value === "string").join("; ")
+      : "response did not satisfy the worker protocol";
+    throw new Error("OCCT geometry operation failed: " + errors);
+  }
+  const typed = response as unknown as GeometryWorkerResponse;
+  const topology = typed.topology;
+  if (!topology || ![topology.solids, topology.shells, topology.faces, topology.edges, topology.vertices]
+    .every((value) => Number.isSafeInteger(value) && value >= 0) || typeof topology.valid !== "boolean") {
+    throw new Error("OCCT geometry worker returned malformed topology metadata.");
+  }
+  return typed;
+}
+
 function decodeFloat32(value: string, expectedLength: number): Float32Array {
   const bytes = Buffer.from(value, "base64");
   if (bytes.byteLength !== expectedLength * 4) throw new Error("OCCT mesh float buffer length is inconsistent.");
@@ -109,6 +218,30 @@ function decodeUint32(value: string, expectedLength: number): Uint32Array {
   const output = new Uint32Array(expectedLength);
   for (let index = 0; index < expectedLength; index += 1) output[index] = bytes.readUInt32LE(index * 4);
   return output;
+}
+
+function decodeTessellation(response: GeometryWorkerResponse, source: CADGeometrySource) {
+  const mesh = response.tessellation;
+  if (!mesh || !Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 ||
+      mesh.vertexCount > MAX_VERTICES || !Number.isSafeInteger(mesh.triangleCount) ||
+      mesh.triangleCount < 1 || mesh.triangleCount > MAX_TRIANGLES) {
+    throw new Error("OCCT geometry worker returned invalid tessellation counts.");
+  }
+  const positions = decodeFloat32(mesh.positionsFloat32LE, mesh.vertexCount * 3);
+  const normals = decodeFloat32(mesh.normalsFloat32LE, mesh.vertexCount * 3);
+  const indices = decodeUint32(mesh.indicesUint32LE, mesh.triangleCount * 3);
+  if (indices.some((index) => index >= mesh.vertexCount)) {
+    throw new Error("OCCT geometry worker returned an out-of-range mesh index.");
+  }
+  return {
+    positions, normals, indices,
+    linearDeflectionMm: mesh.linearDeflectionMm,
+    angularDeflectionRad: mesh.angularDeflectionRad,
+    sourceArtifactId: source.artifactId,
+    sourceArtifactSha256: source.sha256,
+    providerId: response.providerId,
+    providerVersion: response.providerVersion
+  };
 }
 
 /** Executes real OCCT import/inspection/tessellation in a no-network, read-only container. */
@@ -157,96 +290,25 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
     linearDeflectionMm: number;
     angularDeflectionRad: number;
   }): Promise<GeometryWorkerResponse> {
-    const sourceErrors = validateCADGeometrySource(source);
-    if (sourceErrors.length) throw new Error(sourceErrors.join("; "));
-    if (!source || !(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 ||
-        source.bytes.byteLength > 100 * 1024 * 1024) {
-      throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
-    }
-    if (!/^[a-f0-9]{64}$/.test(source.sha256) || sha256(source.bytes) !== source.sha256) {
-      throw new Error("OCCT geometry source bytes do not match the declared SHA-256 digest.");
-    }
-    if (source.units !== "mm" || source.coordinateFrame !== "MODEL") {
-      throw new Error("The current OCCT geometry worker accepts millimetre model-frame sources only.");
-    }
-    if (operation === "TESSELLATE") {
-      if (!options) throw new Error("Tessellation settings are required.");
-      validateDeflection(options);
-    }
-
-    let tempRoot: string | undefined;
+    validateGeometrySource(source, operation, options);
+    const sandbox = await prepareGeometrySandbox(
+      this.scriptPath, this.image, this.dockerBinary, source, operation, options,
+      { pidsLimit: this.pidsLimit, memoryLimit: this.memoryLimit, cpus: this.cpus }
+    );
     try {
-      const scriptPath = await realpath(this.scriptPath);
-      if (!(await stat(scriptPath)).isFile()) throw new Error("Configured OCCT geometry worker is not a regular file.");
-      const scriptDirectory = path.dirname(scriptPath);
-      if (scriptDirectory.includes(",") || /[\r\n\0]/.test(scriptDirectory)) {
-        throw new Error("OCCT geometry worker path cannot be represented safely in Docker mount syntax.");
-      }
-
-      tempRoot = await mkdtemp(path.join(os.tmpdir(), "ama-occt-geometry-"));
-      await chmod(tempRoot, 0o755);
-      const filename = source.format === "BREP" ? "source.brep" : "source.step";
-      const hostArtifactPath = path.join(tempRoot, filename);
-      await writeFile(hostArtifactPath, Buffer.from(source.bytes));
-      await chmod(hostArtifactPath, 0o444);
-
-      const payload = JSON.stringify({
-        operation,
-        format: source.format,
-        artifactPath: ARTIFACT_ROOT + "/" + filename,
-        ...(options ? {
-          linearDeflectionMm: options.linearDeflectionMm,
-          angularDeflectionRad: options.angularDeflectionRad
-        } : {})
-      });
-      const hostUid = typeof process.getuid === "function" ? process.getuid() : undefined;
-      const hostGid = typeof process.getgid === "function" ? process.getgid() : undefined;
-      const uid = hostUid !== undefined && hostUid > 0 ? hostUid : 10001;
-      const gid = hostGid !== undefined && hostGid > 0 ? hostGid : 10001;
-      const args = [
-        "run", "--rm", "--interactive", "--network", "none", "--read-only",
-        "--cap-drop=ALL", "--security-opt=no-new-privileges",
-        "--pids-limit", String(this.pidsLimit), "--memory", this.memoryLimit,
-        "--cpus", String(this.cpus), "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m",
-        "--user", uid + ":" + gid,
-        "--mount", "type=bind,src=" + tempRoot + ",dst=" + ARTIFACT_ROOT + ",readonly",
-        "--mount", "type=bind,src=" + scriptDirectory + ",dst=" + WORKER_ROOT + ",readonly",
-        "--env", "CAD_ARTIFACT_DIR=" + ARTIFACT_ROOT,
-        "--entrypoint", "python", "--pull=never", this.image,
-        WORKER_ROOT + "/" + path.basename(scriptPath)
-      ];
       const runOptions: CADCommandRunOptions = {
-        timeoutMs: this.timeoutMs,
-        maxStdoutBytes: this.maxStdoutBytes,
-        maxStderrBytes: this.maxStderrBytes
+        timeoutMs: this.timeoutMs, maxStdoutBytes: this.maxStdoutBytes, maxStderrBytes: this.maxStderrBytes
       };
-      const execution = await this.runner.run(this.dockerBinary, args, payload, runOptions);
+      const execution = await this.runner.run(this.dockerBinary, sandbox.args, sandbox.payload, runOptions);
       if (execution.timedOut) throw new Error("OCCT geometry operation timed out.");
       if (execution.outputLimitExceeded) throw new Error("OCCT geometry worker exceeded its output limit.");
       if (execution.error) throw new Error("OCCT geometry worker could not start: " + execution.error);
       if (execution.exitCode !== 0) {
         throw new Error("OCCT geometry worker exited unsuccessfully. " + execution.stderr.trim().slice(-2000));
       }
-      let response: unknown;
-      try { response = JSON.parse(execution.stdout); }
-      catch { throw new Error("OCCT geometry worker returned malformed JSON."); }
-      if (!isRecord(response) || response.status !== "COMPLETED" ||
-          typeof response.providerId !== "string" || typeof response.providerVersion !== "string" ||
-          !Array.isArray(response.errors) || !Array.isArray(response.limitations)) {
-        const errors = isRecord(response) && Array.isArray(response.errors)
-          ? response.errors.filter((value): value is string => typeof value === "string").join("; ")
-          : "response did not satisfy the worker protocol";
-        throw new Error("OCCT geometry operation failed: " + errors);
-      }
-      const typed = response as unknown as GeometryWorkerResponse;
-      if (!typed.topology || ![typed.topology.solids, typed.topology.shells, typed.topology.faces,
-        typed.topology.edges, typed.topology.vertices].every((value) => Number.isSafeInteger(value) && value >= 0) ||
-        typeof typed.topology.valid !== "boolean") {
-        throw new Error("OCCT geometry worker returned malformed topology metadata.");
-      }
-      return typed;
+      return parseGeometryWorkerResponse(execution.stdout);
     } finally {
-      if (tempRoot) await rm(tempRoot, { recursive: true, force: true });
+      await rm(sandbox.root, { recursive: true, force: true });
     }
   }
 
@@ -260,26 +322,6 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
     angularDeflectionRad: number;
   }) {
     const response = await this.call("TESSELLATE", source, options);
-    const mesh = response.tessellation;
-    if (!mesh || !Number.isSafeInteger(mesh.vertexCount) || mesh.vertexCount < 3 ||
-        mesh.vertexCount > 750_000 || !Number.isSafeInteger(mesh.triangleCount) ||
-        mesh.triangleCount < 1 || mesh.triangleCount > 250_000) {
-      throw new Error("OCCT geometry worker returned invalid tessellation counts.");
-    }
-    const positions = decodeFloat32(mesh.positionsFloat32LE, mesh.vertexCount * 3);
-    const normals = decodeFloat32(mesh.normalsFloat32LE, mesh.vertexCount * 3);
-    const indices = decodeUint32(mesh.indicesUint32LE, mesh.triangleCount * 3);
-    if (indices.some((index) => index >= mesh.vertexCount)) {
-      throw new Error("OCCT geometry worker returned an out-of-range mesh index.");
-    }
-    return {
-      positions, normals, indices,
-      linearDeflectionMm: mesh.linearDeflectionMm,
-      angularDeflectionRad: mesh.angularDeflectionRad,
-      sourceArtifactId: source.artifactId,
-      sourceArtifactSha256: source.sha256,
-      providerId: response.providerId,
-      providerVersion: response.providerVersion
-    };
+    return decodeTessellation(response, source);
   }
 }
