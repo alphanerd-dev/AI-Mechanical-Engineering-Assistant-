@@ -15,6 +15,8 @@ For full channel height \\(H\\), mean velocity \\(\bar U\\), density \\(\rho\\),
 - Hydraulic-diameter Reynolds number: \\(Re=2H\bar U/\nu\\)
 - Required body-force acceleration: \\(a_x=12\nu\bar U/H^2\\)
 
+The request is deliberately bounded: mean velocity 1e-4–100 m/s, channel height/depth 1e-4–10 m, density 0.1–20000 kg/m3, kinematic viscosity 1e-9–1e-2 m2/s, 20–200 vertical cells, 50–10000 solver iterations, residual tolerance 1e-10–1e-3, and a 5–600 second worker timeout.
+
 The acceptance validator checks:
 - Velocity-profile normalized RMSE no greater than 2% and maximum absolute error no greater than 5% of the analytical peak velocity
 - Integrated mass-flow relative error no greater than 0.5%
