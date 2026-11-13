@@ -180,25 +180,40 @@ async function prepareGeometrySandbox(
   }
 }
 
-function parseGeometryWorkerResponse(stdout: string): GeometryWorkerResponse {
-  let response: unknown;
-  try { response = JSON.parse(stdout); }
+function parseWorkerJson(stdout: string): unknown {
+  try { return JSON.parse(stdout); }
   catch { throw new Error("OCCT geometry worker returned malformed JSON."); }
-  if (!isRecord(response) || response.status !== "COMPLETED" ||
-      typeof response.providerId !== "string" || typeof response.providerVersion !== "string" ||
-      !Array.isArray(response.errors) || !Array.isArray(response.limitations)) {
-    const errors = isRecord(response) && Array.isArray(response.errors)
-      ? response.errors.filter((value): value is string => typeof value === "string").join("; ")
-      : "response did not satisfy the worker protocol";
-    throw new Error("OCCT geometry operation failed: " + errors);
+}
+
+function workerFailureDetail(response: unknown): string {
+  if (isRecord(response) && Array.isArray(response.errors)) {
+    return response.errors.filter((value): value is string => typeof value === "string").join("; ");
   }
-  const typed = response as unknown as GeometryWorkerResponse;
-  const topology = typed.topology;
-  if (!topology || ![topology.solids, topology.shells, topology.faces, topology.edges, topology.vertices]
-    .every((value) => Number.isSafeInteger(value) && value >= 0) || typeof topology.valid !== "boolean") {
+  return "response did not satisfy the worker protocol";
+}
+
+function validateWorkerEnvelope(response: unknown): asserts response is GeometryWorkerResponse {
+  if (!isRecord(response)) throw new Error("OCCT geometry worker returned a non-object response.");
+  const valid = response.status === "COMPLETED" &&
+    typeof response.providerId === "string" &&
+    typeof response.providerVersion === "string" &&
+    Array.isArray(response.errors) && Array.isArray(response.limitations);
+  if (!valid) throw new Error("OCCT geometry operation failed: " + workerFailureDetail(response));
+}
+
+function validateWorkerTopology(topology: GeometryWorkerResponse["topology"]): void {
+  if (!topology) throw new Error("OCCT geometry worker omitted topology metadata.");
+  const counts = [topology.solids, topology.shells, topology.faces, topology.edges, topology.vertices];
+  if (!counts.every((value) => Number.isSafeInteger(value) && value >= 0) || typeof topology.valid !== "boolean") {
     throw new Error("OCCT geometry worker returned malformed topology metadata.");
   }
-  return typed;
+}
+
+function parseGeometryWorkerResponse(stdout: string): GeometryWorkerResponse {
+  const response = parseWorkerJson(stdout);
+  validateWorkerEnvelope(response);
+  validateWorkerTopology(response.topology);
+  return response;
 }
 
 function decodeFloat32(value: string, expectedLength: number): Float32Array {
