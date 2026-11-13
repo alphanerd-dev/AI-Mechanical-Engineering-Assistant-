@@ -118,14 +118,22 @@ def pack_float32(values):
     return struct.pack("<" + "f" * len(values), *(float(value) for value in values))
 
 
-def validate_deflection(request):
-    linear = request.get("linearDeflectionMm", 0.1)
-    angular = request.get("angularDeflectionRad", 0.35)
-    if isinstance(linear, bool) or not finite_positive(linear) or linear < 0.001 or linear > 5:
+def validate_linear_deflection(value):
+    if isinstance(value, bool) or not finite_positive(value) or value < 0.001 or value > 5:
         raise ValueError("linearDeflectionMm must be between 0.001 and 5 mm.")
-    if isinstance(angular, bool) or not finite_positive(angular) or angular < 0.01 or angular > 1.5707963267948966:
+    return float(value)
+
+
+def validate_angular_deflection(value):
+    if isinstance(value, bool) or not finite_positive(value) or value < 0.01 or value > 1.5707963267948966:
         raise ValueError("angularDeflectionRad must be between 0.01 and pi/2 radians.")
-    return float(linear), float(angular)
+    return float(value)
+
+
+def validate_deflection(request):
+    linear = validate_linear_deflection(request.get("linearDeflectionMm", 0.1))
+    angular = validate_angular_deflection(request.get("angularDeflectionRad", 0.35))
+    return linear, angular
 
 
 def validate_tessellation_counts(positions, triangles, normals):
