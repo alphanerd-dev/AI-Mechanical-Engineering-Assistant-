@@ -151,11 +151,20 @@ function validateGLBBinaryChunk(view: DataView, buffer: ArrayBuffer, binaryHeade
   return binaryLength;
 }
 
-function validateGLBBufferDeclaration(document: GLTFDocument, binaryLength: number): void {
+function validateGLTFAssetVersion(document: GLTFDocument): void {
+  if (document.asset?.version !== "2.0") throw new Error("GLB asset version must be 2.0.");
+}
+
+function validateSingleEmbeddedBuffer(document: GLTFDocument, binaryLength: number): void {
   const buffer = document.buffers?.[0];
-  const valid = document.asset?.version === "2.0" && document.buffers?.length === 1 &&
-    buffer.uri === undefined && buffer.byteLength === binaryLength;
-  if (!valid) throw new Error("GLB buffer declaration is invalid.");
+  if (document.buffers?.length !== 1) throw new Error("GLB must declare exactly one binary buffer.");
+  if (buffer.uri !== undefined) throw new Error("GLB external buffers are not supported.");
+  if (buffer.byteLength !== binaryLength) throw new Error("GLB buffer length does not match its binary chunk.");
+}
+
+function validateGLBBufferDeclaration(document: GLTFDocument, binaryLength: number): void {
+  validateGLTFAssetVersion(document);
+  validateSingleEmbeddedBuffer(document, binaryLength);
 }
 
 function readGLBBinaryChunk(buffer: ArrayBuffer, view: DataView, document: GLTFDocument, binaryHeader: number): DataView {
