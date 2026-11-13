@@ -4,6 +4,12 @@ import { createCADDisplayGLB } from "../src/cad/glb.js";
 import { parseCADDisplayGLB } from "../src/cad/glb-preview.js";
 import type { CADDisplayMesh } from "../src/cad/renderer-contract.js";
 
+function toArrayBuffer(bytes: Buffer): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function mesh(): CADDisplayMesh {
   return {
     artifactId: "display-1",
@@ -21,7 +27,7 @@ describe("parseCADDisplayGLB", () => {
   it("reads only the bounded GLB v2 profile and preserves source lineage", () => {
     const source = mesh();
     const glb = createCADDisplayGLB(source);
-    const parsed = parseCADDisplayGLB(glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength));
+    const parsed = parseCADDisplayGLB(toArrayBuffer(glb));
     expect(parsed.triangleCount).toBe(1);
     expect(parsed.positions.length).toBe(9);
     expect(parsed.normals.length).toBe(9);
@@ -34,7 +40,7 @@ describe("parseCADDisplayGLB", () => {
     const glb = createCADDisplayGLB(mesh());
     const malformed = glb.slice();
     malformed.writeUInt32LE(0, 0);
-    expect(() => parseCADDisplayGLB(malformed.buffer.slice(malformed.byteOffset, malformed.byteOffset + malformed.byteLength))).toThrow("header");
+    expect(() => parseCADDisplayGLB(toArrayBuffer(malformed))).toThrow("header");
     const external = createCADDisplayGLB(mesh());
     const jsonLength = external.readUInt32LE(12);
     const document = JSON.parse(external.subarray(20, 20 + jsonLength).toString("utf8").trim());
@@ -54,6 +60,6 @@ describe("parseCADDisplayGLB", () => {
     rebuilt.writeUInt32LE(binaryLength, 20 + paddedLength);
     rebuilt.writeUInt32LE(0x004e4942, 24 + paddedLength);
     external.copy(rebuilt, 28 + paddedLength, binaryHeader + 8);
-    expect(() => parseCADDisplayGLB(rebuilt.buffer.slice(rebuilt.byteOffset, rebuilt.byteOffset + rebuilt.byteLength))).toThrow("buffer declaration");
+    expect(() => parseCADDisplayGLB(toArrayBuffer(rebuilt))).toThrow("buffer declaration");
   });
 });
