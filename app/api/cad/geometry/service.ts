@@ -187,9 +187,9 @@ async function loadAcceptedCompletion(db: Database, request: CADGeometryRequest)
     .select("id,project_id,model_identity_id,status,specification,artifact_records,storage_objects")
     .eq("id", request.completionId).eq("project_id", request.projectId).maybeSingle();
   if (error) fail("CAD completion could not be loaded.", 503);
-  if (!data || data.status !== "ACCEPTED" || !isUuid(data.model_identity_id)) {
-    fail("An accepted CAD completion in this project is required.", 404);
-  }
+  if (!data) fail("An accepted CAD completion in this project is required.", 404);
+  if (data.status !== "ACCEPTED") fail("An accepted CAD completion in this project is required.", 404);
+  if (!isUuid(data.model_identity_id)) fail("An accepted CAD completion in this project is required.", 404);
   return data as Row;
 }
 
@@ -198,7 +198,9 @@ async function loadCurrentModel(db: Database, projectId: string, modelIdentityId
     .select("id,revision").eq("id", modelIdentityId).eq("project_id", projectId).maybeSingle();
   if (error) fail("CAD model revision could not be loaded.", 503);
   const revision = Number(data?.revision);
-  if (!data || !Number.isSafeInteger(revision) || revision < 1) fail("The CAD model revision is unavailable.", 409);
+  if (!data) fail("The CAD model revision is unavailable.", 409);
+  if (!Number.isSafeInteger(revision)) fail("The CAD model revision is unavailable.", 409);
+  if (revision < 1) fail("The CAD model revision is unavailable.", 409);
   return revision;
 }
 
@@ -220,8 +222,11 @@ function belongsToCompletionProject(artifact: Row, completion: Row, projectId: s
 
 function findCanonicalArtifact(completion: Row, request: CADGeometryRequest): Row {
   const artifact = findArtifactRecord(completion, request.sourceArtifactId);
-  if (!artifact || !isCanonicalArtifactKind(artifact) ||
-      !belongsToCompletionProject(artifact, completion, request.projectId)) {
+  if (!artifact) fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
+  if (!isCanonicalArtifactKind(artifact)) {
+    fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
+  }
+  if (!belongsToCompletionProject(artifact, completion, request.projectId)) {
     fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
   }
   return artifact;
@@ -231,7 +236,11 @@ function validateArtifactRevision(artifact: Row, currentRevision: number) {
   const provenance = artifact.provenance as Row;
   const sha256 = sourceDigest(provenance.artifactSha256);
   const revision = Number(provenance.modelRevision);
-  if (!sha256 || !Number.isSafeInteger(revision) || revision !== currentRevision) {
+  if (!sha256) fail("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
+  if (!Number.isSafeInteger(revision)) {
+    fail("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
+  }
+  if (revision !== currentRevision) {
     fail("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
   }
   return { sha256, revision };
@@ -672,7 +681,8 @@ export function parseDerivativeListQuery(request: Request): { projectId: string;
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId")?.trim();
   const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim() ?? null;
-  if (!isUuid(projectId) || (modelIdentityId && !isUuid(modelIdentityId))) {
+  if (!isUuid(projectId)) fail("A registered project UUID and optional model identity UUID are required.", 400);
+  if (modelIdentityId && !isUuid(modelIdentityId)) {
     fail("A registered project UUID and optional model identity UUID are required.", 400);
   }
   return { projectId, modelIdentityId };
