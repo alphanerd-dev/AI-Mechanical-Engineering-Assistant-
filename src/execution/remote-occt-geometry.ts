@@ -55,12 +55,22 @@ function validateRemoteGeometryContract(source: CADGeometrySource): void {
   }
 }
 
-function validateRemoteSourceBytes(source: CADGeometrySource): string {
-  if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 ||
-      source.bytes.byteLength > MAX_REMOTE_GEOMETRY_BYTES) {
+function validateRemoteSourceSize(bytes: Uint8Array): void {
+  if (bytes.byteLength < 1 || bytes.byteLength > MAX_REMOTE_GEOMETRY_BYTES) {
     throw new Error("Remote OCCT geometry source must contain 1 byte to 4 MiB.");
   }
-  const digest = createHash("sha256").update(source.bytes).digest("hex");
+}
+
+function calculateRemoteSourceDigest(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function validateRemoteSourceBytes(source: CADGeometrySource): string {
+  if (!(source.bytes instanceof Uint8Array)) {
+    throw new Error("Remote OCCT geometry source bytes are invalid.");
+  }
+  validateRemoteSourceSize(source.bytes);
+  const digest = calculateRemoteSourceDigest(source.bytes);
   if (digest !== source.sha256) throw new Error("Remote OCCT geometry source SHA-256 does not match the exact bytes.");
   return digest;
 }
