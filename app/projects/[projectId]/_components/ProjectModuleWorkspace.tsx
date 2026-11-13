@@ -15,6 +15,7 @@ import type { CalculationArtifact } from "../../../../src/artifacts/calculation-
 import { resolveCADArtifactViewer, type CADArtifactViewerRegistration } from "../../../../src/cad/viewer-registry.js";
 import DrawingViewer from "../../../../src/drawings/DrawingViewer";
 import ProjectDrawingsPanel from "./ProjectDrawingsPanel";
+import CADGeometryDerivativePreview from "../workbench/CADGeometryDerivativePreview";
 
 type ModuleKey = "workbench" | "fea" | "pid" | "calculations" | "files" | "history" | "revisions" | "reports" | "settings";
 type ProjectRecord = {
@@ -479,11 +480,25 @@ function renderArtifactFallbackAction(selectedArtifact: CADArtifactViewEntry | n
   return null;
 }
 
-function WorkbenchArtifactPreview({ selectedArtifact, models, visibility }: {
+function WorkbenchArtifactPreview({ projectId, selectedArtifact, models, visibility, onRefresh }: {
+  projectId: string;
   selectedArtifact: CADArtifactViewEntry | null;
   models: CadModel[];
   visibility: ViewVisibility;
+  onRefresh: () => void;
 }) {
+  if (selectedArtifact && visibility.geometry &&
+      (selectedArtifact.artifact.kind === "SOLID" || selectedArtifact.artifact.kind === "STEP")) {
+    return <CADGeometryDerivativePreview
+      projectId={projectId}
+      completionId={selectedArtifact.completion.id}
+      sourceArtifactId={selectedArtifact.artifact.id}
+      sourceName={selectedArtifact.artifact.name}
+      sourceKind={selectedArtifact.artifact.kind}
+      staleness={selectedArtifact.staleness}
+      onRefresh={onRefresh}
+    />;
+  }
   const preview = renderSelectedArtifactPreview(selectedArtifact, visibility);
   if (preview) return preview;
   return <div className="viewportEmptyCopy">
@@ -524,7 +539,7 @@ function WorkbenchViewport({ projectId, models, artifactEntries, selectedArtifac
         <div className="viewportScene">
           <div className="viewportGridPattern" aria-hidden="true" />
           <div className="viewportAxis viewportAxisX">X</div><div className="viewportAxis viewportAxisY">Y</div><div className="viewportAxis viewportAxisZ">Z</div>
-          <WorkbenchArtifactPreview selectedArtifact={selectedArtifact} models={models} visibility={visibility} />
+          <WorkbenchArtifactPreview projectId={projectId} selectedArtifact={selectedArtifact} models={models} visibility={visibility} onRefresh={onRefresh} />
         </div>
         <div className="viewportFooter">
           <span>{selectedArtifact ? selectedArtifact.viewer.trustBoundary : "No artifact is selected; no file has been opened."}</span>
