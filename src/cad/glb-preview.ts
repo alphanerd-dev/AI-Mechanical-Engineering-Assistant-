@@ -189,9 +189,9 @@ function readSingleMeshPrimitive(document: GLTFDocument): GLTFPrimitive {
 function validatePrimitiveAttributes(primitive: GLTFPrimitive): void {
   const attributes = primitive.attributes;
   const valid = isRecord(attributes) &&
-    Number.isSafeInteger(attributes.POSITION) &&
-    Number.isSafeInteger(attributes.NORMAL) &&
-    Number.isSafeInteger(primitive.indices);
+    typeof attributes.POSITION === "number" && Number.isSafeInteger(attributes.POSITION) &&
+    typeof attributes.NORMAL === "number" && Number.isSafeInteger(attributes.NORMAL) &&
+    typeof primitive.indices === "number" && Number.isSafeInteger(primitive.indices);
   if (!valid) throw new Error("GLB mesh attributes are incomplete.");
 }
 
