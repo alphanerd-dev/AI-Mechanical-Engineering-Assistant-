@@ -32,7 +32,9 @@ async function postDisplayDerivative(input: PreviewRequest): Promise<Response> {
 }
 
 function readDerivativeErrorField(body: unknown): Record<string, unknown> | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  if (body === null) return null;
+  if (typeof body !== "object") return null;
+  if (Array.isArray(body)) return null;
   return body as Record<string, unknown>;
 }
 
