@@ -292,17 +292,25 @@ interface ResolvedDockerGeometryOptions {
   runner: CADCommandRunner;
 }
 
+function validateGeometryTimeout(timeoutMs: number): void {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
+    throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
+  }
+}
+
+function validateGeometryOutputLimits(stdoutBytes: number, stderrBytes: number): void {
+  if (!Number.isInteger(stdoutBytes) || stdoutBytes < 1024 ||
+      !Number.isInteger(stderrBytes) || stderrBytes < 0) {
+    throw new Error("OCCT geometry output limits are invalid.");
+  }
+}
+
 function resolveExecutionLimits(options: DockerOCCTGeometryOptions) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxStdoutBytes = options.maxStdoutBytes ?? DEFAULT_MAX_STDOUT_BYTES;
   const maxStderrBytes = options.maxStderrBytes ?? DEFAULT_MAX_STDERR_BYTES;
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
-    throw new Error("OCCT geometry timeout must be an integer from 100 through 120000 ms.");
-  }
-  if (!Number.isInteger(maxStdoutBytes) || maxStdoutBytes < 1024 ||
-      !Number.isInteger(maxStderrBytes) || maxStderrBytes < 0) {
-    throw new Error("OCCT geometry output limits are invalid.");
-  }
+  validateGeometryTimeout(timeoutMs);
+  validateGeometryOutputLimits(maxStdoutBytes, maxStderrBytes);
   return { timeoutMs, maxStdoutBytes, maxStderrBytes };
 }
 
