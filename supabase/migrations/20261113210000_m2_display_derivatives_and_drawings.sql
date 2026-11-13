@@ -30,6 +30,38 @@ create table public.engineering_cad_display_derivatives (
 create index engineering_cad_display_derivatives_project_model_idx
   on public.engineering_cad_display_derivatives(project_id, model_identity_id, created_at desc);
 
+-- Serialize derivative insertion against model revision changes. This prevents a
+-- worker that started on revision N from registering its result as current after N+1.
+create or replace function private.enforce_current_cad_display_derivative_revision()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  current_revision bigint;
+begin
+  select m.revision
+    into current_revision
+    from public.engineering_cad_models m
+   where m.id = new.model_identity_id
+     and m.project_id = new.project_id
+   for update;
+
+  if current_revision is null or current_revision <> new.model_revision then
+    raise exception using
+      errcode = '40001',
+      message = 'CAD model revision changed before display derivative persistence.';
+  end if;
+  return new;
+end;
+$;
+
+revoke all on function private.enforce_current_cad_display_derivative_revision() from public, anon, authenticated;
+create trigger engineering_cad_display_derivatives_current_revision
+  before insert on public.engineering_cad_display_derivatives
+  for each row execute function private.enforce_current_cad_display_derivative_revision();
+
 create table public.engineering_cad_drawings (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.engineering_projects(id) on delete cascade,
