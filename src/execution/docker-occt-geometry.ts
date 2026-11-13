@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { chmod, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { CADGeometrySource } from "../cad/geometry-kernel-contract.js";
+import { validateCADGeometrySource, type CADGeometrySource } from "../cad/geometry-kernel-contract.js";
 import {
   CADCommandRunner,
   CADCommandRunOptions,
@@ -157,6 +157,8 @@ export class DockerOCCTGeometryExecutor implements CADGeometryExecutor {
     linearDeflectionMm: number;
     angularDeflectionRad: number;
   }): Promise<GeometryWorkerResponse> {
+    const sourceErrors = validateCADGeometrySource(source);
+    if (sourceErrors.length) throw new Error(sourceErrors.join("; "));
     if (!source || !(source.bytes instanceof Uint8Array) || source.bytes.byteLength < 1 ||
         source.bytes.byteLength > 100 * 1024 * 1024) {
       throw new Error("OCCT geometry source must contain 1 byte to 100 MiB.");
