@@ -33,15 +33,24 @@ function encodeUint32(values: Uint32Array): Buffer {
   return output;
 }
 
-function validateDisplayMesh(mesh: CADDisplayMesh): void {
-  if (!isCADDisplayMesh(mesh) || !mesh.normals || !mesh.indices) {
-    throw new Error("A validated position/normal/index CAD display mesh is required.");
-  }
+function hasDisplayMeshAttributes(mesh: CADDisplayMesh): mesh is CADDisplayMesh & {
+  normals: Float32Array; indices: Uint32Array;
+} {
+  return isCADDisplayMesh(mesh) && mesh.normals !== undefined && mesh.indices !== undefined;
+}
+
+function validateDisplayMeshCounts(mesh: CADDisplayMesh & { indices: Uint32Array }): void {
   const vertexCount = mesh.positions.length / 3;
   const triangleCount = mesh.indices.length / 3;
-  if (vertexCount > MAX_VERTICES || triangleCount > MAX_TRIANGLES) {
-    throw new Error("CAD display mesh exceeds the configured GLB vertex or triangle limit.");
+  if (vertexCount > MAX_VERTICES) throw new Error("CAD display mesh exceeds the configured GLB vertex limit.");
+  if (triangleCount > MAX_TRIANGLES) throw new Error("CAD display mesh exceeds the configured GLB triangle limit.");
+}
+
+function validateDisplayMesh(mesh: CADDisplayMesh): void {
+  if (!hasDisplayMeshAttributes(mesh)) {
+    throw new Error("A validated position/normal/index CAD display mesh is required.");
   }
+  validateDisplayMeshCounts(mesh);
 }
 
 function createBinaryChunk(mesh: CADDisplayMesh) {
