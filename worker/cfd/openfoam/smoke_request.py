@@ -34,6 +34,7 @@ def request_json(url: str, token: str, payload: dict | None = None) -> dict:
 def main() -> None:
     Path.home().mkdir(parents=True, exist_ok=True)
     token = os.environ["OPENFOAM_WORKER_TOKEN"]
+    worker.FOAM_VERSION = worker.detect_openfoam_version()
     request = {
         "caseId": "laminar-channel-poiseuille-v1",
         "meanVelocityMps": 0.2,
