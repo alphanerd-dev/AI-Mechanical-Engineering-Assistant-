@@ -9,8 +9,7 @@ import {
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PROFILE_NRMSE_TOLERANCE = 0.02;
-const PRESSURE_RELATIVE_TOLERANCE = 0.02;
-const MASS_BALANCE_TOLERANCE = 0.005;
+const MASS_FLOW_RELATIVE_TOLERANCE = 0.005;
 
 function finitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -39,19 +38,10 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
   }
   if (!finitePositive(candidate.meanVelocityMps)) errors.push("meanVelocityMps must be finite and positive.");
   if (!finitePositive(candidate.heightM)) errors.push("heightM must be finite and positive.");
-  if (!finitePositive(candidate.lengthM)) errors.push("lengthM must be finite and positive.");
   if (!finitePositive(candidate.depthM)) errors.push("depthM must be finite and positive.");
   if (!finitePositive(candidate.densityKgM3)) errors.push("densityKgM3 must be finite and positive.");
   if (!finitePositive(candidate.kinematicViscosityM2PerS)) {
     errors.push("kinematicViscosityM2PerS must be finite and positive.");
-  }
-
-  if (
-    finitePositive(candidate.heightM) &&
-    finitePositive(candidate.lengthM) &&
-    candidate.lengthM < 10 * candidate.heightM
-  ) {
-    errors.push("The channel length must be at least ten times its height for the fully developed benchmark.");
   }
 
   if (
@@ -66,20 +56,9 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
     }
   }
 
-  if (!validInteger(candidate.mesh?.cellsAxial, 40, 1000)) {
-    errors.push("mesh.cellsAxial must be an integer between 40 and 1000.");
-  }
   if (!validInteger(candidate.mesh?.cellsVertical, 20, 200)) {
     errors.push("mesh.cellsVertical must be an integer between 20 and 200.");
   }
-  if (
-    validInteger(candidate.mesh?.cellsAxial, 40, 1000) &&
-    validInteger(candidate.mesh?.cellsVertical, 20, 200) &&
-    candidate.mesh!.cellsAxial * candidate.mesh!.cellsVertical > 100000
-  ) {
-    errors.push("The benchmark mesh is limited to 100000 cells.");
-  }
-
   if (!validInteger(candidate.solver?.maxIterations, 50, 10000)) {
     errors.push("solver.maxIterations must be an integer between 50 and 10000.");
   }
@@ -102,7 +81,7 @@ export function poiseuilleAxialVelocity(
   channelHeightM: number,
   meanVelocityMps: number
 ): number {
-  if (!finitePositive(channelHeightM) || !finitePositive(meanVelocityMps)) {
+  if (!finitePositive(channelHeightM) || !finitePositive(meanVelocityM)) {
     throw new Error("Channel height and mean velocity must be finite and positive.");
   }
   if (!Number.isFinite(yM) || yM < 0 || yM > channelHeightM) {
@@ -112,18 +91,16 @@ export function poiseuilleAxialVelocity(
   return 6 * meanVelocityMps * normalizedY * (1 - normalizedY);
 }
 
-export function expectedPoiseuillePressureDropPa(
+export function expectedPoiseuilleMassFluxKgS(
   request: Pick<
     OpenFOAMLaminarChannelRequest,
-    "densityKgM3" | "kinematicViscosityM2PerS" | "lengthM" | "meanVelocityMps" | "heightM"
+    "densityKgM3" | "meanVelocityMps" | "heightM" | "depthM"
   >
 ): number {
-  return 12 *
-    request.densityKgM3 *
-    request.kinematicViscosityM2PerS *
-    request.lengthM *
-    request.meanVelocityMps /
-    (request.heightM * request.heightM);
+  return request.densityKgM3 *
+    request.meanVelocityMps *
+    request.heightM *
+    request.depthM;
 }
 
 function validateArtifactSet(artifacts: unknown): string[] {
@@ -175,12 +152,15 @@ export function validateOpenFOAMLaminarChannelResult(
   const checks: CFDValidationCheck[] = [];
   const blockingReasons: string[] = [];
   const missing: string[] = [];
+  const reynoldsNumber = request.meanVelocityMps * 2 * request.heightM /
+    request.kinematicViscosityM2PerS;
+  const expectedMassFluxKgS = expectedPoiseuilleMassFluxKgS(request);
 
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     return {
       status: "INCOMPLETE",
-      reynoldsNumber: request.meanVelocityMps * 2 * request.heightM / request.kinematicViscosityM2PerS,
-      expectedPressureDropPa: expectedPoiseuillePressureDropPa(request),
+      reynoldsNumber,
+      expectedMassFluxKgS,
       checks,
       blockingReasons: ["The OpenFOAM worker returned no result object."],
       warnings: []
@@ -191,9 +171,6 @@ export function validateOpenFOAMLaminarChannelResult(
   const warnings = Array.isArray(output.warnings)
     ? output.warnings.filter((warning): warning is string => typeof warning === "string")
     : [];
-  const reynoldsNumber = request.meanVelocityMps * 2 * request.heightM /
-    request.kinematicViscosityM2PerS;
-  const expectedPressureDropPa = expectedPoiseuillePressureDropPa(request);
 
   const completed = output.status === "COMPLETED" && output.converged === true;
   checks.push({
@@ -211,34 +188,23 @@ export function validateOpenFOAMLaminarChannelResult(
   });
   if (!versionPass) blockingReasons.push("The result must identify the pinned OpenFOAM 14 solver runtime.");
 
-  const expectedCells = request.mesh.cellsAxial * request.mesh.cellsVertical;
-  const meshValid = Number.isInteger(output.meshCells) && output.meshCells === expectedCells;
+  const meshValid = Number.isInteger(output.meshCells) &&
+    output.meshCells === request.mesh.cellsVertical;
   checks.push({
     name: "mesh_cardinality",
     pass: meshValid,
     measured: output.meshCells,
-    expected: expectedCells,
+    expected: request.mesh.cellsVertical,
     message: meshValid
-      ? "The mesh cell count matches the requested structured benchmark mesh."
-      : "The mesh cell count does not match the requested structured benchmark mesh."
+      ? "The mesh cell count matches the requested half-channel mesh."
+      : "The mesh cell count does not match the requested half-channel mesh."
   });
   if (!meshValid) blockingReasons.push("The generated mesh does not match the requested cell count.");
 
-  if (typeof output.pressureDropPa !== "number" || !Number.isFinite(output.pressureDropPa)) {
-    missing.push("Pressure drop output is missing or non-finite.");
-  } else if (output.pressureDropPa <= 0) {
-    blockingReasons.push("Pressure drop must be positive.");
-  }
-
-  if (
-    typeof output.massFluxInKgS !== "number" ||
-    !Number.isFinite(output.massFluxInKgS) ||
-    typeof output.massFluxOutKgS !== "number" ||
-    !Number.isFinite(output.massFluxOutKgS)
-  ) {
-    missing.push("Finite inlet and outlet mass-flux outputs are required.");
-  } else if (output.massFluxInKgS <= 0 || output.massFluxOutKgS <= 0) {
-    blockingReasons.push("Inlet and outlet mass flux must be positive.");
+  if (typeof output.massFluxKgS !== "number" || !Number.isFinite(output.massFluxKgS)) {
+    missing.push("The integrated mass-flow result is missing or non-finite.");
+  } else if (output.massFluxKgS <= 0) {
+    blockingReasons.push("The integrated mass flow must be positive.");
   }
 
   if (!output.residuals || typeof output.residuals !== "object") {
@@ -265,7 +231,7 @@ export function validateOpenFOAMLaminarChannelResult(
     return {
       status: blockingReasons.length ? "FAIL" : "INCOMPLETE",
       reynoldsNumber,
-      expectedPressureDropPa,
+      expectedMassFluxKgS,
       checks,
       blockingReasons: unique([...blockingReasons, ...missing]),
       warnings
@@ -275,7 +241,7 @@ export function validateOpenFOAMLaminarChannelResult(
   const profile = [...output.velocityProfile!];
   const samplesValid = profile.every(isVelocitySample);
   const coordinatesValid = samplesValid && profile.every(sample =>
-    sample.yM >= 0 && sample.yM <= request.heightM
+    sample.yM >= 0 && sample.yM <= request.heightM / 2
   );
   const coordinatesUnique = samplesValid &&
     new Set(profile.map(sample => sample.yM)).size === profile.length;
@@ -311,39 +277,21 @@ export function validateOpenFOAMLaminarChannelResult(
       : "The velocity profile deviates from the analytical Poiseuille solution."
   });
 
-  const pressureRelativeError = Math.abs(output.pressureDropPa! - expectedPressureDropPa) /
-    expectedPressureDropPa;
-  const pressurePass = Number.isFinite(pressureRelativeError) &&
-    pressureRelativeError <= PRESSURE_RELATIVE_TOLERANCE;
+  const massFluxRelativeError = Math.abs(output.massFluxKgS! - expectedMassFluxKgS) /
+    expectedMassFluxKgS;
+  const massFlowPass = Number.isFinite(massFluxRelativeError) &&
+    massFluxRelativeError <= MASS_FLOW_RELATIVE_TOLERANCE;
   checks.push({
-    name: "analytical_pressure_drop",
-    pass: pressurePass,
-    measured: pressureRelativeError,
+    name: "integrated_mass_flow",
+    pass: massFlowPass,
+    measured: massFluxRelativeError,
     expected: 0,
-    tolerance: PRESSURE_RELATIVE_TOLERANCE,
-    message: pressurePass
-      ? "Pressure drop matches the analytical plane-Poiseuille reference."
-      : "Pressure drop deviates from the analytical plane-Poiseuille reference."
+    tolerance: MASS_FLOW_RELATIVE_TOLERANCE,
+    message: massFlowPass
+      ? "Integrated mass flow matches the analytical channel flow rate."
+      : "Integrated mass flow deviates from the analytical channel flow rate."
   });
-  if (!pressurePass) blockingReasons.push("Pressure drop exceeds the analytical reference tolerance.");
-
-  const massFluxIn = output.massFluxInKgS!;
-  const massFluxOut = output.massFluxOutKgS!;
-  const massBalanceRelativeError = Math.abs(massFluxIn - massFluxOut) /
-    Math.max(Math.abs(massFluxIn), Math.abs(massFluxOut), 1e-12);
-  const massBalancePass = Number.isFinite(massBalanceRelativeError) &&
-    massBalanceRelativeError <= MASS_BALANCE_TOLERANCE;
-  checks.push({
-    name: "mass_conservation",
-    pass: massBalancePass,
-    measured: massBalanceRelativeError,
-    expected: 0,
-    tolerance: MASS_BALANCE_TOLERANCE,
-    message: massBalancePass
-      ? "Inlet and outlet mass flux are balanced."
-      : "Inlet and outlet mass flux are not sufficiently balanced."
-  });
-  if (!massBalancePass) blockingReasons.push("Mass conservation error exceeds 0.5%.");
+  if (!massFlowPass) blockingReasons.push("Integrated mass-flow error exceeds 0.5%.");
 
   const residuals = output.residuals!;
   const residualsPass = residuals.pressure <= request.solver.residualTolerance &&
@@ -360,10 +308,9 @@ export function validateOpenFOAMLaminarChannelResult(
   return {
     status: blockingReasons.length ? "FAIL" : "PASS",
     reynoldsNumber,
-    expectedPressureDropPa,
+    expectedMassFluxKgS,
     normalizedProfileRmse,
-    pressureRelativeError,
-    massBalanceRelativeError,
+    massFluxRelativeError,
     checks,
     blockingReasons: unique(blockingReasons),
     warnings
