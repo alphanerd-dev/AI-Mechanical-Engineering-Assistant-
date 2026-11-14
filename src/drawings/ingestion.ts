@@ -1,6 +1,25 @@
 import { parseDXF } from "./dxf.js";
 
 export type CADDrawingFormat = "PDF" | "SVG" | "DXF";
+
+type SVGTagName =
+  | "svg" | "g" | "line" | "polyline" | "polygon" | "path"
+  | "rect" | "circle" | "ellipse" | "text" | "title" | "desc";
+type SVGAttributeName =
+  | "xmlns" | "viewBox" | "width" | "height" | "x" | "y" | "x1" | "y1"
+  | "x2" | "y2" | "cx" | "cy" | "r" | "rx" | "ry" | "points" | "d"
+  | "fill" | "stroke" | "stroke-width" | "stroke-linecap" | "stroke-linejoin"
+  | "opacity" | "fill-opacity" | "stroke-opacity" | "transform" | "font-size"
+  | "text-anchor" | "dominant-baseline";
+
+declare const svgAttributeValueBrand: unique symbol;
+declare const svgMarkupBrand: unique symbol;
+declare const drawingFilenameBrand: unique symbol;
+declare const drawingMimeTypeBrand: unique symbol;
+type SVGAttributeValue = string & { readonly [svgAttributeValueBrand]: true };
+type SVGMarkup = string & { readonly [svgMarkupBrand]: true };
+type DrawingFilename = string & { readonly [drawingFilenameBrand]: true };
+type DrawingMimeType = string & { readonly [drawingMimeTypeBrand]: true };
 export interface CADDrawingInspection {
   format: CADDrawingFormat;
   mediaType: "application/pdf" | "image/svg+xml" | "application/dxf";
@@ -12,8 +31,10 @@ export interface CADDrawingInspection {
 }
 
 const MAX_DRAWING_BYTES = 4 * 1024 * 1024;
-const SVG_TAGS = new Set(["svg", "g", "line", "polyline", "polygon", "path", "rect", "circle", "ellipse", "text", "title", "desc"]);
-const SVG_ATTRIBUTES = new Set([
+const SVG_TAGS: ReadonlySet<SVGTagName> = new Set<SVGTagName>([
+  "svg", "g", "line", "polyline", "polygon", "path", "rect", "circle", "ellipse", "text", "title", "desc"
+]);
+const SVG_ATTRIBUTES: ReadonlySet<SVGAttributeName> = new Set<SVGAttributeName>([
   "xmlns", "viewBox", "width", "height", "x", "y", "x1", "y1", "x2", "y2",
   "cx", "cy", "r", "rx", "ry", "points", "d", "fill", "stroke", "stroke-width",
   "stroke-linecap", "stroke-linejoin", "opacity", "fill-opacity", "stroke-opacity",
@@ -37,29 +58,29 @@ function rejectUnsafeSVGMarkup(markup: string): void {
 function parseSVGToken(token: string):
   | { kind: "comment" }
   | { kind: "text" }
-  | { kind: "closing"; tag: string }
-  | { kind: "opening"; tag: string; attributes: string; selfClosing: boolean } {
+  | { kind: "closing"; tag: SVGTagName }
+  | { kind: "opening"; tag: SVGTagName; attributes: string; selfClosing: boolean } {
   if (!token.startsWith("<")) return { kind: "text" };
   if (/^<!--[\s\S]*-->$/.test(token)) return { kind: "comment" };
   const closing = /^<\/([A-Za-z][A-Za-z0-9]*)\s*>$/.exec(token);
-  if (closing) return { kind: "closing", tag: closing[1].toLowerCase() };
+  if (closing) return { kind: "closing", tag: closing[1].toLowerCase() as SVGTagName };
   const opening = /^<([A-Za-z][A-Za-z0-9]*)([\s\S]*?)\s*(\/?)>$/.exec(token);
   if (!opening) throw new Error("SVG contains malformed or unsupported XML markup.");
   return {
     kind: "opening",
-    tag: opening[1].toLowerCase(),
+    tag: opening[1].toLowerCase() as SVGTagName,
     attributes: opening[2],
     selfClosing: opening[3] === "/"
   };
 }
 
 interface SVGAttribute {
-  name: string;
-  value: string;
+  name: SVGAttributeName;
+  value: SVGAttributeValue;
 }
 
 interface SVGAttributeValidationContext {
-  seenNames: Set<string>;
+  seenNames: Set<SVGAttributeName>;
 }
 
 function parseSVGAttributes(attributes: string): SVGAttribute[] {
@@ -67,17 +88,20 @@ function parseSVGAttributes(attributes: string): SVGAttribute[] {
   const parsed: SVGAttribute[] = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(attributes)) !== null) {
-    parsed.push({ name: match[1], value: match[2] ?? match[3] ?? "" });
+    parsed.push({
+      name: match[1] as SVGAttributeName,
+      value: (match[2] ?? match[3] ?? "") as SVGAttributeValue
+    });
   }
   if (attributes.replace(pattern, "").trim()) throw new Error("SVG contains malformed or unsupported attributes.");
   return parsed;
 }
 
-function isAllowedSVGAttributeName(name: string): boolean {
+function isAllowedSVGAttributeName(name: SVGAttributeName): boolean {
   return SVG_ATTRIBUTES.has(name);
 }
 
-function isSVGEventAttribute(name: string): boolean {
+function isSVGEventAttribute(name: SVGAttributeName): boolean {
   return name.toLowerCase().startsWith("on");
 }
 
@@ -110,17 +134,17 @@ function validateSVGAttribute(attribute: SVGAttribute, context: SVGAttributeVali
 }
 
 function validateSVGAttributes(attributes: string): void {
-  const context: SVGAttributeValidationContext = { seenNames: new Set<string>() };
+  const context: SVGAttributeValidationContext = { seenNames: new Set<SVGAttributeName>() };
   for (const attribute of parseSVGAttributes(attributes)) {
     validateSVGAttribute(attribute, context);
   }
 }
 
-function isSVGPaintAttribute(name: string): boolean {
+function isSVGPaintAttribute(name: SVGAttributeName): boolean {
   return name === "fill" || name === "stroke";
 }
 
-function isSupportedSVGPaint(value: string): boolean {
+function isSupportedSVGPaint(value: SVGAttributeValue): boolean {
   return /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
 }
 
@@ -129,10 +153,10 @@ function validateSVGPaintValue(attribute: SVGAttribute): void {
   if (!isSupportedSVGPaint(attribute.value)) throw new Error("SVG paint attribute is outside the safe preview subset.");
 }
 
-const SVG_GEOMETRY_ATTRIBUTES = new Set(["transform", "d"]);
+const SVG_GEOMETRY_ATTRIBUTES: ReadonlySet<SVGAttributeName> = new Set<SVGAttributeName>(["transform", "d"]);
 const SVG_GEOMETRY_VALUE_PATTERN = /^[a-z0-9(),.+\-\s]+$/i;
 
-function isSupportedSVGGeometrySyntax(value: string): boolean {
+function isSupportedSVGGeometrySyntax(value: SVGAttributeValue): boolean {
   return SVG_GEOMETRY_VALUE_PATTERN.test(value);
 }
 
@@ -156,11 +180,11 @@ function validateSVGText(token: string): void {
 }
 
 interface SVGValidationState {
-  stack: string[];
+  stack: SVGTagName[];
   rootSeen: boolean;
 }
 
-function closeSVGElement(tag: string, state: SVGValidationState): void {
+function closeSVGElement(tag: SVGTagName, state: SVGValidationState): void {
   if (state.stack.pop() !== tag) throw new Error("SVG element nesting is malformed.");
 }
 
@@ -188,26 +212,26 @@ function validateSVGToken(rawToken: string, state: SVGValidationState): void {
   openSVGElement(token, state);
 }
 
-function validateSVGStructure(markup: string): void {
+function validateSVGStructure(markup: SVGMarkup): void {
   const state: SVGValidationState = { stack: [], rootSeen: false };
   const tokens = markup.match(/<[^>]*>|[^<]+/g) ?? [];
   for (const token of tokens) validateSVGToken(token, state);
   if (!state.rootSeen || state.stack.length !== 0) throw new Error("SVG document is incomplete or malformed.");
 }
 
-function validateSVGRootOpening(markup: string): void {
+function validateSVGRootOpening(markup: SVGMarkup): void {
   if (!/^\s*<svg(?:\s|>)/i.test(markup)) {
     throw new Error("SVG drawing must contain a complete svg root element.");
   }
 }
 
-function validateSVGRootClosing(markup: string): void {
+function validateSVGRootClosing(markup: SVGMarkup): void {
   if (!/<\/svg\s*>/i.test(markup)) {
     throw new Error("SVG drawing must contain a complete svg root element.");
   }
 }
 
-function validateSVG(markup: string): void {
+function validateSVG(markup: SVGMarkup): void {
   if (!markup.trim()) throw new Error("SVG drawing must contain a complete svg root element.");
   validateSVGRootOpening(markup);
   validateSVGRootClosing(markup);
@@ -230,20 +254,20 @@ const SUPPORTED_DXF_MEDIA_TYPES = new Set([
   "application/octet-stream"
 ]);
 
-function extension(name: string): DrawingExtension {
+function extension(name: DrawingFilename): DrawingExtension {
   const base = name.split(/[\\/]/).pop() ?? "";
   const value = base.includes(".") ? base.split(".").pop()?.toLowerCase() : "";
   return value === "pdf" || value === "svg" || value === "dxf" ? value : "unknown";
 }
 
-function isSafeDrawingFilename(filename: string): boolean {
+function isSafeDrawingFilename(filename: DrawingFilename): boolean {
   if (!filename.trim()) return false;
   if (filename.length > 180) return false;
   if (/[\r\n\0]/.test(filename)) return false;
   return !filename.split(/[\\/]/).some(part => part === "..");
 }
 
-function validateDrawingFilename(filename: string): DrawingExtension {
+function validateDrawingFilename(filename: DrawingFilename): DrawingExtension {
   if (!isSafeDrawingFilename(filename)) throw new Error("Drawing filename is invalid.");
   return extension(filename);
 }
