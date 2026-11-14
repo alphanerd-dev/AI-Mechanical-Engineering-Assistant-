@@ -5,6 +5,7 @@ from pathlib import Path
 from worker import (
     final_residuals,
     integrate_mass_flux,
+    MassFlowInput,
     last_probe_values,
     parse_mesh_cell_count,
     validate_request,
@@ -84,13 +85,13 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
             6 * mean_velocity * (y / height) * (1 - y / height)
             for y in ys
         ]
-        mass_flow = integrate_mass_flux(
-            ys,
-            velocities,
-            height,
-            self.request["depthM"],
-            self.request["densityKgM3"],
-        )
+        mass_flow = integrate_mass_flux(MassFlowInput(
+            y_samples=ys,
+            velocities=velocities,
+            channel_height_m=height,
+            depth_m=self.request["depthM"],
+            density_kg_m3=self.request["densityKgM3"],
+        ))
         expected = (
             self.request["densityKgM3"]
             * mean_velocity
