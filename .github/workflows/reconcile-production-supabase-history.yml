@@ -163,10 +163,23 @@ jobs:
           # The SQL effect and all three expected schema objects were verified above.
           # Mark the checked-in canonical version applied first, then retire the
           # legacy version. Neither command executes migration SQL.
-          supabase migration repair 20261101200000 --status applied \
-            --linked --password "$SUPABASE_DB_PASSWORD"
-          supabase migration repair 20261105150148 --status reverted \
-            --linked --password "$SUPABASE_DB_PASSWORD"
+          state="migration-history-evidence/migration-list-before.txt"
+          has_remote() {
+            local version="$1"
+            awk -F '[│|]' -v v="$version" '
+              function t(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+              t($2) == v { found = 1 }
+              END { exit !found }
+            ' "$state"
+          }
+          if ! has_remote 20261101200000; then
+            supabase migration repair 20261101200000 --status applied \
+              --linked --password "$SUPABASE_DB_PASSWORD"
+          fi
+          if has_remote 20261105150148; then
+            supabase migration repair 20261105150148 --status reverted \
+              --linked --password "$SUPABASE_DB_PASSWORD"
+          fi
 
       - name: Verify canonical history and zero pending schema migrations
         if: ${{ inputs.operation == 'repair_production_history' }}
