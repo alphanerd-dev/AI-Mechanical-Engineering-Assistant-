@@ -21,14 +21,15 @@ export async function POST(request: Request) {
       return NextResponse.redirect(getPublicUrl("/signup?error=password-mismatch", request), { status: 303 });
     }
 
-    // Use the trusted public origin for email confirmation and browser redirects.
-    const emailRedirectTo = getPublicUrl("/login?confirmed=1", request).toString();
+    // Use the trusted public origin and the SSR PKCE callback to establish the cookie session.
+    const callbackUrl = getPublicUrl("/auth/callback", request);
+    callbackUrl.searchParams.set("next", "/login?confirmed=1");
 
     const supabase = await createClient();
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo },
+      options: { emailRedirectTo: callbackUrl.toString() },
     });
     if (error) {
       // Avoid disclosing whether an email address is already registered.
