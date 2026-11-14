@@ -9,6 +9,7 @@ from worker import (
     parse_mesh_cell_count,
     validate_request,
     write_case,
+    WorkerError,
 )
 
 
@@ -92,7 +93,7 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
     def test_check_mesh_parser_extracts_the_actual_cell_count(self):
         output = "Checking geometry...\n    cells: 20\n    faces: 60\nMesh OK.\n"
         self.assertEqual(parse_mesh_cell_count(output), 20)
-        with self.assertRaisesRegex(Exception, "did not contain a cell count"):
+        with self.assertRaisesRegex(WorkerError, "did not contain a cell count"):
             parse_mesh_cell_count("Mesh OK but no count")
 
     def test_probe_parser_extracts_vector_axial_components(self):
