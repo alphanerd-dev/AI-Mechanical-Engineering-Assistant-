@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class BlockMeshParameters:
+    streamwise_length: float
+    half_height: float
+    depth: float
+    cells: int
 
 
 def foam_header(object_name: str, location: str, class_name: str) -> str:
@@ -16,13 +25,11 @@ def foam_header(object_name: str, location: str, class_name: str) -> str:
 '''
 
 
-def write_block_mesh(
-    case_dir: Path,
-    streamwise_length: float,
-    half_height: float,
-    depth: float,
-    cells: int,
-) -> None:
+def write_block_mesh(case_dir: Path, parameters: BlockMeshParameters) -> None:
+    streamwise_length = parameters.streamwise_length
+    half_height = parameters.half_height
+    depth = parameters.depth
+    cells = parameters.cells
     content = f'''{foam_header("blockMeshDict", "system", "dictionary")}
 scale 1;
 
@@ -273,7 +280,10 @@ def write_case(case_dir: Path, request: dict) -> list[float]:
     for folder in ("0", "constant", "system"):
         (case_dir / folder).mkdir(parents=True, exist_ok=True)
 
-    write_block_mesh(case_dir, streamwise_length, half_height, depth, cells)
+    write_block_mesh(
+        case_dir,
+        BlockMeshParameters(streamwise_length, half_height, depth, cells)
+    )
     write_initial_fields(case_dir)
     write_physical_properties(case_dir, viscosity)
     write_momentum_transport(case_dir)
