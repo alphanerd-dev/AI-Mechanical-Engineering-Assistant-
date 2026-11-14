@@ -51,6 +51,8 @@ A derivative may be useful without being authoritative. Validation of a BREP doe
 
 The revision record identifies one canonical artifact. It may link related exchange and display derivatives through the artifact records embedded in the source completion manifest and the existing Storage references. It must not duplicate their bytes or metadata.
 
+For the current G1 implementation, the canonical BREP already lives at the immutable execution-scoped path `{project_id}/{model_id}/{execution_id}/solid.brep`; uploads use `upsert: false`. G2 references that exact source-completion object and verifies its SHA-256 rather than copying bytes into a second revision-scoped object. The revision relation is therefore a lineage index, not a second artifact store.
+
 ## 3. Proposed domain contract
 
 The initial contract is intentionally narrow and matches the G1 cylinder operation delivered in PR #139.
