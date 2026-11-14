@@ -57,7 +57,7 @@ boundary
         type cyclic;
         neighbourPatch right;
         transform translational;
-        separationVector ({streamwise_length:.12g} 0 0);
+        separationVector ({-streamwise_length:.12g} 0 0);
         faces ((0 4 7 3));
     }}
     right
@@ -65,7 +65,7 @@ boundary
         type cyclic;
         neighbourPatch left;
         transform translational;
-        separationVector ({-streamwise_length:.12g} 0 0);
+        separationVector ({streamwise_length:.12g} 0 0);
         faces ((1 2 6 5));
     }}
     wall

@@ -75,6 +75,8 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
             self.assertIn("type cyclic;", block_mesh)
             self.assertIn("faces ((0 4 7 3));", block_mesh)
             self.assertNotIn("faces ((0 3 7 4));", block_mesh)
+            self.assertIn("separationVector (-0.01 0 0);", block_mesh)
+            self.assertIn("separationVector (0.01 0 0);", block_mesh)
             self.assertIn("transform translational;", block_mesh)
             self.assertIn("type symmetryPlane;", block_mesh)
             self.assertIn("(1 20 1)", block_mesh)
