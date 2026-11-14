@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
-import { parseManufacturingDecisionRequest } from "../../../../lib/manufacturing/decision-request-schema";
-import { submitManufacturingDecision } from "../../../../lib/manufacturing/decision-service";
+import { parseManufacturingDecisionRequest } from "../services/decision-request-schema";
+import { submitManufacturingDecision } from "../services/decision-service";
 
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
