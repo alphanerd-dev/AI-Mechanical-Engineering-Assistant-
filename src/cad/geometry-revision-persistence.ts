@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { validateGeometryRevisionV1 } from "./geometry-revision";
 import { loadCompletion, resolveCanonicalSolid, verifyStoredBrep } from "./geometry-revision-persistence-source";
 import { buildRevisionPayload, commitRevision, findPriorRevision, loadRevisionHead } from "./geometry-revision-persistence-store";
-import { GeometryPersistenceError, GeometryRevisionDatabase, unwrap } from "./geometry-revision-persistence-types";
+import { GeometryPersistenceError, unwrap } from "./geometry-revision-persistence-types";
+import type { GeometryRevisionDatabase } from "./geometry-revision-persistence-types";
 
 function responseError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
