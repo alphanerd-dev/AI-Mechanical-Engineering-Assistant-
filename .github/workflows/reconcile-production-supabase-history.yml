@@ -40,6 +40,11 @@ jobs:
         uses: supabase/setup-cli@v3
         with:
           version: 2.98.2
+      - name: Verify IPv4 Supavisor session pooler DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          getent ahostsv4 aws-0-eu-west-3.pooler.supabase.com
       - name: Validate the pinned CLI and canonical migration
         shell: bash
         run: |
@@ -67,7 +72,7 @@ jobs:
     env:
       # Fixed project target: callers cannot redirect this workflow to another database.
       PRODUCTION_PROJECT_REF: mepmogsqhxxasahwhete
-      PRODUCTION_DATABASE_REGION: eu-west-3
+      PRODUCTION_POOLER_HOST: aws-0-eu-west-3.pooler.supabase.com
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       OPERATION: ${{ github.event_name == 'push' && 'repair_production_history' || github.event.inputs.operation }}
       CONFIRMATION: ${{ github.event_name == 'push' && 'RECONCILE_PRODUCTION_HISTORY_TO_REPOSITORY_CANONICAL' || github.event.inputs.confirmation }}
@@ -89,7 +94,8 @@ jobs:
           }
           test -s supabase/migrations/20261101200000_engineering_chat_session_list_metadata.sql
           encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')"
-          database_url="postgresql://postgres.${PRODUCTION_PROJECT_REF}:${encoded_password}@aws-${PRODUCTION_DATABASE_REGION}.pooler.supabase.com:5432/postgres?sslmode=require"
+          getent ahostsv4 "$PRODUCTION_POOLER_HOST" >/dev/null
+          database_url="postgresql://postgres.${PRODUCTION_PROJECT_REF}:${encoded_password}@${PRODUCTION_POOLER_HOST}:5432/postgres?sslmode=require"
           echo "::add-mask::${database_url}"
           echo "SUPABASE_DB_URL=${database_url}" >> "$GITHUB_ENV"
 
