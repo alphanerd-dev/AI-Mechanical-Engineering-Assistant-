@@ -36,10 +36,12 @@ describe("manufacturing durable record request schemas", () => {
 
   it("rejects malformed process operations and unsupported DFM rules", () => {
     const malformedOperation = validAssessment();
-    malformedOperation.processPlan.operations[0].sequence = "first";
+    const operations = (malformedOperation.processPlan as unknown as { operations: Array<Record<string, unknown>> }).operations;
+    operations[0].sequence = "first";
     expect(parseManufacturingReadinessRequest(malformedOperation)).toBeNull();
     const unsupportedRule = validAssessment();
-    unsupportedRule.dfmRules[0] = { kind: "EXECUTE_MACHINE", command: "start" };
+    const rules = unsupportedRule.dfmRules as unknown as unknown[];
+    rules[0] = { kind: "EXECUTE_MACHINE", command: "start" };
     expect(parseManufacturingReadinessRequest(unsupportedRule)).toBeNull();
   });
 
