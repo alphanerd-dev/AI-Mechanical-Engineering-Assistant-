@@ -57,32 +57,63 @@ def run_tool(
     return run_openfoam_tool(case_dir, tool, timeout, FOAM_ENV)
 
 
+def remaining_tool_time(tool: str, started: float, timeout: int) -> float:
+    remaining = timeout - (time.monotonic() - started)
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired(tool, timeout)
+    return remaining
+
+
+def validate_mesh_output(output: str, request: dict[str, Any]) -> int:
+    if "Mesh OK" not in output:
+        raise WorkerError("OpenFOAM checkMesh did not report Mesh OK.")
+    actual_cells = parse_mesh_cell_count(output)
+    if actual_cells != int(request["mesh"]["cellsVertical"]):
+        raise WorkerError("OpenFOAM checkMesh cell count does not match the requested mesh.")
+    return actual_cells
+
+
+def validate_tool_output(
+    tool: str,
+    completed: subprocess.CompletedProcess[str],
+    output: str,
+    request: dict[str, Any],
+) -> int | None:
+    if completed.returncode != 0:
+        raise WorkerError(f"{tool} failed with exit code {completed.returncode}.")
+    if tool == "checkMesh":
+        return validate_mesh_output(output, request)
+    return None
+
+
+def run_case_tool(
+    case_dir: Path,
+    tool: str,
+    request: dict[str, Any],
+    started: float,
+    timeout: int,
+) -> tuple[str, str, int | None]:
+    remaining = remaining_tool_time(tool, started, timeout)
+    completed = run_tool(case_dir, tool, remaining)
+    output = completed.stdout + completed.stderr
+    (case_dir / f"log.{tool}").write_text(output, encoding="utf-8")
+    mesh_cells = validate_tool_output(tool, completed, output, request)
+    return tool, output, mesh_cells
+
+
 def run_case_tools(
     case_dir: Path,
     request: dict[str, Any],
     started: float,
     timeout: int,
 ) -> tuple[list[str], int]:
-    logs: list[str] = []
-    actual_mesh_cells = 0
-    for tool in ("blockMesh", "checkMesh", "foamRun"):
-        remaining = timeout - (time.monotonic() - started)
-        if remaining <= 0:
-            raise subprocess.TimeoutExpired(tool, timeout)
-        completed = run_tool(case_dir, tool, remaining)
-        output = completed.stdout + completed.stderr
-        logs.append(f"===== {tool} =====\n{output}\n")
-        (case_dir / f"log.{tool}").write_text(output, encoding="utf-8")
-        if completed.returncode != 0:
-            raise WorkerError(f"{tool} failed with exit code {completed.returncode}.")
-        if tool == "checkMesh":
-            if "Mesh OK" not in output:
-                raise WorkerError("OpenFOAM checkMesh did not report Mesh OK.")
-            actual_mesh_cells = parse_mesh_cell_count(output)
-            if actual_mesh_cells != int(request["mesh"]["cellsVertical"]):
-                raise WorkerError("OpenFOAM checkMesh cell count does not match the requested mesh.")
-    return logs, actual_mesh_cells
-
+    runs = [
+        run_case_tool(case_dir, tool, request, started, timeout)
+        for tool in ("blockMesh", "checkMesh", "foamRun")
+    ]
+    logs = [f"===== {tool} =====\n{output}\n" for tool, output, _ in runs]
+    mesh_cells = next((cells for _, _, cells in runs if cells is not None), 0)
+    return logs, mesh_cells
 
 def collect_case_results(
     case_dir: Path,
