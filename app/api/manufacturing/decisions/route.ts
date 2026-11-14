@@ -45,16 +45,25 @@ async function commitDecision(input: {
   const { data, error } = await db.rpc("record_manufacturing_decision_with_audit", {
     p_decision: record, p_audit_record: auditRecord
   });
-  if (!error && validDecisionReceipt(data)) {
-    return NextResponse.json({ decision: data.decision, audit: data.audit }, { status: 201 });
+  if (!error) {
+    if (validDecisionReceipt(data)) {
+      return NextResponse.json({ decision: data.decision, audit: data.audit }, { status: 201 });
+    }
   }
   const { data: reconciled } = await db.from("engineering_manufacturing_decisions").select("*")
     .eq("project_id", request.projectId).eq("assessment_id", request.assessmentId).maybeSingle();
-  if (reconciled && reconciled.decided_by === actorId && reconciled.decision === request.decision) {
+  if (reconciled) {
+    if (reconciled.decided_by !== actorId) return fail("This manufacturing assessment already has a final human decision.", 409);
+    if (reconciled.decision !== request.decision) return fail("This manufacturing assessment already has a final human decision.", 409);
     return NextResponse.json({ decision: reconciled, idempotentReplay: true }, { status: 200 });
   }
-  if (reconciled) return fail("This manufacturing assessment already has a final human decision.", 409);
   return fail("Manufacturing decision and audit transaction could not be confirmed.", 503);
+}
+function priorDecisionResponse(prior: Row | null, actorId: string, decision: DecisionInput["decision"]) {
+  if (!prior) return null;
+  if (prior.decided_by !== actorId) return fail("This manufacturing assessment already has a final human decision.", 409);
+  if (prior.decision !== decision) return fail("This manufacturing assessment already has a final human decision.", 409);
+  return NextResponse.json({ decision: prior, idempotentReplay: true }, { status: 200 });
 }
 async function submitDecision(input: DecisionInput, actorId: string, requestId: string) {
   const db = createServiceRoleClient();
@@ -66,10 +75,8 @@ async function submitDecision(input: DecisionInput, actorId: string, requestId: 
   if (assessment.value.created_by === actorId) return fail("The assessment author cannot approve or reject their own release.", 403);
   const prior = await findPriorDecision(db, input);
   if (!prior.ok) return fail(prior.message, prior.status);
-  if (prior.value && prior.value.decided_by === actorId && prior.value.decision === input.decision) {
-    return NextResponse.json({ decision: prior.value, idempotentReplay: true }, { status: 200 });
-  }
-  if (prior.value) return fail("This manufacturing assessment already has a final human decision.", 409);
+  const priorResponse = priorDecisionResponse(prior.value, actorId, input.decision);
+  if (priorResponse) return priorResponse;
   const decisionId = randomUUID();
   const record = {
     id: decisionId, project_id: input.projectId, assessment_id: input.assessmentId,
