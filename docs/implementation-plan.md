@@ -117,6 +117,16 @@ M2 artifact/viewer foundations are a prerequisite for workflows that must inspec
 
 Physical perception remains a separately staged roadmap path: the current Open3D worker is a one-shot prototype. Before product integration it needs authenticated upload, private project storage, known-transform/noise/outlier fixtures, provenance, limits and human review.
 
+### Parallel bounded capability increments
+
+The following draft PRs advance separate domains without changing the M2 acceptance boundary:
+
+- **PR #144 — bounded LLM operational authority:** core-level action planning and backend policy enforcement are implemented and repository checks passed. Product-route exposure remains blocked on durable run journaling, per-action idempotency, lease recovery and authenticated route acceptance.
+- **PR #155 — manufacturing readiness:** deterministic DFM, process-plan, BOM, inspection and artifact-link checks are composed into a stateless readiness assessment. It can report `READY_FOR_HUMAN_APPROVAL`; it does not create durable release records, issue toolpaths or perform production release.
+- **PR #156 — OpenFOAM 14 CFD:** a single laminar plane-Poiseuille benchmark worker and independent numerical acceptance contract are implemented. It is not a general CFD platform; exact-head solver/container acceptance remains under CI verification.
+
+These increments remain draft candidates until their stated integration, external environment and human-review gates pass.
+
 ## M2 — Shared artifact and CAD visualization foundation (FOUNDATION IN PROGRESS)
 
 **Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 contracts, display derivatives, GLB validation/viewport, drawing ingestion, bounded OCCT import/tessellation and the FEA runtime pilot are implemented in draft PR #154. Exact-head repository CI and code-health/security gates passed at `049f534`; preview/database, authenticated browser and physical-device renderer acceptance remain open.
