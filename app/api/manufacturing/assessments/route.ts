@@ -24,11 +24,12 @@ function isProcessPlan(value: unknown): boolean {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.projectId !== "string" ||
       typeof value.name !== "string" || !Array.isArray(value.operations) ||
       !isStringArray(value.partArtifactIds) || !isStringArray(value.requirementIds) ||
-      !Array.isArray(value.assumptions)) return false;
+      !isStringArray(value.assumptions) || typeof value.status !== "string") return false;
   return value.operations.every((operation) =>
     isRecord(operation) && typeof operation.id === "string" && typeof operation.name === "string" &&
     typeof operation.sequence === "number" && typeof operation.process === "string" &&
-    isStringArray(operation.acceptanceCriteria)
+    isStringArray(operation.acceptanceCriteria) &&
+    (operation.predecessorIds === undefined || isStringArray(operation.predecessorIds))
   );
 }
 function isBOMInput(value: unknown): boolean {
@@ -51,7 +52,8 @@ function isInspectionInput(value: unknown): boolean {
 }
 function isReadinessRequest(value: unknown): value is ManufacturingReadinessRequest {
   if (!isRecord(value) || typeof value.releaseId !== "string" || !value.releaseId.trim()) return false;
-  if (!isRecord(value.metrics) || !Array.isArray(value.dfmRules)) return false;
+  if (!isRecord(value.metrics) || !Array.isArray(value.dfmRules) ||
+      !value.dfmRules.every((rule) => isRecord(rule) && typeof rule.kind === "string")) return false;
   if (typeof value.process !== "string" || !["MACHINING","ADDITIVE","SHEET_METAL","WELDING","CASTING","FORMING","ASSEMBLY"].includes(value.process)) return false;
   if (!isProcessPlan(value.processPlan) || !isBOMInput(value.bom)) return false;
   if (!isStringArray(value.requiredArtifactIds) || !isInspectionInput(value.inspection)) return false;
