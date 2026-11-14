@@ -139,7 +139,7 @@ export async function GET(request: Request) {
     const { data: decisions, error: decisionError } = await db.from("engineering_manufacturing_decisions").select("*")
       .eq("project_id", projectId).eq("assessment_id", assessment.id).order("decided_at", { ascending: true });
     if (decisionError || !Array.isArray(decisions)) return fail("Manufacturing decision history is unavailable.", 503);
-    return NextResponse.json({ assessment, decisions });
+    return NextResponse.json({ assessment, decisions, decisionStatus: decisions.length ? decisions[decisions.length - 1].decision : "PENDING" });
   } catch {
     return fail("Manufacturing assessment history could not be read.", 503);
   }
