@@ -8,6 +8,7 @@ from worker import (
     MassFlowInput,
     last_probe_values,
     parse_mesh_cell_count,
+    resolve_artifact_file,
     validate_request,
     write_case,
     WorkerError,
@@ -116,6 +117,23 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
                 "1 (0.11 0 0) (0.21 0 0)\n"
             )
             self.assertEqual(last_probe_values(probe_file, 2), [0.11, 0.21])
+
+    def test_artifact_download_resolves_only_allowlisted_files_under_worker_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            job_id = "a" * 32
+            job_dir = root / job_id
+            job_dir.mkdir()
+            artifact = job_dir / "solver.log"
+            artifact.write_text("solver output")
+            self.assertEqual(resolve_artifact_file(root, job_id, "solver.log"), artifact)
+            self.assertIsNone(resolve_artifact_file(root, "../" + job_id, "solver.log"))
+            self.assertIsNone(resolve_artifact_file(root, job_id, "../solver.log"))
+
+            outside = root / "outside.log"
+            outside.write_text("outside")
+            (job_dir / "pressure-field").symlink_to(outside)
+            self.assertIsNone(resolve_artifact_file(root, job_id, "pressure-field"))
 
     def test_probe_parser_rejects_non_finite_samples(self):
         with tempfile.TemporaryDirectory() as temporary:
