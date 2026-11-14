@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { buildDurableAuditRecord } from "../../../../src/audit/durable-store";
 import { assessManufacturingReadiness } from "../../../../src/manufacturing/readiness";
+import type { ManufacturingReadinessRequest } from "../../../../src/manufacturing/readiness";
 
 type Row = Record<string, unknown>;
 function isRecord(value: unknown): value is Row {
@@ -19,18 +20,42 @@ function isUuid(value: unknown): value is string {
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
-function isReadinessRequest(value: unknown): value is Row {
-  if (!isRecord(value)) return false;
-  if (typeof value.releaseId !== "string" || !value.releaseId.trim()) return false;
+function isProcessPlan(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.projectId !== "string" ||
+      typeof value.name !== "string" || !Array.isArray(value.operations) ||
+      !isStringArray(value.partArtifactIds) || !isStringArray(value.requirementIds) ||
+      !Array.isArray(value.assumptions)) return false;
+  return value.operations.every((operation) =>
+    isRecord(operation) && typeof operation.id === "string" && typeof operation.name === "string" &&
+    typeof operation.sequence === "number" && typeof operation.process === "string" &&
+    isStringArray(operation.acceptanceCriteria)
+  );
+}
+function isBOMInput(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.projectId !== "string" ||
+      typeof value.revision !== "string" || !Array.isArray(value.components)) return false;
+  return value.components.every((component) =>
+    isRecord(component) && typeof component.partNumber === "string" &&
+    typeof component.name === "string" && typeof component.revision === "string" &&
+    typeof component.quantity === "number" && typeof component.unit === "string"
+  );
+}
+function isInspectionInput(value: unknown): boolean {
+  if (!isRecord(value) || !isRecord(value.criterion) || !isRecord(value.result)) return false;
+  const criterion = value.criterion;
+  const result = value.result;
+  return typeof criterion.id === "string" && typeof criterion.name === "string" &&
+    typeof criterion.characteristic === "string" && typeof criterion.unit === "string" &&
+    typeof criterion.method === "string" && typeof result.id === "string" &&
+    typeof result.criterionId === "string";
+}
+function isReadinessRequest(value: unknown): value is ManufacturingReadinessRequest {
+  if (!isRecord(value) || typeof value.releaseId !== "string" || !value.releaseId.trim()) return false;
   if (!isRecord(value.metrics) || !Array.isArray(value.dfmRules)) return false;
-  if (typeof value.process !== "string" || !isRecord(value.processPlan)) return false;
-  if (!isRecord(value.bom) || !Array.isArray(value.bom.components)) return false;
-  if (!isStringArray(value.requiredArtifactIds)) return false;
-  if (!isRecord(value.inspection) || !isRecord(value.inspection.criterion) || !isRecord(value.inspection.result)) return false;
-  const plan = value.processPlan;
-  return isUuid(plan.projectId) && typeof plan.id === "string" && typeof plan.name === "string" &&
-    Array.isArray(plan.partArtifactIds) && Array.isArray(plan.requirementIds) &&
-    Array.isArray(plan.operations) && Array.isArray(plan.assumptions);
+  if (typeof value.process !== "string" || !["MACHINING","ADDITIVE","SHEET_METAL","WELDING","CASTING","FORMING","ASSEMBLY"].includes(value.process)) return false;
+  if (!isProcessPlan(value.processPlan) || !isBOMInput(value.bom)) return false;
+  if (!isStringArray(value.requiredArtifactIds) || !isInspectionInput(value.inspection)) return false;
+  return true;
 }
 function authorizationStatus(reason: string) {
   return reason.includes("unavailable") ? 503 : 403;
@@ -47,7 +72,7 @@ export async function POST(request: Request) {
     const sessionDb = await createClient();
     const { data: identity, error: identityError } = await sessionDb.auth.getUser();
     if (identityError || !identity.user || identity.user.id !== authorization.subject) return fail("Authenticated project identity could not be confirmed.", 401);
-    const readiness = assessManufacturingReadiness(body as never);
+    const readiness = assessManufacturingReadiness(body);
     const inputJson = JSON.stringify(body);
     const inputSha256 = createHash("sha256").update(inputJson).digest("hex");
     const db = createServiceRoleClient();
