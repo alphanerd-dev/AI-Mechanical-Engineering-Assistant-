@@ -37,9 +37,10 @@ function database(input: {
     maybeSingle: vi.fn(async () => ({ data: input.prior ?? null, error: null }))
   };
   const rpc = vi.fn(async () => ({ data: input.rpcData ?? null, error: input.rpcError ?? null }));
+  const from = vi.fn(() => query);
   return {
-    db: { rpc, from: vi.fn(() => query) } as unknown as GeometryRevisionDatabase,
-    rpc, from: vi.fn(() => query), query
+    db: { rpc, from } as unknown as GeometryRevisionDatabase,
+    rpc, from, query
   };
 }
 
