@@ -43,13 +43,17 @@ async function writeAssessment(input: {
   const { data, error } = await db.rpc("record_manufacturing_assessment_with_audit", {
     p_assessment: input.record, p_audit_record: input.auditRecord
   });
-  if (!error && assessmentReceipt(data)) {
-    return NextResponse.json({ assessment: data.assessment, audit: data.audit, readiness: input.readiness }, { status: 201 });
+  if (!error) {
+    if (assessmentReceipt(data)) {
+      return NextResponse.json({ assessment: data.assessment, audit: data.audit, readiness: input.readiness }, { status: 201 });
+    }
   }
   const { data: reconciled } = await db.from("engineering_manufacturing_assessments").select("*")
     .eq("project_id", input.projectId).eq("release_id", input.releaseId).maybeSingle();
-  if (reconciled && reconciled.input_sha256 === input.inputSha256) {
-    return NextResponse.json({ assessment: reconciled, idempotentReplay: true }, { status: 200 });
+  if (reconciled) {
+    if (reconciled.input_sha256 === input.inputSha256) {
+      return NextResponse.json({ assessment: reconciled, idempotentReplay: true }, { status: 200 });
+    }
   }
   return fail({ message: "Manufacturing assessment and audit transaction could not be confirmed.", status: 503 });
 }
@@ -94,7 +98,8 @@ async function loadDecisions(input: DecisionHistoryKey): Promise<Result<Row[]>> 
   const db = createServiceRoleClient();
   const { data, error } = await db.from("engineering_manufacturing_decisions").select("*")
      .eq("project_id", input.projectId).eq("assessment_id", input.assessmentId).order("decided_at", { ascending: true });
-  if (error || !Array.isArray(data)) return failure({ message: "Manufacturing decision history is unavailable.", status: 503 });
+  if (error) return failure({ message: "Manufacturing decision history is unavailable.", status: 503 });
+  if (!Array.isArray(data)) return failure({ message: "Manufacturing decision history is unavailable.", status: 503 });
   return { ok: true, value: data as Row[] };
 }
 export async function readManufacturingAssessmentHistory(input: AssessmentKey) {
