@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "../../../../lib/supabase/server";
-import { getPublicUrl } from "../../../../lib/http/public-origin";
+import { createClient } from "../../../lib/supabase/server";
+import { getPublicUrl } from "../../../lib/http/public-origin";
 import {
   getSafeAuthCallbackDestination,
   isSupportedAuthCallbackOtpType,
-} from "../../../../src/auth/password-recovery";
+} from "../../../src/auth/password-recovery";
 
 export const runtime = "nodejs";
 
