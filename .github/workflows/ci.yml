@@ -179,8 +179,19 @@ jobs:
           docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --entrypoint sh ai-mechanical-engineering-assistant-openfoam:14 -c 'touch /artifacts/.mount-write-check'
           test -s .openfoam-smoke/.mount-write-check
           rm .openfoam-smoke/.mount-write-check
+          set +e
           docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --env "OPENFOAM_WORKER_TOKEN=$TOKEN" --env OPENFOAM_ARTIFACT_DIR=/artifacts --entrypoint python3 ai-mechanical-engineering-assistant-openfoam:14 /app/smoke_request.py
-          npx tsx scripts/validate-openfoam-worker-response.ts .openfoam-smoke/request.json .openfoam-smoke/response.json
+          worker_exit=$?
+          set -e
+          if [[ -s .openfoam-smoke/response.json ]]; then
+            npx tsx scripts/validate-openfoam-worker-response.ts .openfoam-smoke/request.json .openfoam-smoke/response.json
+          else
+            echo "::error::OpenFOAM smoke worker did not persist a response.json."
+          fi
+          if [[ "$worker_exit" -ne 0 ]]; then
+            echo "::error::OpenFOAM smoke worker exited with status $worker_exit."
+            exit "$worker_exit"
+          fi
           test -s .openfoam-smoke/mesh.tar.gz
           test -s .openfoam-smoke/velocity-field.tar.gz
           test -s .openfoam-smoke/pressure-field

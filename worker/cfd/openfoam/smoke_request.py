@@ -151,12 +151,17 @@ def run_smoke_test(token: str, output_dir: Path) -> None:
         thread.start()
         base_url = f"http://127.0.0.1:{server.server_address[1]}"
         try:
+            print("[openfoam-smoke] checking authenticated worker health", flush=True)
             assert_worker_ready(base_url, token)
+            print("[openfoam-smoke] health check passed", flush=True)
             assert_authentication_required(base_url, request_payload)
+            print("[openfoam-smoke] unauthenticated request correctly rejected", flush=True)
             result = execute_benchmark(base_url, token, request_payload)
+            persist_smoke_result(request_payload, result, output_dir)
+            print("[openfoam-smoke] solver completed; response persisted before artifact verification", flush=True)
             download_context = ArtifactDownloadContext(base_url, token, output_dir)
             verify_and_download_artifacts(download_context, result)
-            persist_smoke_result(request_payload, result, output_dir)
+            print("[openfoam-smoke] all artifact downloads and SHA-256 checks passed", flush=True)
         finally:
             server.shutdown()
             server.server_close()
@@ -169,7 +174,11 @@ def main() -> None:
     worker.WORKER_TOKEN = token
     worker.FOAM_VERSION = worker.detect_openfoam_version()
     output_dir = Path(os.environ.get("OPENFOAM_ARTIFACT_DIR", "/artifacts"))
-    run_smoke_test(token, output_dir)
+    try:
+        run_smoke_test(token, output_dir)
+    except Exception as error:
+        print(f"[openfoam-smoke] failed: {type(error).__name__}: {error}", flush=True)
+        raise
 
 
 if __name__ == "__main__":
