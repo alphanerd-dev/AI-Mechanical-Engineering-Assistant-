@@ -148,10 +148,12 @@ jobs:
           canonical_present=false
           has_remote 20261105150148 && legacy_present=true
           has_remote 20261101200000 && canonical_present=true
-          if [[ "$legacy_present" == "$canonical_present" ]]; then
-            echo "::error::Expected exactly one of legacy 20261105150148 or canonical 20261101200000."
+          if [[ "$legacy_present" == false && "$canonical_present" == false ]]; then
+            echo "::error::Neither the legacy nor canonical chat metadata version exists remotely."
             exit 1
           fi
+          # Both versions are permitted only as a recoverable partial state: the
+          # repair step below completes the canonical-applied/legacy-reverted pair.
 
           if [[ "$OPERATION" == "repair_production_history" && "$CONFIRMATION" != "RECONCILE_PRODUCTION_HISTORY_TO_REPOSITORY_CANONICAL" ]]; then
             echo "::error::Explicit repair confirmation did not match. No migration history was changed."
