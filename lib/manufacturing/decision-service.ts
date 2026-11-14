@@ -5,29 +5,30 @@ import { buildDurableAuditRecord } from "../../src/audit/durable-store";
 import type { ManufacturingDecisionRequest } from "./decision-request-schema";
 
 type Row = Record<string, unknown>;
+type HttpFailure = { message: string; status: number };
 type Result<T> = { ok: true; value: T } | { ok: false; message: string; status: number };
 function isRecord(value: unknown): value is Row {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function fail(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status });
+function fail(input: HttpFailure) {
+  return NextResponse.json({ error: input.message }, { status: input.status });
 }
-function failure<T>(message: string, status: number): Result<T> {
-  return { ok: false, message, status };
+function failure<T>(input: HttpFailure): Result<T> {
+  return { ok: false, message: input.message, status: input.status };
 }
 async function loadAssessment(input: ManufacturingDecisionRequest): Promise<Result<Row>> {
   const db = createServiceRoleClient();
   const { data, error } = await db.from("engineering_manufacturing_assessments")
     .select("id, project_id, status, created_by").eq("id", input.assessmentId).eq("project_id", input.projectId).maybeSingle();
-  if (error || !data) return failure("Manufacturing assessment was not found in this project.", 404);
+  if (error || !data) return failure({ message: "Manufacturing assessment was not found in this project.", status: 404 });
   return { ok: true, value: data };
 }
-function validateApprovalEligibility(assessment: Row, actorId: string): Result<true> {
-  if (assessment.status !== "READY_FOR_HUMAN_APPROVAL") {
-    return failure("Only a readiness-approved assessment can receive a human decision.", 409);
+function validateApprovalEligibility(input: { assessment: Row; actorId: string }): Result<true> {
+  if (input.assessment.status !== "READY_FOR_HUMAN_APPROVAL") {
+    return failure({ message: "Only a readiness-approved assessment can receive a human decision.", status: 409 });
   }
-  if (assessment.created_by === actorId) {
-    return failure("The assessment author cannot approve or reject their own release.", 403);
+  if (input.assessment.created_by === input.actorId) {
+    return failure({ message: "The assessment author cannot approve or reject their own release.", status: 403 });
   }
   return { ok: true, value: true };
 }
@@ -35,14 +36,14 @@ async function findPriorDecision(input: ManufacturingDecisionRequest): Promise<R
   const db = createServiceRoleClient();
   const { data, error } = await db.from("engineering_manufacturing_decisions").select("*")
     .eq("project_id", input.projectId).eq("assessment_id", input.assessmentId).maybeSingle();
-  if (error) return failure("Manufacturing decision idempotency lookup failed.", 503);
+  if (error) return failure({ message: "Manufacturing decision idempotency lookup failed.", status: 503 });
   return { ok: true, value: data as Row | null };
 }
-function priorDecisionResponse(prior: Row | null, actorId: string, decision: ManufacturingDecisionRequest["decision"]) {
-  if (!prior) return null;
-  if (prior.decided_by !== actorId) return fail("This manufacturing assessment already has a final human decision.", 409);
-  if (prior.decision !== decision) return fail("This manufacturing assessment already has a final human decision.", 409);
-  return NextResponse.json({ decision: prior, idempotentReplay: true }, { status: 200 });
+function priorDecisionResponse(input: { prior: Row | null; actorId: string; decision: ManufacturingDecisionRequest["decision"] }) {
+  if (!input.prior) return null;
+  if (input.prior.decided_by !== input.actorId) return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
+  if (input.prior.decision !== input.decision) return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
+  return NextResponse.json({ decision: input.prior, idempotentReplay: true }, { status: 200 });
 }
 function validDecisionReceipt(value: unknown): value is Row {
   if (!isRecord(value)) return false;
@@ -83,22 +84,22 @@ async function writeDecision(input: {
     .eq("project_id", input.request.projectId).eq("assessment_id", input.request.assessmentId).maybeSingle();
   if (reconciled) {
     if (reconciled.decided_by !== input.actorId || reconciled.decision !== input.request.decision) {
-      return fail("This manufacturing assessment already has a final human decision.", 409);
+      return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
     }
     return NextResponse.json({ decision: reconciled, idempotentReplay: true }, { status: 200 });
   }
-  return fail("Manufacturing decision and audit transaction could not be confirmed.", 503);
+  return fail({ message: "Manufacturing decision and audit transaction could not be confirmed.", status: 503 });
 }
 export async function submitManufacturingDecision(input: {
   request: ManufacturingDecisionRequest; actorId: string; requestId: string;
 }) {
   const assessment = await loadAssessment(input.request);
-  if (!assessment.ok) return fail(assessment.message, assessment.status);
-  const eligibility = validateApprovalEligibility(assessment.value, input.actorId);
-  if (!eligibility.ok) return fail(eligibility.message, eligibility.status);
+  if (!assessment.ok) return fail({ message: assessment.message, status: assessment.status });
+  const eligibility = validateApprovalEligibility({ assessment: assessment.value, actorId: input.actorId });
+  if (!eligibility.ok) return fail({ message: eligibility.message, status: eligibility.status });
   const prior = await findPriorDecision(input.request);
-  if (!prior.ok) return fail(prior.message, prior.status);
-  const replay = priorDecisionResponse(prior.value, input.actorId, input.request.decision);
+  if (!prior.ok) return fail({ message: prior.message, status: prior.status });
+  const replay = priorDecisionResponse({ prior: prior.value, actorId: input.actorId, decision: input.request.decision });
   if (replay) return replay;
   const payload = createDecisionPayload(input);
   return writeDecision({ ...input, ...payload });
