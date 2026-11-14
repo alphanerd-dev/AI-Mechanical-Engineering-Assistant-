@@ -31,11 +31,17 @@ const payload: RevisionPayload = {
 function database(input: {
   rpcData?: unknown; rpcError?: unknown; prior?: Record<string, unknown> | null;
 }) {
-  const query = {
-    select: vi.fn(() => query),
-    eq: vi.fn(() => query),
+  const query: {
+    select: ReturnType<typeof vi.fn>;
+    eq: ReturnType<typeof vi.fn>;
+    maybeSingle: ReturnType<typeof vi.fn>;
+  } = {
+    select: vi.fn(),
+    eq: vi.fn(),
     maybeSingle: vi.fn(async () => ({ data: input.prior ?? null, error: null }))
   };
+  query.select.mockImplementation(() => query);
+  query.eq.mockImplementation(() => query);
   const rpc = vi.fn(async () => ({ data: input.rpcData ?? null, error: input.rpcError ?? null }));
   const from = vi.fn(() => query);
   return {
