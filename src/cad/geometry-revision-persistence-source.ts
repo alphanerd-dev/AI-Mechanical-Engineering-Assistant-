@@ -71,15 +71,22 @@ function resolveStoragePath(solid: Row, completion: Completion, projectId: strin
   return { ok: true, value: objectPath };
 }
 
+function flatMapResult<T, U>(result: Result<T>, next: (value: T) => Result<U>): Result<U> {
+  if (!result.ok) return result;
+  return next(result.value);
+}
+function mapResult<T, U>(result: Result<T>, map: (value: T) => U): Result<U> {
+  if (!result.ok) return result;
+  return { ok: true, value: map(result.value) };
+}
 export function resolveCanonicalSolid(completion: Completion, projectId: string): Result<CanonicalSolid> {
-  const solidResult = getSingleSolid(completion);
-  if (!solidResult.ok) return solidResult;
-  const solid = solidResult.value;
-  const provenanceResult = resolveProvenance(solid, completion, projectId);
-  if (!provenanceResult.ok) return provenanceResult;
-  const pathResult = resolveStoragePath(solid, completion, projectId);
-  if (!pathResult.ok) return pathResult;
-  return { ok: true, value: { id: solid.id as string, provenance: provenanceResult.value, objectPath: pathResult.value } };
+  return flatMapResult(getSingleSolid(completion), (solid) =>
+    flatMapResult(resolveProvenance(solid, completion, projectId), (provenance) =>
+      mapResult(resolveStoragePath(solid, completion, projectId), (objectPath) => ({
+        id: solid.id as string, provenance, objectPath
+      }))
+    )
+  );
 }
 
 export async function verifyStoredBrep(db: Db, source: CanonicalSolid): Promise<Result<string>> {
