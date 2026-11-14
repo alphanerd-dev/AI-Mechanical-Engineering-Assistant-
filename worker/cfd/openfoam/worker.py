@@ -105,13 +105,13 @@ def collect_case_results(
         {"yM": y, "axialVelocityMps": velocity}
         for y, velocity in zip(y_samples, velocities)
     ]
-    mass_flux = integrate_mass_flux(
-        y_samples,
-        velocities,
-        float(request["heightM"]),
-        float(request["depthM"]),
-        float(request["densityKgM3"]),
-    )
+    mass_flux = integrate_mass_flux(MassFlowInput(
+        y_samples=y_samples,
+        velocities=velocities,
+        channel_height_m=float(request["heightM"]),
+        depth_m=float(request["depthM"]),
+        density_kg_m3=float(request["densityKgM3"]),
+    ))
     return {
         "residuals": residuals,
         "converged": converged,
