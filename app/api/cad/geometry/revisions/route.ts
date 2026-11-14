@@ -40,7 +40,9 @@ export async function POST(request: Request) {
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
     const sessionDb = await createClient();
     const { data, error } = await sessionDb.auth.getUser();
-    if (error || !data.user || data.user.id !== authorization.subject) return fail("Authenticated project identity could not be confirmed.", 401);
+    if (error) return fail("Authenticated project identity could not be confirmed.", 401);
+    if (!data.user) return fail("Authenticated project identity could not be confirmed.", 401);
+    if (data.user.id !== authorization.subject) return fail("Authenticated project identity could not be confirmed.", 401);
     const db = createServiceRoleClient() as unknown as GeometryRevisionDatabase;
     return createGeometryRevisionResponse({ ...input, actorId: data.user.id, requestId, db });
   } catch {
