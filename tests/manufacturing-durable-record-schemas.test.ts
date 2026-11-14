@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseManufacturingReadinessRequest } from "../lib/manufacturing/readiness-request-schema";
-import { parseManufacturingDecisionRequest } from "../lib/manufacturing/decision-request-schema";
+import { parseManufacturingReadinessRequest } from "../app/api/manufacturing/services/readiness-request-schema";
+import { parseManufacturingDecisionRequest } from "../app/api/manufacturing/services/decision-request-schema";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 function validAssessment() {
