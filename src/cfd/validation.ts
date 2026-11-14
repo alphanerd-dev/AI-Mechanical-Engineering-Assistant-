@@ -96,24 +96,40 @@ function validateMeshSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>)
     : ["mesh.cellsVertical must be an integer between 20 and 200."];
 }
 
+function validateIntegerSetting(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  message: string
+): string[] {
+  return validInteger(value, minimum, maximum) ? [] : [message];
+}
+
+function validateResidualTolerance(value: unknown): string[] {
+  const valid = typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 1e-10 &&
+    value <= 1e-3;
+  return valid ? [] : ["solver.residualTolerance must be between 1e-10 and 1e-3."];
+}
+
 function validateSolverSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
-  const errors: string[] = [];
-  if (!validInteger(candidate.solver?.maxIterations, 50, 10000)) {
-    errors.push("solver.maxIterations must be an integer between 50 and 10000.");
-  }
-  const tolerance = candidate.solver?.residualTolerance;
-  if (
-    typeof tolerance !== "number" ||
-    !Number.isFinite(tolerance) ||
-    tolerance < 1e-10 ||
-    tolerance > 1e-3
-  ) {
-    errors.push("solver.residualTolerance must be between 1e-10 and 1e-3.");
-  }
-  if (!validInteger(candidate.solver?.timeoutSeconds, 5, 600)) {
-    errors.push("solver.timeoutSeconds must be an integer between 5 and 600.");
-  }
-  return errors;
+  const solver = candidate.solver;
+  return [
+    ...validateIntegerSetting(
+      solver?.maxIterations,
+      50,
+      10000,
+      "solver.maxIterations must be an integer between 50 and 10000."
+    ),
+    ...validateResidualTolerance(solver?.residualTolerance),
+    ...validateIntegerSetting(
+      solver?.timeoutSeconds,
+      5,
+      600,
+      "solver.timeoutSeconds must be an integer between 5 and 600."
+    )
+  ];
 }
 
 export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[] {
