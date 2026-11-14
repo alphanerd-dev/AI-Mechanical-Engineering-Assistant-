@@ -25,6 +25,11 @@ describe("privacy-preserving compromised password screening", () => {
     expect(await checkPasswordBreach("password", fetcher)).toEqual({ status: "safe" });
   });
 
+  it("fails closed when the range response is malformed", async () => {
+    const fetcher = vi.fn(async () => new Response("not-a-hash-range", { status: 200 })) as unknown as typeof fetch;
+    expect(await checkPasswordBreach("long-enough-password", fetcher)).toEqual({ status: "unavailable" });
+  });
+
   it("fails closed when the range service returns an error", async () => {
     const fetcher = vi.fn(async () => new Response("unavailable", { status: 503 })) as unknown as typeof fetch;
     expect(await checkPasswordBreach("long-enough-password", fetcher)).toEqual({ status: "unavailable" });

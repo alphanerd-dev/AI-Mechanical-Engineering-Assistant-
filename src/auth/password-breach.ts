@@ -13,15 +13,23 @@ function getSha1Parts(password: string): { prefix: string; suffix: string } {
   return { prefix: digest.slice(0, 5), suffix: digest.slice(5) };
 }
 
-function containsCompromisedSuffix(responseBody: string, suffix: string): boolean {
-  return responseBody.split(/\r?\n/).some((line) => {
+function containsCompromisedSuffix(responseBody: string, suffix: string): boolean | null {
+  const lines = responseBody.split(/\r?\n/).filter(Boolean);
+  if (lines.length === 0) return null;
+
+  let compromised = false;
+  for (const line of lines) {
     const separator = line.indexOf(":");
-    if (separator < 0) return false;
+    if (separator < 0) return null;
 
     const candidate = line.slice(0, separator).trim().toUpperCase();
     const count = Number(line.slice(separator + 1).trim());
-    return candidate === suffix && Number.isFinite(count) && count > 0;
-  });
+    if (!/^[A-F0-9]{35}$/.test(candidate) || !Number.isSafeInteger(count) || count < 0) {
+      return null;
+    }
+    if (candidate === suffix && count > 0) compromised = true;
+  }
+  return compromised;
 }
 
 /**
@@ -49,9 +57,9 @@ export async function checkPasswordBreach(
     if (!response.ok) return { status: "unavailable" };
 
     const body = await response.text();
-    return containsCompromisedSuffix(body, suffix)
-      ? { status: "compromised" }
-      : { status: "safe" };
+    const compromised = containsCompromisedSuffix(body, suffix);
+    if (compromised === null) return { status: "unavailable" };
+    return compromised ? { status: "compromised" } : { status: "safe" };
   } catch {
     return { status: "unavailable" };
   }
