@@ -14,7 +14,8 @@ describe("privacy-preserving compromised password screening", () => {
 
     expect(result).toEqual({ status: "compromised" });
     expect(requestedUrl).toBe("https://api.pwnedpasswords.com/range/5BAA6");
-    expect(requestedUrl).not.toContain("password");
+    expect(new URL(requestedUrl).pathname).toBe("/range/5BAA6");
+    expect(new URL(requestedUrl).search).toBe("");
     expect(requestedHeaders).toMatchObject({
       "Add-Padding": "true",
       "User-Agent": "AI-Mechanical-Engineering-Assistant/1.0",
