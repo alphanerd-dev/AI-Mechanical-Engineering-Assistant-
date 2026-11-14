@@ -39,6 +39,22 @@ export interface GeometryRevisionValidation {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[a-f0-9]{64}$/;
 
+interface RootContext {
+  value: Record<string, unknown>;
+  errors: string[];
+}
+
+interface ValueContext {
+  value: unknown;
+  errors: string[];
+  message: string;
+}
+
+interface ArtifactContext {
+  value: Record<string, unknown>;
+  errors: string[];
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -51,93 +67,148 @@ function validDate(value: unknown): value is string {
   return nonEmptyString(value) && !Number.isNaN(Date.parse(value));
 }
 
-function requireValue(valid: boolean, message: string, errors: string[]): void {
-  if (!valid) errors.push(message);
+function requireValue(context: ValueContext): void {
+  if (!context.value) context.errors.push(context.message);
 }
 
-function requireUuid(value: unknown, field: string, errors: string[]): void {
-  requireValue(typeof value === "string" && UUID.test(value), field + " must be a UUID.", errors);
+function requireUuid(context: ValueContext): void {
+  requireValue({
+    value: typeof context.value === "string" && UUID.test(context.value),
+    errors: context.errors,
+    message: context.message
+  });
 }
 
-function validateIdentity(value: Record<string, unknown>, errors: string[]): void {
-  requireValue(value.schemaVersion === GEOMETRY_REVISION_SCHEMA_VERSION, "Unsupported geometry revision schema version.", errors);
-  requireUuid(value.geometryRevisionId, "geometryRevisionId", errors);
-  requireUuid(value.projectId, "projectId", errors);
-  requireUuid(value.modelIdentityId, "modelIdentityId", errors);
-  requireUuid(value.sourceCompletionId, "sourceCompletionId", errors);
+function validateIdentity(context: RootContext): void {
+  const value = context.value;
+  requireValue({
+    value: value.schemaVersion === GEOMETRY_REVISION_SCHEMA_VERSION,
+    errors: context.errors,
+    message: "Unsupported geometry revision schema version."
+  });
+  requireUuid({ value: value.geometryRevisionId, errors: context.errors, message: "geometryRevisionId must be a UUID." });
+  requireUuid({ value: value.projectId, errors: context.errors, message: "projectId must be a UUID." });
+  requireUuid({ value: value.modelIdentityId, errors: context.errors, message: "modelIdentityId must be a UUID." });
+  requireUuid({ value: value.sourceCompletionId, errors: context.errors, message: "sourceCompletionId must be a UUID." });
 }
 
-function validateRevisionNumber(value: unknown, errors: string[]): void {
-  requireValue(Number.isSafeInteger(value) && (value as number) >= 1,
-    "geometryRevisionNumber must be a positive safe integer.", errors);
+function validateRevisionNumber(context: RootContext): void {
+  const value = context.value.geometryRevisionNumber;
+  requireValue({
+    value: Number.isSafeInteger(value) && (value as number) >= 1,
+    errors: context.errors,
+    message: "geometryRevisionNumber must be a positive safe integer."
+  });
 }
 
-function validateParentIdentifier(parent: unknown, errors: string[]): void {
-  requireValue(parent === null || (typeof parent === "string" && UUID.test(parent)),
-    "parentGeometryRevisionId must be null or a UUID.", errors);
+function validateParentIdentifier(context: RootContext): void {
+  const parent = context.value.parentGeometryRevisionId;
+  requireValue({
+    value: parent === null || (typeof parent === "string" && UUID.test(parent)),
+    errors: context.errors,
+    message: "parentGeometryRevisionId must be null or a UUID."
+  });
 }
 
-function validateParentSequence(number: unknown, parent: unknown, errors: string[]): void {
-  requireValue(number !== 1 || parent === null,
-    "The first geometry revision must not have a parent.", errors);
-  requireValue(typeof number !== "number" || number <= 1 || parent !== null,
-    "Geometry revisions after the first must identify their parent.", errors);
+function validateParentSequence(context: RootContext): void {
+  const number = context.value.geometryRevisionNumber;
+  const parent = context.value.parentGeometryRevisionId;
+  requireValue({
+    value: number !== 1 || parent === null,
+    errors: context.errors,
+    message: "The first geometry revision must not have a parent."
+  });
+  requireValue({
+    value: typeof number !== "number" || number <= 1 || parent !== null,
+    errors: context.errors,
+    message: "Geometry revisions after the first must identify their parent."
+  });
 }
 
-function validateLineage(value: Record<string, unknown>, errors: string[]): void {
-  validateRevisionNumber(value.geometryRevisionNumber, errors);
-  validateParentIdentifier(value.parentGeometryRevisionId, errors);
-  validateParentSequence(value.geometryRevisionNumber, value.parentGeometryRevisionId, errors);
+function validateLineage(context: RootContext): void {
+  validateRevisionNumber(context);
+  validateParentIdentifier(context);
+  validateParentSequence(context);
 }
 
-function validateSourceOperation(value: unknown, errors: string[]): void {
-  requireValue(nonEmptyString(value, 128), "sourceOperationId is required.", errors);
+function validateSourceOperation(context: RootContext): void {
+  requireValue({
+    value: nonEmptyString(context.value.sourceOperationId, 128),
+    errors: context.errors,
+    message: "sourceOperationId is required."
+  });
 }
 
-function validateStorageBucket(value: unknown, errors: string[]): void {
-  requireValue(value === GEOMETRY_REVISION_STORAGE_BUCKET,
-    "storageBucket must be the canonical private CAD artifact bucket.", errors);
+function validateStorageBucket(context: RootContext): void {
+  requireValue({
+    value: context.value.storageBucket === GEOMETRY_REVISION_STORAGE_BUCKET,
+    errors: context.errors,
+    message: "storageBucket must be the canonical private CAD artifact bucket."
+  });
 }
 
-function expectedStoragePath(value: Record<string, unknown>): string {
-  return [value.projectId, value.modelIdentityId, value.sourceOperationId, "solid.brep"].join("/");
+function validateStorageObject(context: RootContext): void {
+  const value = context.value;
+  const expected = [value.projectId, value.modelIdentityId, value.sourceOperationId, "solid.brep"].join("/");
+  requireValue({
+    value: value.storageObjectName === expected,
+    errors: context.errors,
+    message: "storageObjectName must identify the exact source completion BREP object."
+  });
 }
 
-function validateStorageObject(value: Record<string, unknown>, errors: string[]): void {
-  requireValue(value.storageObjectName === expectedStoragePath(value),
-    "storageObjectName must identify the exact source completion BREP object.", errors);
+function validateStorage(context: RootContext): void {
+  validateSourceOperation(context);
+  validateStorageBucket(context);
+  validateStorageObject(context);
 }
 
-function validateStorage(value: Record<string, unknown>, errors: string[]): void {
-  validateSourceOperation(value.sourceOperationId, errors);
-  validateStorageBucket(value.storageBucket, errors);
-  validateStorageObject(value, errors);
+function validateArtifactId(context: ArtifactContext): void {
+  requireValue({
+    value: nonEmptyString(context.value.artifactId, 160),
+    errors: context.errors,
+    message: "canonicalArtifact.artifactId is required."
+  });
 }
 
-function requireArtifactId(value: unknown, errors: string[]): void {
-  requireValue(nonEmptyString(value, 160), "canonicalArtifact.artifactId is required.", errors);
+function validateArtifactKind(context: ArtifactContext): void {
+  requireValue({
+    value: context.value.artifactKind === "SOLID",
+    errors: context.errors,
+    message: "canonicalArtifact.artifactKind must be SOLID."
+  });
 }
 
-function requireArtifactKind(value: unknown, errors: string[]): void {
-  requireValue(value === "SOLID", "canonicalArtifact.artifactKind must be SOLID.", errors);
+function validateArtifactFormat(context: ArtifactContext): void {
+  requireValue({
+    value: context.value.format === "BREP",
+    errors: context.errors,
+    message: "canonicalArtifact.format must be BREP."
+  });
 }
 
-function requireArtifactFormat(value: unknown, errors: string[]): void {
-  requireValue(value === "BREP", "canonicalArtifact.format must be BREP.", errors);
+function validateArtifactDigest(context: ArtifactContext): void {
+  requireValue({
+    value: typeof context.value.artifactSha256 === "string" && SHA256.test(context.value.artifactSha256),
+    errors: context.errors,
+    message: "canonicalArtifact.artifactSha256 must be a lowercase SHA-256 digest."
+  });
 }
 
-function requireArtifactDigest(value: unknown, errors: string[]): void {
-  requireValue(typeof value === "string" && SHA256.test(value),
-    "canonicalArtifact.artifactSha256 must be a lowercase SHA-256 digest.", errors);
+function validateArtifactUnits(context: ArtifactContext): void {
+  requireValue({
+    value: context.value.units === "mm",
+    errors: context.errors,
+    message: "canonicalArtifact.units must be mm."
+  });
 }
 
-function requireArtifactUnits(value: unknown, errors: string[]): void {
-  requireValue(value === "mm", "canonicalArtifact.units must be mm.", errors);
-}
-
-function requireCoordinateFrame(value: unknown, errors: string[]): void {
-  requireValue(value === "WORLD_Z_AXIS",
-    "canonicalArtifact.coordinateFrameId must be WORLD_Z_AXIS.", errors);
+function validateCoordinateFrame(context: ArtifactContext): void {
+  requireValue({
+    value: context.value.coordinateFrameId === "WORLD_Z_AXIS",
+    errors: context.errors,
+    message: "canonicalArtifact.coordinateFrameId must be WORLD_Z_AXIS."
+  });
 }
 
 function validateCanonicalArtifact(value: unknown, errors: string[]): void {
@@ -145,25 +216,38 @@ function validateCanonicalArtifact(value: unknown, errors: string[]): void {
     errors.push("canonicalArtifact must be an object.");
     return;
   }
-  requireArtifactId(value.artifactId, errors);
-  requireArtifactKind(value.artifactKind, errors);
-  requireArtifactFormat(value.format, errors);
-  requireArtifactDigest(value.artifactSha256, errors);
-  requireArtifactUnits(value.units, errors);
-  requireCoordinateFrame(value.coordinateFrameId, errors);
+  const context = { value, errors };
+  validateArtifactId(context);
+  validateArtifactKind(context);
+  validateArtifactFormat(context);
+  validateArtifactDigest(context);
+  validateArtifactUnits(context);
+  validateCoordinateFrame(context);
 }
 
-function requireProviderId(value: unknown, errors: string[]): void {
-  requireValue(nonEmptyString(value, 128), "provider.providerId is required.", errors);
+function validateProviderId(context: ArtifactContext): void {
+  requireValue({
+    value: nonEmptyString(context.value.providerId, 128),
+    errors: context.errors,
+    message: "provider.providerId is required."
+  });
 }
 
-function requireProviderVersion(value: unknown, errors: string[]): void {
-  requireValue(nonEmptyString(value, 128), "provider.providerVersion is required.", errors);
+function validateProviderVersion(context: ArtifactContext): void {
+  requireValue({
+    value: nonEmptyString(context.value.providerVersion, 128),
+    errors: context.errors,
+    message: "provider.providerVersion is required."
+  });
 }
 
-function requireExecutionBackend(value: unknown, errors: string[]): void {
-  requireValue(value === "build123d" || value === "cadquery",
-    "provider.executionBackend is unsupported.", errors);
+function validateExecutionBackend(context: ArtifactContext): void {
+  const backend = context.value.executionBackend;
+  requireValue({
+    value: backend === "build123d" || backend === "cadquery",
+    errors: context.errors,
+    message: "provider.executionBackend is unsupported."
+  });
 }
 
 function validateProvider(value: unknown, errors: string[]): void {
@@ -171,13 +255,18 @@ function validateProvider(value: unknown, errors: string[]): void {
     errors.push("provider must be an object.");
     return;
   }
-  requireProviderId(value.providerId, errors);
-  requireProviderVersion(value.providerVersion, errors);
-  requireExecutionBackend(value.executionBackend, errors);
+  const context = { value, errors };
+  validateProviderId(context);
+  validateProviderVersion(context);
+  validateExecutionBackend(context);
 }
 
-function validateCreatedAt(value: unknown, errors: string[]): void {
-  requireValue(validDate(value), "createdAt must be a valid date string.", errors);
+function validateCreatedAt(context: RootContext): void {
+  requireValue({
+    value: validDate(context.value.createdAt),
+    errors: context.errors,
+    message: "createdAt must be a valid date string."
+  });
 }
 
 /**
@@ -190,13 +279,13 @@ export function validateGeometryRevisionV1(value: unknown): GeometryRevisionVali
     return { status: "FAIL", errors: ["Geometry revision must be an object."] };
   }
 
-  const errors: string[] = [];
-  validateIdentity(value, errors);
-  validateLineage(value, errors);
-  validateStorage(value, errors);
-  validateCanonicalArtifact(value.canonicalArtifact, errors);
-  validateProvider(value.provider, errors);
-  validateCreatedAt(value.createdAt, errors);
+  const context = { value, errors: [] as string[] };
+  validateIdentity(context);
+  validateLineage(context);
+  validateStorage(context);
+  validateCanonicalArtifact(value.canonicalArtifact, context.errors);
+  validateProvider(value.provider, context.errors);
+  validateCreatedAt(context);
 
-  return { status: errors.length ? "FAIL" : "PASS", errors };
+  return { status: context.errors.length ? "FAIL" : "PASS", errors: context.errors };
 }
