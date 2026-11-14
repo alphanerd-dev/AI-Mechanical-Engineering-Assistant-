@@ -160,31 +160,6 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
         raise
 
 
-class Handler(BaseHTTPRequestHandler):
-    server_version = "OpenFOAM14Worker/0.1"
-
-    def _authorized(self) -> bool:
-        if not WORKER_TOKEN:
-            return False
-        supplied = self.headers.get("Authorization", "")
-        expected = f"Bearer {WORKER_TOKEN}"
-        return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
-
-    def _send_bytes(self, status: int, payload: bytes, media_type: str) -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", media_type)
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def _send_json(self, status: int, payload: dict[str, Any]) -> None:
-        encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(encoded)))
-        self.end_headers()
-        self.wfile.write(encoded)
-
 def parse_artifact_request(path: str) -> tuple[str, str] | None:
     parts = [unquote(part) for part in urlsplit(path).path.split("/") if part]
     if len(parts) != 5 or parts[:3] != ["v1", "cfd", "artifacts"]:
