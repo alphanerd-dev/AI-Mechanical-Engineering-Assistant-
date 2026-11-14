@@ -165,6 +165,37 @@ jobs:
           test -s .fea-smoke/v1_18_cantilever.dat
           test -s .fea-smoke/v1_18_cantilever.frd
           test -s .fea-smoke/v1_18_cantilever.sta
+      - name: Test OpenFOAM worker manifest and case builder
+        run: python worker/cfd/openfoam/test_worker.py
+      - name: Build isolated OpenFOAM 14 worker image
+        run: docker build --tag ai-mechanical-engineering-assistant-openfoam:14 --file worker/cfd/openfoam/Dockerfile worker/cfd/openfoam
+      - name: Smoke test OpenFOAM 14 worker and analytical acceptance
+        shell: bash
+        run: |
+          rm -rf .openfoam-smoke
+          mkdir -p .openfoam-smoke
+          chmod 777 .openfoam-smoke
+          TOKEN="$(openssl rand -hex 32)"
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --entrypoint sh ai-mechanical-engineering-assistant-openfoam:14 -c 'touch /artifacts/.mount-write-check'
+          test -e .openfoam-smoke/.mount-write-check
+          rm .openfoam-smoke/.mount-write-check
+          set +e
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --env "OPENFOAM_WORKER_TOKEN=$TOKEN" --env OPENFOAM_ARTIFACT_DIR=/artifacts --entrypoint python3 ai-mechanical-engineering-assistant-openfoam:14 /app/smoke_request.py
+          worker_exit=$?
+          set -e
+          if [[ -s .openfoam-smoke/response.json ]]; then
+            npx tsx scripts/validate-openfoam-worker-response.ts .openfoam-smoke/request.json .openfoam-smoke/response.json
+          else
+            echo "::error::OpenFOAM smoke worker did not persist a response.json."
+          fi
+          if [[ "$worker_exit" -ne 0 ]]; then
+            echo "::error::OpenFOAM smoke worker exited with status $worker_exit."
+            exit "$worker_exit"
+          fi
+          test -s .openfoam-smoke/mesh.tar.gz
+          test -s .openfoam-smoke/velocity-field.tar.gz
+          test -s .openfoam-smoke/pressure-field
+          test -s .openfoam-smoke/solver.log
       - name: Build bounded execution worker container
         run: docker build --tag ai-mechanical-engineering-assistant-execution-worker:ci --file worker/execution/Dockerfile .
       - run: npm run build

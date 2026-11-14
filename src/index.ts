@@ -6,6 +6,7 @@ import {V1_21_CAPABILITIES} from "./capabilities/v1-21.js";
 import {V1_22_CAPABILITIES} from "./capabilities/v1-22.js";
 import {V1_23_CAPABILITIES} from "./capabilities/v1-23.js";
 import {V1_24_CAPABILITIES} from "./capabilities/v1-24.js";
+import {V1_25_CAPABILITIES} from "./capabilities/v1-25.js";
 import {MockCADProvider} from "./providers/mock-cad.js";
 import {NumericalAnalysisProvider} from "./providers/numerical.js";
 import {UnitComputationProvider} from "./providers/computation-units.js";
@@ -24,6 +25,8 @@ import {RoboticsProvider} from "./providers/robotics.js";
 import {RoboticsRuntimeProvider} from "./providers/robotics-runtime.js";
 import {SimulationComparisonProvider} from "./providers/simulation-comparison.js";
 import {OpenModelicaProvider} from "./providers/openmodelica.js";
+import {OpenFOAMProvider} from "./providers/openfoam.js";
+import {OpenFOAMHttpExecutor} from "./providers/openfoam-http.js";
 import {DigitalThreadProvider} from "./providers/digital-thread.js";
 import {ProductModelProvider} from "./providers/product-model.js";
 import {OdooPLMProvider} from "./providers/odoo-plm.js";
@@ -64,6 +67,9 @@ export * from "./artifacts/persistence.js";
 export * from "./memory/persistence.js";
 export * from "./fea/index.js";
 export * from "./cad/index.js";
+export {OpenFOAMProvider};
+export {OpenFOAMHttpExecutor};
+export * as cfd from "./cfd/index.js";
 export * from "./geometry-platform/index.js";
 export * from "./providers/build123d-intent-generator.js";
 export * from "./providers/occt-docker.js";
@@ -102,6 +108,7 @@ registry.registerCatalog(V1_21_CAPABILITIES);
 registry.registerCatalog(V1_22_CAPABILITIES);
 registry.registerCatalog(V1_23_CAPABILITIES);
 registry.registerCatalog(V1_24_CAPABILITIES);
+registry.registerCatalog(V1_25_CAPABILITIES);
 registry.registerCatalog(V2_0_1_CAPABILITIES);
 registry.registerCatalog(V2_0_2_CAPABILITIES);
 registry.registerCatalog(V2_0_4_CAPABILITIES);
@@ -177,7 +184,8 @@ registry.register(new OpenModelicaProvider({
   simulate:async()=>{throw new Error("OpenModelica runtime is not configured for this entrypoint.");},
   coSimulate:async()=>{throw new Error("OpenModelica co-simulation runtime is not configured for this entrypoint.");}
 }));
-registry.register(new DigitalThreadProvider());
+registry.register(new DigitalThreadProvider());registry.register(new OpenFOAMProvider());
+
 registry.register(new OdooPLMProvider({
   queryItem:async()=>undefined,
   createRevision:async()=>{throw new Error("Odoo PLM client is not configured for this entrypoint.");}
