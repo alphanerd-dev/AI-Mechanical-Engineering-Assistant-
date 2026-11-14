@@ -118,11 +118,13 @@ A content-addressed object path such as `{project_id}/{model_id}/revisions/{geom
 
 ## 6. Migration ledger reconciliation — completed
 
-The original discrepancy was resolved with owner authorization using metadata-only ledger changes after confirming the schema effects already existed. The production and E2E ledgers now contain the 17 canonical repository versions. The E2E-only point-cloud history entries were retired only after confirming that no point-cloud tables remained. The production-only CAD index migration was reconciled as applied only after confirming its indexes existed.
+The original discrepancy was resolved with owner authorization using metadata-only ledger changes after confirming the schema effects already existed. At the point of ledger repair, production and E2E each contained the 17 baseline canonical repository versions. After M2.2/M2.6 was applied, both environments contain 18 canonical migrations. The E2E-only point-cloud history entries were retired only after confirming that no point-cloud tables remained. The production-only CAD index migration was reconciled as applied only after confirming its indexes existed.
 
 The original non-canonical timestamp for `engineering_chat_session_list_metadata` had no corresponding checked-in migration file or Git commit path in the repository. The repository and remote history do not preserve enough deployment metadata to prove why that timestamp was generated; the root cause is therefore **not recoverable from available records**. The exact migration name and resulting schema effect were verified, and the ledger was normalized to the checked-in canonical version.
 
 The M2.2/M2.6 migration `20261113210000_m2_display_derivatives_and_drawings` was rehearsed on E2E, corrected before application when the first attempt caught a dollar-quote syntax error, and then applied to both E2E and production. Both environments now have the two additive tables, completion composite index, derivative indexes, revision guard function/trigger and member-scoped read policies. No application rows or geometry bytes were changed.
+
+The G2 migration `20261114180000_g2_geometry_revision_identity` has been applied only to E2E for schema rehearsal. E2E therefore has 19 canonical migration records while production remains at 18 until the G2 migration is explicitly applied. The rollback-only trigger test verified first/child revision creation, stale-parent and skipped-number rejection, duplicate source-artifact binding rejection, and immutable UPDATE/DELETE guards. All synthetic rows were rolled back; zero completion or geometry revision rows remain in E2E.
 
 ## 7. Original migration-ledger discrepancy — historical record
 
