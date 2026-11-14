@@ -73,6 +73,8 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
             self.assertNotIn("cellZone all;", fv_models)
             block_mesh = (case_dir / "system" / "blockMeshDict").read_text()
             self.assertIn("type cyclic;", block_mesh)
+            self.assertIn("faces ((0 4 7 3));", block_mesh)
+            self.assertNotIn("faces ((0 3 7 4));", block_mesh)
             self.assertIn("transform translational;", block_mesh)
             self.assertIn("type symmetryPlane;", block_mesh)
             self.assertIn("(1 20 1)", block_mesh)

@@ -102,6 +102,13 @@ def run_case_tool(execution: CaseToolExecution) -> tuple[str, str, int | None]:
     completed = run_tool(execution.case_dir, execution.tool, remaining)
     output = completed.stdout + completed.stderr
     (execution.case_dir / f"log.{execution.tool}").write_text(output, encoding="utf-8")
+    if completed.returncode != 0:
+        diagnostic = output[-4000:]
+        print(
+            f"[openfoam-worker] {execution.tool} failed with exit code "
+            f"{completed.returncode}: {diagnostic}",
+            flush=True,
+        )
     mesh_cells = validate_tool_output(execution.tool, completed, output, execution.request)
     return execution.tool, output, mesh_cells
 

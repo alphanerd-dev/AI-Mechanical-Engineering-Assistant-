@@ -58,7 +58,7 @@ boundary
         neighbourPatch right;
         transform translational;
         separationVector ({streamwise_length:.12g} 0 0);
-        faces ((0 3 7 4));
+        faces ((0 4 7 3));
     }}
     right
     {{
