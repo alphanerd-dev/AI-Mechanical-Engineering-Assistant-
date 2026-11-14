@@ -122,29 +122,6 @@ def collect_case_results(
     }
 
 
-def persist_case_artifacts(
-    artifact_dir: Path,
-    case_dir: Path,
-    case_results: dict[str, Any],
-    logs: list[str],
-) -> list[dict[str, str]]:
-    with tarfile.open(artifact_dir / "mesh.tar.gz", "w:gz") as archive:
-        archive.add(case_dir / "constant" / "polyMesh", arcname="polyMesh")
-
-    with tarfile.open(artifact_dir / "velocity-field.tar.gz", "w:gz") as archive:
-        archive.add(case_results["finalDirectory"] / "U", arcname="U")
-        archive.add(case_results["probeFile"], arcname="velocity-profile")
-
-    shutil.copy2(case_results["finalDirectory"] / "p", artifact_dir / "pressure-field")
-    (artifact_dir / "solver.log").write_text("\n".join(logs), encoding="utf-8")
-    return [
-        make_artifact(artifact_dir, "MESH", "mesh.tar.gz", "application/gzip"),
-        make_artifact(artifact_dir, "VELOCITY_FIELD", "velocity-field.tar.gz", "application/gzip"),
-        make_artifact(artifact_dir, "PRESSURE_FIELD", "pressure-field", "text/plain"),
-        make_artifact(artifact_dir, "SOLVER_LOG", "solver.log", "text/plain"),
-    ]
-
-
 def execute_case(request: dict[str, Any]) -> dict[str, Any]:
     prune_artifacts(ARTIFACT_ROOT)
     job_id = uuid.uuid4().hex
