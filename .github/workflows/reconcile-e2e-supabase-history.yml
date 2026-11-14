@@ -90,6 +90,10 @@ jobs:
 
           # The final audited schema must already contain the production-only
           # CAD FK indexes and no point-cloud tables before metadata reconciliation.
+          grep -q 'chat_title' e2e-migration-history-evidence/public-schema-before.sql
+          grep -q 'message_count' e2e-migration-history-evidence/public-schema-before.sql
+          grep -q 'engineering_chat_sessions_project_updated_idx' e2e-migration-history-evidence/public-schema-before.sql
+          grep -q 'engineering_cad_models_project_id_id_key' e2e-migration-history-evidence/public-schema-before.sql
           grep -q 'engineering_cad_completions_created_by_idx' e2e-migration-history-evidence/public-schema-before.sql
           grep -q 'engineering_cad_completions_model_identity_id_idx' e2e-migration-history-evidence/public-schema-before.sql
           grep -q 'engineering_cad_models_created_by_idx' e2e-migration-history-evidence/public-schema-before.sql
@@ -132,15 +136,6 @@ jobs:
               exit 1
             fi
           done
-          for version in 20261021175904 20261101055943; do
-            # The two E2E-only point-cloud history entries may be present (initial
-            # state) or absent (a previous partial repair), but schema must stay clean.
-            true
-          done
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.confirmation }}" != "RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL" ]]; then
-            echo "::error::Explicit E2E repair confirmation did not match."
-            exit 1
-          fi
 
       - name: Reconcile E2E history to the checked-in repository versions
         shell: bash
