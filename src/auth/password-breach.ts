@@ -12,6 +12,7 @@ export type PasswordBreachCheck =
 function getSha1Parts(password: string): { prefix: string; suffix: string } {
   // HIBP's k-anonymity range API requires SHA-1. This digest is only a lookup key;
   // it is never stored or used for authentication, and only its first five chars leave this server.
+
   // codeql[js/insufficient-password-hashing]
   const digest = createHash("sha1").update(password, "utf8").digest("hex").toUpperCase();
   return { prefix: digest.slice(0, 5), suffix: digest.slice(5) };
