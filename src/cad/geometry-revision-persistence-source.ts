@@ -51,10 +51,7 @@ function boundStorageObject(solid: Row, completion: Completion, projectId: strin
   return solid.uri === uri && completion.storage_objects.includes(objectPath) ? objectPath : null;
 }
 
-export function resolveCanonicalSolid(completion: Completion, projectId: string): Result<CanonicalSolid> {
-  const solidResult = getSingleSolid(completion);
-  if (!solidResult.ok) return solidResult;
-  const solid = solidResult.value;
+function resolveProvenance(solid: Row, completion: Completion, projectId: string): Result<Row> {
   const provenance = isRecord(solid.provenance) ? solid.provenance : null;
   if (!provenance) return failure("Canonical SOLID provenance is missing.");
   if (typeof solid.id !== "string" || !solid.id.trim()) return failure("Canonical SOLID artifact id is missing.");
@@ -62,9 +59,27 @@ export function resolveCanonicalSolid(completion: Completion, projectId: string)
   if (!hasTrustedProvider(provenance, completion, projectId)) {
     return failure("Canonical SOLID provenance does not match its accepted completion.");
   }
-  const objectPath = boundStorageObject(solid, completion, projectId);
-  if (!objectPath) return failure("Canonical BREP object is not bound to the source completion.");
-  return { ok: true, value: { id: String(solid.id), provenance, objectPath } };
+  return { ok: true, value: provenance };
+}
+
+function resolveStoragePath(solid: Row, completion: Completion, projectId: string): Result<string> {
+  const objectPath = [projectId, completion.model_identity_id, completion.execution_id, "solid.brep"].join("/");
+  const uri = "storage://engineering-cad-artifacts/" + objectPath;
+  if (solid.uri !== uri || !completion.storage_objects.includes(objectPath)) {
+    return failure("Canonical BREP object is not bound to the source completion.");
+  }
+  return { ok: true, value: objectPath };
+}
+
+export function resolveCanonicalSolid(completion: Completion, projectId: string): Result<CanonicalSolid> {
+  const solidResult = getSingleSolid(completion);
+  if (!solidResult.ok) return solidResult;
+  const solid = solidResult.value;
+  const provenanceResult = resolveProvenance(solid, completion, projectId);
+  if (!provenanceResult.ok) return provenanceResult;
+  const pathResult = resolveStoragePath(solid, completion, projectId);
+  if (!pathResult.ok) return pathResult;
+  return { ok: true, value: { id: solid.id as string, provenance: provenanceResult.value, objectPath: pathResult.value } };
 }
 
 export async function verifyStoredBrep(db: Db, source: CanonicalSolid): Promise<Result<string>> {
