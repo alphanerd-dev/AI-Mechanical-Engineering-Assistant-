@@ -40,6 +40,11 @@ jobs:
         uses: supabase/setup-cli@v3
         with:
           version: 2.98.2
+      - name: Verify IPv4 Supavisor session pooler DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          getent ahostsv4 aws-0-eu-west-3.pooler.supabase.com
       - name: Validate the pinned CLI and canonical migration
         shell: bash
         run: |
