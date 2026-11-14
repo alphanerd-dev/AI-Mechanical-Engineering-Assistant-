@@ -1,7 +1,7 @@
 # Implementation Plan and Milestones
 
-**Updated:** 13 November 2026  
-**Status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested scope. M2.2–M2.6 implementation is in draft PR #154. The corrected exact-head run has passed the full unit suite and architecture graph; worker/security/build checks and browser acceptance remain in progress. The renderer decision remains open. The bounded OCCT worker now supports BREP/STEP import, inspection and tessellation; this does not imply full CAD-kernel ownership or broad assembly editing.
+**Updated:** 14 November 2026  
+**Status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested scope. M2.2–M2.6 implementation is in draft PR #154. Exact-head CI at `049f534` passed the unit suite, architecture graph, build123d and remote OCCT worker builds/smokes, CAD intent-to-verified-artifact E2E, open FEA worker build/tests/smoke, and production Next.js build; ESLint, CodeQL, Codacy and all four CodeScene quality gates also passed. Authenticated preview/database acceptance and representative physical desktop/Android renderer benchmarking remain open. The renderer decision remains open. The bounded OCCT worker supports BREP/STEP import, inspection and tessellation; this does not imply full CAD-kernel ownership or broad assembly editing.
 
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
 
@@ -22,7 +22,7 @@ Preserve the existing Next.js/React/TypeScript control plane, Supabase project/w
 | Deterministic calculations | Shaft torque, pump-power and a new solid-shaft static-yield pilot with explicit gear geometry, axial force, deterministic diameter solve, revisioned state, digests and validation receipt. | The shaft pilot is preliminary static yield only; it is not fatigue, complete shaft design, ASME compliance or design approval. |
 | CAD | Bounded build123d authoring plus an isolated OCCT worker for BREP/STEP import, topology inspection, tessellation and independent BREP validation; private display-derivative registration is included in PR #154. | Do not infer general CAD/assembly support or automatic validation of every exported format. |
 | Visualization | Renderer-neutral display-derivative contracts, strict GLB validation, read-only CAD viewport, PDF/SVG/DXF drawing ingestion/preview and the Babylon-vs-Three benchmark harness are implemented in PR #154. | The renderer remains unselected pending the benchmark decision and authenticated desktop/Android acceptance. Drawing preview still requires an authorized canonical artifact and trusted server-side media metadata. |
-| FEA | Reference Gmsh/CalculiX benchmark plus the bounded open FEA runtime worker, build/test/smoke path in PR #154. | The runtime remains a bounded pilot; no general FEA mesh/result-field viewer, broad structural certification or engineering approval is claimed. |
+| FEA | Reference Gmsh/CalculiX benchmark plus the bounded open FEA runtime worker in PR #154; build, worker tests and runtime smoke passed in exact-head CI run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787). | The runtime remains a bounded pilot; no general FEA mesh/result-field viewer, broad structural certification or engineering approval is claimed. |
 | Physical perception | Isolated Open3D inspection/ICP registration prototype. | No public scan upload, persistent artifact registry integration or production perception claim. |
 | CI and browser evidence | Core CI includes tests, worker checks, security analysis and production build. The isolated Playwright public UI suite includes the authenticated chat-rendering test. | Each run proves only the assertions that ran on its exact SHA and environment. |
 | Outcome economics | Collection methodology exists. | Engineering time saved, cost per accepted outcome and ROI remain NOT MEASURED until real matched trials exist. |
@@ -68,7 +68,7 @@ Acceptance still requires CI on the exact pull-request SHA, authenticated previe
 
 | ID | Milestone | Status | Main exit gate |
 |---|---|---|---|
-| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | IMPLEMENTATION IN PR #154; EXIT GATES OPEN | Exact-head worker/build CI, renderer decision, authenticated preview/browser acceptance, desktop/Android behavior and stale-source verification. Viewer failure must not change validation state. |
+| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | IMPLEMENTATION IN PR #154; REPOSITORY CI PASSED; EXTERNAL EXIT GATES OPEN | Exact-head worker/build/security/code-health CI passed. Remaining: authenticated preview/database acceptance, renderer decision from paired physical desktop/Android runs, and browser verification of stale-source behavior. Viewer failure must not change validation state. |
 | M3 | FEA mesh and result-field visualization | PLANNED | Supported mesh/field fixtures render with correct source values, units and legends; malformed or incomplete data fails closed; convergence and engineering review remain distinct. |
 | M4 | Typed P&ID/PFD data model and viewer | PLANNED | Diagram IDs and connectivity round-trip; references are authorized; unsupported symbols/invalid connections are explicit. |
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | DEFERRED | A concrete user need, measured outcome, provider/license review, benchmark, independent validator, runtime isolation and rollback plan exist. |
@@ -119,7 +119,7 @@ Physical perception remains a separately staged roadmap path: the current Open3D
 
 ## M2 — Shared artifact and CAD visualization foundation (FOUNDATION IN PROGRESS)
 
-**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 contracts, display derivatives, GLB validation/viewport, drawing ingestion, bounded OCCT import/tessellation and the FEA runtime pilot are implemented in draft PR #154. They preserve the Engineering Core execution/validation boundary, but the candidate does not satisfy all M2 exit gates.
+**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 contracts, display derivatives, GLB validation/viewport, drawing ingestion, bounded OCCT import/tessellation and the FEA runtime pilot are implemented in draft PR #154. Exact-head repository CI and code-health/security gates passed at `049f534`; preview/database, authenticated browser and physical-device renderer acceptance remain open.
 
 ### M2 work sequence
 
@@ -143,8 +143,8 @@ Physical perception remains a separately staged roadmap path: the current Open3D
 - The renderer benchmark harness and scorecard are implemented; the final renderer selection still requires paired desktop/Android runs, retained raw results and an explicit decision.
 - Core navigation, selection and visibility work on target desktop and representative Android browsers, including resource disposal and context-loss recovery.
 - Engineering-grade measurements are computed from canonical geometry or another declared deterministic authority, not guessed from display triangles.
-- Authenticated browser acceptance uses the dedicated non-production project and exact candidate revision — **pending Vercel team authorization and a preview built from the current PR head**.
-- Existing CAD/OCCT regression and evidence acceptance pass on the exact candidate revision — **pending completion of the current exact-head worker/build run**.
+- Authenticated browser acceptance uses the dedicated non-production project and exact candidate revision — **pending an authorized preview deployment and test account/session**.
+- Existing CAD/OCCT regression and evidence acceptance pass on the exact candidate revision — **repository tests, worker builds/smokes, CAD intent-to-verified-artifact E2E and production build passed in run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787); browser/database acceptance remains pending**.
 
 
 
