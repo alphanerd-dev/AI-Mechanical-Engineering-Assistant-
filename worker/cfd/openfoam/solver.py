@@ -13,6 +13,7 @@ from typing import Any
 from errors import WorkerError
 
 NUMBER = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+NON_FINITE = re.compile(r"(?i)(?<![A-Za-z0-9_])(?:nan|[+-]?inf(?:inity)?)(?![A-Za-z0-9_])")
 
 def detect_openfoam_version(foam_env: str) -> str:
     completed = subprocess.run(
@@ -65,6 +66,8 @@ def read_last_probe_line(probe_file: Path) -> str:
 
 
 def parse_probe_row(line: str) -> list[float]:
+    if NON_FINITE.search(line):
+        raise WorkerError("OpenFOAM velocity probe output contains non-finite values.")
     values = [float(value) for value in NUMBER.findall(line)]
     if not all(math.isfinite(value) for value in values):
         raise WorkerError("OpenFOAM velocity probe output contains non-finite values.")
