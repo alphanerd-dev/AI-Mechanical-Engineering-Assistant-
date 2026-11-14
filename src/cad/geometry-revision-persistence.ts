@@ -32,6 +32,30 @@ async function prepareRevision(input: {
   return { completion, solid, digest, head };
 }
 
+async function persistPreparedRevision(input: {
+  projectId: string; actorId: string; requestId: string; db: GeometryRevisionDatabase;
+}, prepared: Exclude<PreparedRevision, { replay: Row }>) {
+  const payload = buildRevisionPayload({
+    projectId: input.projectId, actorId: input.actorId, requestId: input.requestId,
+    completion: prepared.completion, solid: prepared.solid, digest: prepared.digest,
+    parentId: prepared.head.id, revisionNumber: prepared.head.number + 1
+  });
+  if (validateGeometryRevisionV1(payload.candidate).status !== "PASS") {
+    throw new GeometryPersistenceError("Geometry revision contract failed server validation.", 422);
+  }
+  const committed = unwrap(await commitRevision({
+    db: input.db, payload, projectId: input.projectId, completion: prepared.completion,
+    solid: prepared.solid, digest: prepared.digest
+  }));
+  if (committed.replay) {
+    return NextResponse.json({ revision: committed.revision, persisted: true, idempotentReplay: true }, { status: 200 });
+  }
+  return NextResponse.json({
+    revision: payload.candidate, persisted: true,
+    audit: { eventId: payload.auditRecord.event_id, chainSequence: committed.audit.chain_sequence }
+  }, { status: 201 });
+}
+
 export async function createGeometryRevisionResponse(input: {
   projectId: string; completionId: string; expectedParentRevisionId: string | null;
   actorId: string; requestId: string; db: GeometryRevisionDatabase;
@@ -41,25 +65,7 @@ export async function createGeometryRevisionResponse(input: {
     if ("replay" in prepared) {
       return NextResponse.json({ revision: prepared.replay, persisted: true, idempotentReplay: true }, { status: 200 });
     }
-    const payload = buildRevisionPayload({
-      projectId: input.projectId, actorId: input.actorId, requestId: input.requestId,
-      completion: prepared.completion, solid: prepared.solid, digest: prepared.digest,
-      parentId: prepared.head.id, revisionNumber: prepared.head.number + 1
-    });
-    if (validateGeometryRevisionV1(payload.candidate).status !== "PASS") {
-      throw new GeometryPersistenceError("Geometry revision contract failed server validation.", 422);
-    }
-    const committed = unwrap(await commitRevision({
-      db: input.db, payload, projectId: input.projectId, completion: prepared.completion,
-      solid: prepared.solid, digest: prepared.digest
-    }));
-    if (committed.replay) {
-      return NextResponse.json({ revision: committed.revision, persisted: true, idempotentReplay: true }, { status: 200 });
-    }
-    return NextResponse.json({
-      revision: payload.candidate, persisted: true,
-      audit: { eventId: payload.auditRecord.event_id, chainSequence: committed.audit.chain_sequence }
-    }, { status: 201 });
+    return persistPreparedRevision(input, prepared);
   } catch (error) {
     if (error instanceof GeometryPersistenceError) return responseError(error.message, error.status);
     return responseError("Geometry revision persistence failed without reporting success.", 503);
