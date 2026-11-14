@@ -4,6 +4,7 @@ import { createClient } from "../../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../../src/auth/supabase-service";
 import { createGeometryRevisionResponse } from "../../../../../src/cad/geometry-revision-persistence";
+import { GeometryRevisionDatabase } from "../../../../../src/cad/geometry-revision-persistence-types";
 
 export const runtime = "nodejs";
 type Row = Record<string, unknown>;
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
     const sessionDb = await createClient();
     const { data, error } = await sessionDb.auth.getUser();
     if (error || !data.user || data.user.id !== authorization.subject) return fail("Authenticated project identity could not be confirmed.", 401);
-    return createGeometryRevisionResponse({ ...input, actorId: data.user.id, requestId });
+    const db = createServiceRoleClient() as unknown as GeometryRevisionDatabase;
+    return createGeometryRevisionResponse({ ...input, actorId: data.user.id, requestId, db });
   } catch {
     return fail("Geometry revision persistence failed without reporting success.", 503);
   }
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
     if (!isUuid(modelIdentityId)) return fail("A valid modelIdentityId query parameter is required.", 400);
     const authorization = await authorizeSupabaseRequest("EVIDENCE.READ", projectId, { requestId: randomUUID(), taskId: modelIdentityId });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
-    const db = createServiceRoleClient();
+    const db = createServiceRoleClient() as unknown as GeometryRevisionDatabase;
     const { data, error } = await db.from("engineering_geometry_revisions").select("*")
       .eq("project_id", projectId).eq("model_identity_id", modelIdentityId)
       .order("revision_number", { ascending: true }).limit(500);
