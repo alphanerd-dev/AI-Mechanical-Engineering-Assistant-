@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { isCompromisedPasswordRange } from "./pwned-password-range";
+import { isCompromisedPasswordRange } from "./pwned-password-range.js";
 
 const PWNED_PASSWORDS_RANGE_URL = "https://api.pwnedpasswords.com/range";
 const REQUEST_TIMEOUT_MS = 3_000;
