@@ -4,7 +4,7 @@ import { createClient } from "../../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../../src/auth/supabase-service";
 import { createGeometryRevisionResponse } from "../../../../../src/cad/geometry-revision-persistence";
-import { GeometryRevisionDatabase } from "../../../../../src/cad/geometry-revision-persistence-types";
+import type { GeometryRevisionDatabase } from "../../../../../src/cad/geometry-revision-persistence-types";
 
 export const runtime = "nodejs";
 type Row = Record<string, unknown>;
