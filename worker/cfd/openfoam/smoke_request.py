@@ -75,8 +75,14 @@ def execute_benchmark(base_url: str, token: str, request_payload: dict) -> dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=330) as response:
-        result = json.loads(response.read())
+    try:
+        with urllib.request.urlopen(request, timeout=330) as response:
+            result = json.loads(response.read())
+    except HTTPError as error:
+        response_body = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"OpenFOAM worker returned HTTP {error.code}: {response_body}"
+        ) from error
     assert result["status"] == "COMPLETED", result
     assert result["solver"] == "OpenFOAM"
     assert result["solverVersion"] == "14"
