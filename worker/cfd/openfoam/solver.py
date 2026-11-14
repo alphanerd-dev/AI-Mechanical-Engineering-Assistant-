@@ -1,0 +1,97 @@
+"""OpenFOAM utility execution and numerical output parsing."""
+
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+from pathlib import Path
+from typing import Any
+
+from errors import WorkerError
+
+NUMBER = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+
+def detect_openfoam_version(foam_env: str) -> str:
+    completed = subprocess.run(
+        [foam_env, "--version"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        env=os.environ.copy(),
+    )
+    version_output = completed.stdout + completed.stderr
+    match = re.search(r"OpenFOAM-(\d+)", version_output)
+    if completed.returncode != 0 or not match or match.group(1) != "14":
+        raise RuntimeError("The worker requires the OpenFOAM Foundation 14 runtime.")
+    return match.group(1)
+
+
+def run_tool(case_dir: Path, tool: str, timeout: float, foam_env: str) -> subprocess.CompletedProcess[str]:
+    if tool not in {"blockMesh", "checkMesh", "foamRun"}:
+        raise WorkerError("Unsupported OpenFOAM utility.")
+    return subprocess.run(
+        [foam_env, tool, "-case", str(case_dir)],
+        cwd=case_dir,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        env={**os.environ, "OMP_NUM_THREADS": "1", "FOAM_SIGFPE": "1", "FOAM_SETNAN": "1"},
+    )
+
+
+def parse_mesh_cell_count(output: str) -> int:
+    matches = re.findall(r"^\s*cells:\s*(\d+)", output, flags=re.MULTILINE)
+    if not matches:
+        raise WorkerError("OpenFOAM checkMesh output did not contain a cell count.")
+    return int(matches[-1])
+
+
+def last_probe_values(probe_file: Path, expected_samples: int) -> list[float]:
+    if not probe_file.is_file():
+        raise WorkerError("OpenFOAM velocity probe output is missing.")
+    data_lines = [
+        line.strip()
+        for line in probe_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not data_lines:
+        raise WorkerError("OpenFOAM velocity probe output contains no samples.")
+    values = [float(value) for value in NUMBER.findall(data_lines[-1])]
+    expected_count = 1 + 3 * expected_samples
+    if len(values) < expected_count:
+        raise WorkerError("OpenFOAM velocity probe output has an unexpected column count.")
+    return [values[1 + index * 3] for index in range(expected_samples)]
+
+
+def final_residuals(log_text: str) -> dict[str, float]:
+    p_matches = re.findall(
+        r"Solving for p, Initial residual = [^,]+, Final residual = (" + NUMBER.pattern + r")",
+        log_text,
+    )
+    u_matches = re.findall(
+        r"Solving for (U[xyz]), Initial residual = [^,]+, Final residual = (" + NUMBER.pattern + r")",
+        log_text,
+    )
+    if not p_matches or not u_matches:
+        raise WorkerError("Could not extract final pressure and velocity residuals from the solver log.")
+    final_velocity_residuals: dict[str, float] = {}
+    for component, value in u_matches:
+        final_velocity_residuals[component] = float(value)
+    return {
+        "pressure": float(p_matches[-1]),
+        "velocity": max(final_velocity_residuals.values()),
+    }
+
+
+def integrate_mass_flux(y_samples: list[float], velocities: list[float], height: float, depth: float, density: float) -> float:
+    half_height = height / 2.0
+    points = [(0.0, 0.0)]
+    points.extend(zip(y_samples, velocities))
+    points.append((half_height, velocities[-1]))
+    integral = 0.0
+    for (y0, u0), (y1, u1) in zip(points, points[1:]):
+        integral += (y1 - y0) * (u0 + u1) / 2.0
+    return 2.0 * density * depth * integral
