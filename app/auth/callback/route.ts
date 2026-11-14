@@ -8,53 +8,51 @@ import {
 
 export const runtime = "nodejs";
 
-function hasValidCallbackCredential(
-  code: string | null,
-  tokenHash: string | null,
-  otpType: string | null,
-): boolean {
-  if (code) return true;
-  if (!tokenHash) return false;
-  return isSupportedAuthCallbackOtpType(otpType);
-}
+type CallbackCredential =
+  | { kind: "code"; code: string }
+  | { kind: "otp"; tokenHash: string; otpType: "signup" | "recovery" };
 
-async function exchangeCallbackCredential(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  code: string | null,
-  tokenHash: string | null,
-  otpType: string | null,
-) {
-  if (code) {
-    return supabase.auth.exchangeCodeForSession(code);
+function getCallbackCredential(params: URLSearchParams): CallbackCredential | null {
+  const code = params.get("code");
+  if (code) return { kind: "code", code };
+
+  const tokenHash = params.get("token_hash");
+  const otpType = params.get("type");
+  if (tokenHash && isSupportedAuthCallbackOtpType(otpType)) {
+    return { kind: "otp", tokenHash, otpType };
   }
 
-  return supabase.auth.verifyOtp({
-    token_hash: tokenHash!,
-    type: otpType as "signup" | "recovery",
-  });
+  return null;
+}
+
+async function exchangeCallbackCredential(credential: CallbackCredential): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const result = credential.kind === "code"
+      ? await supabase.auth.exchangeCodeForSession(credential.code)
+      : await supabase.auth.verifyOtp({
+          token_hash: credential.tokenHash,
+          type: credential.otpType,
+        });
+    return !result.error;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveCallbackDestination(request: NextRequest): Promise<string | null> {
+  const params = new URL(request.url).searchParams;
+  const credential = getCallbackCredential(params);
+  if (!credential) return null;
+
+  const exchanged = await exchangeCallbackCredential(credential);
+  if (!exchanged) return null;
+
+  return getSafeAuthCallbackDestination(params.get("next"));
 }
 
 export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const tokenHash = url.searchParams.get("token_hash");
-  const otpType = url.searchParams.get("type");
-  const destination = getSafeAuthCallbackDestination(url.searchParams.get("next"));
-
-  if (!hasValidCallbackCredential(code, tokenHash, otpType)) {
-    return NextResponse.redirect(getPublicUrl("/login?error=auth-callback-failed", request), { status: 303 });
-  }
-
-  try {
-    const supabase = await createClient();
-    const result = await exchangeCallbackCredential(supabase, code, tokenHash, otpType);
-
-    if (result.error) {
-      return NextResponse.redirect(getPublicUrl("/login?error=auth-callback-failed", request), { status: 303 });
-    }
-
-    return NextResponse.redirect(getPublicUrl(destination, request), { status: 303 });
-  } catch {
-    return NextResponse.redirect(getPublicUrl("/login?error=auth-callback-failed", request), { status: 303 });
-  }
+  const destination = await resolveCallbackDestination(request);
+  const redirectPath = destination ?? "/login?error=auth-callback-failed";
+  return NextResponse.redirect(getPublicUrl(redirectPath, request), { status: 303 });
 }
