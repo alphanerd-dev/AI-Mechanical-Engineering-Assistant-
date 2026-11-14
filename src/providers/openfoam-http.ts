@@ -24,18 +24,25 @@ async function workerError(response: Response, operation: string): Promise<Error
   return new Error(`OpenFOAM ${operation} returned HTTP ${response.status}: ${detail}`);
 }
 
-async function readWorkerResult(response: Response): Promise<OpenFOAMLaminarChannelResult> {
+async function readWorkerPayload(response: Response): Promise<unknown> {
   if (!response.ok) throw await workerError(response, "worker");
-  let payload: unknown;
   try {
-    payload = await response.json();
+    return await response.json();
   } catch {
     throw new Error("OpenFOAM worker returned an invalid JSON response.");
   }
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+}
+
+function asWorkerResult(payload: unknown): OpenFOAMLaminarChannelResult {
+  const isObject = typeof payload === "object" && payload !== null;
+  if (!isObject || Array.isArray(payload)) {
     throw new Error("OpenFOAM worker response must be a JSON object.");
   }
   return payload as OpenFOAMLaminarChannelResult;
+}
+
+async function readWorkerResult(response: Response): Promise<OpenFOAMLaminarChannelResult> {
+  return asWorkerResult(await readWorkerPayload(response));
 }
 
 function parseWorkerUrl(baseUrl: string): URL {
