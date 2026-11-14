@@ -1,6 +1,6 @@
 # OpenFOAM 14 CFD contract
 
-This increment defines an experimental provider contract, a deterministic case manifest and an independent analytical benchmark validator. The worker implementation is a separate delivery step; until it is configured, the provider returns `UNAVAILABLE` and does not claim to execute a solver.
+The experimental OpenFOAM 14 provider, deterministic case manifest, isolated worker/container and independent analytical benchmark validator are implemented on `main` (commit `058c633a0fed693b78dd3aa74c89a5a2f649dbe7`). Exact-head worker contract tests, container build, authenticated solver smoke, analytical acceptance and artifact-integrity checks passed in the recorded CI cycle. The provider remains `EXPERIMENTAL`: the supported scope is one laminar-channel Poiseuille benchmark, and production worker endpoint/configuration and broader numerical qualification are not claimed.
 
 ## Supported case
 
