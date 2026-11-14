@@ -35,7 +35,7 @@ create table public.engineering_geometry_revisions (
         project_id::text || '/' || model_identity_id::text || '/' ||
         source_operation_id || '/solid.brep'
       and position('..' in storage_object_name) = 0
-      and position('\\' in storage_object_name) = 0
+      and position(chr(92) in storage_object_name) = 0
     ),
   constraint engineering_geometry_revisions_model_project_fkey
     foreign key (project_id, model_identity_id)
@@ -103,19 +103,23 @@ begin
       message = 'Geometry revision source completion does not match its project and model.';
   end if;
 
-  if completion.status <> 'ACCEPTED'
+  if completion.status is distinct from 'ACCEPTED'
     or completion.execution_id is null
-    or completion.execution_id <> new.source_operation_id then
+    or completion.execution_id is distinct from new.source_operation_id then
     raise exception using errcode = '23514',
       message = 'Geometry revision requires an accepted completion with matching operation provenance.';
   end if;
 
-  if jsonb_typeof(completion.validation_receipt) <> 'object'
-    or jsonb_typeof(completion.evidence_records) <> 'array'
-    or jsonb_array_length(completion.evidence_records) = 0
-    or jsonb_typeof(completion.artifact_records) <> 'array' then
+  if jsonb_typeof(completion.validation_receipt) is distinct from 'object'
+    or jsonb_typeof(completion.evidence_records) is distinct from 'array'
+    or jsonb_typeof(completion.artifact_records) is distinct from 'array' then
     raise exception using errcode = '23514',
       message = 'Geometry revision source completion lacks accepted validation, evidence, or artifact records.';
+  end if;
+
+  if jsonb_array_length(completion.evidence_records) = 0 then
+    raise exception using errcode = '23514',
+      message = 'Geometry revision source completion has no evidence records.';
   end if;
 
   if not (new.storage_object_name = any(completion.storage_objects)) then
@@ -141,12 +145,12 @@ begin
 
   expected_storage_uri := 'storage://' || new.storage_bucket || '/' || new.storage_object_name;
 
-  if artifact_record ->> 'kind' <> 'SOLID'
-    or artifact_record ->> 'validationStatus' <> 'PASS'
-    or artifact_record ->> 'uri' <> expected_storage_uri
-    or artifact_record -> 'provenance' ->> 'artifactSha256' <> new.canonical_artifact_sha256
-    or artifact_record -> 'provenance' ->> 'providerId' <> new.provider_id
-    or artifact_record -> 'provenance' ->> 'backend' <> new.execution_backend then
+  if artifact_record ->> 'kind' is distinct from 'SOLID'
+    or artifact_record ->> 'validationStatus' is distinct from 'PASS'
+    or artifact_record ->> 'uri' is distinct from expected_storage_uri
+    or artifact_record -> 'provenance' ->> 'artifactSha256' is distinct from new.canonical_artifact_sha256
+    or artifact_record -> 'provenance' ->> 'providerId' is distinct from new.provider_id
+    or artifact_record -> 'provenance' ->> 'backend' is distinct from new.execution_backend then
     raise exception using errcode = '23514',
       message = 'Geometry revision canonical artifact, digest, provider, or Storage lineage does not match the accepted completion manifest.';
   end if;
