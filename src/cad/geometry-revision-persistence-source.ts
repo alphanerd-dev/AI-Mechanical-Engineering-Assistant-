@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
-import { createServiceRoleClient } from "../../lib/supabase/service";
-import { CanonicalSolid, Completion, Result, Row, failure, isRecord } from "./geometry-revision-persistence-types";
+import { CanonicalSolid, Completion, GeometryRevisionDatabase, Result, Row, failure, isRecord } from "./geometry-revision-persistence-types";
 
-type Db = ReturnType<typeof createServiceRoleClient>;
+type Db = GeometryRevisionDatabase;
 
 function hasCompletionIdentity(row: Row): boolean {
   return typeof row.model_identity_id === "string" && typeof row.execution_id === "string";
