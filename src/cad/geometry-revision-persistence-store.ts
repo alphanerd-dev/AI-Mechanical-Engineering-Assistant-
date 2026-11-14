@@ -19,7 +19,8 @@ export async function findPriorRevision(input: {
     .eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
     .eq("source_completion_id", completion.id).eq("canonical_artifact_id", solid.id).maybeSingle();
   if (error) return failure("Geometry revision idempotency lookup failed.", 503);
-  if (data === null || data === undefined) return { ok: true, value: null };
+  if (data === null) return { ok: true, value: null };
+  if (data === undefined) return { ok: true, value: null };
   if (!isRecord(data)) return failure("Geometry revision idempotency lookup returned an invalid record.", 503);
   if (!matchesExistingRevision(data, digest, solid.objectPath)) {
     return failure("The source completion is already bound to a different canonical geometry digest.");
