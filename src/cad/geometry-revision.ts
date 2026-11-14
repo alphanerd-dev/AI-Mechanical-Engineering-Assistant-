@@ -51,44 +51,93 @@ function validDate(value: unknown): value is string {
   return nonEmptyString(value) && !Number.isNaN(Date.parse(value));
 }
 
+function requireValue(valid: boolean, message: string, errors: string[]): void {
+  if (!valid) errors.push(message);
+}
+
+function requireUuid(value: unknown, field: string, errors: string[]): void {
+  requireValue(typeof value === "string" && UUID.test(value), field + " must be a UUID.", errors);
+}
+
 function validateIdentity(value: Record<string, unknown>, errors: string[]): void {
-  const keys = ["geometryRevisionId", "projectId", "modelIdentityId", "sourceCompletionId"] as const;
-  for (const key of keys) {
-    if (typeof value[key] !== "string" || !UUID.test(value[key] as string)) {
-      errors.push(key + " must be a UUID.");
-    }
-  }
-  if (value.schemaVersion !== GEOMETRY_REVISION_SCHEMA_VERSION) {
-    errors.push("Unsupported geometry revision schema version.");
-  }
+  requireValue(value.schemaVersion === GEOMETRY_REVISION_SCHEMA_VERSION, "Unsupported geometry revision schema version.", errors);
+  requireUuid(value.geometryRevisionId, "geometryRevisionId", errors);
+  requireUuid(value.projectId, "projectId", errors);
+  requireUuid(value.modelIdentityId, "modelIdentityId", errors);
+  requireUuid(value.sourceCompletionId, "sourceCompletionId", errors);
+}
+
+function validateRevisionNumber(value: unknown, errors: string[]): void {
+  requireValue(Number.isSafeInteger(value) && (value as number) >= 1,
+    "geometryRevisionNumber must be a positive safe integer.", errors);
+}
+
+function validateParentIdentifier(parent: unknown, errors: string[]): void {
+  requireValue(parent === null || (typeof parent === "string" && UUID.test(parent)),
+    "parentGeometryRevisionId must be null or a UUID.", errors);
+}
+
+function validateParentSequence(number: unknown, parent: unknown, errors: string[]): void {
+  requireValue(number !== 1 || parent === null,
+    "The first geometry revision must not have a parent.", errors);
+  requireValue(typeof number !== "number" || number <= 1 || parent !== null,
+    "Geometry revisions after the first must identify their parent.", errors);
 }
 
 function validateLineage(value: Record<string, unknown>, errors: string[]): void {
-  const number = value.geometryRevisionNumber;
-  if (!Number.isSafeInteger(number) || (number as number) < 1) {
-    errors.push("geometryRevisionNumber must be a positive safe integer.");
-  }
-  const parent = value.parentGeometryRevisionId;
-  if (parent !== null && (typeof parent !== "string" || !UUID.test(parent))) {
-    errors.push("parentGeometryRevisionId must be null or a UUID.");
-  }
-  if (number === 1 && parent !== null) {
-    errors.push("The first geometry revision must not have a parent.");
-  }
-  if (typeof number === "number" && number > 1 && parent === null) {
-    errors.push("Geometry revisions after the first must identify their parent.");
-  }
+  validateRevisionNumber(value.geometryRevisionNumber, errors);
+  validateParentIdentifier(value.parentGeometryRevisionId, errors);
+  validateParentSequence(value.geometryRevisionNumber, value.parentGeometryRevisionId, errors);
+}
+
+function validateSourceOperation(value: unknown, errors: string[]): void {
+  requireValue(nonEmptyString(value, 128), "sourceOperationId is required.", errors);
+}
+
+function validateStorageBucket(value: unknown, errors: string[]): void {
+  requireValue(value === GEOMETRY_REVISION_STORAGE_BUCKET,
+    "storageBucket must be the canonical private CAD artifact bucket.", errors);
+}
+
+function expectedStoragePath(value: Record<string, unknown>): string {
+  return [value.projectId, value.modelIdentityId, value.sourceOperationId, "solid.brep"].join("/");
+}
+
+function validateStorageObject(value: Record<string, unknown>, errors: string[]): void {
+  requireValue(value.storageObjectName === expectedStoragePath(value),
+    "storageObjectName must identify the exact source completion BREP object.", errors);
 }
 
 function validateStorage(value: Record<string, unknown>, errors: string[]): void {
-  if (!nonEmptyString(value.sourceOperationId, 128)) errors.push("sourceOperationId is required.");
-  if (value.storageBucket !== GEOMETRY_REVISION_STORAGE_BUCKET) {
-    errors.push("storageBucket must be the canonical private CAD artifact bucket.");
-  }
-  const expectedPath = [value.projectId, value.modelIdentityId, value.sourceOperationId, "solid.brep"].join("/");
-  if (value.storageObjectName !== expectedPath) {
-    errors.push("storageObjectName must identify the exact source completion BREP object.");
-  }
+  validateSourceOperation(value.sourceOperationId, errors);
+  validateStorageBucket(value.storageBucket, errors);
+  validateStorageObject(value, errors);
+}
+
+function requireArtifactId(value: unknown, errors: string[]): void {
+  requireValue(nonEmptyString(value, 160), "canonicalArtifact.artifactId is required.", errors);
+}
+
+function requireArtifactKind(value: unknown, errors: string[]): void {
+  requireValue(value === "SOLID", "canonicalArtifact.artifactKind must be SOLID.", errors);
+}
+
+function requireArtifactFormat(value: unknown, errors: string[]): void {
+  requireValue(value === "BREP", "canonicalArtifact.format must be BREP.", errors);
+}
+
+function requireArtifactDigest(value: unknown, errors: string[]): void {
+  requireValue(typeof value === "string" && SHA256.test(value),
+    "canonicalArtifact.artifactSha256 must be a lowercase SHA-256 digest.", errors);
+}
+
+function requireArtifactUnits(value: unknown, errors: string[]): void {
+  requireValue(value === "mm", "canonicalArtifact.units must be mm.", errors);
+}
+
+function requireCoordinateFrame(value: unknown, errors: string[]): void {
+  requireValue(value === "WORLD_Z_AXIS",
+    "canonicalArtifact.coordinateFrameId must be WORLD_Z_AXIS.", errors);
 }
 
 function validateCanonicalArtifact(value: unknown, errors: string[]): void {
@@ -96,16 +145,25 @@ function validateCanonicalArtifact(value: unknown, errors: string[]): void {
     errors.push("canonicalArtifact must be an object.");
     return;
   }
-  if (!nonEmptyString(value.artifactId, 160)) errors.push("canonicalArtifact.artifactId is required.");
-  if (value.artifactKind !== "SOLID") errors.push("canonicalArtifact.artifactKind must be SOLID.");
-  if (value.format !== "BREP") errors.push("canonicalArtifact.format must be BREP.");
-  if (typeof value.artifactSha256 !== "string" || !SHA256.test(value.artifactSha256)) {
-    errors.push("canonicalArtifact.artifactSha256 must be a lowercase SHA-256 digest.");
-  }
-  if (value.units !== "mm") errors.push("canonicalArtifact.units must be mm.");
-  if (value.coordinateFrameId !== "WORLD_Z_AXIS") {
-    errors.push("canonicalArtifact.coordinateFrameId must be WORLD_Z_AXIS.");
-  }
+  requireArtifactId(value.artifactId, errors);
+  requireArtifactKind(value.artifactKind, errors);
+  requireArtifactFormat(value.format, errors);
+  requireArtifactDigest(value.artifactSha256, errors);
+  requireArtifactUnits(value.units, errors);
+  requireCoordinateFrame(value.coordinateFrameId, errors);
+}
+
+function requireProviderId(value: unknown, errors: string[]): void {
+  requireValue(nonEmptyString(value, 128), "provider.providerId is required.", errors);
+}
+
+function requireProviderVersion(value: unknown, errors: string[]): void {
+  requireValue(nonEmptyString(value, 128), "provider.providerVersion is required.", errors);
+}
+
+function requireExecutionBackend(value: unknown, errors: string[]): void {
+  requireValue(value === "build123d" || value === "cadquery",
+    "provider.executionBackend is unsupported.", errors);
 }
 
 function validateProvider(value: unknown, errors: string[]): void {
@@ -113,11 +171,13 @@ function validateProvider(value: unknown, errors: string[]): void {
     errors.push("provider must be an object.");
     return;
   }
-  if (!nonEmptyString(value.providerId, 128)) errors.push("provider.providerId is required.");
-  if (!nonEmptyString(value.providerVersion, 128)) errors.push("provider.providerVersion is required.");
-  if (value.executionBackend !== "build123d" && value.executionBackend !== "cadquery") {
-    errors.push("provider.executionBackend is unsupported.");
-  }
+  requireProviderId(value.providerId, errors);
+  requireProviderVersion(value.providerVersion, errors);
+  requireExecutionBackend(value.executionBackend, errors);
+}
+
+function validateCreatedAt(value: unknown, errors: string[]): void {
+  requireValue(validDate(value), "createdAt must be a valid date string.", errors);
 }
 
 /**
@@ -136,7 +196,7 @@ export function validateGeometryRevisionV1(value: unknown): GeometryRevisionVali
   validateStorage(value, errors);
   validateCanonicalArtifact(value.canonicalArtifact, errors);
   validateProvider(value.provider, errors);
-  if (!validDate(value.createdAt)) errors.push("createdAt must be a valid date string.");
+  validateCreatedAt(value.createdAt, errors);
 
   return { status: errors.length ? "FAIL" : "PASS", errors };
 }
