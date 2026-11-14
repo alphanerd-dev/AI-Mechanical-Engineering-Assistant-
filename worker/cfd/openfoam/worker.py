@@ -538,6 +538,94 @@ def prune_artifacts(keep_latest: int = 50) -> None:
         shutil.rmtree(stale, ignore_errors=True)
 
 
+def run_case_tools(
+    case_dir: Path,
+    request: dict[str, Any],
+    started: float,
+    timeout: int,
+) -> tuple[list[str], int]:
+    logs: list[str] = []
+    actual_mesh_cells = 0
+    for tool in ("blockMesh", "checkMesh", "foamRun"):
+        remaining = timeout - (time.monotonic() - started)
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(tool, timeout)
+        completed = run_tool(case_dir, tool, remaining)
+        output = completed.stdout + completed.stderr
+        logs.append(f"===== {tool} =====\n{output}\n")
+        (case_dir / f"log.{tool}").write_text(output, encoding="utf-8")
+        if completed.returncode != 0:
+            raise WorkerError(f"{tool} failed with exit code {completed.returncode}.")
+        if tool == "checkMesh":
+            if "Mesh OK" not in output:
+                raise WorkerError("OpenFOAM checkMesh did not report Mesh OK.")
+            actual_mesh_cells = parse_mesh_cell_count(output)
+            if actual_mesh_cells != int(request["mesh"]["cellsVertical"]):
+                raise WorkerError("OpenFOAM checkMesh cell count does not match the requested mesh.")
+    return logs, actual_mesh_cells
+
+
+def collect_case_results(
+    case_dir: Path,
+    request: dict[str, Any],
+    y_samples: list[float],
+    solver_log: str,
+) -> dict[str, Any]:
+    residuals = final_residuals(solver_log)
+    tolerance = float(request["solver"]["residualTolerance"])
+    converged = residuals["pressure"] <= tolerance and residuals["velocity"] <= tolerance
+    if "End" not in solver_log:
+        raise WorkerError("OpenFOAM solver did not reach a normal End marker.")
+
+    probe_candidates = list(case_dir.glob("postProcessing/**/U"))
+    if not probe_candidates:
+        raise WorkerError("OpenFOAM did not create the requested velocity-profile probes.")
+    probe_file = probe_candidates[0]
+    velocities = last_probe_values(probe_file, len(y_samples))
+    profile = [
+        {"yM": y, "axialVelocityMps": velocity}
+        for y, velocity in zip(y_samples, velocities)
+    ]
+    mass_flux = integrate_mass_flux(
+        y_samples,
+        velocities,
+        float(request["heightM"]),
+        float(request["depthM"]),
+        float(request["densityKgM3"]),
+    )
+    return {
+        "residuals": residuals,
+        "converged": converged,
+        "profile": profile,
+        "massFluxKgS": mass_flux,
+        "probeFile": probe_file,
+        "finalDirectory": latest_time_directory(case_dir),
+    }
+
+
+def persist_case_artifacts(
+    artifact_dir: Path,
+    case_dir: Path,
+    case_results: dict[str, Any],
+    logs: list[str],
+) -> list[dict[str, str]]:
+    with tarfile.open(artifact_dir / "mesh.tar.gz", "w:gz") as archive:
+        archive.add(case_dir / "constant" / "polyMesh", arcname="polyMesh")
+
+    with tarfile.open(artifact_dir / "velocity-field.tar.gz", "w:gz") as archive:
+        archive.add(case_results["finalDirectory"] / "U", arcname="U")
+        archive.add(case_results["probeFile"], arcname="velocity-profile")
+
+    shutil.copy2(case_results["finalDirectory"] / "p", artifact_dir / "pressure-field")
+    (artifact_dir / "solver.log").write_text("\n".join(logs), encoding="utf-8")
+    return [
+        make_artifact(artifact_dir, "MESH", "mesh.tar.gz", "application/gzip"),
+        make_artifact(artifact_dir, "VELOCITY_FIELD", "velocity-field.tar.gz", "application/gzip"),
+        make_artifact(artifact_dir, "PRESSURE_FIELD", "pressure-field", "text/plain"),
+        make_artifact(artifact_dir, "SOLVER_LOG", "solver.log", "text/plain"),
+    ]
+
+
 def execute_case(request: dict[str, Any]) -> dict[str, Any]:
     prune_artifacts()
     job_id = uuid.uuid4().hex
@@ -546,75 +634,15 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
     timeout = int(request["solver"]["timeoutSeconds"])
     started = time.monotonic()
 
-    with tempfile.TemporaryDirectory(prefix="openfoam14-", dir="/tmp") as temporary:
-        case_dir = Path(temporary) / "case"
-        case_dir.mkdir()
-        y_samples = write_case(case_dir, request)
-
-        logs: list[str] = []
-        try:
-            for tool in ("blockMesh", "checkMesh", "foamRun"):
-                remaining = timeout - (time.monotonic() - started)
-                if remaining <= 0:
-                    raise subprocess.TimeoutExpired(tool, timeout)
-                completed = run_tool(case_dir, tool, remaining)
-                output = completed.stdout + completed.stderr
-                logs.append(f"===== {tool} =====\n{output}\n")
-                (case_dir / f"log.{tool}").write_text(output, encoding="utf-8")
-                if completed.returncode != 0:
-                    raise WorkerError(f"{tool} failed with exit code {completed.returncode}.")
-                if tool == "checkMesh":
-                    if "Mesh OK" not in output:
-                        raise WorkerError("OpenFOAM checkMesh did not report Mesh OK.")
-                    actual_mesh_cells = parse_mesh_cell_count(output)
-                    if actual_mesh_cells != int(request["mesh"]["cellsVertical"]):
-                        raise WorkerError("OpenFOAM checkMesh cell count does not match the requested mesh.")
-
-            solver_log = logs[-1]
-            residuals = final_residuals(solver_log)
-            converged = (
-                residuals["pressure"] <= float(request["solver"]["residualTolerance"])
-                and residuals["velocity"] <= float(request["solver"]["residualTolerance"])
-            )
-            if "End" not in solver_log:
-                raise WorkerError("OpenFOAM solver did not reach a normal End marker.")
-
-            probe_candidates = list(case_dir.glob("postProcessing/**/U"))
-            if not probe_candidates:
-                raise WorkerError("OpenFOAM did not create the requested velocity-profile probes.")
-            velocities = last_probe_values(probe_candidates[0], len(y_samples))
-            profile = [
-                {"yM": y, "axialVelocityMps": velocity}
-                for y, velocity in zip(y_samples, velocities)
-            ]
-            mass_flux = integrate_mass_flux(
-                y_samples,
-                velocities,
-                float(request["heightM"]),
-                float(request["depthM"]),
-                float(request["densityKgM3"]),
-            )
-
-            final_dir = latest_time_directory(case_dir)
-            mesh_archive = artifact_dir / "mesh.tar.gz"
-            with tarfile.open(mesh_archive, "w:gz") as archive:
-                archive.add(case_dir / "constant" / "polyMesh", arcname="polyMesh")
-
-            velocity_archive = artifact_dir / "velocity-field.tar.gz"
-            with tarfile.open(velocity_archive, "w:gz") as archive:
-                archive.add(final_dir / "U", arcname="U")
-                archive.add(probe_candidates[0], arcname="velocity-profile")
-
-            shutil.copy2(final_dir / "p", artifact_dir / "pressure-field")
-            combined_log = artifact_dir / "solver.log"
-            combined_log.write_text("\n".join(logs), encoding="utf-8")
-
-            artifacts = [
-                make_artifact(artifact_dir, "MESH", "mesh.tar.gz", "application/gzip"),
-                make_artifact(artifact_dir, "VELOCITY_FIELD", "velocity-field.tar.gz", "application/gzip"),
-                make_artifact(artifact_dir, "PRESSURE_FIELD", "pressure-field", "text/plain"),
-                make_artifact(artifact_dir, "SOLVER_LOG", "solver.log", "text/plain"),
-            ]
+    try:
+        with tempfile.TemporaryDirectory(prefix="openfoam14-", dir="/tmp") as temporary:
+            case_dir = Path(temporary) / "case"
+            case_dir.mkdir()
+            y_samples = write_case(case_dir, request)
+            logs, actual_mesh_cells = run_case_tools(case_dir, request, started, timeout)
+            case_results = collect_case_results(case_dir, request, y_samples, logs[-1])
+            artifacts = persist_case_artifacts(artifact_dir, case_dir, case_results, logs)
+            converged = case_results["converged"]
             return {
                 "jobId": job_id,
                 "status": "COMPLETED",
@@ -622,18 +650,18 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
                 "solverVersion": FOAM_VERSION,
                 "converged": converged,
                 "meshCells": actual_mesh_cells,
-                "massFluxKgS": mass_flux,
-                "residuals": residuals,
-                "velocityProfile": profile,
+                "massFluxKgS": case_results["massFluxKgS"],
+                "residuals": case_results["residuals"],
+                "velocityProfile": case_results["profile"],
                 "artifacts": artifacts,
                 "warnings": [] if converged else ["Solver completed but final residuals exceed the requested tolerance."],
             }
-        except subprocess.TimeoutExpired as error:
-            shutil.rmtree(artifact_dir, ignore_errors=True)
-            raise WorkerTimeout("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
-        except Exception:
-            shutil.rmtree(artifact_dir, ignore_errors=True)
-            raise
+    except subprocess.TimeoutExpired as error:
+        shutil.rmtree(artifact_dir, ignore_errors=True)
+        raise WorkerTimeout("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
+    except Exception:
+        shutil.rmtree(artifact_dir, ignore_errors=True)
+        raise
 
 
 class Handler(BaseHTTPRequestHandler):
