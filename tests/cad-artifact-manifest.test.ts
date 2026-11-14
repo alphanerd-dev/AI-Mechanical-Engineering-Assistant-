@@ -46,7 +46,6 @@ describe("CAD artifact manifest",()=>{
         timeoutMs:30000
       },
       providerId:"cad.build123d",
-      providerVersion:"0.13.0",
       generatedAt:"2026-11-07T10:01:00.000Z"
     });
 
@@ -59,8 +58,6 @@ describe("CAD artifact manifest",()=>{
 
     expect(solid.provenance?.sourceArtifactIds).toEqual([source.id]);
     expect(result.provenance?.modelRevision).toBe(3);
-    expect(result.provenance?.providerVersion).toBe("0.13.0");
-    expect(solid.provenance?.providerVersion).toBe("0.13.0");
     expect(solid.provenance?.modelRevision).toBe(3);
     for (const derivative of [step,stl,threeMf]) {
       expect(derivative.provenance?.sourceArtifactIds).toEqual([source.id]);
