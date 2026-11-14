@@ -97,9 +97,9 @@ export async function POST(request: Request) {
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
     const sessionDb = await createClient();
     const { data: identity, error } = await sessionDb.auth.getUser();
-    if (error || !identity.user || identity.user.id !== authorization.subject) {
-      return fail("Authenticated approver identity could not be confirmed.", 401);
-    }
+    if (error) return fail("Authenticated approver identity could not be confirmed.", 401);
+    if (!identity.user) return fail("Authenticated approver identity could not be confirmed.", 401);
+    if (identity.user.id !== authorization.subject) return fail("Authenticated approver identity could not be confirmed.", 401);
     return submitDecision(input, identity.user.id, requestId);
   } catch {
     return fail("Manufacturing human decision failed without reporting success.", 503);
