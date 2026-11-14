@@ -8,6 +8,8 @@ export interface CADArtifactManifestContext {
   request: CADExecutionRequest;
   /** Host-authored identity of the adapter that actually handled this execution. */
   providerId: string;
+  /** Version from the host-controlled promotion manifest, never request input. */
+  providerVersion?: string;
   requirementIds?: string[];
   generatedAt?: string;
 }
@@ -100,6 +102,7 @@ function validateProvenanceContext(input: ProvenanceContextInput): string[] {
     errors.push("CAD execution timeoutMs must be finite and positive.");
   }
   if (!nonEmptyString(context.providerId)) errors.push("Host-authored CAD provider id is required.");
+  if (context.providerVersion !== undefined && !nonEmptyString(context.providerVersion)) errors.push("Host-authored CAD provider version must be non-empty when supplied.");
   if (request?.backend !== execution.backend) {
     errors.push("CAD execution request backend does not match the worker result backend.");
   }
@@ -129,6 +132,7 @@ function createExecutionProvenance(input: ExecutionProvenanceInput): CADExecutio
     modelIdentityId: context.modelIdentity.id,
     executionId: request.id,
     providerId: context.providerId.trim(),
+    ...(context.providerVersion ? { providerVersion: context.providerVersion.trim() } : {}),
     backend: request.backend,
     sourceSha256: createCADSourceSha256(request.source),
     sourceFilename: request.filename.trim(),
