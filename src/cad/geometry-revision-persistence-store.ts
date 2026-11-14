@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { createServiceRoleClient } from "../../lib/supabase/service";
 import { buildDurableAuditRecord } from "../audit/durable-store";
 import { GeometryRevisionV1 } from "./geometry-revision";
-import { CanonicalSolid, Completion, Result, Row, failure, isRecord } from "./geometry-revision-persistence-types";
+import { CanonicalSolid, Completion, GeometryRevisionDatabase, Result, Row, failure, isRecord } from "./geometry-revision-persistence-types";
 
-type Db = ReturnType<typeof createServiceRoleClient>;
+type Db = GeometryRevisionDatabase;
 export type RevisionPayload = { candidate: GeometryRevisionV1; revisionRecord: Row; auditRecord: Row; revisionId: string };
 export type RevisionHead = { id: string | null; number: number };
 
