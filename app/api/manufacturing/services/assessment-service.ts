@@ -36,6 +36,14 @@ function priorAssessmentResponse(input: { prior: Row | null; inputSha256: string
   if (input.prior.input_sha256 !== input.inputSha256) return fail({ message: "This releaseId is already bound to a different assessment input.", status: 409 });
   return NextResponse.json({ assessment: input.prior, idempotentReplay: true }, { status: 200 });
 }
+function successfulAssessmentResponse(data: unknown, readiness: unknown) {
+  if (!assessmentReceipt(data)) return null;
+  return NextResponse.json({ assessment: data.assessment, audit: data.audit, readiness }, { status: 201 });
+}
+function reconciledAssessmentResponse(data: Row | null, inputSha256: string) {
+  if (!data || data.input_sha256 !== inputSha256) return null;
+  return NextResponse.json({ assessment: data, idempotentReplay: true }, { status: 200 });
+}
 async function writeAssessment(input: {
   record: Row; auditRecord: Row; projectId: string; releaseId: string; inputSha256: string; readiness: unknown;
 }) {
@@ -43,18 +51,12 @@ async function writeAssessment(input: {
   const { data, error } = await db.rpc("record_manufacturing_assessment_with_audit", {
     p_assessment: input.record, p_audit_record: input.auditRecord
   });
-  if (!error) {
-    if (assessmentReceipt(data)) {
-      return NextResponse.json({ assessment: data.assessment, audit: data.audit, readiness: input.readiness }, { status: 201 });
-    }
-  }
+  const successful = error ? null : successfulAssessmentResponse(data, input.readiness);
+  if (successful) return successful;
   const { data: reconciled } = await db.from("engineering_manufacturing_assessments").select("*")
     .eq("project_id", input.projectId).eq("release_id", input.releaseId).maybeSingle();
-  if (reconciled) {
-    if (reconciled.input_sha256 === input.inputSha256) {
-      return NextResponse.json({ assessment: reconciled, idempotentReplay: true }, { status: 200 });
-    }
-  }
+  const replay = reconciledAssessmentResponse(reconciled as Row | null, input.inputSha256);
+  if (replay) return replay;
   return fail({ message: "Manufacturing assessment and audit transaction could not be confirmed.", status: 503 });
 }
 export async function createManufacturingAssessment(input: {
