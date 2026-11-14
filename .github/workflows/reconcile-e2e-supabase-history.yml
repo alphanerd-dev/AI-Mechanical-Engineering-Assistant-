@@ -225,7 +225,7 @@ jobs:
             > e2e-migration-history-evidence/migration-list-final.txt 2>&1 || true
           supabase db dump --db-url "$SUPABASE_DB_URL" --schema public \
             --file e2e-migration-history-evidence/public-schema-final.sql \
- || true
+            || true
 
       - uses: actions/upload-artifact@v4
         if: always()
