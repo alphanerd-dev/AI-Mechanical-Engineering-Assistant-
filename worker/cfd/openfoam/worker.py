@@ -280,7 +280,7 @@ boundaryField
         + f'''momentumSource
 {{
     type semiImplicitSource;
-    cellZone all;
+    selectionMode all;
     volumeMode specific;
     sources
     {{
@@ -428,6 +428,13 @@ def run_tool(case_dir: Path, tool: str, timeout: float) -> subprocess.CompletedP
     )
 
 
+def parse_mesh_cell_count(output: str) -> int:
+    matches = re.findall(r"^\s*cells:\s*(\d+)", output, flags=re.MULTILINE)
+    if not matches:
+        raise WorkerError("OpenFOAM checkMesh output did not contain a cell count.")
+    return int(matches[-1])
+
+
 def last_probe_values(probe_file: Path, expected_samples: int) -> list[float]:
     if not probe_file.is_file():
         raise WorkerError("OpenFOAM velocity probe output is missing.")
@@ -545,10 +552,9 @@ def execute_case(request: dict[str, Any]) -> dict[str, Any]:
                 if tool == "checkMesh":
                     if "Mesh OK" not in output:
                         raise WorkerError("OpenFOAM checkMesh did not report Mesh OK.")
-                    cell_matches = re.findall(r"^\\s*cells:\\s*(\\d+)", output, flags=re.MULTILINE)
-                    if not cell_matches or int(cell_matches[-1]) != int(request["mesh"]["cellsVertical"]):
+                    actual_mesh_cells = parse_mesh_cell_count(output)
+                    if actual_mesh_cells != int(request["mesh"]["cellsVertical"]):
                         raise WorkerError("OpenFOAM checkMesh cell count does not match the requested mesh.")
-                    actual_mesh_cells = int(cell_matches[-1])
 
             solver_log = logs[-1]
             residuals = final_residuals(solver_log)
