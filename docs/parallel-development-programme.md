@@ -289,16 +289,16 @@ Current real-world economic outcomes remain **NOT MEASURED** until matched user 
 - PR #156 contains a real OpenFOAM 14 worker image and authenticated API, but the web application provider remains unconfigured until it is attached to the durable execution boundary. The capability remains experimental; no general-purpose CFD claim is made.
 
 ### Data, security and release gates
-- No production Supabase migration, migration-history repair, Auth configuration change, feature-flag change, merge or production promotion was performed by this cycle.
+- No production Supabase migration, migration-history repair, Auth configuration change, feature-flag change, or production promotion was performed by this cycle. PR #165's G2 atomic persistence migration and PR #166's manufacturing record migration are installed on the dedicated E2E project only; both remain pending exact-head verification and merge.
 - The PR #154 M2 migration remains additive and un-applied to production. Preview RLS, private storage, signed URL, trigger and audit-chain E2E remain required.
 - Issue #145 remains open: the cause of the final production migration timestamp mismatch has not been proven and canonical history repair has not been approved.
-- Issue #146 remains open: leaked-password protection is disabled in production and E2E. Enabling it requires product-owner approval after authentication-flow testing.
+- Issue #146 is closed as Not Planned at the product owner's direction to retain Supabase Free. Native Supabase leaked-password protection remains disabled; first-party HIBP screening is separate and remains in the application.
 - PR #154 still requires authenticated BREP/STEP → OCCT → GLB → private storage → signed URL → browser viewport E2E, drawing upload/list/preview E2E, cross-project denial tests, and desktop/mobile browser acceptance.
 - PR #156's worker smoke must run with network disabled, read-only root filesystem, dropped capabilities and bounded CPU/memory. The returned artifacts must be downloaded and SHA-256 checked, then the actual solver result must pass the independent TypeScript analytical acceptance gate.
 - No merge, deployment, destructive migration, production worker activation or external service purchase was performed.
 
 ### Product maturity boundaries
-- Manufacturing DFM, process-plan validation, inspection acceptance, BOM generation and readiness assessment remain pilot/advisory capabilities. Economics and release evaluation remain experimental; CAM reports unavailable without a real toolpath runtime. Machine matching, quality nonconformance, ERP/MES and maintenance analytics remain research-only.
+- Manufacturing DFM, process-plan validation, inspection acceptance, BOM generation and readiness assessment remain deterministic pilot/advisory capabilities. PR #166 adds durable assessment snapshots and independent human decision records; its additive migration is applied to E2E only, while authenticated route acceptance and merge remain pending. Economics and release evaluation remain experimental; CAM reports unavailable without a real toolpath runtime. Machine matching, quality nonconformance, ERP/MES and maintenance analytics remain research-only.
 - The OpenFOAM worker supports one bounded laminar plane-Poiseuille benchmark only. Turbulence, multiphase flow, heat transfer, arbitrary dictionaries, general-purpose CFD and production certification are not supported.
 - Broad multi-CAD interoperability, scan-to-CAD, advanced robotics and electromechanical integration remain separate roadmap increments.
 - Current real-world economic outcomes remain **NOT MEASURED** until matched user trials are collected.
