@@ -7,23 +7,23 @@
 
 ## Current execution snapshot — 14 November 2026
 
-This snapshot supersedes earlier dated branch/PR status tables below where they conflict. At the start of this status refresh, the implementation backlog had **zero open pull requests and zero open issues**; this documentation-only PR records the updated verified state.
+This snapshot supersedes earlier dated branch/PR status tables below where they conflict. At this status refresh, **two implementation pull requests (#165 and #166) are open and there are zero open issues**. The G2 application deployment is already READY; the two new data/API increments remain isolated from production until their acceptance and migration gates are met.
 
 | Workstream | Verified state | Remaining boundary |
 |---|---|---|
 | G2 geometry identity | PR [#163](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/163) merged at `132436fd1cf4ca66ec122ca13d8313e2b4681b84`. Immutable revision schema, composite lineage constraints, append-only guards and provider-neutral contract are in `main`. | PR #165 adds server-side trusted revision persistence/read APIs, host-derived provider-version provenance, server-side BREP SHA-256 verification, idempotent retry and atomic revision-plus-audit RPC. Its additive migration is installed on E2E only; authenticated route acceptance and production migration approval remain outstanding. No native geometry kernel is delivered. |
-| CAD / M2.2–M2.6 | Geometry, viewport, drawing and artifact workflow code is present on `main` (commit `518b5e1`). The latest production deployment before G2 was READY. | Authenticated project/database E2E and paired desktop/Android renderer benchmark/selection remain separate acceptance gates. |
+| CAD / M2.2–M2.6 | Geometry, viewport, drawing and artifact workflow code is present on `main` (commit `518b5e1`). The G2 merge production deployment reached READY; read-only `/`, `/login` and `/forgot-password` smoke checks returned HTTP 200. | Authenticated project/database E2E and paired desktop/Android renderer benchmark/selection remain separate acceptance gates. |
 | CFD / OpenFOAM 14 | Bounded Poiseuille worker, provider, analytical acceptance, artifact digest checks and worker smoke coverage are present on `main` (commit `058c633`). Exact-head checks were reported passing in the commit record. | One laminar benchmark only; capability remains EXPERIMENTAL. Production worker endpoint/configuration and broader mesh/refinement validation are not claimed. |
 | Manufacturing | Deterministic machined-part readiness workflow is present on `main` (commit `2a3f952`). | PR #166 adds durable readiness snapshots and independent append-only human decisions with four-eyes approval and atomic audit writes. Its additive migration is installed on E2E only; authenticated route acceptance remains pending. CAM execution and MES/machine dispatch are not implemented. |
 | Authentication | Password recovery/PKCE and first-party HIBP k-anonymity screening are present on `main` (commit `79ecb65`). Issue [#146](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/146) was closed as **Not Planned** by owner direction; Supabase remains on Free. | Application screening does not equal native Supabase platform-wide leaked-password protection. No paid upgrade or Auth-setting change was made. |
-| Production deployment | G2 merge commit triggered Vercel production deployment `dpl_4iu9pcFvsLhP7E8yF66CbEtktetV`; it reached READY; read-only production route smoke checks returned HTTP 200. Runtime error query for the preceding READY deployment returned no errors in the inspected 10-minute window. | Confirm the G2 merge deployment reaches READY, then perform a read-only production smoke test. A deployment build is not proof of database migration or engineering workflow acceptance. |
+| Production deployment | G2 merge commit triggered Vercel production deployment `dpl_4iu9pcFvsLhP7E8yF66CbEtktetV`; it reached READY; read-only production route smoke checks returned HTTP 200. Runtime error query for the preceding READY deployment returned no errors in the inspected 10-minute window. | Production app deployment and read-only route smoke are complete. No G2 or manufacturing additive schema has been applied to production; production migration remains approval-gated. |
 
 ### Next execution order
 
 1. Completed: the G2 merge deployment reached READY; read-only production route smoke checks returned HTTP 200 and the inspected runtime-error window was clean.
 2. Complete authenticated POST/GET acceptance for PR #165 (accepted completion, BREP digest mismatch, stale parent, idempotent retry and audit-chain assertions). Keep production migration approval separate.
 3. Advance the CAD/FEA/CFD evidence workflows without making the renderer or CFD capability more mature than the evidence supports.
-4. Add durable manufacturing assessment/inspection records behind project authorization and audit, preserving the existing human-approval gate and no-machine-control boundary.
+4. Complete authenticated POST/GET acceptance for PR #166 assessment and decision records, including author self-approval denial, duplicate replay and audit-chain correlation.
 5. Expose bounded LLM orchestration only after durable run journaling, per-action idempotency, lease recovery and authenticated acceptance are complete.
 
 All status claims above are scoped to the named commit, environment and test evidence. A merged schema or successful build does not imply production migration, user-facing integration or engineering validation.
@@ -195,24 +195,24 @@ Geometry-specific fields belong in geometry contracts. Solver-specific fields be
 ## 6. Delivery order and concurrency
 
 ### Priority 0 — Protect the baseline
-- G1 PR #139 is merged; preserve its API compatibility and continue consumer conformance.
-- Complete PR #165 authenticated API acceptance after a preview deployment is available; keep its additive production migration behind explicit database-owner approval.
-- Complete PR #154 M2.2–M2.6 exact-head verification and browser acceptance before merge.
-- Complete PR #144 bounded LLM authority review without enabling a production agent route or feature flag.
+- Preserve G1/G2 schema compatibility and verify all geometry-revision consumers.
+- Complete authenticated acceptance for PR #165 and #166 when an allowlisted E2E preview is available; keep production migrations behind explicit database-owner approval.
+- Complete M2.2–M2.6 authenticated artifact/drawing workflows and renderer selection on paired desktop/Android devices.
+- Keep bounded LLM product-route exposure disabled until durable run journaling, per-action idempotency, lease recovery and authenticated acceptance are complete.
 
 ### Priority 1 — Parallel product foundations
-- WS-D: M2 artifact contracts, viewer registry and renderer benchmark are being completed in PR #154.
-- WS-A: bounded LLM operational authority and typed model-plan validation are in draft PR #144.
-- WS-B: OCCT/build123d CAD and open FEA runtime workflows are being integrated in PR #154; CFD remains at provider-boundary/benchmark preparation.
-- WS-C: manufacturing inventory is complete; the machined-part readiness pilot is implemented on `feat/manufacturing-readiness-pilot`.
-- WS-E: G1 and G2 schema/contract are merged; trusted G2 persistence is in PR #165 and awaits authenticated E2E and merge.
+- WS-D: M2.2–M2.6 CAD, OCCT import/tessellation, drawing ingestion and renderer-neutral viewer foundation are merged; authenticated browser/storage acceptance and renderer selection remain.
+- WS-A: bounded LLM operational authority and typed model-plan validation are merged at the core layer; product-route exposure remains blocked on durable run journal/lease recovery.
+- WS-B: build123d/OCCT CAD and open FEA worker foundations are present; the OpenFOAM 14 Poiseuille worker is present on `main` but remains experimental and is not yet wired to the durable app execution boundary.
+- WS-C: deterministic readiness pilot is merged; PR #166 adds durable assessment snapshots and independent human decisions.
+- WS-E: G1/G2 schema and contract are merged; PR #165 adds trusted G2 persistence/read APIs and atomic audit.
 
 ### Priority 2 — Connected engineering workflows
-- CAD artifact viewing and drawing foundation after M2 gates.
+- Authenticated CAD/drawing artifact acceptance, stale-source behavior and paired-device renderer benchmark.
 - FEA mesh/result visualization under M3.
 - One CAD-to-CAE workflow with exact source lineage and independent checks.
-- One advisory manufacturing workflow with human review.
-- CFD provider prototype and reproducible benchmark; promote only after worker and numerical gates.
+- Manufacturing assessment and four-eyes decision acceptance; no CAM/MES dispatch.
+- Attach the experimental CFD worker to the durable execution boundary only after provider/runtime, numerical and artifact acceptance gates.
 
 ### Priority 3 — Expand only on evidence
 - Broader multi-CAD, advanced CFD, scan-to-CAD, robotics/dynamics and electromechanical integrations.
@@ -272,29 +272,28 @@ Current real-world economic outcomes remain **NOT MEASURED** until matched user 
 
 | PR | Scope | Current status |
 |---|---|---|
-| #140 | M2.1 revision-aware CAD lineage and viewer foundation | Superseded as a standalone merge candidate by the consolidated continuation in PR #154; its changes are included in that branch. Do not merge separately while #154 is under review. |
-| #163 | G2 immutable geometry identity/revision schema and contract | Merged; production deployment READY. E2E rollback-only schema rehearsal passed. |\n| #165 | G2 trusted geometry revision persistence/read API | Open; E2E atomic persistence migration applied, security and lineage checks verified; authenticated API acceptance pending. |
-| #144 | Bounded LLM operational authority | Draft; exact-head Engineering Core CI, ESLint, CodeQL and Codacy passed. No production agent route or feature flag is enabled. |
-| #154 | Consolidated M2.2–M2.6 CAD, OCCT, GLB viewport and drawing workflows | Draft; exact-head Engineering Core CI, CodeQL and Codacy passed on the monitored head. ESLint initially failed during scanner installation because npm resolved unavailable `ai@7.0.173`; the isolated scanner workflow has now been applied and fresh exact-head checks are running. |
-| #155 | Deterministic machined-part manufacturing readiness | Merged; deterministic readiness remains advisory and does not dispatch production. |\n| #166 | Durable manufacturing assessments and independent human decisions | Open; E2E migrations applied, RLS/service-role least privilege verified, authenticated route acceptance pending. |
-| #156 | OpenFOAM 14 bounded CFD benchmark and isolated worker | Draft; worker contract, authenticated HTTP service, artifact retrieval, TypeScript executor and real-solver CI smoke test have been implemented. Exact-head CI and actual numerical acceptance remain in progress; do not claim CFD execution is verified until the worker smoke and provider acceptance gate pass. |
+| #163 | G2 immutable geometry identity/revision schema and contract | Merged; production application deployment READY. E2E schema rehearsal passed; production schema remains unchanged. |
+| #144 | Bounded LLM operational authority | Merged; typed model-plan validation and backend policy enforcement exist at the core layer. Product-route exposure remains blocked on durable run journaling, action idempotency and lease recovery. |
+| #154 | Consolidated M2.2–M2.6 CAD, OCCT, GLB viewport and drawing workflows | Merged; code is on `main`. Authenticated artifact/drawing E2E and renderer selection remain open. |
+| #155 | Deterministic machined-part manufacturing readiness | Merged; readiness remains advisory and does not dispatch production. |
+| #165 | G2 trusted geometry revision persistence/read API | Open; E2E migration applied, atomic RPC and server-side digest/provenance checks implemented. Current exact-head CI is in progress; authenticated API acceptance is blocked by Vercel preview build-rate limit. |
+| #166 | Durable manufacturing assessments and independent human decisions | Open; exact-head Engineering Core CI, ESLint, CodeQL, Codacy and migration reconciliation passed. E2E security privileges verified; authenticated API acceptance is blocked by Vercel preview build-rate limit. |
+| CFD worker | OpenFOAM 14 bounded laminar Poiseuille worker | Implementation is present on `main` at `058c633`; worker image, authenticated smoke and analytical acceptance passed in that commit's exact-head CI. The app provider remains experimental and not wired to the durable execution boundary. |
 
 ### Implementation boundaries
 
-- **PR #154 supersedes PR #140** as the reviewable M2.1–M2.6 CAD/drawing delivery. PR #140 remains open only as a historical foundation; it should not be merged independently.
-- PR #163 merged the G2 identity schema and contract. PR #165 implements trusted server-side revision persistence and atomic audit; E2E migration rehearsal is complete, while authenticated route acceptance and production migration approval remain pending.
-- PR #144 introduces bounded model-directed planning and operational authority, but does not authorize direct production execution. Its exact-head automated checks pass; authenticated preview/browser acceptance and production worker readiness remain separate gates.
-- PR #154 implements CAD/drawing workflows through isolated OCCT and existing geometry providers. Its latest source requires fresh ESLint and preview/browser acceptance after the scanner workflow correction.
-- PR #155 provides deterministic manufacturing-readiness assessment and artifact-link checks. PR #166 adds durable snapshots and independent append-only human decisions with four-eyes authorization; neither path issues a production release, CNC program or machine-control command.
-- PR #156 contains a real OpenFOAM 14 worker image and authenticated API, but the web application provider remains unconfigured until it is attached to the durable execution boundary. The capability remains experimental; no general-purpose CFD claim is made.
+- PR #163 merged the G2 identity schema and contract; PR #165 adds trusted server-side revision persistence and atomic audit. E2E migration rehearsal is complete; authenticated API acceptance and production migration approval remain pending.
+- PR #144 merged bounded model-directed planning and operational authority at the core layer, but does not authorize direct production execution. Durable run journaling, per-action idempotency and lease recovery are still required before route exposure.
+- PR #154 merged CAD/drawing workflows through isolated OCCT and existing geometry providers. Authenticated browser/storage acceptance and renderer selection remain separate gates.
+- PR #155 merged deterministic manufacturing-readiness assessment. PR #166 adds durable snapshots and independent append-only human decisions with four-eyes authorization; neither path issues a production release, CNC program or machine-control command.
+- The OpenFOAM 14 worker is present on `main` and passed its bounded Poiseuille worker smoke/analytical acceptance in the recorded commit CI. The app provider remains experimental and not wired to durable execution; no general-purpose CFD claim is made.
 
 ### Data, security and release gates
-- No production Supabase migration, migration-history repair, Auth configuration change, feature-flag change, or production promotion was performed by this cycle. PR #165's G2 atomic persistence migration and PR #166's manufacturing record migration are installed on the dedicated E2E project only; both remain pending exact-head verification and merge.
-- The PR #154 M2 migration remains additive and un-applied to production. Preview RLS, private storage, signed URL, trigger and audit-chain E2E remain required.
-- Issue #145 is closed as Completed: production migration history now matches the 18 canonical repository migrations. The historical cause of the former alternate chat-metadata timestamp was not recoverable; E2E carries four additional G2/manufacturing rehearsal migrations on the open feature branches.
-- Issue #146 is closed as Not Planned at the product owner's direction to retain Supabase Free. Native Supabase leaked-password protection remains disabled; first-party HIBP screening is separate and remains in the application.
+- Production migration history reconciliation (issue #145) is complete; the production ledger matches the 18 canonical repository migrations. The historical cause of the former alternate chat-metadata timestamp was not recoverable.
+- PR #165's G2 persistence migration and PR #166's manufacturing record migrations are applied only to the dedicated E2E Supabase project. No production schema change was made; database-owner approval is required before applying them.
 - PR #154 still requires authenticated BREP/STEP → OCCT → GLB → private storage → signed URL → browser viewport E2E, drawing upload/list/preview E2E, cross-project denial tests, and desktop/mobile browser acceptance.
-- PR #156's worker smoke must run with network disabled, read-only root filesystem, dropped capabilities and bounded CPU/memory. The returned artifacts must be downloaded and SHA-256 checked, then the actual solver result must pass the independent TypeScript analytical acceptance gate.
+- Issue #146 is closed as Not Planned at the product owner's direction to retain Supabase Free. Native Supabase leaked-password protection remains disabled; first-party HIBP screening is separate and remains in the application.
+- OpenFOAM worker smoke passed for the single laminar Poiseuille case in commit `058c633`; broader mesh refinement, other flow regimes and app-level durable execution remain out of scope.
 - PRs #163 and #164 were merged and the G2 production app deployment reached READY. PRs #165 and #166 remain open; no production schema migration, production worker activation, destructive operation or external service purchase was performed.
 
 ### Product maturity boundaries
