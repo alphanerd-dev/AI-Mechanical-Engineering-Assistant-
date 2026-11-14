@@ -31,10 +31,8 @@ export async function POST(request: Request) {
     const email = String(form.get("email") ?? "").trim();
     const validation = validatePasswordUpdate(form.get("password"), form.get("confirmPassword"));
 
-    if (!email || !validation.ok) {
-      const error = !email ? "missing-fields" : validation.reason;
-      return redirectToSignupError(request, error);
-    }
+    if (!email) return redirectToSignupError(request, "missing-fields");
+    if (!validation.ok) return redirectToSignupError(request, validation.reason);
 
     const breachCheck = await checkPasswordBreach(validation.password);
     if (breachCheck.status !== "safe") {
