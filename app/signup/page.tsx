@@ -4,6 +4,8 @@ const messages: Record<string, string> = {
   "missing-fields": "Enter your email and password.",
   "password-policy": "Use a password with at least 10 characters.",
   "password-mismatch": "The passwords do not match.",
+  "password-compromised": "This password appears in known data breaches. Choose a different password.",
+  "password-check-unavailable": "We could not verify this password safely. Please try again shortly.",
   "registration-failed": "We could not complete registration. Check your details or try signing in.",
   "registration-unavailable": "Registration is temporarily unavailable. Please try again.",
 };

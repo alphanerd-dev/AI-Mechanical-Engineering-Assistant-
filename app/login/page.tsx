@@ -7,14 +7,15 @@ const authErrors: Record<string, string> = {
   "role-refresh-required": "Your engineering access was updated. Sign in again to refresh your session.",
   "auth-unavailable": "Authentication is temporarily unavailable. Please try again shortly.",
   "auth_not_configured": "Authentication is not configured for this deployment. Contact the platform administrator.",
+  "auth-callback-failed": "The authentication link is invalid or expired. Request a new link and try again.",
 };
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ registered?: string; confirmed?: string; error?: string }>;
+  searchParams: Promise<{ registered?: string; confirmed?: string; passwordUpdated?: string; error?: string }>;
 }) {
-  const { registered, confirmed, error } = await searchParams;
+  const { registered, confirmed, passwordUpdated, error } = await searchParams;
   return (
     <main className="shell">
       <header className="hero">
@@ -28,6 +29,7 @@ export default async function LoginPage({
       </header>
       {registered === "1" && <p className="projectNoticeText" role="status">Registration submitted. Check your inbox and confirm your email before signing in if confirmation is enabled.</p>}
       {confirmed === "1" && <p className="projectNoticeText" role="status">Email confirmed. You can now sign in with your account.</p>}
+      {passwordUpdated === "1" && <p className="projectNoticeText" role="status">Your password has been updated. Sign in with your new password.</p>}
       {error && <p className="projectError" role="alert">{authErrors[error] ?? "Sign-in could not be completed. Please try again."}</p>}
       <form className="panel authForm" method="post" action="/api/auth/login">
         <label>
@@ -39,6 +41,7 @@ export default async function LoginPage({
           <input name="password" type="password" autoComplete="current-password" required />
         </label>
         <button className="button" type="submit">Sign in</button>
+        <p className="muted"><Link href="/forgot-password">Forgot your password?</Link></p>
         <p className="muted">New to the workspace? <Link href="/signup">Create an account</Link></p>
       </form>
     </main>
