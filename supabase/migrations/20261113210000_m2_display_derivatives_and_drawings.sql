@@ -51,7 +51,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path to ''
-as $
+as $$
 declare
   current_revision bigint;
 begin
@@ -69,7 +69,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.enforce_current_cad_display_derivative_revision() from public, anon, authenticated;
 grant execute on function private.enforce_current_cad_display_derivative_revision() to service_role;
