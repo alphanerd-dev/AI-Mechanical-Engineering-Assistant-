@@ -5,6 +5,30 @@
 **Scope:** Main product development alongside the proprietary Geometry Platform programme  
 **Authority:** This programme coordinates work; the [Implementation Plan](implementation-plan.md) remains authoritative for milestone status and exit gates.
 
+## Current execution snapshot — 14 November 2026
+
+This snapshot supersedes earlier dated branch/PR status tables below where they conflict. At the start of this status refresh, the implementation backlog had **zero open pull requests and zero open issues**; this documentation-only PR records the updated verified state.
+
+| Workstream | Verified state | Remaining boundary |
+|---|---|---|
+| G2 geometry identity | PR [#163](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/163) merged at `132436fd1cf4ca66ec122ca13d8313e2b4681b84`. Immutable revision schema, composite lineage constraints, append-only guards and provider-neutral contract are in `main`. | G2 schema is rehearsed on E2E only. It is **not applied to production**. Trusted revision persistence/API integration, atomic revision-plus-audit write, authenticated acceptance and production migration approval remain outstanding. No native geometry kernel is delivered. |
+| CAD / M2.2–M2.6 | Geometry, viewport, drawing and artifact workflow code is present on `main` (commit `518b5e1`). The latest production deployment before G2 was READY. | Authenticated project/database E2E and paired desktop/Android renderer benchmark/selection remain separate acceptance gates. |
+| CFD / OpenFOAM 14 | Bounded Poiseuille worker, provider, analytical acceptance, artifact digest checks and worker smoke coverage are present on `main` (commit `058c633`). Exact-head checks were reported passing in the commit record. | One laminar benchmark only; capability remains EXPERIMENTAL. Production worker endpoint/configuration and broader mesh/refinement validation are not claimed. |
+| Manufacturing | Deterministic machined-part readiness workflow is present on `main` (commit `2a3f952`). | Stateless advisory result only. Durable inspection/release records, human approval persistence, CAM execution and MES/machine dispatch are not implemented. |
+| Authentication | Password recovery/PKCE and first-party HIBP k-anonymity screening are present on `main` (commit `79ecb65`). Issue [#146](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/146) was closed as **Not Planned** by owner direction; Supabase remains on Free. | Application screening does not equal native Supabase platform-wide leaked-password protection. No paid upgrade or Auth-setting change was made. |
+| Production deployment | G2 merge commit triggered Vercel production deployment `dpl_4iu9pcFvsLhP7E8yF66CbEtktetV`; it was QUEUED at the last check. Runtime error query for the preceding READY deployment returned no errors in the inspected 10-minute window. | Confirm the G2 merge deployment reaches READY, then perform a read-only production smoke test. A deployment build is not proof of database migration or engineering workflow acceptance. |
+
+### Next execution order
+
+1. Finish monitoring the G2 merge deployment and run read-only production route checks.
+2. Implement G2 trusted revision persistence against the accepted CAD completion and exact existing BREP object. Recompute the Storage-byte SHA-256 server-side, enforce expected-parent concurrency, idempotent replay and atomic audit append. Rehearse on E2E; do not apply to production without explicit database-owner approval.
+3. Advance the CAD/FEA/CFD evidence workflows without making the renderer or CFD capability more mature than the evidence supports.
+4. Add durable manufacturing assessment/inspection records behind project authorization and audit, preserving the existing human-approval gate and no-machine-control boundary.
+5. Expose bounded LLM orchestration only after durable run journaling, per-action idempotency, lease recovery and authenticated acceptance are complete.
+
+All status claims above are scoped to the named commit, environment and test evidence. A merged schema or successful build does not imply production migration, user-facing integration or engineering validation.
+
+
 ## 1. Decision
 
 Develop the AI Mechanical Engineering Assistant through parallel, independently testable workstreams. The proprietary Geometry Platform is one enabling subsystem, not a prerequisite for the whole product.

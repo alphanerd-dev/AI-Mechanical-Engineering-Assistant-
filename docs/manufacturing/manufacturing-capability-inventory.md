@@ -1,5 +1,8 @@
 # Manufacturing capability inventory and first workflow
 
+> **Execution update — 14 November 2026:** The deterministic machined-part readiness pilot is now present on `main` (commit `2a3f952ad3b7dd5a63b1ebf6ab762548ff95a901`). It composes DFM, process-plan, BOM, inspection and artifact-link checks into a stateless advisory result. It does not persist inspection/release records, perform production release, generate executable toolpaths, dispatch MES orders or control machines. Durable records remain a separate schema/API increment with E2E rehearsal and production approval gates.
+
+
 **Review date:** 13 November 2026  
 **Implementation branch:** `feat/manufacturing-readiness-pilot`  
 **Status convention:** Implemented means deterministic code and tests exist; Pilot means a bounded provider capability is registered and test-covered; Experimental means a provider boundary or limited evaluation exists but is not production-integrated; Research-only means no executable product capability is present.
