@@ -4,7 +4,22 @@ import { getPublicUrl } from "../../../../lib/http/public-origin";
 
 export const runtime = "nodejs";
 
+function isSameOriginPost(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+
+  try {
+    return new URL(origin).origin === getPublicUrl("/", request).origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
+  if (!isSameOriginPost(request)) {
+    return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  }
+
   try {
     const form = await request.formData();
     const email = String(form.get("email") ?? "").trim();

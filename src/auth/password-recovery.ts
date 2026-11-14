@@ -38,3 +38,9 @@ export function getSafeAuthCallbackDestination(candidate: string | null): string
   }
   return "/login";
 }
+
+export function isSupportedAuthCallbackOtpType(
+  candidate: string | null,
+): candidate is "signup" | "recovery" {
+  return candidate === "signup" || candidate === "recovery";
+}

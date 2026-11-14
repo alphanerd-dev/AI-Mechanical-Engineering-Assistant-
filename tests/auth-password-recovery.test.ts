@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getSafeAuthCallbackDestination,
+  isSupportedAuthCallbackOtpType,
   MINIMUM_PASSWORD_LENGTH,
   validatePasswordUpdate,
 } from "../src/auth/password-recovery.js";
@@ -51,5 +52,13 @@ describe("authentication callback redirect allowlist", () => {
     expect(getSafeAuthCallbackDestination("//attacker.example")).toBe("/login");
     expect(getSafeAuthCallbackDestination("/admin")).toBe("/login");
     expect(getSafeAuthCallbackDestination(null)).toBe("/login");
+  });
+
+  it("accepts only the signup and password-recovery OTP types", () => {
+    expect(isSupportedAuthCallbackOtpType("signup")).toBe(true);
+    expect(isSupportedAuthCallbackOtpType("recovery")).toBe(true);
+    expect(isSupportedAuthCallbackOtpType("invite")).toBe(false);
+    expect(isSupportedAuthCallbackOtpType("email_change")).toBe(false);
+    expect(isSupportedAuthCallbackOtpType(null)).toBe(false);
   });
 });
