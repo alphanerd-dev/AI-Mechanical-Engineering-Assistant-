@@ -1,6 +1,6 @@
 # Geometry Platform — Architecture Charter
 
-**Status:** Strategic direction accepted; G0 audit complete; G1 bounded API implementation is in draft review.  
+**Status:** G0 audit and G1 bounded Geometry Platform API are merged; G2 immutable-revision design and read-only production/E2E schema comparison are complete; implementation is blocked on migration-ledger reconciliation ([issue #145](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/145)); no native kernel is delivered.
 **Repository boundary:** This repository, initially alongside the existing CAD modules.  
 **Product rule:** AI proposes. Deterministic systems execute. Validation decides. Evidence proves.
 
@@ -141,32 +141,43 @@ Tests prove only the properties they assert. Geometry validity is not design app
 |---|---|---|
 | G0 | Existing CAD/geometry contract and dependency audit | Current call graph, contract inventory, duplicate map and gaps reviewed |
 | G1 | Product-owned geometry facade and initial adapter conformance tests | Existing cylinder/shaft workflow is exposed through a versioned typed contract without changing its execution or persistence path |
-| G2 | Native math primitives | Analytical, property and differential fixtures pass |
-| G3 | Selected topology and simple solids | Topology and geometric invariants pass |
-| G4 | Advanced native operations | Adversarial/degenerate tests, differential tests and resource gates pass |
-| G5 | Parametric feature/constraint system | Deterministic regeneration and solver edge cases pass |
-| G6 | Independent productization | Stable API, release process, runtime matrix and external consumer exist |
+| G2 | Geometry identity, immutable revisions and canonical representation | Revision, digest, lineage, concurrency and migration tests pass |
+| G3 | Native mathematical foundation | Analytical, property and differential fixtures pass |
+| G4 | Selected topology and bounded solid construction | Topology and geometric invariants pass |
+| G5 | Advanced native operations | Adversarial/degenerate tests, differential tests and resource gates pass |
+| G6 | Parametric feature/constraint system | Deterministic regeneration and solver edge cases pass |
+| G7 | Independent productization | Stable API, release process, runtime matrix and external consumer exist |
 
 ## G0 audit result
 
 The source-level G0 audit is recorded in [G0 Repository Audit](g0-repository-audit.md). It confirms the existing CAD identity, artifact, provenance, worker, validation and viewer foundations should be reused. It identifies missing provider-neutral geometry operation contracts, explicit units/frames/tolerance policies, immutable geometry revision identity and provider-neutral conformance fixtures. The audit is source-level only; local test execution, exact-PR CI, deployment verification and dependency/license review remain open gates.
 
-## G1 initial implementation
+## G1 delivered
 
-The first typed facade is implemented in the draft G1 pull request:
-- `src/geometry-platform/contracts.ts` defines the versioned operation request/result and provider interface.
-- `src/geometry-platform/cad-completion-provider.ts` adapts the existing completion workflow.
-- `geometry.create_cylinder` is the only advertised operation.
-- The adapter requires millimetres, the existing world +Z cylinder convention and the host-controlled 0.01 mm dimension tolerance policy.
-- Execution and validation provider IDs remain distinct; artifacts are references to the existing CAD artifact model.
-- The adapter does not own execution, persistence, validation, identity, rendering or worker lifecycle.
+G1 is delivered in [PR #139](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/139), merged on 8 November 2026. Its exact PR head completed Engineering Core CI, ESLint, CodeQL and Codacy successfully. It adds a bounded product-owned operation facade over the existing CAD completion workflow; it does not replace OCCT or implement native geometry algorithms.
 
-This is deliberately not yet a general geometry kernel. No native algorithms, general transforms, topology IDs, Boolean operations, assemblies or parametric history are claimed. The current CADModelIdentity remains a logical model identity; this adapter does not invent immutable geometry-revision semantics. A revision contract is still required before topology references or revision-based editing can be supported. Existing routes and production behavior are not switched to the new facade in G1.
+The initial typed facade includes:
+- `src/geometry-platform/contracts.ts` for versioned operation requests, results and provider interfaces.
+- `src/geometry-platform/cad-completion-provider.ts` for adaptation of the existing completion workflow.
+- `geometry.create_cylinder` as the only advertised operation.
+- Explicit millimetre units, the existing world +Z cylinder convention and the host-controlled 0.01 mm dimension-tolerance policy.
+- Separate execution and validation provider identities, with artifacts remaining references to the existing CAD artifact model.
 
-## Remaining G1 exit gates
+The adapter does not own execution, persistence, validation, identity, rendering or worker lifecycle. No native algorithms, general transforms, topology IDs, Boolean operations, assemblies or parametric history are claimed. Existing routes and production behavior were not switched to the new facade in G1.
 
-- Run TypeScript build and the full Vitest suite on the exact PR head.
-- Confirm the existing CAD intent/completion regression suite remains green.
-- Expand conformance coverage for invalid inputs, units, frame policy, tolerance policy and explicit unsupported operations.
-- Review CI and preview deployments before merging.
-- Keep dependency/license and deployed worker-profile verification as separate G0/G1 governance gates.
+## G2 — next geometry milestone
+
+The [G2 Identity, Revision and Canonical Representation Design](g2-identity-revision-design.md) defines immutable geometry revision identity, exact artifact-byte digests, parent/head relationships, canonical/derivative distinctions, idempotency, optimistic concurrency and legacy migration gates. The [G2 Production and E2E Schema Audit](g2-production-schema-audit.md) verifies that the audited production and E2E schemas match, documents project/CAD-completion/Storage ownership, and identifies migration-ledger divergence. No runtime code, database migration or production route change is included.
+
+G2 must reuse existing CAD model identity, artifact storage, provenance and evidence owners. Do not create a second artifact registry or reinterpret the existing CAD metadata revision as a geometry revision. The G2 implementation remains blocked until the production/repository migration ledger is reconciled, the E2E migration rehearsal passes and the database owner explicitly approves the production migration. Native mathematical primitives must not precede the G2 identity/revision contract.
+
+The source-level G0 audit lists the required file-level inventory:
+- Geometry and CAD domain types.
+- Artifact and derivative identities.
+- Provider interfaces and adapters.
+- Execution and worker boundaries.
+- Validation receipts and evidence.
+- Existing fixtures and tests.
+- Existing dependencies and license obligations.
+
+Do not change the current CAD worker, production route, Supabase schema or accepted artifact format until the relevant milestone gates pass.

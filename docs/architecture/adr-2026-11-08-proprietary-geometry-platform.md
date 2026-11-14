@@ -20,7 +20,7 @@ Build a **proprietary engineering geometry platform now**, and pursue a **progre
 1. **Own the platform boundary.** Product-owned contracts define engineering geometry identity, revisioning, units, coordinate frames, tolerances, feature/operation intent, constraints, provenance, artifact lineage and validation/evidence relationships.
 2. **Keep the kernel replaceable.** Exact curves, surfaces, B-rep topology, Boolean operations and geometric algorithms are accessed through versioned kernel adapters. OCCT remains the initial mature provider and the existing independent BREP validator remains in place.
 3. **Retain existing authoring providers.** Keep the bounded build123d generation workflow. Other authoring/import providers require named workflows, provider-specific acceptance and a clear user benefit.
-4. **Develop native algorithms progressively.** Begin with deterministic mathematical primitives and measurement operations, then robust predicates and topology utilities, then bounded solid construction and selected advanced operations. Do not claim native-kernel parity from a partial implementation.
+4. **Establish revision identity before native algorithms.** After the G1 facade, G2 defines immutable geometry revisions, exact canonical artifact digests, lineage and concurrency. Only then begin deterministic mathematical primitives and measurements, robust predicates, topology utilities, bounded solid construction and selected advanced operations. Do not create unrevisioned geometry or claim native-kernel parity from a partial implementation.
 5. **Promote by conformance, not ambition.** A native operation may replace an adapter operation only after it passes the same shared fixtures, negative cases, numerical/tolerance checks, regression corpus and performance/resource gates as the incumbent provider.
 6. **Keep canonical geometry separate from display derivatives.** Tessellation and rendering remain downstream projections. Display meshes never become authoritative CAD geometry or engineering measurement sources.
 7. **Preserve trust boundaries.** AI may propose typed geometry intent. Deterministic providers execute. Independent validators decide the declared checks. Evidence binds to exact bytes, inputs and runtime. Human approval remains separate.
@@ -56,31 +56,39 @@ Refactor only where the audit demonstrates a boundary problem. Define stable, ve
 
 **Exit:** existing cylindrical CAD path passes unchanged through the platform boundary; no regression in authorization, artifact persistence or independent OCCT validation.
 
-### G2 — Native mathematical foundation
+### G2 — Geometry identity, immutable revisions and canonical representation
+
+Define and persist immutable geometry revisions that reference exact canonical artifact bytes in the existing artifact registry. Keep logical CAD model identity, model metadata revision, geometry revision, source-code digest, canonical geometry digest, exchange derivatives and display derivatives distinct. Define project isolation, parent/head semantics, idempotency, optimistic concurrency, validation-receipt binding and a safe legacy-artifact migration policy.
+
+The initial scope binds the existing G1 cylinder/shaft result to its canonical BREP artifact. It does not add native geometry algorithms or a second artifact store.
+
+**Exit:** immutable revision contracts, exact output-byte digest verification, artifact/model/project binding, parent/sequence rules, idempotency, concurrency conflicts, validation separation, legacy migration and rollback tests pass. See [G2 Identity, Revision and Canonical Representation Design](../geometry-platform/g2-identity-revision-design.md).
+
+### G3 — Native mathematical foundation
 
 Implement and test dimensioned vectors, points, transforms, planes, lines, circles/arcs, bounding boxes, distances, projections and declared tolerance policies. Define coordinate-frame and unit semantics explicitly.
 
 **Exit:** analytical reference fixtures, property-based tests, degeneracy tests and cross-checks against an independent reference implementation pass within declared tolerances.
 
-### G3 — Native topology and bounded solid construction
+### G4 — Native topology and bounded solid construction
 
-Develop selected topology data structures and simple primitive/analytic solid construction. Preserve stable entity identity within a model revision; do not promise persistent face identity across arbitrary topology-changing operations.
+Develop selected topology data structures and simple primitive/analytic solid construction. Preserve stable entity identity within a geometry revision; do not promise persistent face identity across arbitrary topology-changing operations.
 
 **Exit:** topology invariants, volume/bounds/dimension checks, invalid-input handling and round-trip fixtures pass.
 
-### G4 — Advanced operations
+### G5 — Advanced operations
 
 Evaluate native extrusion/revolution, intersections and Boolean operations, followed by fillet/chamfer/offset only where robust algorithms and user value justify the cost. Keep OCCT as fallback/provider until each operation independently qualifies.
 
 **Exit:** adversarial and degenerate fixtures, robustness corpus, differential tests, resource limits and performance targets pass for each promoted operation.
 
-### G5 — Parametric and constraint intelligence
+### G6 — Parametric and constraint intelligence
 
 Develop sketch constraints, feature dependency graphs, deterministic regeneration and incremental recomputation. Keep solver semantics and geometric kernel execution separate but composable.
 
 **Exit:** deterministic regeneration, under-/over-constrained cases, cycle detection, version migration and edit-history regression pass.
 
-### G6 — Independent productization
+### G7 — Independent productization
 
 Support native and worker/WASM execution only where each runtime has separate acceptance. Consider extracting a standalone repository only after independent versioning, CI, documentation, licensing, security and at least one real external consumer are established.
 
@@ -138,10 +146,11 @@ Untrusted import, conversion and geometry execution remain in isolated workers w
 ## Immediate follow-up
 
 1. Audit the existing `src/cad`, `src/artifacts`, `src/providers`, `src/execution` and `worker/cad` contracts and tests.
-2. Publish a current-state map and identify the smallest safe platform boundary.
-3. Define the first geometry conformance corpus before adding native algorithms.
-4. Keep OCCT/build123d behavior and all existing production routes unchanged during the foundation increment.
-5. Propose a separate language/runtime ADR only after the audit and a small measured prototype.
+2. Complete G1 acceptance without changing existing CAD execution behavior.
+3. Review and approve the G2 identity/revision/canonical-representation design before any schema migration.
+4. Define the revision conformance and migration corpus, then implement G2 against existing artifact and persistence owners.
+5. Begin native mathematical algorithms only after G2 revision identity and lineage are accepted.
+6. Propose a separate language/runtime ADR only after a small measured prototype.
 
 ## Related documents
 
