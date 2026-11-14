@@ -38,18 +38,40 @@ async function readWorkerResult(response: Response): Promise<OpenFOAMLaminarChan
   return payload as OpenFOAMLaminarChannelResult;
 }
 
-function normalizeWorkerUrl(baseUrl: string): string {
-  const parsed = new URL(baseUrl);
-  if (!["http:", "https:"].includes(parsed.protocol)) {
+function parseWorkerUrl(baseUrl: string): URL {
+  try {
+    return new URL(baseUrl);
+  } catch {
+    throw new Error("OpenFOAM worker URL must be a valid absolute URL.");
+  }
+}
+
+function validateWorkerProtocol(url: URL): void {
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("OpenFOAM worker URL must use HTTP or HTTPS.");
   }
-  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+}
+
+function validateWorkerAuthority(url: URL): void {
+  const hasCredentials = Boolean(url.username || url.password);
+  const hasUrlOptions = Boolean(url.search || url.hash);
+  if (hasCredentials || hasUrlOptions) {
     throw new Error("OpenFOAM worker URL must not contain credentials, query parameters or fragments.");
   }
-  if (parsed.pathname !== "/" && parsed.pathname !== "") {
+}
+
+function validateWorkerPath(url: URL): void {
+  if (url.pathname !== "/" && url.pathname !== "") {
     throw new Error("OpenFOAM worker URL must identify the service root.");
   }
-  return parsed.origin;
+}
+
+function normalizeWorkerUrl(baseUrl: string): string {
+  const url = parseWorkerUrl(baseUrl);
+  validateWorkerProtocol(url);
+  validateWorkerAuthority(url);
+  validateWorkerPath(url);
+  return url.origin;
 }
 
 export class OpenFOAMHttpExecutor implements OpenFOAMExecutor {
