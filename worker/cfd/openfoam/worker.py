@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
@@ -86,19 +87,22 @@ def validate_tool_output(
     return None
 
 
-def run_case_tool(
-    case_dir: Path,
-    tool: str,
-    request: dict[str, Any],
-    started: float,
-    timeout: int,
-) -> tuple[str, str, int | None]:
-    remaining = remaining_tool_time(tool, started, timeout)
-    completed = run_tool(case_dir, tool, remaining)
+@dataclass(frozen=True)
+class CaseToolExecution:
+    case_dir: Path
+    tool: str
+    request: dict[str, Any]
+    started: float
+    timeout: int
+
+
+def run_case_tool(execution: CaseToolExecution) -> tuple[str, str, int | None]:
+    remaining = remaining_tool_time(execution.tool, execution.started, execution.timeout)
+    completed = run_tool(execution.case_dir, execution.tool, remaining)
     output = completed.stdout + completed.stderr
-    (case_dir / f"log.{tool}").write_text(output, encoding="utf-8")
-    mesh_cells = validate_tool_output(tool, completed, output, request)
-    return tool, output, mesh_cells
+    (execution.case_dir / f"log.{execution.tool}").write_text(output, encoding="utf-8")
+    mesh_cells = validate_tool_output(execution.tool, completed, output, execution.request)
+    return execution.tool, output, mesh_cells
 
 
 def run_case_tools(
@@ -108,7 +112,7 @@ def run_case_tools(
     timeout: int,
 ) -> tuple[list[str], int]:
     runs = [
-        run_case_tool(case_dir, tool, request, started, timeout)
+        run_case_tool(CaseToolExecution(case_dir, tool, request, started, timeout))
         for tool in ("blockMesh", "checkMesh", "foamRun")
     ]
     logs = [f"===== {tool} =====\n{output}\n" for tool, output, _ in runs]
