@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { getPublicUrl } from "../../../../lib/http/public-origin";
+import { checkPasswordBreach } from "../../../../src/auth/password-breach";
 import { validatePasswordUpdate } from "../../../../src/auth/password-recovery";
 
 export const runtime = "nodejs";
@@ -23,16 +24,21 @@ export async function POST(request: Request) {
 
   try {
     const form = await request.formData();
-    const validation = validatePasswordUpdate(
-      form.get("password"),
-      form.get("confirmPassword"),
-    );
+    const validation = validatePasswordUpdate(form.get("password"), form.get("confirmPassword"));
 
     if (!validation.ok) {
       return NextResponse.redirect(
         getPublicUrl("/update-password?error=" + validation.reason, request),
         { status: 303 },
       );
+    }
+
+    const breachCheck = await checkPasswordBreach(validation.password);
+    if (breachCheck.status !== "safe") {
+      const error = breachCheck.status === "compromised"
+        ? "password-compromised"
+        : "password-check-unavailable";
+      return NextResponse.redirect(getPublicUrl(`/update-password?error=${error}`, request), { status: 303 });
     }
 
     const supabase = await createClient();

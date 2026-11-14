@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { getPublicUrl } from "../../../../lib/http/public-origin";
+import { checkPasswordBreach } from "../../../../src/auth/password-breach";
+import { validatePasswordUpdate } from "../../../../src/auth/password-recovery";
 
 export const runtime = "nodejs";
 
@@ -8,31 +10,31 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const email = String(form.get("email") ?? "").trim();
-    const password = String(form.get("password") ?? "");
-    const confirmPassword = String(form.get("confirmPassword") ?? "");
+    const validation = validatePasswordUpdate(form.get("password"), form.get("confirmPassword"));
 
-    if (!email || !password) {
-      return NextResponse.redirect(getPublicUrl("/signup?error=missing-fields", request), { status: 303 });
-    }
-    if (password.length < 10) {
-      return NextResponse.redirect(getPublicUrl("/signup?error=password-policy", request), { status: 303 });
-    }
-    if (password !== confirmPassword) {
-      return NextResponse.redirect(getPublicUrl("/signup?error=password-mismatch", request), { status: 303 });
+    if (!email || !validation.ok) {
+      const error = !email ? "missing-fields" : validation.reason;
+      return NextResponse.redirect(getPublicUrl(`/signup?error=${error}`, request), { status: 303 });
     }
 
-    // Use the trusted public origin and the SSR PKCE callback to establish the cookie session.
+    const breachCheck = await checkPasswordBreach(validation.password);
+    if (breachCheck.status !== "safe") {
+      const error = breachCheck.status === "compromised"
+        ? "password-compromised"
+        : "password-check-unavailable";
+      return NextResponse.redirect(getPublicUrl(`/signup?error=${error}`, request), { status: 303 });
+    }
+
     const callbackUrl = getPublicUrl("/auth/callback", request);
     callbackUrl.searchParams.set("next", "/login?confirmed=1");
 
     const supabase = await createClient();
     const { error } = await supabase.auth.signUp({
       email,
-      password,
+      password: validation.password,
       options: { emailRedirectTo: callbackUrl.toString() },
     });
     if (error) {
-      // Avoid disclosing whether an email address is already registered.
       return NextResponse.redirect(getPublicUrl("/signup?error=registration-failed", request), { status: 303 });
     }
 

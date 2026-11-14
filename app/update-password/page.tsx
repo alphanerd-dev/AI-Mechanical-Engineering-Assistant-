@@ -6,6 +6,8 @@ const messages: Record<string, string> = {
   "missing-fields": "Enter and confirm your new password.",
   "password-policy": "Use a password with at least 10 characters.",
   "password-mismatch": "The passwords do not match.",
+  "password-compromised": "This password appears in known data breaches. Choose a different password.",
+  "password-check-unavailable": "We could not verify this password safely. Please try again shortly.",
   "update-failed": "We could not update your password. The reset link may have expired; request a new one.",
 };
 
