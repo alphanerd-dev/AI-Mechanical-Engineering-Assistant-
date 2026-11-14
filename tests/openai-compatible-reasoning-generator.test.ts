@@ -99,6 +99,21 @@ describe("OpenAI-compatible reasoning transport", () => {
     expect(JSON.parse(body.messages[1].content).framework.version).toBe("1.0.0");
   });
 
+  it("supports a generic structured action-planning request without changing the reasoning adapter", async () => {
+    let capturedInit: RequestInit | undefined;
+    const response = { baseGraphRevision: 7, actions: [{ kind: "STOP", reason: "No work." }] };
+    const generator = createGenerator(async (_input, init) => {
+      capturedInit = init;
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(response) } }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }, { endpoint: "https://model.example/v1/chat/completions", model: "engineering-agent" });
+    const result = await generator.generateStructured({ instructions: "Return a strict engineering action plan.", input: { taskGraph: { revision: 7 }, authorizedCapabilities: ["ANALYSIS.SHAFT_TORQUE"] }, maxOutputTokens: 2200 });
+    expect(result).toEqual(response);
+    const body = JSON.parse(String(capturedInit?.body));
+    expect(body.max_tokens).toBe(2200);
+    expect(body.messages[0].content).toContain("strict engineering action plan");
+    expect(JSON.parse(body.messages[1].content).authorizedCapabilities).toEqual(["ANALYSIS.SHAFT_TORQUE"]);
+  });
+
   it.each([
     {
       name: "uses the OpenAI-compatible protocol for Gemini chat completions",

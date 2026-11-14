@@ -1,4 +1,5 @@
 import type { ModelReasoningGenerationRequest, ModelReasoningGenerator } from "./model-adapter.js";
+import type { StructuredModelGenerationRequest, StructuredModelGenerator } from "../agents/runtime.js";
 
 export interface OpenAICompatibleGeneratorOptions {
   endpoint: string;
@@ -17,10 +18,7 @@ export type ModelTransportErrorCode =
   | "MODEL_INVALID_PROPOSAL_JSON";
 
 export class ModelTransportError extends Error {
-  constructor(
-    message: string,
-    readonly code: ModelTransportErrorCode
-  ) {
+  constructor(message: string, readonly code: ModelTransportErrorCode) {
     super(message);
     this.name = "ModelTransportError";
   }
@@ -29,8 +27,11 @@ export class ModelTransportError extends Error {
 /**
  * Server-side transport for OpenAI Chat Completions and native Gemini
  * generateContent endpoints. Provider credentials never come from request input.
+ *
+ * The structured generation method is deliberately generic. Callers still own
+ * their own strict output parser and backend authorization boundary.
  */
-export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGenerator {
+export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGenerator, StructuredModelGenerator {
   private readonly endpoint: string;
   private readonly model: string;
   private readonly apiKey?: string;
@@ -80,81 +81,153 @@ export class OpenAICompatibleModelReasoningGenerator implements ModelReasoningGe
   }
 
   async generate(request: ModelReasoningGenerationRequest): Promise<unknown> {
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      accept: "application/json"
-    };
-    if (this.protocol === "gemini") {
-      if (this.apiKey) headers["x-goog-api-key"] = this.apiKey;
-    } else if (this.apiKey) {
-      headers.authorization = `Bearer ${this.apiKey}`;
-    }
+    return this.generateStructured({
+      instructions: request.instructions,
+      input: {
+        task: request.task,
+        framework: request.framework,
+        inputs: request.inputs,
+        trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
+      },
+      maxOutputTokens: 1800
+    });
+  }
 
-    const body = this.protocol === "gemini"
-      ? buildGeminiRequest(request)
-      : buildOpenAIRequest(this.model, request);
-
-    const requestInit: RequestInit = {
-      method: "POST",
-      headers,
-      signal: AbortSignal.timeout(this.timeoutMs),
-      body: JSON.stringify(body)
-    };
-    let response: Response;
-    try {
-      response = await this.fetchImpl(this.endpoint, requestInit);
-    } catch {
-      if (requestInit.signal?.aborted) {
-        throw new ModelTransportError(
-          "The configured reasoning model request exceeded the configured timeout.",
-          "MODEL_REQUEST_TIMEOUT"
-        );
-      }
-      throw new ModelTransportError(
-        "The configured reasoning model request failed before an HTTP response was received.",
-        "MODEL_NETWORK_ERROR"
-      );
-    }
-
+  async generateStructured(request: StructuredModelGenerationRequest): Promise<unknown> {
+    const inputJson = serializeStructuredInput(request);
+    const response = await sendStructuredRequest({
+      endpoint: this.endpoint,
+      model: this.model,
+      apiKey: this.apiKey,
+      timeoutMs: this.timeoutMs,
+      fetchImpl: this.fetchImpl,
+      protocol: this.protocol,
+      instructions: request.instructions,
+      inputJson,
+      maxOutputTokens: request.maxOutputTokens ?? 1800
+    });
     if (!response.ok) {
       throw new ModelTransportError(
         `The configured reasoning model endpoint returned HTTP ${response.status}.`,
         "MODEL_HTTP_ERROR"
       );
     }
+    return parseStructuredModelResponse(response, this.protocol);
+  }
+}
 
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
+interface StructuredTransportRequest {
+  endpoint: string;
+  model: string;
+  apiKey?: string;
+  timeoutMs: number;
+  fetchImpl: typeof fetch;
+  protocol: "openai" | "gemini";
+  instructions: string;
+  inputJson: string;
+  maxOutputTokens: number;
+}
+
+function validateStructuredInstructions(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("Structured model instructions are required.");
+  }
+}
+
+function validateOutputTokenLimit(value: number): void {
+  if (!Number.isInteger(value) || value < 128 || value > 8192) {
+    throw new Error("Structured model output limit must be an integer from 128 to 8192 tokens.");
+  }
+}
+
+function stringifyStructuredInput(value: unknown): string {
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(value);
+  } catch {
+    throw new Error("Structured model input must be JSON serializable.");
+  }
+  if (serialized === undefined || serialized.length > 256_000) {
+    throw new Error("Structured model input must be defined and no larger than 256 KB.");
+  }
+  return serialized;
+}
+
+function serializeStructuredInput(request: StructuredModelGenerationRequest): string {
+  validateStructuredInstructions(request?.instructions);
+  validateOutputTokenLimit(request.maxOutputTokens ?? 1800);
+  return stringifyStructuredInput(request.input);
+}
+
+async function sendStructuredRequest(request: StructuredTransportRequest): Promise<Response> {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    accept: "application/json"
+  };
+  if (request.protocol === "gemini") {
+    if (request.apiKey) headers["x-goog-api-key"] = request.apiKey;
+  } else if (request.apiKey) {
+    headers.authorization = `Bearer ${request.apiKey}`;
+  }
+
+  const body = request.protocol === "gemini"
+    ? buildGeminiRequest(request.instructions, request.inputJson, request.maxOutputTokens)
+    : buildOpenAIRequest(request.model, request.instructions, request.inputJson, request.maxOutputTokens);
+  const requestInit: RequestInit = {
+    method: "POST",
+    headers,
+    signal: AbortSignal.timeout(request.timeoutMs),
+    body: JSON.stringify(body)
+  };
+  try {
+    return await request.fetchImpl(request.endpoint, requestInit);
+  } catch {
+    if (requestInit.signal?.aborted) {
       throw new ModelTransportError(
-        "The configured reasoning model endpoint did not return valid JSON.",
-        "MODEL_INVALID_RESPONSE_JSON"
+        "The configured reasoning model request exceeded the configured timeout.",
+        "MODEL_REQUEST_TIMEOUT"
       );
     }
+    throw new ModelTransportError(
+      "The configured reasoning model request failed before an HTTP response was received.",
+      "MODEL_NETWORK_ERROR"
+    );
+  }
+}
 
-    const content = this.protocol === "gemini"
-      ? extractGeminiContent(payload)
-      : extractMessageContent(payload);
-    if (!content) {
-      throw new ModelTransportError(
-        "The configured reasoning model response did not contain a message.",
-        "MODEL_MISSING_RESPONSE_CONTENT"
-      );
+async function parseStructuredModelResponse(
+  response: Response,
+  protocol: "openai" | "gemini"
+): Promise<unknown> {
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ModelTransportError(
+      "The configured reasoning model endpoint did not return valid JSON.",
+      "MODEL_INVALID_RESPONSE_JSON"
+    );
+  }
+  const responseContent = protocol === "gemini"
+    ? extractGeminiContent(payload)
+    : extractMessageContent(payload);
+  if (!responseContent) {
+    throw new ModelTransportError(
+      "The configured reasoning model response did not contain a message.",
+      "MODEL_MISSING_RESPONSE_CONTENT"
+    );
+  }
+  try {
+    const parsed: unknown = JSON.parse(stripJsonCodeFence(responseContent));
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("Expected a JSON object.");
     }
-
-    try {
-      const parsed: unknown = JSON.parse(stripJsonCodeFence(content));
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        throw new Error("Expected a JSON object.");
-      }
-      return parsed;
-    } catch {
-      throw new ModelTransportError(
-        "The reasoning model did not return a valid JSON proposal object.",
-        "MODEL_INVALID_PROPOSAL_JSON"
-      );
-    }
+    return parsed;
+  } catch {
+    throw new ModelTransportError(
+      "The reasoning model did not return a valid JSON proposal object.",
+      "MODEL_INVALID_PROPOSAL_JSON"
+    );
   }
 }
 
@@ -165,42 +238,29 @@ function isGeminiEndpoint(url: URL): boolean {
   return url.pathname.includes(":generateContent");
 }
 
-function buildOpenAIRequest(model: string, request: ModelReasoningGenerationRequest) {
+function buildOpenAIRequest(model: string, instructions: string, inputJson: string, maxOutputTokens: number) {
   return {
     model,
     temperature: 0.2,
-    max_tokens: 1800,
+    max_tokens: maxOutputTokens,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: request.instructions },
-      {
-        role: "user",
-        content: JSON.stringify({
-          task: request.task,
-          framework: request.framework,
-          inputs: request.inputs,
-          trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
-        })
-      }
+      { role: "system", content: instructions },
+      { role: "user", content: inputJson }
     ]
   };
 }
 
-function buildGeminiRequest(request: ModelReasoningGenerationRequest) {
+function buildGeminiRequest(instructions: string, inputJson: string, maxOutputTokens: number) {
   return {
-    systemInstruction: { parts: [{ text: request.instructions }] },
+    systemInstruction: { parts: [{ text: instructions }] },
     contents: [{
       role: "user",
-      parts: [{ text: JSON.stringify({
-        task: request.task,
-        framework: request.framework,
-        inputs: request.inputs,
-        trustedEvidenceReferences: request.trustedEvidenceReferences ?? []
-      }) }]
+      parts: [{ text: inputJson }]
     }],
     generationConfig: {
       temperature: 0.2,
-      maxOutputTokens: 1800,
+      maxOutputTokens,
       responseMimeType: "application/json"
     }
   };
@@ -236,7 +296,7 @@ function extractGeminiContent(value: unknown): string | undefined {
 }
 
 function stripJsonCodeFence(content: string): string {
-  return content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  return content.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "").trim();
 }
 
 export function createConfiguredReasoningGenerator(
