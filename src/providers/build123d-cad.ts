@@ -140,6 +140,7 @@ export class Build123dCADProvider implements CapabilityProvider {
       modelIdentity,
       request: executionRequest,
       providerId: this.id,
+      providerVersion: this.promotionManifest?.providerVersion,
       requirementIds,
       generatedAt: this.now()
     });
