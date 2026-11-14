@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../lib/supabase/service";
 import { validateGeometryRevisionV1 } from "./geometry-revision";
 import { loadCompletion, resolveCanonicalSolid, verifyStoredBrep } from "./geometry-revision-persistence-source";
 import { buildRevisionPayload, commitRevision, findPriorRevision, loadRevisionHead } from "./geometry-revision-persistence-store";
-import { GeometryPersistenceError, unwrap } from "./geometry-revision-persistence-types";
+import { GeometryPersistenceError, GeometryRevisionDatabase, unwrap } from "./geometry-revision-persistence-types";
 
 function responseError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -11,9 +10,9 @@ function responseError(message: string, status: number) {
 
 export async function createGeometryRevisionResponse(input: {
   projectId: string; completionId: string; expectedParentRevisionId: string | null;
-  actorId: string; requestId: string;
+  actorId: string; requestId: string; db: GeometryRevisionDatabase;
 }) {
-  const db = createServiceRoleClient();
+  const db = input.db;
   try {
     const completion = unwrap(await loadCompletion(db, input.projectId, input.completionId));
     const solid = unwrap(resolveCanonicalSolid(completion, input.projectId));
