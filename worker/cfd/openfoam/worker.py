@@ -388,10 +388,24 @@ relaxationFactors
 ''',
         encoding="utf-8",
     )
-    points = " ".join(f"(0 {y:.12g} 0)" for y in y_samples)
+    points = "\n".join(f"            (0 {y:.12g} 0)" for y in y_samples)
     (case_dir / "system" / "functions").write_text(
-        f'''#includeFunc residuals(p,U)
-#includeFunc probes(name=velocityProfile, points=({points}), U)
+        f'''functions
+{{
+    velocityProfile
+    {{
+        type probes;
+        libs (sampling);
+        name velocityProfile;
+        fields (U);
+        probeLocations
+        (
+{points}
+        );
+        writeControl timeStep;
+        writeInterval 1;
+    }}
+}}
 ''',
         encoding="utf-8",
     )
