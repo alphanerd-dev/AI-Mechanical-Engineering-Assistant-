@@ -43,12 +43,13 @@ The new capability is `MANUFACTURING.ASSESS_READINESS`, routed through `manufact
 - It never executes CAM toolpaths, machine instructions, additive slicing, MES dispatch or production release.
 - It never treats a readiness result as a signed quality certificate.
 - `productionReleasePerformed` is always `false`; a human approval is still required.
-- The current workflow is stateless. Durable inspection/release records and audit journaling are separate future work and require schema/authorization review.
+- Durable assessment snapshots and independent human APPROVED/REJECTED decisions are implemented in PR #166 with project authorization, four-eyes approval, idempotency and atomic audit writes. The additive schema is installed on the dedicated E2E Supabase project only; authenticated route acceptance and merge remain pending.
+- An approved decision is an auditable human decision only. It does not dispatch CAM, MES, machine control or production release.
 
 ## Next increments
 
 1. Verify the new readiness workflow through exact-head CI and provider-router tests.
-2. Add durable inspection and release records only after migration-history reconciliation in issue #145 and an E2E rehearsal.
+2. Complete authenticated E2E acceptance for PR #166: readiness snapshot persistence, duplicate retry, audit-chain correlation, author self-approval denial and independent approval/rejection.
 3. Add a machine capability model (process, work envelope, material, tooling, tolerances, availability) before attempting scheduling.
 4. Add a nonconformance workflow with explicit disposition and corrective-action evidence.
 5. Integrate CAM only after a real, sandboxed toolpath provider is configured and independently validated.
