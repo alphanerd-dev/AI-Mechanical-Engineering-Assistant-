@@ -6,6 +6,7 @@ import math
 import os
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -104,12 +105,20 @@ def final_residuals(log_text: str) -> dict[str, float]:
     }
 
 
-def integrate_mass_flux(y_samples: list[float], velocities: list[float], height: float, depth: float, density: float) -> float:
-    half_height = height / 2.0
-    points = [(0.0, 0.0)]
-    points.extend(zip(y_samples, velocities))
-    points.append((half_height, velocities[-1]))
+@dataclass(frozen=True)
+class MassFlowInput:
+    y_samples: list[float]
+    velocities: list[float]
+    channel_height_m: float
+    depth_m: float
+    density_kg_m3: float
+
+
+def integrate_mass_flux(inputs: MassFlowInput) -> float:
+    half_height = inputs.channel_height_m / 2.0
+    points = [(0.0, 0.0), *zip(inputs.y_samples, inputs.velocities)]
+    points.append((half_height, inputs.velocities[-1]))
     integral = 0.0
     for (y0, u0), (y1, u1) in zip(points, points[1:]):
         integral += (y1 - y0) * (u0 + u1) / 2.0
-    return 2.0 * density * depth * integral
+    return 2.0 * inputs.density_kg_m3 * inputs.depth_m * integral
