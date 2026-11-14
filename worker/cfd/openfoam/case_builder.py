@@ -133,7 +133,7 @@ def write_body_force_model(case_dir: Path, body_force: float) -> None:
     content = foam_header("fvModels", "constant", "dictionary") + f'''momentumSource
 {{
     type semiImplicitSource;
-    selectionMode all;
+    cellZone all;
     volumeMode specific;
     sources
     {{
