@@ -20,7 +20,8 @@ async function loadAssessment(input: ManufacturingDecisionRequest): Promise<Resu
   const db = createServiceRoleClient();
   const { data, error } = await db.from("engineering_manufacturing_assessments")
     .select("id, project_id, status, created_by").eq("id", input.assessmentId).eq("project_id", input.projectId).maybeSingle();
-  if (error || !data) return failure({ message: "Manufacturing assessment was not found in this project.", status: 404 });
+  if (error) return failure({ message: "Manufacturing assessment was not found in this project.", status: 404 });
+  if (!data) return failure({ message: "Manufacturing assessment was not found in this project.", status: 404 });
   return { ok: true, value: data };
 }
 function validateApprovalEligibility(input: { assessment: Row; actorId: string }): Result<true> {
@@ -77,13 +78,18 @@ async function writeDecision(input: {
   const { data, error } = await db.rpc("record_manufacturing_decision_with_audit", {
     p_decision: input.record, p_audit_record: input.auditRecord
   });
-  if (!error && validDecisionReceipt(data)) {
-    return NextResponse.json({ decision: data.decision, audit: data.audit }, { status: 201 });
+  if (!error) {
+    if (validDecisionReceipt(data)) {
+      return NextResponse.json({ decision: data.decision, audit: data.audit }, { status: 201 });
+    }
   }
   const { data: reconciled } = await db.from("engineering_manufacturing_decisions").select("*")
     .eq("project_id", input.request.projectId).eq("assessment_id", input.request.assessmentId).maybeSingle();
   if (reconciled) {
-    if (reconciled.decided_by !== input.actorId || reconciled.decision !== input.request.decision) {
+    if (reconciled.decided_by !== input.actorId) {
+      return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
+    }
+    if (reconciled.decision !== input.request.decision) {
       return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
     }
     return NextResponse.json({ decision: reconciled, idempotentReplay: true }, { status: 200 });
