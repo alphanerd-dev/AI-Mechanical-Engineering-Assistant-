@@ -78,14 +78,21 @@ interface FlowPhysicsInputs {
   viscosity: number;
 }
 
+function isValidFlowPhysicsInputs(
+  inputs: Partial<FlowPhysicsInputs>
+): inputs is FlowPhysicsInputs {
+  return [inputs.velocity, inputs.height, inputs.viscosity].every(finitePositive);
+}
+
 function readFlowPhysicsInputs(
   candidate: Partial<OpenFOAMLaminarChannelRequest>
 ): FlowPhysicsInputs | undefined {
-  const { meanVelocityMps: velocity, heightM: height, kinematicViscosityM2PerS: viscosity } = candidate;
-  if (!finitePositive(velocity) || !finitePositive(height) || !finitePositive(viscosity)) {
-    return undefined;
-  }
-  return { velocity, height, viscosity };
+  const inputs = {
+    velocity: candidate.meanVelocityMps,
+    height: candidate.heightM,
+    viscosity: candidate.kinematicViscosityM2PerS
+  };
+  return isValidFlowPhysicsInputs(inputs) ? inputs : undefined;
 }
 
 function validateHydraulicReynoldsNumber(inputs: FlowPhysicsInputs): string[] {
