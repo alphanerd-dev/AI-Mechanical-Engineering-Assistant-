@@ -119,7 +119,7 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
     def test_probe_parser_rejects_non_finite_samples(self):
         with tempfile.TemporaryDirectory() as temporary:
             probe_file = Path(temporary) / "U"
-            probe_file.write_text("0 (nan 0 0) (0.2 0 0)\\n")
+            probe_file.write_text("0 (nan 0 0) (0.2 0 0)\n")
             with self.assertRaisesRegex(WorkerError, "non-finite"):
                 last_probe_values(probe_file, 2)
 
