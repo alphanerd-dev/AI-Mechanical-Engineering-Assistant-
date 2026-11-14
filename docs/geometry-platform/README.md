@@ -1,6 +1,6 @@
 # Geometry Platform — Architecture Charter
 
-**Status:** G0 audit and G1 bounded Geometry Platform API are merged; G2 immutable-revision design and read-only production/E2E schema comparison are complete; implementation is blocked on migration-ledger reconciliation ([issue #145](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/145)); no native kernel is delivered.
+**Status:** G0 and G1 are merged. G2 immutable revision schema and provider-neutral contract are merged in [PR #163](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/163); the migration was rehearsed on E2E only. Production migration remains approval-gated, and trusted revision persistence/API integration is the next G2 increment. No native kernel is delivered.
 **Repository boundary:** This repository, initially alongside the existing CAD modules.  
 **Product rule:** AI proposes. Deterministic systems execute. Validation decides. Evidence proves.
 
@@ -165,19 +165,20 @@ The initial typed facade includes:
 
 The adapter does not own execution, persistence, validation, identity, rendering or worker lifecycle. No native algorithms, general transforms, topology IDs, Boolean operations, assemblies or parametric history are claimed. Existing routes and production behavior were not switched to the new facade in G1.
 
-## G2 — next geometry milestone
+## G2 — immutable identity schema delivered; persistence integration next
 
-The [G2 Identity, Revision and Canonical Representation Design](g2-identity-revision-design.md) defines immutable geometry revision identity, exact artifact-byte digests, parent/head relationships, canonical/derivative distinctions, idempotency, optimistic concurrency and legacy migration gates. The [G2 Production and E2E Schema Audit](g2-production-schema-audit.md) verifies that the audited production and E2E schemas match, documents project/CAD-completion/Storage ownership, and identifies migration-ledger divergence. No runtime code, database migration or production route change is included.
+The G2 schema and provider-neutral TypeScript contract are merged in PR #163. The migration creates `engineering_geometry_revisions` as a project-scoped lineage index over existing CAD model/completion/Storage records; it does not create a second artifact registry or duplicate geometry bytes. Composite model/completion/self-revision foreign keys, model-row locking, current-head sequencing, accepted-completion checks, exact SOLID artifact binding and immutable UPDATE/DELETE guards are included.
 
-G2 must reuse existing CAD model identity, artifact storage, provenance and evidence owners. Do not create a second artifact registry or reinterpret the existing CAD metadata revision as a geometry revision. The G2 implementation remains blocked until the production/repository migration ledger is reconciled, the E2E migration rehearsal passes and the database owner explicitly approves the production migration. Native mathematical primitives must not precede the G2 identity/revision contract.
+The G2 migration was rehearsed on the dedicated E2E Supabase project. The rollback-only test exercised initial/child revision creation, stale-parent and skipped-number rejection, duplicate source-artifact binding rejection, and immutable mutation rejection; synthetic rows were rolled back. **Production remains at the pre-G2 schema baseline. No G2 production migration has been applied.**
 
-The source-level G0 audit lists the required file-level inventory:
-- Geometry and CAD domain types.
-- Artifact and derivative identities.
-- Provider interfaces and adapters.
-- Execution and worker boundaries.
-- Validation receipts and evidence.
-- Existing fixtures and tests.
-- Existing dependencies and license obligations.
+The next implementation increment is the trusted server persistence boundary. It must:
+- Resolve the accepted CAD completion within the authorized project/model.
+- Resolve exactly one canonical SOLID artifact from the existing completion manifest.
+- Download the exact private Storage object and recompute SHA-256 server-side; never trust a browser-supplied digest.
+- Preserve the existing execution-scoped object path and avoid duplicate artifact storage.
+- Enforce expected-parent concurrency and idempotent replay against the database's model-row lock and uniqueness constraints.
+- Commit the immutable revision and durable audit-chain event in one PostgreSQL transaction.
+- Expose only project-authorized reads; keep service-role writes server-only.
+- Pass authenticated E2E and failure/retry tests before any route is promoted.
 
-Do not change the current CAD worker, production route, Supabase schema or accepted artifact format until the relevant milestone gates pass.
+The production migration, route cutover and any irreversible database action require separate explicit database-owner approval. G3 native mathematical primitives must wait until the G2 persistence and lineage acceptance gates pass.
