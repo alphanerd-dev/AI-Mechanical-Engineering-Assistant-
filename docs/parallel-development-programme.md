@@ -1,6 +1,6 @@
 # Parallel Engineering Development Programme
 
-**Status:** Proposed execution programme  
+**Status:** Active execution programme  
 **Established:** 8 November 2026  
 **Scope:** Main product development alongside the proprietary Geometry Platform programme  
 **Authority:** This programme coordinates work; the [Implementation Plan](implementation-plan.md) remains authoritative for milestone status and exit gates.
@@ -86,10 +86,10 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 - BOM, routing, revision and change-impact relationships.
 
 **First increments**
-1. Inventory current manufacturing/inspection catalog entries and classify each as implemented, pilot, experimental or research-only.
-2. Select one narrow user workflow based on evidence of demand and available data.
-3. Define inputs, assumptions, process constraints, outputs and review requirements.
-4. Integrate through existing capability, artifact, task and evidence contracts.
+1. Inventory current manufacturing/inspection catalog entries and classify each as implemented, pilot, experimental or research-only — **completed in the manufacturing capability inventory**.
+2. Select one narrow workflow: machined-part manufacturing readiness using existing DFM, process-plan, BOM, inspection and artifact-link checks — **selected and implemented on the manufacturing-readiness pilot branch**.
+3. Define inputs, assumptions, process constraints, outputs and review requirements — **implemented as a typed readiness request/result contract**.
+4. Integrate through existing capability, artifact, task and evidence contracts — **provider capability and router tests added; persistent records remain out of scope**.
 5. Begin with advisory/planning automation. Do not issue direct machine-control commands until a separate safety, authorization, interlock and operational certification programme exists.
 
 **Exit gate:** A bounded workflow produces traceable recommendations or records, identifies assumptions and constraints, supports human review, and does not imply machine execution or production release unless those paths are separately implemented and approved.
@@ -126,8 +126,8 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 
 **Sequence**
 - G0: architecture and repository audit — **merged in PR #138**.
-- G1: bounded, versioned geometry operation API — **open draft PR #139; do not treat as merged**.
-- G2: immutable geometry revision identity, canonical representation and revision relationships.
+- G1: bounded, versioned geometry operation API — **merged in PR #139**.
+- G2: immutable geometry revision identity, canonical representation and revision relationships — **design in draft PR #143; implementation remains blocked by migration-history reconciliation in issue #145**.
 - G3: native mathematical primitives, curves, surfaces and measurements.
 - G4: native topology and Boolean operations.
 - G5: advanced features such as fillets, chamfers and shelling.
@@ -171,17 +171,17 @@ Geometry-specific fields belong in geometry contracts. Solver-specific fields be
 ## 6. Delivery order and concurrency
 
 ### Priority 0 — Protect the baseline
-- Review G1 PR #139 on its exact head, including the successful CI run and all changed files.
-- Resolve review findings; run any missing checks and preview acceptance.
-- Keep G1 unmerged until its acceptance gates pass.
-- Keep G2 design preparation separate from changes that depend on G1 runtime adoption.
+- G1 PR #139 is merged; preserve its API compatibility and continue consumer conformance.
+- Review G2 design PR #143 against the live schema and migration ledger; do not apply its migration until issue #145 is resolved and the E2E rehearsal is approved.
+- Complete PR #154 M2.2–M2.6 exact-head verification and browser acceptance before merge.
+- Complete PR #144 bounded LLM authority review without enabling a production agent route or feature flag.
 
 ### Priority 1 — Parallel product foundations
-- WS-D: M2 artifact contracts, viewer registry and renderer benchmark.
-- WS-A: one bounded reasoning/skill workflow using an existing deterministic capability.
-- WS-B: strengthen current CAD/FEA artifact lineage and benchmark fixtures.
-- WS-C: inventory and select one manufacturing/industrial pilot.
-- WS-E: complete G1 acceptance and prepare G2 design.
+- WS-D: M2 artifact contracts, viewer registry and renderer benchmark are being completed in PR #154.
+- WS-A: bounded LLM operational authority and typed model-plan validation are in draft PR #144.
+- WS-B: OCCT/build123d CAD and open FEA runtime workflows are being integrated in PR #154; CFD remains at provider-boundary/benchmark preparation.
+- WS-C: manufacturing inventory is complete; the machined-part readiness pilot is implemented on `feat/manufacturing-readiness-pilot`.
+- WS-E: G1 is merged; G2 design is in PR #143 and awaits migration-history reconciliation.
 
 ### Priority 2 — Connected engineering workflows
 - CAD artifact viewing and drawing foundation after M2 gates.
@@ -234,14 +234,49 @@ Track outcomes rather than feature counts:
 
 Current real-world economic outcomes remain **NOT MEASURED** until matched user trials are collected. Do not infer productivity or safety gains from unit tests, synthetic fixtures or successful builds.
 
-## 10. Current verified baseline (8 November 2026)
+## 10. Current verified baseline (13 November 2026)
 
-- PR #138 G0 architecture foundation is merged.
-- PR #139 G1 API remains open and draft.
-- GitHub Actions run [42431160559](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/42431160559), associated with G1 head `0fd9ddacc3f759db6c5b83feb41ab872a03a3f60`, completed successfully. Its job included `npm ci`, `npm test`, architecture dependency checks, Python worker tests, build123d runtime checks, OCCT validator and CAD end-to-end smoke tests, open FEA runtime tests, and `npm run build`.
-- This CI result verifies that commit and the checks listed in that run. It does not by itself prove PR review approval, browser acceptance, production deployment, live provider availability or G1 merge readiness.
-- PR #140 is an open, unmerged candidate for M2.2–M2.6 CAD artifact/viewer work. Its earlier CI run passed, but subsequent maintainability refactors require fresh exact-head verification; its latest Vercel status reported a build-rate-limit failure. It is not merge-ready.
-- PR #142 is an open, unmerged candidate for the first WS-A Engineering AI increment: an optional, version-pinned Engineering R&D skill profile with a MEDIUM risk ceiling, capability allowlist and mandatory approval. Its exact-head verification is in progress; no production behavior has changed.
-- The main branch remains authoritative. These PR candidates do not change the current shipped capability status until reviewed, verified and merged.
+### Merged foundations
+- PR #131 — Engineering OS v11.2 UI foundation.
+- PR #138 — G0 geometry architecture.
+- PR #139 — G1 bounded geometry operation API.
+- PR #141 — parallel engineering development programme.
+- PR #142 — Engineering R&D skill profile.
+- Production `main` was READY at commit `fb64bfdb5908fd49a5f9a26b89a62083b7b0bcba` at the start of this development cycle. No production deployment was initiated by this cycle.
 
-Update this section only when new evidence changes the recorded state. The Implementation Plan and Engineering Capabilities document remain the authoritative sources for current product maturity.
+### Active pull requests and verified status
+
+| PR | Scope | Current status |
+|---|---|---|
+| #140 | M2.1 revision-aware CAD lineage and viewer foundation | Superseded as a standalone merge candidate by the consolidated continuation in PR #154; its changes are included in that branch. Do not merge separately while #154 is under review. |
+| #143 | G2 immutable geometry identity/revision design and schema audit | Draft; exact-head Engineering Core CI, ESLint, CodeQL and Codacy passed. No migration has been applied. |
+| #144 | Bounded LLM operational authority | Draft; exact-head Engineering Core CI, ESLint, CodeQL and Codacy passed. No production agent route or feature flag is enabled. |
+| #154 | Consolidated M2.2–M2.6 CAD, OCCT, GLB viewport and drawing workflows | Draft; exact-head Engineering Core CI, CodeQL and Codacy passed on the monitored head. ESLint initially failed during scanner installation because npm resolved unavailable `ai@7.0.173`; the isolated scanner workflow has now been applied and fresh exact-head checks are running. |
+| #155 | Deterministic machined-part manufacturing readiness | Draft; exact-head full Engineering Core CI, production TypeScript build, ESLint, CodeQL and Codacy passed at `8414998fb2e3c34f2e684c3dfac11e3da28771dc`. |
+| #156 | OpenFOAM 14 bounded CFD benchmark and isolated worker | Draft; worker contract, authenticated HTTP service, artifact retrieval, TypeScript executor and real-solver CI smoke test have been implemented. Exact-head CI and actual numerical acceptance remain in progress; do not claim CFD execution is verified until the worker smoke and provider acceptance gate pass. |
+
+### Implementation boundaries
+
+- **PR #154 supersedes PR #140** as the reviewable M2.1–M2.6 CAD/drawing delivery. PR #140 remains open only as a historical foundation; it should not be merged independently.
+- PR #143 is design/audit documentation. The G2 migration remains blocked by migration-history reconciliation in issue #145 and requires a separate approved migration rehearsal.
+- PR #144 introduces bounded model-directed planning and operational authority, but does not authorize direct production execution. Its exact-head automated checks pass; authenticated preview/browser acceptance and production worker readiness remain separate gates.
+- PR #154 implements CAD/drawing workflows through isolated OCCT and existing geometry providers. Its latest source requires fresh ESLint and preview/browser acceptance after the scanner workflow correction.
+- PR #155 provides deterministic manufacturing-readiness assessment and artifact-link checks. It returns `READY_FOR_HUMAN_APPROVAL`, `BLOCKED` or `INCOMPLETE`; it does not issue a production release, CNC program or machine-control command.
+- PR #156 contains a real OpenFOAM 14 worker image and authenticated API, but the web application provider remains unconfigured until it is attached to the durable execution boundary. The capability remains experimental; no general-purpose CFD claim is made.
+
+### Data, security and release gates
+- No production Supabase migration, migration-history repair, Auth configuration change, feature-flag change, merge or production promotion was performed by this cycle.
+- The PR #154 M2 migration remains additive and un-applied to production. Preview RLS, private storage, signed URL, trigger and audit-chain E2E remain required.
+- Issue #145 remains open: the cause of the final production migration timestamp mismatch has not been proven and canonical history repair has not been approved.
+- Issue #146 remains open: leaked-password protection is disabled in production and E2E. Enabling it requires product-owner approval after authentication-flow testing.
+- PR #154 still requires authenticated BREP/STEP → OCCT → GLB → private storage → signed URL → browser viewport E2E, drawing upload/list/preview E2E, cross-project denial tests, and desktop/mobile browser acceptance.
+- PR #156's worker smoke must run with network disabled, read-only root filesystem, dropped capabilities and bounded CPU/memory. The returned artifacts must be downloaded and SHA-256 checked, then the actual solver result must pass the independent TypeScript analytical acceptance gate.
+- No merge, deployment, destructive migration, production worker activation or external service purchase was performed.
+
+### Product maturity boundaries
+- Manufacturing DFM, process-plan validation, inspection acceptance, BOM generation and readiness assessment remain pilot/advisory capabilities. Economics and release evaluation remain experimental; CAM reports unavailable without a real toolpath runtime. Machine matching, quality nonconformance, ERP/MES and maintenance analytics remain research-only.
+- The OpenFOAM worker supports one bounded laminar plane-Poiseuille benchmark only. Turbulence, multiphase flow, heat transfer, arbitrary dictionaries, general-purpose CFD and production certification are not supported.
+- Broad multi-CAD interoperability, scan-to-CAD, advanced robotics and electromechanical integration remain separate roadmap increments.
+- Current real-world economic outcomes remain **NOT MEASURED** until matched user trials are collected.
+
+Update this section only when new evidence changes the recorded state. The Implementation Plan and Engineering Capabilities document remain authoritative for current product maturity.
