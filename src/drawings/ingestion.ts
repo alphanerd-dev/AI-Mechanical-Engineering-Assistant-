@@ -244,7 +244,7 @@ type DrawingExtension = "pdf" | "svg" | "dxf" | "unknown";
 interface DrawingInspectionContext {
   bytes: Uint8Array;
   extension: DrawingExtension;
-  declaredMimeType: string;
+  declaredMimeType: DrawingMimeType;
   prefix: string;
 }
 
@@ -318,7 +318,7 @@ function validateSVGUploadMetadata(context: DrawingInspectionContext): void {
 function inspectSVG(context: DrawingInspectionContext): CADDrawingInspection | null {
   if (!hasSVGRootPrefix(context.prefix)) return null;
   validateSVGUploadMetadata(context);
-  validateSVG(decodeUtf8(context.bytes));
+  validateSVG(decodeUtf8(context.bytes) as SVGMarkup);
   return {
     format: "SVG",
     mediaType: "image/svg+xml",
@@ -359,10 +359,12 @@ function createDrawingInspectionContext(input: {
   declaredMimeType?: string;
   bytes: Uint8Array;
 }): DrawingInspectionContext {
+  const filename = input.filename as DrawingFilename;
+  const declaredMimeType = (input.declaredMimeType?.trim().toLowerCase() ?? "") as DrawingMimeType;
   return {
     bytes: input.bytes,
-    extension: validateDrawingFilename(input.filename),
-    declaredMimeType: input.declaredMimeType?.trim().toLowerCase() ?? "",
+    extension: validateDrawingFilename(filename),
+    declaredMimeType,
     prefix: new TextDecoder().decode(input.bytes.subarray(0, Math.min(input.bytes.length, 512))).trimStart()
   };
 }
