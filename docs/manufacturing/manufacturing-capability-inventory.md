@@ -44,6 +44,7 @@ The new capability is `MANUFACTURING.ASSESS_READINESS`, routed through `manufact
 - It never treats a readiness result as a signed quality certificate.
 - `productionReleasePerformed` is always `false`; a human approval is still required.
 - Durable assessment snapshots and independent human APPROVED/REJECTED decisions are implemented in PR #166 with project authorization, four-eyes approval, idempotency and atomic audit writes. The additive schema is installed on the dedicated E2E Supabase project only; authenticated route acceptance and merge remain pending.
+- Readiness inputs (CAD metrics, DFM rules, BOM/process-plan fields, inspection measurements and artifact IDs) are currently caller-supplied. Every durable assessment is stamped `source_evidence_status=USER_SUPPLIED_UNVERIFIED`; it is a structured review package, not independent verification of CAD bytes, metrology records or manufacturing evidence.
 - An approved decision is an auditable human decision only. It does not dispatch CAM, MES, machine control or production release.
 
 ## Next increments
