@@ -72,22 +72,45 @@ function validatePhysicalInputs(candidate: Partial<OpenFOAMLaminarChannelRequest
   return errors;
 }
 
-function validateFlowRegime(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
-  const velocity = candidate.meanVelocityMps;
-  const height = candidate.heightM;
-  const viscosity = candidate.kinematicViscosityM2PerS;
-  if (!finitePositive(velocity) || !finitePositive(height) || !finitePositive(viscosity)) return [];
+interface FlowPhysicsInputs {
+  velocity: number;
+  height: number;
+  viscosity: number;
+}
 
-  const reynoldsNumber = 2 * height * velocity / viscosity;
-  const bodyForce = 12 * viscosity * velocity / (height * height);
-  const errors: string[] = [];
-  if (!Number.isFinite(reynoldsNumber) || reynoldsNumber >= 1000) {
-    errors.push("The benchmark is restricted to laminar cases with hydraulic-diameter Reynolds number below 1000.");
+function readFlowPhysicsInputs(
+  candidate: Partial<OpenFOAMLaminarChannelRequest>
+): FlowPhysicsInputs | undefined {
+  const { meanVelocityMps: velocity, heightM: height, kinematicViscosityM2PerS: viscosity } = candidate;
+  if (!finitePositive(velocity) || !finitePositive(height) || !finitePositive(viscosity)) {
+    return undefined;
   }
-  if (!Number.isFinite(bodyForce) || bodyForce <= 0) {
-    errors.push("The derived Poiseuille body-force acceleration is outside the finite numeric range.");
-  }
-  return errors;
+  return { velocity, height, viscosity };
+}
+
+function validateHydraulicReynoldsNumber(inputs: FlowPhysicsInputs): string[] {
+  const reynoldsNumber = 2 * inputs.height * inputs.velocity / inputs.viscosity;
+  const valid = Number.isFinite(reynoldsNumber) && reynoldsNumber < 1000;
+  return valid ? [] : [
+    "The benchmark is restricted to laminar cases with hydraulic-diameter Reynolds number below 1000."
+  ];
+}
+
+function validatePoiseuilleBodyForce(inputs: FlowPhysicsInputs): string[] {
+  const bodyForce = 12 * inputs.viscosity * inputs.velocity / (inputs.height * inputs.height);
+  const valid = Number.isFinite(bodyForce) && bodyForce > 0;
+  return valid ? [] : [
+    "The derived Poiseuille body-force acceleration is outside the finite numeric range."
+  ];
+}
+
+function validateFlowRegime(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
+  const inputs = readFlowPhysicsInputs(candidate);
+  if (!inputs) return [];
+  return [
+    ...validateHydraulicReynoldsNumber(inputs),
+    ...validatePoiseuilleBodyForce(inputs)
+  ];
 }
 
 function validateMeshSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
