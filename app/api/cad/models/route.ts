@@ -16,6 +16,7 @@ function identityFromRow(row: Record<string, unknown>) {
     projectId: row.project_id,
     name: row.name,
     nativeReferences: row.native_references,
+    revision: Number(row.revision),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

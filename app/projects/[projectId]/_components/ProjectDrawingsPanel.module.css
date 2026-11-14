@@ -1,0 +1,63 @@
+.panel {
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 15px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.header h2 { margin: 0; color: var(--color-text); font-size: 14px; }
+.header p { margin: 5px 0 0; color: var(--color-text-subtle); font-size: 11px; line-height: 1.5; }
+.secondary, .primary {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.primary { border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border)); background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface)); color: var(--color-accent); }
+.secondary:disabled, .primary:disabled { opacity: .55; cursor: not-allowed; }
+.form { display: grid; gap: 12px; margin-bottom: 16px; }
+.formGrid, .contentGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.field { display: grid; gap: 6px; min-width: 0; color: var(--color-text-muted); font-size: 11px; font-weight: 650; }
+.field select, .field input { width: 100%; min-width: 0; min-height: 36px; padding: 7px 9px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); color: var(--color-text); font: inherit; font-size: 11px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.column { display: grid; align-content: start; gap: 10px; min-width: 0; }
+.column h3 { margin: 0; color: var(--color-text); font-size: 12px; }
+.drawingRow { display: flex; width: 100%; min-width: 0; align-items: flex-start; gap: 9px; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-raised); color: var(--color-text-muted); text-align: left; cursor: pointer; }
+.drawingRow[aria-pressed="true"] { border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-border)); background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-raised)); }
+.drawingRow svg { flex: 0 0 auto; margin-top: 2px; color: var(--color-accent); }
+.drawingRow span { display: grid; gap: 4px; min-width: 0; }
+.drawingRow strong { overflow-wrap: anywhere; color: var(--color-text); font-size: 11px; }
+.drawingRow small { color: var(--color-text-subtle); font-size: 10px; line-height: 1.4; }
+.empty { display: grid; min-height: 130px; place-content: center; justify-items: center; gap: 7px; padding: 16px; border: 1px dashed var(--color-border); border-radius: var(--radius-sm); text-align: center; }
+.empty > span { color: var(--color-accent); }
+.empty strong { color: var(--color-text); font-size: 12px; }
+.empty p, .meta { margin: 0; color: var(--color-text-subtle); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.error, .notice { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0; padding: 10px; border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--color-border)); border-radius: var(--radius-sm); color: var(--color-text); font-size: 11px; line-height: 1.5; }
+.notice { border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border)); }
+@media (max-width: 900px) {
+  .contentGrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .formGrid { grid-template-columns: 1fr; }
+  .panel { padding: 12px; }
+  .header { align-items: flex-start; }
+}

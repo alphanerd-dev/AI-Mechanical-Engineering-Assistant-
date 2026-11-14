@@ -1,0 +1,719 @@
+import { createHash, randomUUID } from "node:crypto";
+import path from "node:path";
+import { NextResponse } from "next/server";
+import { createClient } from "../../../../lib/supabase/server";
+import { createServiceRoleClient } from "../../../../lib/supabase/service";
+import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
+import { persistEngineeringAuditEvent } from "../../../../src/audit/server";
+import { CAD_ARTIFACT_BUCKET, CAD_SIGNED_URL_TTL_SECONDS } from "../../../../src/cad/persistence";
+import { classifyCADDisplayDerivative, validateCADDisplayDerivative, type CADDisplayDerivative } from "../../../../src/cad/display-derivative";
+import { createCADDisplayGLB } from "../../../../src/cad/glb";
+import { validateCADGeometrySource, type CADGeometrySource } from "../../../../src/cad/geometry-kernel-contract";
+import { DockerOCCTGeometryExecutor } from "../../../../src/execution/docker-occt-geometry";
+import { getRemoteCADWorkerConfig } from "../../../../src/execution/remote-cad-worker";
+import { RemoteOCCTGeometryExecutor } from "../../../../src/execution/remote-occt-geometry";
+import { DockerOCCTGeometryKernelAdapter } from "../../../../src/providers/occt-geometry";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHA256 = /^[a-f0-9]{64}$/;
+const MAX_REQUEST_BYTES = 16 * 1024;
+const MAX_ARTIFACT_BYTES = 100 * 1024 * 1024;
+const ALLOWED_FIELDS = new Set(["projectId", "completionId", "sourceArtifactId", "operation", "linearDeflectionMm", "angularDeflectionRad"]);
+
+type Row = Record<string, unknown>;
+type Database = Awaited<ReturnType<typeof createClient>>;
+type ServiceDatabase = ReturnType<typeof createServiceRoleClient>;
+
+export class CADGeometryAPIError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "CADGeometryAPIError";
+  }
+}
+
+class CADGeometryAuditAmbiguousError extends CADGeometryAPIError {}
+
+export interface CADGeometryRequest {
+  projectId: string;
+  completionId: string;
+  sourceArtifactId: string;
+  operation: "INSPECT" | "TESSELLATE";
+  linearDeflectionMm: number;
+  angularDeflectionRad: number;
+}
+
+interface AuthorizedContext {
+  subject: string;
+  db: Database;
+  serviceDb: ServiceDatabase;
+}
+
+interface CanonicalSourceContext {
+  source: CADGeometrySource;
+  modelIdentityId: string;
+  completionId: string;
+  sourceSha256: string;
+  sourceRevision: number;
+}
+
+interface GeneratedDerivative {
+  derivative: CADDisplayDerivative;
+  bytes: Buffer;
+  storagePath: string;
+  row: Row;
+}
+
+function isRecord(value: unknown): value is Row {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID.test(value);
+}
+
+function nonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function sourceDigest(value: unknown): string | null {
+  return typeof value === "string" && SHA256.test(value) ? value : null;
+}
+
+function fail(message: string, status: number): never {
+  throw new CADGeometryAPIError(message, status);
+}
+
+function storageObjectPath(uri: unknown, projectId: string): string | null {
+  if (!nonEmpty(uri)) return null;
+  const prefix = "storage://" + CAD_ARTIFACT_BUCKET + "/";
+  if (!uri.startsWith(prefix)) return null;
+  const objectPath = uri.slice(prefix.length);
+  const segments = objectPath.split("/");
+  const validSegments = segments.every((part) =>
+    /^[A-Za-z0-9_.-]{1,128}$/.test(part) && part !== "." && part !== ".."
+  );
+  return segments.length === 4 && segments[0] === projectId && validSegments ? objectPath : null;
+}
+
+function errorResponse(error: unknown): NextResponse {
+  if (error instanceof CADGeometryAPIError) {
+    return NextResponse.json({ error: error.message }, { status: error.status, headers: { "cache-control": "no-store" } });
+  }
+  return NextResponse.json({ error: "CAD geometry service failed unexpectedly." }, {
+    status: 500, headers: { "cache-control": "no-store" }
+  });
+}
+
+function validateDeflection(body: Row, operation: CADGeometryRequest["operation"]) {
+  const linearValue = body.linearDeflectionMm;
+  const angularValue = body.angularDeflectionRad;
+  if ((linearValue !== undefined && typeof linearValue !== "number") ||
+      (angularValue !== undefined && typeof angularValue !== "number")) {
+    fail("Tessellation deflection values must be numeric.", 400);
+  }
+  const linearDeflectionMm = linearValue === undefined ? 0.1 : linearValue;
+  const angularDeflectionRad = angularValue === undefined ? 0.35 : angularValue;
+  if (operation === "TESSELLATE" && (
+      !Number.isFinite(linearDeflectionMm) || linearDeflectionMm < 0.001 || linearDeflectionMm > 5 ||
+      !Number.isFinite(angularDeflectionRad) || angularDeflectionRad < 0.01 || angularDeflectionRad > Math.PI / 2
+  )) fail("Tessellation deflection is outside the supported range.", 400);
+  return { linearDeflectionMm, angularDeflectionRad };
+}
+
+async function readGeometryRequestBody(request: Request): Promise<unknown> {
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    fail("Geometry request exceeds the 16 KiB limit.", 413);
+  }
+  try {
+    const raw = await request.text();
+    if (Buffer.byteLength(raw, "utf8") > MAX_REQUEST_BYTES) fail("Geometry request exceeds the 16 KiB limit.", 413);
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    if (error instanceof CADGeometryAPIError) throw error;
+    fail("Geometry request must be valid JSON.", 400);
+  }
+}
+
+function validateAllowedGeometryRequestFields(body: Record<string, unknown>): void {
+  const hasUnsupportedField = Object.keys(body).some((key) => !ALLOWED_FIELDS.has(key));
+  if (hasUnsupportedField) fail("Geometry request contains unsupported fields.", 400);
+}
+
+function parseGeometryRequestIdentity(body: Record<string, unknown>): Pick<
+  CADGeometryRequest, "projectId" | "completionId" | "sourceArtifactId" | "operation"
+> {
+  const { projectId, completionId, sourceArtifactId, operation } = body;
+  if (!isUuid(projectId)) fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
+  if (!isUuid(completionId)) fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
+  if (!nonEmpty(sourceArtifactId) || sourceArtifactId.length > 160) {
+    fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
+  }
+  if (operation !== "INSPECT" && operation !== "TESSELLATE") {
+    fail("A project, accepted completion, source artifact and supported geometry operation are required.", 400);
+  }
+  return { projectId, completionId, sourceArtifactId, operation };
+}
+
+function validateGeometryRequestFields(body: Record<string, unknown>): CADGeometryRequest {
+  validateAllowedGeometryRequestFields(body);
+  const identity = parseGeometryRequestIdentity(body);
+  return { ...identity, ...validateDeflection(body, identity.operation) };
+}
+
+export async function parseCADGeometryRequest(request: Request): Promise<CADGeometryRequest> {
+  const body = await readGeometryRequestBody(request);
+  if (!isRecord(body)) fail("Geometry request must be a JSON object.", 400);
+  return validateGeometryRequestFields(body);
+}
+
+async function authorizeGeometryRequest(projectId: string): Promise<AuthorizedContext> {
+  try {
+    const authorization = await authorizeSupabaseRequest("TASK.EXECUTE", projectId);
+    if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization));
+    return {
+      subject: authorization.subject,
+      db: await createClient(),
+      serviceDb: createServiceRoleClient()
+    };
+  } catch (error) {
+    if (error instanceof CADGeometryAPIError) throw error;
+    fail("Project authorization or trusted artifact storage is unavailable.", 503);
+  }
+}
+
+async function loadAcceptedCompletion(db: Database, request: CADGeometryRequest): Promise<Row> {
+  const { data, error } = await db.from("engineering_cad_completions")
+    .select("id,project_id,model_identity_id,status,specification,artifact_records,storage_objects")
+    .eq("id", request.completionId).eq("project_id", request.projectId).maybeSingle();
+  if (error) fail("CAD completion could not be loaded.", 503);
+  if (!data) fail("An accepted CAD completion in this project is required.", 404);
+  if (data.status !== "ACCEPTED") fail("An accepted CAD completion in this project is required.", 404);
+  if (!isUuid(data.model_identity_id)) fail("An accepted CAD completion in this project is required.", 404);
+  return data as Row;
+}
+
+async function loadCurrentModel(db: Database, projectId: string, modelIdentityId: string): Promise<number> {
+  const { data, error } = await db.from("engineering_cad_models")
+    .select("id,revision").eq("id", modelIdentityId).eq("project_id", projectId).maybeSingle();
+  if (error) fail("CAD model revision could not be loaded.", 503);
+  const revision = Number(data?.revision);
+  if (!data) fail("The CAD model revision is unavailable.", 409);
+  if (!Number.isSafeInteger(revision)) fail("The CAD model revision is unavailable.", 409);
+  if (revision < 1) fail("The CAD model revision is unavailable.", 409);
+  return revision;
+}
+
+function findArtifactRecord(completion: Row, sourceArtifactId: string): Row | null {
+  if (!Array.isArray(completion.artifact_records)) return null;
+  const artifact = completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === sourceArtifactId);
+  return isRecord(artifact) ? artifact : null;
+}
+
+function isCanonicalArtifactKind(artifact: Row): boolean {
+  return artifact.kind === "SOLID" || artifact.kind === "STEP";
+}
+
+function belongsToCompletionProject(artifact: Row, completion: Row, projectId: string): boolean {
+  if (!isRecord(artifact.provenance)) return false;
+  return artifact.provenance.modelIdentityId === completion.model_identity_id &&
+    artifact.provenance.projectId === projectId;
+}
+
+function findCanonicalArtifact(completion: Row, request: CADGeometryRequest): Row {
+  const artifact = findArtifactRecord(completion, request.sourceArtifactId);
+  if (!artifact) fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
+  if (!isCanonicalArtifactKind(artifact)) {
+    fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
+  }
+  if (!belongsToCompletionProject(artifact, completion, request.projectId)) {
+    fail("The requested source artifact is not an eligible canonical BREP or STEP artifact.", 422);
+  }
+  return artifact;
+}
+
+function validateArtifactRevision(artifact: Row, currentRevision: number) {
+  const provenance = artifact.provenance as Row;
+  const sha256 = sourceDigest(provenance.artifactSha256);
+  const revision = Number(provenance.modelRevision);
+  if (!sha256) fail("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
+  if (!Number.isSafeInteger(revision)) {
+    fail("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
+  }
+  if (revision !== currentRevision) {
+    fail("The source geometry is stale or lacks revision-bound provenance; regenerate the CAD completion before deriving a mesh.", 409);
+  }
+  return { sha256, revision };
+}
+
+function validateArtifactUnits(completion: Row, artifact: Row): void {
+  const parameters = isRecord(artifact.parameters) ? artifact.parameters : {};
+  const specification = isRecord(completion.specification) ? completion.specification : {};
+  const units = artifact.units ?? parameters.units ?? specification.units;
+  if (units !== "mm") fail("Only explicitly declared millimetre CAD artifacts are supported by this geometry worker.", 422);
+}
+
+function validateArtifactStorage(completion: Row, artifact: Row, projectId: string): string {
+  const pathValue = storageObjectPath(artifact.uri, projectId);
+  const storedPaths = Array.isArray(completion.storage_objects) ? completion.storage_objects : [];
+  if (!pathValue || !storedPaths.includes(pathValue)) {
+    fail("The canonical source artifact is not registered in this completion's private storage manifest.", 403);
+  }
+  return pathValue;
+}
+
+function resolveCanonicalArtifact(completion: Row, request: CADGeometryRequest, currentRevision: number) {
+  const artifact = findCanonicalArtifact(completion, request);
+  const provenance = validateArtifactRevision(artifact, currentRevision);
+  validateArtifactUnits(completion, artifact);
+  const pathValue = validateArtifactStorage(completion, artifact, request.projectId);
+  return { artifact, ...provenance, path: pathValue };
+}
+
+async function downloadCanonicalSource(
+  serviceDb: ServiceDatabase,
+  request: CADGeometryRequest,
+  completion: Row,
+  artifactContext: ReturnType<typeof resolveCanonicalArtifact>
+): Promise<CanonicalSourceContext> {
+  const { data: file, error } = await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).download(artifactContext.path);
+  if (error || !file) fail("The private CAD source artifact could not be retrieved.", 503);
+  if (file.size < 1 || file.size > MAX_ARTIFACT_BYTES) {
+    fail("The canonical source artifact exceeds the 100 MiB processing limit.", 413);
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  if (digest !== artifactContext.sha256) fail("The stored source bytes do not match the accepted artifact digest.", 409);
+  const source: CADGeometrySource = {
+    artifactId: request.sourceArtifactId,
+    modelIdentityId: String(completion.model_identity_id),
+    modelRevision: artifactContext.revision,
+    format: artifactContext.artifact.kind === "SOLID" ? "BREP" : "STEP",
+    sha256: digest,
+    bytes,
+    units: "mm",
+    coordinateFrame: "MODEL"
+  };
+  const sourceErrors = validateCADGeometrySource(source);
+  if (sourceErrors.length) fail(sourceErrors.join("; "), 422);
+  return {
+    source,
+    modelIdentityId: String(completion.model_identity_id),
+    completionId: request.completionId,
+    sourceSha256: digest,
+    sourceRevision: artifactContext.revision
+  };
+}
+
+async function loadCanonicalSource(
+  context: AuthorizedContext,
+  request: CADGeometryRequest
+): Promise<CanonicalSourceContext> {
+  const completion = await loadAcceptedCompletion(context.db, request);
+  const currentRevision = await loadCurrentModel(context.db, request.projectId, String(completion.model_identity_id));
+  const artifact = resolveCanonicalArtifact(completion, request, currentRevision);
+  return downloadCanonicalSource(context.serviceDb, request, completion, artifact);
+}
+
+function createRemoteGeometryAdapter(): DockerOCCTGeometryKernelAdapter | null {
+  const remote = getRemoteCADWorkerConfig();
+  if (remote.configured) {
+    return new DockerOCCTGeometryKernelAdapter(new RemoteOCCTGeometryExecutor(remote.value));
+  }
+  if (remote.error) fail(remote.error, 503);
+  return null;
+}
+
+function readOCCTImageReference(): string {
+  const image = process.env.CAD_OCCT_IMAGE?.trim() ?? "";
+  if (!image) fail("The trusted OCCT geometry image is not configured.", 503);
+  return image;
+}
+
+function readDockerExecutable(): string {
+  const executable = process.env.CAD_DOCKER_BINARY?.trim() || "docker";
+  if (/[\r\n\0]/.test(executable)) fail("The trusted Docker executable is invalid.", 503);
+  return executable;
+}
+
+function resolveOCCTWorkerScriptPath(): string {
+  const configuredPath = process.env.CAD_OCCT_GEOMETRY_WORKER_PATH?.trim();
+  const defaultPath = path.join(process.cwd(), "worker/cad/occt/geometry_kernel.py");
+  return path.resolve(configuredPath || defaultPath);
+}
+
+function readLocalGeometryRuntimeConfig() {
+  return {
+    image: readOCCTImageReference(),
+    dockerBinary: readDockerExecutable(),
+    workerScriptPath: resolveOCCTWorkerScriptPath()
+  };
+}
+
+function validateProductionGeometryImage(image: string): void {
+  if (process.env.NODE_ENV === "production" && !/@sha256:[a-f0-9]{64}$/i.test(image)) {
+    fail("Production OCCT geometry images must be pinned by immutable SHA-256 digest.", 503);
+  }
+}
+
+function createLocalGeometryAdapter(): DockerOCCTGeometryKernelAdapter {
+  const config = readLocalGeometryRuntimeConfig();
+  validateProductionGeometryImage(config.image);
+  return new DockerOCCTGeometryKernelAdapter(new DockerOCCTGeometryExecutor(config));
+}
+
+function createGeometryAdapter(): DockerOCCTGeometryKernelAdapter {
+  return createRemoteGeometryAdapter() ?? createLocalGeometryAdapter();
+}
+
+function derivativeFromRow(row: Row): CADDisplayDerivative {
+  return {
+    schemaVersion: 1,
+    artifactId: String(row.id),
+    format: "GLB",
+    sourceArtifactId: String(row.source_artifact_id),
+    sourceArtifactSha256: String(row.source_artifact_sha256),
+    modelIdentityId: String(row.model_identity_id),
+    modelRevision: Number(row.model_revision),
+    converter: { providerId: String(row.converter_provider_id), version: String(row.converter_version), operation: "TESSELLATE" },
+    tessellation: {
+      linearDeflectionMm: Number(row.linear_deflection_mm),
+      angularDeflectionRad: Number(row.angular_deflection_rad),
+      relative: false
+    },
+    units: String(row.units),
+    coordinateFrame: String(row.coordinate_frame),
+    artifactSha256: String(row.artifact_sha256),
+    generatedAt: String(row.created_at)
+  };
+}
+
+async function findExistingDerivative(
+  db: Database,
+  request: CADGeometryRequest,
+  source: CanonicalSourceContext,
+  adapter: DockerOCCTGeometryKernelAdapter
+): Promise<NextResponse | null> {
+  const { data, error } = await db.from("engineering_cad_display_derivatives").select("*")
+    .eq("project_id", request.projectId).eq("model_identity_id", source.modelIdentityId)
+    .eq("source_artifact_id", request.sourceArtifactId).eq("source_artifact_sha256", source.sourceSha256)
+    .eq("model_revision", source.sourceRevision).eq("converter_provider_id", adapter.providerId)
+    .eq("converter_version", adapter.providerVersion).eq("linear_deflection_mm", request.linearDeflectionMm)
+    .eq("angular_deflection_rad", request.angularDeflectionRad).maybeSingle();
+  if (error) fail("Display derivative idempotency lookup failed.", 503);
+  if (!data) return null;
+  const { data: signed, error: signError } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+    .createSignedUrl(String(data.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+  if (signError || !signed?.signedUrl) fail("Existing display derivative could not be signed.", 503);
+  return NextResponse.json({
+    derivative: derivativeFromRow(data as unknown as Row),
+    signedUrl: signed.signedUrl,
+    signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS,
+    created: false
+  }, { headers: { "cache-control": "no-store" } });
+}
+
+async function inspectCanonicalSource(
+  adapter: DockerOCCTGeometryKernelAdapter,
+  request: CADGeometryRequest,
+  source: CanonicalSourceContext
+): Promise<NextResponse> {
+  const inspected = await adapter.inspect(source.source);
+  return NextResponse.json({
+    operation: request.operation,
+    sourceArtifactId: request.sourceArtifactId,
+    sourceArtifactSha256: source.sourceSha256,
+    modelRevision: source.sourceRevision,
+    status: inspected.status,
+    topology: inspected.value ?? null,
+    errors: inspected.errors,
+    limitations: inspected.limitations
+  }, {
+    status: inspected.status === "COMPLETED" ? 200 : 422,
+    headers: { "cache-control": "no-store" }
+  });
+}
+
+async function generateDisplayDerivative(
+  adapter: DockerOCCTGeometryKernelAdapter,
+  request: CADGeometryRequest,
+  source: CanonicalSourceContext
+): Promise<GeneratedDerivative> {
+  const result = await adapter.tessellate(source.source, {
+    linearDeflectionMm: request.linearDeflectionMm,
+    angularDeflectionRad: request.angularDeflectionRad
+  });
+  if (result.status !== "COMPLETED" || !result.value) {
+    fail(result.errors.join("; ") || "OCCT tessellation failed.", result.status === "UNSUPPORTED" ? 501 : 422);
+  }
+  const id = randomUUID();
+  const bytes = createCADDisplayGLB({
+    artifactId: id,
+    sourceArtifactId: request.sourceArtifactId,
+    sourceArtifactSha256: source.sourceSha256,
+    positions: result.value.positions,
+    normals: result.value.normals,
+    indices: result.value.indices,
+    units: "mm",
+    coordinateFrame: "MODEL"
+  });
+  const artifactSha256 = createHash("sha256").update(bytes).digest("hex");
+  const derivative: CADDisplayDerivative = {
+    schemaVersion: 1,
+    artifactId: id,
+    format: "GLB",
+    sourceArtifactId: request.sourceArtifactId,
+    sourceArtifactSha256: source.sourceSha256,
+    modelIdentityId: source.modelIdentityId,
+    modelRevision: source.sourceRevision,
+    converter: { providerId: result.value.providerId, version: result.value.providerVersion, operation: "TESSELLATE" },
+    tessellation: {
+      linearDeflectionMm: request.linearDeflectionMm,
+      angularDeflectionRad: request.angularDeflectionRad,
+      relative: false
+    },
+    units: "mm",
+    coordinateFrame: "MODEL",
+    artifactSha256,
+    generatedAt: new Date().toISOString()
+  };
+  const validation = validateCADDisplayDerivative(derivative);
+  if (!validation.valid) fail("Generated display derivative failed its metadata contract.", 422);
+  const storagePath = request.projectId + "/" + source.modelIdentityId + "/" +
+    source.completionId + "/display-" + id + ".glb";
+  const row = {
+    id,
+    project_id: request.projectId,
+    model_identity_id: source.modelIdentityId,
+    completion_id: source.completionId,
+    source_artifact_id: request.sourceArtifactId,
+    source_artifact_sha256: source.sourceSha256,
+    model_revision: source.sourceRevision,
+    storage_object_path: storagePath,
+    artifact_sha256: artifactSha256,
+    media_type: "model/gltf-binary",
+    converter_provider_id: derivative.converter.providerId,
+    converter_version: derivative.converter.version,
+    linear_deflection_mm: request.linearDeflectionMm,
+    angular_deflection_rad: request.angularDeflectionRad,
+    units: "mm",
+    coordinate_frame: "MODEL"
+  };
+  return { derivative, bytes, storagePath, row };
+}
+
+async function persistDerivativeAudit(
+  serviceDb: ServiceDatabase,
+  subject: string,
+  projectId: string,
+  derivative: CADDisplayDerivative
+): Promise<void> {
+  try {
+    await persistEngineeringAuditEvent({
+      timestamp: new Date().toISOString(),
+      actor: { subject, actorType: "USER" },
+      action: "EVIDENCE_WRITE",
+      outcome: "SUCCESS",
+      projectId,
+      resourceType: "CAD_DISPLAY_DERIVATIVE",
+      resourceId: derivative.artifactId,
+      reason: "A display-only mesh derivative was persisted against exact canonical source bytes; no geometry validation or approval state was changed.",
+      metadata: {
+        sourceArtifactId: derivative.sourceArtifactId,
+        sourceArtifactSha256: derivative.sourceArtifactSha256,
+        artifactSha256: derivative.artifactSha256,
+        modelRevision: derivative.modelRevision,
+        converterProviderId: derivative.converter.providerId,
+        converterVersion: derivative.converter.version,
+        linearDeflectionMm: derivative.tessellation.linearDeflectionMm,
+        angularDeflectionRad: derivative.tessellation.angularDeflectionRad,
+        units: derivative.units,
+        coordinateFrame: derivative.coordinateFrame
+      }
+    });
+  } catch {
+    const { data, error } = await serviceDb.from("engineering_audit_events").select("event_id")
+      .eq("resource_type", "CAD_DISPLAY_DERIVATIVE").eq("resource_id", derivative.artifactId)
+      .eq("action", "EVIDENCE_WRITE").maybeSingle();
+    if (data || error) throw new CADGeometryAuditAmbiguousError("Display derivative was committed but its audit acknowledgement is ambiguous. Reload derivative history before retrying.", 503);
+    fail("Display derivative audit persistence failed.", 503);
+  }
+}
+
+async function uploadDerivativeBytes(serviceDb: ServiceDatabase, storagePath: string, bytes: Buffer): Promise<void> {
+  const { error } = await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).upload(storagePath, bytes, {
+    upsert: false, contentType: "model/gltf-binary", cacheControl: "3600"
+  });
+  if (error) fail("Private display derivative upload failed.", 503);
+}
+
+async function removeUncommittedDerivative(serviceDb: ServiceDatabase, artifactId: string, projectId: string, storagePath: string) {
+  await serviceDb.from("engineering_cad_display_derivatives").delete().eq("id", artifactId).eq("project_id", projectId);
+  await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
+}
+
+async function insertDerivativeRow(
+  serviceDb: ServiceDatabase,
+  context: AuthorizedContext,
+  request: CADGeometryRequest,
+  generated: GeneratedDerivative
+): Promise<void> {
+  const { derivative, storagePath, row } = generated;
+  const { error: insertError } = await serviceDb.from("engineering_cad_display_derivatives")
+    .insert({ ...row, created_by: context.subject });
+  if (!insertError) return;
+  const { data, error } = await serviceDb.from("engineering_cad_display_derivatives")
+    .select("id").eq("id", derivative.artifactId).eq("project_id", request.projectId).maybeSingle();
+  if (data) return;
+  if (error) fail("Display derivative commit is ambiguous. Reload derivative history before retrying.", 503);
+  await serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
+  if (insertError.code === "40001" || insertError.message?.includes("CAD model revision changed")) {
+    fail("The CAD model revision changed during tessellation. The temporary derivative was discarded; retry against the current accepted artifact.", 409);
+  }
+  fail("Display derivative metadata could not be committed; the uploaded object was cleaned up.", 503);
+}
+
+async function persistDerivativeAuditOrRollback(
+  context: AuthorizedContext,
+  request: CADGeometryRequest,
+  generated: GeneratedDerivative
+): Promise<void> {
+  try {
+    await persistDerivativeAudit(context.serviceDb, context.subject, request.projectId, generated.derivative);
+  } catch (error) {
+    if (error instanceof CADGeometryAuditAmbiguousError) throw error;
+    await removeUncommittedDerivative(
+      context.serviceDb, generated.derivative.artifactId, request.projectId, generated.storagePath
+    );
+    throw new CADGeometryAPIError("Display derivative audit persistence failed; the uncommitted derivative was rolled back.", 503);
+  }
+}
+
+async function createDerivativeSignedUrl(db: Database, storagePath: string): Promise<string> {
+  const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+    .createSignedUrl(storagePath, CAD_SIGNED_URL_TTL_SECONDS);
+  if (error || !data?.signedUrl) {
+    fail("Display derivative was persisted but its short-lived read URL could not be created. Reload derivative history.", 503);
+  }
+  return data.signedUrl;
+}
+
+async function persistGeneratedDerivative(
+  context: AuthorizedContext,
+  request: CADGeometryRequest,
+  generated: GeneratedDerivative
+): Promise<NextResponse> {
+  await uploadDerivativeBytes(context.serviceDb, generated.storagePath, generated.bytes);
+  await insertDerivativeRow(context.serviceDb, context, request, generated);
+  await persistDerivativeAuditOrRollback(context, request, generated);
+  const signedUrl = await createDerivativeSignedUrl(context.db, generated.storagePath);
+  return NextResponse.json({
+    derivative: generated.derivative,
+    signedUrl,
+    signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS,
+    created: true
+  }, { status: 201, headers: { "cache-control": "no-store" } });
+}
+
+export async function executeCADGeometryRequest(request: Request): Promise<NextResponse> {
+  try {
+    const payload = await parseCADGeometryRequest(request);
+    const context = await authorizeGeometryRequest(payload.projectId);
+    const source = await loadCanonicalSource(context, payload);
+    const adapter = createGeometryAdapter();
+    if (payload.operation === "INSPECT") return inspectCanonicalSource(adapter, payload, source);
+    const existing = await findExistingDerivative(context.db, payload, source, adapter);
+    if (existing) return existing;
+    const generated = await generateDisplayDerivative(adapter, payload, source);
+    return await persistGeneratedDerivative(context, payload, generated);
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+interface DerivativeLineage {
+  models: Map<string, Row>;
+  completions: Map<string, Row>;
+}
+
+async function loadDerivativeLineage(db: Database, projectId: string, rows: Row[]): Promise<DerivativeLineage> {
+  const modelIds = [...new Set(rows.map((row) => row.model_identity_id).filter(isUuid))];
+  const completionIds = [...new Set(rows.map((row) => row.completion_id).filter(isUuid))];
+  const [modelsResult, completionsResult] = await Promise.all([
+    modelIds.length ? db.from("engineering_cad_models").select("id,revision").eq("project_id", projectId).in("id", modelIds) : Promise.resolve({ data: [], error: null }),
+    completionIds.length ? db.from("engineering_cad_completions").select("id,artifact_records").eq("project_id", projectId).in("id", completionIds) : Promise.resolve({ data: [], error: null })
+  ]);
+  if (modelsResult.error || completionsResult.error) fail("CAD derivative lineage could not be resolved.", 503);
+  return {
+    models: new Map((modelsResult.data ?? []).map((row) => [row.id, row])),
+    completions: new Map((completionsResult.data ?? []).map((row) => [row.id, row]))
+  };
+}
+
+function currentSourceForDerivative(row: Row, completion: Row | undefined) {
+  const source = Array.isArray(completion?.artifact_records)
+    ? completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === row.source_artifact_id)
+    : null;
+  if (!isRecord(source)) return null;
+  return {
+    id: String(source.id),
+    provenance: isRecord(source.provenance) ? {
+      artifactSha256: typeof source.provenance.artifactSha256 === "string" ? source.provenance.artifactSha256 : undefined
+    } : undefined
+  };
+}
+
+async function serializeDerivativeRow(db: Database, row: Row, lineage: DerivativeLineage) {
+  const derivative = derivativeFromRow(row);
+  const model = lineage.models.get(String(row.model_identity_id));
+  const completion = lineage.completions.get(String(row.completion_id));
+  const state = classifyCADDisplayDerivative(
+    derivative,
+    currentSourceForDerivative(row, completion),
+    model ? { id: String(model.id), revision: Number(model.revision) } : null
+  );
+  const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+    .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+  return { ...derivative, state, signedUrl: !error && data?.signedUrl ? data.signedUrl : null };
+}
+
+export function parseDerivativeListQuery(request: Request): { projectId: string; modelIdentityId: string | null } {
+  const url = new URL(request.url);
+  const projectId = url.searchParams.get("projectId")?.trim();
+  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim() ?? null;
+  if (!isUuid(projectId)) fail("A registered project UUID and optional model identity UUID are required.", 400);
+  if (modelIdentityId && !isUuid(modelIdentityId)) {
+    fail("A registered project UUID and optional model identity UUID are required.", 400);
+  }
+  return { projectId, modelIdentityId };
+}
+
+async function fetchDerivativeRows(db: Database, projectId: string, modelIdentityId: string | null) {
+  let query = db.from("engineering_cad_display_derivatives").select("*")
+    .eq("project_id", projectId).order("created_at", { ascending: false }).limit(100);
+  if (modelIdentityId) query = query.eq("model_identity_id", modelIdentityId);
+  const { data, error } = await query;
+  if (error) fail("CAD display derivative history is unavailable.", 503);
+  return data ?? [];
+}
+
+async function serializeDerivativeRows(db: Database, projectId: string, rows: Row[]) {
+  const lineage = await loadDerivativeLineage(db, projectId, rows);
+  return Promise.all(rows.map((row) => serializeDerivativeRow(db, row as unknown as Row, lineage)));
+}
+
+export async function listCADDisplayDerivatives(request: Request): Promise<NextResponse> {
+  try {
+    const { projectId, modelIdentityId } = parseDerivativeListQuery(request);
+    const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
+    if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization));
+    const db = await createClient();
+    const rows = await fetchDerivativeRows(db, projectId, modelIdentityId);
+    const derivatives = await serializeDerivativeRows(db, projectId, rows);
+    return NextResponse.json({ projectId, derivatives, signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS }, {
+      headers: { "cache-control": "no-store" }
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

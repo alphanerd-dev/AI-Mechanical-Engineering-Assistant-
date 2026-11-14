@@ -16,12 +16,16 @@ export interface CADExecutionProvenance extends ArtifactProvenance {
   sourceFilename:string;
   sourceArtifactUri?:string;
   generatedAt:string;
+  /** Database model metadata revision captured at execution; not a geometry revision. */
+  modelRevision?:number;
 }
 
 export interface CADArtifactProvenance extends CADExecutionProvenance {
   outputUri:string;
   /** SHA-256 of exact output bytes, computed on the trusted host boundary. */
   artifactSha256?:string;
+  /** Canonical BREP identity associated with parallel exports from the same design source. */
+  canonicalGeometryArtifactId?:string;
 }
 
 export interface CADArtifact {

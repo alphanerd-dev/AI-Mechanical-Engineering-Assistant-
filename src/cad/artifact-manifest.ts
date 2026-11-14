@@ -1,6 +1,6 @@
 import { CADModelIdentity, validateCADModelIdentity } from "./identity.js";
 import { CADExecutionRequest, CADExecutionResult } from "./execution.js";
-import { CADArtifact, CADArtifactKind, CADExecutionProvenance } from "./artifacts.js";
+import { CADArtifact, CADArtifactKind, CADArtifactProvenance, CADExecutionProvenance } from "./artifacts.js";
 import { createCADSourceSha256 } from "./provenance.js";
 
 export interface CADArtifactManifestContext {
@@ -27,7 +27,15 @@ function validDate(value: unknown): value is string {
   return nonEmptyString(value) && !Number.isNaN(Date.parse(value));
 }
 
-function stableArtifactToken(projectId: string, executionId: string, sourceSha256: string, providerId: string): string {
+interface StableArtifactTokenInput {
+  projectId: string;
+  executionId: string;
+  sourceSha256: string;
+  providerId: string;
+}
+
+function stableArtifactToken(input: StableArtifactTokenInput): string {
+  const { projectId, executionId, sourceSha256, providerId } = input;
   return createCADSourceSha256(projectId + "\u0000" + executionId + "\u0000" + sourceSha256 + "\u0000" + providerId).slice(0, 24);
 }
 
@@ -40,40 +48,51 @@ function noArtifacts(warnings: string[], errors: string[]): CADArtifactManifest 
 }
 
 /**
- * Bind each generated derivative to the nearest canonical artifact in the same
- * execution. The validated BREP descends from the generated source; exchange
- * and mesh formats descend from the BREP. This records lineage only and never
- * copies validation or verification state onto a derivative.
+ * These files are exported in parallel from the same in-memory build123d shape.
+ * The generated source is their common design input. STEP/STL/3MF are NOT produced
+ * by converting the persisted BREP, so their lineage must not claim that conversion.
+ * The BREP ID is retained separately as the associated canonical geometry record.
+ * This records lineage only and never copies validation or verification state.
+ */
+const DERIVED_GEOMETRY_ARTIFACT_KINDS = new Set<CADArtifactKind>(["STEP", "STL", "THREE_MF"]);
+
+function withCanonicalGeometryLink(
+  provenance: CADArtifactProvenance,
+  artifactKind: CADArtifactKind,
+  solid: CADArtifact | undefined
+): CADArtifactProvenance {
+  if (!solid) return provenance;
+  if (!DERIVED_GEOMETRY_ARTIFACT_KINDS.has(artifactKind)) return provenance;
+  return { ...provenance, canonicalGeometryArtifactId: solid.id };
+}
+
+/**
+ * Records source and canonical-solid lineage without copying validation state.
+ * Exchange and display derivatives remain distinct from the canonical BREP.
  */
 function linkArtifactLineage(artifacts: CADArtifact[]): void {
   const source = artifacts.find((artifact) => artifact.kind === "SOURCE");
   const solid = artifacts.find((artifact) => artifact.kind === "SOLID");
+  if (!source) return;
 
   for (const artifact of artifacts) {
     if (!artifact.provenance) continue;
-    const parent = artifact.kind === "SOLID"
-      ? source
-      : artifact.kind === "STEP" || artifact.kind === "STL" || artifact.kind === "THREE_MF"
-        ? solid
-        : undefined;
-    if (!parent) continue;
-    artifact.provenance = {
-      ...artifact.provenance,
-      sourceArtifactIds: [parent.id]
-    };
+    if (artifact.kind === "SOURCE") continue;
+    const withSource = { ...artifact.provenance, sourceArtifactIds: [source.id] };
+    artifact.provenance = withCanonicalGeometryLink(withSource, artifact.kind, solid);
   }
 }
 
-function buildProvenance(
-  projectId: string,
-  execution: CADExecutionResult,
-  context: CADArtifactManifestContext
-): { provenance?: CADExecutionProvenance; errors: string[] } {
-  const errors: string[] = [];
-  const request = context.request;
-  const identityCheck = validateCADModelIdentity(context.modelIdentity, projectId);
-  errors.push(...identityCheck.errors);
+interface ProvenanceContextInput {
+  projectId: string;
+  execution: CADExecutionResult;
+  context: CADArtifactManifestContext;
+}
 
+function validateProvenanceContext(input: ProvenanceContextInput): string[] {
+  const { projectId, execution, context } = input;
+  const errors = validateCADModelIdentity(context.modelIdentity, projectId).errors;
+  const request = context.request;
   if (!nonEmptyString(request?.id)) errors.push("CAD execution request id is required.");
   if (!nonEmptyString(request?.source)) errors.push("CAD execution source must be non-empty.");
   if (!nonEmptyString(request?.filename)) errors.push("CAD execution filename is required.");
@@ -84,26 +103,56 @@ function buildProvenance(
   if (request?.backend !== execution.backend) {
     errors.push("CAD execution request backend does not match the worker result backend.");
   }
+  return errors;
+}
 
+function modelRevisionProvenance(identity: CADModelIdentity): { modelRevision?: number } {
+  const revision = identity.revision;
+  if (Number.isSafeInteger(revision) && (revision as number) > 0) return { modelRevision: revision };
+  return {};
+}
+
+interface ExecutionProvenanceInput {
+  projectId: string;
+  execution: CADExecutionResult;
+  context: CADArtifactManifestContext;
+  generatedAt: string;
+}
+
+function createExecutionProvenance(input: ExecutionProvenanceInput): CADExecutionProvenance {
+  const { projectId, execution, context, generatedAt } = input;
+  const request = context.request;
+  return {
+    schemaVersion: 1,
+    sourceType: "CAD_EXECUTION",
+    projectId,
+    modelIdentityId: context.modelIdentity.id,
+    executionId: request.id,
+    providerId: context.providerId.trim(),
+    backend: request.backend,
+    sourceSha256: createCADSourceSha256(request.source),
+    sourceFilename: request.filename.trim(),
+    ...(nonEmptyString(execution.sourceArtifactPath) ? { sourceArtifactUri: execution.sourceArtifactPath.trim() } : {}),
+    generatedAt,
+    ...modelRevisionProvenance(context.modelIdentity)
+  };
+}
+
+interface BuildProvenanceInput {
+  projectId: string;
+  execution: CADExecutionResult;
+  context: CADArtifactManifestContext;
+}
+
+function buildProvenance(input: BuildProvenanceInput): { provenance?: CADExecutionProvenance; errors: string[] } {
+  const { projectId, execution, context } = input;
   const generatedAt = context.generatedAt ?? new Date().toISOString();
+  const errors = validateProvenanceContext({ projectId, execution, context });
   if (!validDate(generatedAt)) errors.push("CAD provenance generatedAt must be a valid date string.");
   if (errors.length) return { errors };
-
   return {
     errors,
-    provenance: {
-      schemaVersion: 1,
-      sourceType: "CAD_EXECUTION",
-      projectId,
-      modelIdentityId: context.modelIdentity.id,
-      executionId: request.id,
-      providerId: context.providerId.trim(),
-      backend: request.backend,
-      sourceSha256: createCADSourceSha256(request.source),
-      sourceFilename: request.filename.trim(),
-      ...(nonEmptyString(execution.sourceArtifactPath) ? { sourceArtifactUri: execution.sourceArtifactPath.trim() } : {}),
-      generatedAt
-    }
+    provenance: createExecutionProvenance({ projectId, execution, context, generatedAt })
   };
 }
 
@@ -139,7 +188,7 @@ export function normalizeCADExecutionResult(
 
   let provenance: CADExecutionProvenance | undefined;
   if (context) {
-    const result = buildProvenance(projectId.trim(), execution, context);
+    const result = buildProvenance({ projectId: projectId.trim(), execution, context });
     if (result.errors.length || !result.provenance) {
       return noArtifacts(warnings, result.errors.length ? result.errors : ["CAD provenance could not be established."]);
     }
@@ -158,7 +207,7 @@ export function normalizeCADExecutionResult(
   const seenPaths = new Set<string>();
   const artifacts: CADArtifact[] = [];
   const token = provenance
-    ? stableArtifactToken(projectId.trim(), provenance.executionId, provenance.sourceSha256, provenance.providerId)
+    ? stableArtifactToken({ projectId: projectId.trim(), executionId: provenance.executionId, sourceSha256: provenance.sourceSha256, providerId: provenance.providerId })
     : String(Date.now());
 
   for (const [kind, rawPath] of paths) {

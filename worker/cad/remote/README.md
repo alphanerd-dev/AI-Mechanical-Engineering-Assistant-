@@ -8,6 +8,7 @@ This service is intended to run as a separately deployed, unprivileged container
 - `GET /v1/readiness` requires bearer authentication and reports runtime readiness.
 - `POST /v1/cad/execute` accepts only the existing deterministic cylinder/shaft specification and the exact source template emitted by `Build123dIntentCodeGenerator`. The worker **does not execute the supplied source**. It independently checks the template and constructs only the allowlisted cylinder via build123d in a child process.
 - `POST /v1/cad/validate` requires a BREP and expected SHA-256 digest. The worker verifies the digest and launches the existing read-only OpenCascade validator in a separate process. It returns measured volume, bounding box, dimension checks and its SHA-256 digest.
+- `POST /v1/cad/geometry` accepts digest-bound BREP or STEP bytes for bounded topology inspection or tessellation. It runs the fixed geometry-kernel script in a separate process, with no caller-selected path or command, and returns typed mesh buffers only for tessellation.
 
 The worker caps request size, per-artifact size, total output size, concurrency, and execution time. Validation is performed against the exact BREP bytes and the client rechecks the digest before acceptance and persistence.
 
