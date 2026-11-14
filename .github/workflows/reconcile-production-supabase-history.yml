@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - ".github/workflows/reconcile-production-supabase-history.yml"
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       operation:
@@ -56,7 +59,7 @@ jobs:
           grep -q -- '--dry-run' "$RUNNER_TEMP/push-help.txt"
 
   reconcile:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[reconcile-production-history]'))) }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
@@ -65,8 +68,8 @@ jobs:
       PRODUCTION_PROJECT_REF: mepmogsqhxxasahwhete
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      OPERATION: ${{ inputs.operation }}
-      CONFIRMATION: ${{ inputs.confirmation }}
+      OPERATION: ${{ github.event_name == 'push' && 'repair_production_history' || inputs.operation }}
+      CONFIRMATION: ${{ github.event_name == 'push' && 'RECONCILE_PRODUCTION_HISTORY_TO_REPOSITORY_CANONICAL' || inputs.confirmation }}
 
     steps:
       - uses: actions/checkout@v4
