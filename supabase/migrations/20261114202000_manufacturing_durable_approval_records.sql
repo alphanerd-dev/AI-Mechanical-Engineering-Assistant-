@@ -32,8 +32,8 @@ create index engineering_manufacturing_assessments_project_created_idx
   on public.engineering_manufacturing_assessments(project_id, created_at desc);
 create index engineering_manufacturing_decisions_assessment_idx
   on public.engineering_manufacturing_decisions(project_id, assessment_id, decided_at desc);
-create unique index engineering_manufacturing_one_approval_per_assessment
-  on public.engineering_manufacturing_decisions(assessment_id) where decision = 'APPROVED';
+create unique index engineering_manufacturing_one_decision_per_assessment
+  on public.engineering_manufacturing_decisions(assessment_id);
 
 alter table public.engineering_manufacturing_assessments enable row level security;
 alter table public.engineering_manufacturing_decisions enable row level security;
