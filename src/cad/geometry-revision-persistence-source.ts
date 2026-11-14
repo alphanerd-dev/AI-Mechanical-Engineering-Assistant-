@@ -56,8 +56,11 @@ export function resolveCanonicalSolid(completion: Completion, projectId: string)
   if (!solidResult.ok) return solidResult;
   const solid = solidResult.value;
   const provenance = isRecord(solid.provenance) ? solid.provenance : null;
-  if (!provenance || solid.validationStatus !== "PASS" || !hasTrustedProvider(provenance, completion, projectId)) {
-    return failure("Canonical SOLID provenance is incomplete or does not match its accepted completion.");
+  if (!provenance) return failure("Canonical SOLID provenance is missing.");
+  if (typeof solid.id !== "string" || !solid.id.trim()) return failure("Canonical SOLID artifact id is missing.");
+  if (solid.validationStatus !== "PASS") return failure("Canonical SOLID artifact has not passed validation.");
+  if (!hasTrustedProvider(provenance, completion, projectId)) {
+    return failure("Canonical SOLID provenance does not match its accepted completion.");
   }
   const objectPath = boundStorageObject(solid, completion, projectId);
   if (!objectPath) return failure("Canonical BREP object is not bound to the source completion.");
