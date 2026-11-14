@@ -19,10 +19,13 @@ export async function findPriorRevision(input: {
     .eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
     .eq("source_completion_id", completion.id).eq("canonical_artifact_id", solid.id).maybeSingle();
   if (error) return failure("Geometry revision idempotency lookup failed.", 503);
-  if (data && !matchesExistingRevision(data, digest, solid.objectPath)) {
+  if (data !== null && data !== undefined && !isRecord(data)) {
+    return failure("Geometry revision idempotency lookup returned an invalid record.", 503);
+  }
+  if (isRecord(data) && !matchesExistingRevision(data, digest, solid.objectPath)) {
     return failure("The source completion is already bound to a different canonical geometry digest.");
   }
-  return { ok: true, value: data as Row | null };
+  return { ok: true, value: isRecord(data) ? data : null };
 }
 export async function loadRevisionHead(input: {
   db: Db; projectId: string; modelIdentityId: string;
@@ -129,8 +132,8 @@ export async function commitRevision(input: {
   const { data: reconciled } = await db.from("engineering_geometry_revisions").select("*")
     .eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
     .eq("source_completion_id", completion.id).eq("canonical_artifact_id", solid.id).maybeSingle();
-  if (reconciled && matchesExistingRevision(reconciled, digest, solid.objectPath)) {
-    return { ok: true, value: { revision: reconciled as Row, audit: {}, replay: true } };
+  if (isRecord(reconciled) && matchesExistingRevision(reconciled, digest, solid.objectPath)) {
+    return { ok: true, value: { revision: reconciled, audit: {}, replay: true } };
   }
   return failure("Geometry revision and audit transaction could not be confirmed; reload revision history before retrying.", 503);
 }
