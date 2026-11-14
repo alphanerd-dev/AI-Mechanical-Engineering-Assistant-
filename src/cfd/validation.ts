@@ -447,10 +447,10 @@ export function validateOpenFOAMLaminarChannelResult(
   validateSolverVersion(output, state);
   validateMeshCardinality(request, output, state);
   collectRequiredOutputIssues(output, state);
-  if (state.missing.length) {
-    return incompleteValidation(reynoldsNumber, expectedMassFluxKgS, state);
-  }
 
+  // Validate every independently available result even when another required
+  // field or artifact is missing. This preserves all actionable failure
+  // evidence instead of allowing one missing artifact to mask a bad profile.
   const normalizedProfileRmse = validateVelocityProfile(request, output.velocityProfile, state);
   const massFluxRelativeError = validateIntegratedMassFlow(
     output,
@@ -458,6 +458,14 @@ export function validateOpenFOAMLaminarChannelResult(
     state
   );
   validateSolverResiduals(request, output, state);
+
+  if (state.missing.length) {
+    return {
+      ...incompleteValidation(reynoldsNumber, expectedMassFluxKgS, state),
+      normalizedProfileRmse,
+      massFluxRelativeError
+    };
+  }
 
   return {
     status: state.blockingReasons.length ? "FAIL" : "PASS",
