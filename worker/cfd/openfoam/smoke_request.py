@@ -2,6 +2,7 @@
 """Container-local HTTP smoke test for the real OpenFOAM 14 solver worker."""
 
 import hashlib
+from dataclasses import dataclass
 import json
 import os
 import tempfile
@@ -86,34 +87,37 @@ def execute_benchmark(base_url: str, token: str, request_payload: dict) -> dict:
     return result
 
 
+@dataclass(frozen=True)
+class ArtifactDownloadContext:
+    base_url: str
+    token: str
+    output_dir: Path
+
+
 def download_artifact(
-    base_url: str,
-    token: str,
+    context: ArtifactDownloadContext,
     job_id: str,
     artifact: dict,
-    output_dir: Path
 ) -> None:
     filename = Path(artifact["path"]).name
     request = urllib.request.Request(
-        f"{base_url}/v1/cfd/artifacts/{job_id}/{filename}",
-        headers={"Authorization": f"Bearer {token}"},
+        f"{context.base_url}/v1/cfd/artifacts/{job_id}/{filename}",
+        headers={"Authorization": f"Bearer {context.token}"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         contents = response.read()
     digest = hashlib.sha256(contents).hexdigest()
     assert digest == artifact["sha256"], f"SHA-256 mismatch for {filename}"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / filename).write_bytes(contents)
+    context.output_dir.mkdir(parents=True, exist_ok=True)
+    (context.output_dir / filename).write_bytes(contents)
 
 
 def verify_and_download_artifacts(
-    base_url: str,
-    token: str,
+    context: ArtifactDownloadContext,
     result: dict,
-    output_dir: Path
 ) -> None:
     for artifact in result["artifacts"]:
-        download_artifact(base_url, token, result["jobId"], artifact, output_dir)
+        download_artifact(context, result["jobId"], artifact)
 
 
 def persist_smoke_result(request_payload: dict, result: dict, output_dir: Path) -> None:
@@ -144,7 +148,8 @@ def run_smoke_test(token: str, output_dir: Path) -> None:
             assert_worker_ready(base_url, token)
             assert_authentication_required(base_url, request_payload)
             result = execute_benchmark(base_url, token, request_payload)
-            verify_and_download_artifacts(base_url, token, result, output_dir)
+            download_context = ArtifactDownloadContext(base_url, token, output_dir)
+            verify_and_download_artifacts(download_context, result)
             persist_smoke_result(request_payload, result, output_dir)
         finally:
             server.shutdown()
