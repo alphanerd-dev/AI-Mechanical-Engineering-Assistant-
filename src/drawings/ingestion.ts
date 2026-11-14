@@ -53,9 +53,18 @@ function parseSVGToken(token: string):
   };
 }
 
-function parseSVGAttributes(attributes: string): Array<{ name: string; value: string }> {
+interface SVGAttribute {
+  name: string;
+  value: string;
+}
+
+interface SVGAttributeValidationContext {
+  seenNames: Set<string>;
+}
+
+function parseSVGAttributes(attributes: string): SVGAttribute[] {
   const pattern = /([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  const parsed: Array<{ name: string; value: string }> = [];
+  const parsed: SVGAttribute[] = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(attributes)) !== null) {
     parsed.push({ name: match[1], value: match[2] ?? match[3] ?? "" });
@@ -72,34 +81,38 @@ function isSVGEventAttribute(name: string): boolean {
   return name.toLowerCase().startsWith("on");
 }
 
-function validateSVGAttributeName(name: string, seen: Set<string>): void {
+function validateSVGAttributeName(
+  attribute: SVGAttribute,
+  context: SVGAttributeValidationContext
+): void {
+  const { name } = attribute;
   if (!isAllowedSVGAttributeName(name)) throw new Error("SVG contains a disallowed attribute.");
   if (isSVGEventAttribute(name)) throw new Error("SVG event attributes are not supported.");
-  if (seen.has(name)) throw new Error("SVG contains a duplicate attribute.");
-  seen.add(name);
+  if (context.seenNames.has(name)) throw new Error("SVG contains a duplicate attribute.");
+  context.seenNames.add(name);
 }
 
-function isCanonicalSVGNamespace(name: string, value: string): boolean {
-  return name === "xmlns" && value === "http://www.w3.org/2000/svg";
+function isCanonicalSVGNamespace(attribute: SVGAttribute): boolean {
+  return attribute.name === "xmlns" && attribute.value === "http://www.w3.org/2000/svg";
 }
 
-function validateSVGAttributeSecurity(name: string, value: string): void {
-  if (!isCanonicalSVGNamespace(name, value) &&
-      /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(value)) {
+function validateSVGAttributeSecurity(attribute: SVGAttribute): void {
+  if (!isCanonicalSVGNamespace(attribute) &&
+      /url\s*\(|javascript:|data:|https?:|file:|@import|expression\s*\(/i.test(attribute.value)) {
     throw new Error("SVG contains an external or executable attribute value.");
   }
 }
 
-function validateSVGAttribute(name: string, value: string, seen: Set<string>): void {
-  validateSVGAttributeName(name, seen);
-  validateSVGAttributeSecurity(name, value);
-  validateSVGAttributeValue(name, value);
+function validateSVGAttribute(attribute: SVGAttribute, context: SVGAttributeValidationContext): void {
+  validateSVGAttributeName(attribute, context);
+  validateSVGAttributeSecurity(attribute);
+  validateSVGAttributeValue(attribute);
 }
 
 function validateSVGAttributes(attributes: string): void {
-  const seen = new Set<string>();
+  const context: SVGAttributeValidationContext = { seenNames: new Set<string>() };
   for (const attribute of parseSVGAttributes(attributes)) {
-    validateSVGAttribute(attribute.name, attribute.value, seen);
+    validateSVGAttribute(attribute, context);
   }
 }
 
@@ -111,9 +124,9 @@ function isSupportedSVGPaint(value: string): boolean {
   return /^(none|currentColor|#[0-9a-f]{3,8}|[a-z]{1,20})$/i.test(value);
 }
 
-function validateSVGPaintValue(name: string, value: string): void {
-  if (!isSVGPaintAttribute(name)) return;
-  if (!isSupportedSVGPaint(value)) throw new Error("SVG paint attribute is outside the safe preview subset.");
+function validateSVGPaintValue(attribute: SVGAttribute): void {
+  if (!isSVGPaintAttribute(attribute.name)) return;
+  if (!isSupportedSVGPaint(attribute.value)) throw new Error("SVG paint attribute is outside the safe preview subset.");
 }
 
 const SVG_GEOMETRY_ATTRIBUTES = new Set(["transform", "d"]);
@@ -123,17 +136,17 @@ function isSupportedSVGGeometrySyntax(value: string): boolean {
   return SVG_GEOMETRY_VALUE_PATTERN.test(value);
 }
 
-function validateSVGGeometryValue(name: string, value: string): void {
-  if (!SVG_GEOMETRY_ATTRIBUTES.has(name)) return;
-  if (!isSupportedSVGGeometrySyntax(value)) {
+function validateSVGGeometryValue(attribute: SVGAttribute): void {
+  if (!SVG_GEOMETRY_ATTRIBUTES.has(attribute.name)) return;
+  if (!isSupportedSVGGeometrySyntax(attribute.value)) {
     throw new Error("SVG geometry attribute contains unsupported syntax.");
   }
 }
 
-function validateSVGAttributeValue(name: string, value: string): void {
-  if (value.length > 10000) throw new Error("SVG attribute exceeds the safe preview limit.");
-  validateSVGPaintValue(name, value);
-  validateSVGGeometryValue(name, value);
+function validateSVGAttributeValue(attribute: SVGAttribute): void {
+  if (attribute.value.length > 10000) throw new Error("SVG attribute exceeds the safe preview limit.");
+  validateSVGPaintValue(attribute);
+  validateSVGGeometryValue(attribute);
 }
 
 function validateSVGText(token: string): void {
