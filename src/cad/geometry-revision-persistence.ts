@@ -174,42 +174,48 @@ async function commitRevision(
   return failure("Geometry revision and audit transaction could not be confirmed; reload revision history before retrying.", 503);
 }
 
+class GeometryPersistenceError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+function unwrap<T>(result: Result<T>): T {
+  if (!result.ok) throw new GeometryPersistenceError(result.message, result.status);
+  return result.value;
+}
+
 export async function createGeometryRevisionResponse(input: {
   projectId: string; completionId: string; expectedParentRevisionId: string | null;
   actorId: string; requestId: string;
 }) {
   const db = createServiceRoleClient();
-  const completionResult = await loadCompletion(db, input.projectId, input.completionId);
-  if (!completionResult.ok) return responseError(completionResult.message, completionResult.status);
-  const completion = completionResult.value;
-  const solidResult = resolveCanonicalSolid(completion, input.projectId);
-  if (!solidResult.ok) return responseError(solidResult.message, solidResult.status);
-  const solid = solidResult.value;
-  const digestResult = await verifyStoredBrep(db, solid);
-  if (!digestResult.ok) return responseError(digestResult.message, digestResult.status);
-  const digest = digestResult.value;
-  const priorResult = await findPriorRevision(db, input.projectId, completion, solid, digest);
-  if (!priorResult.ok) return responseError(priorResult.message, priorResult.status);
-  if (priorResult.value) return NextResponse.json({ revision: priorResult.value, persisted: true, idempotentReplay: true }, { status: 200 });
-  const headResult = await loadRevisionHead(db, input.projectId, completion.model_identity_id);
-  if (!headResult.ok) return responseError(headResult.message, headResult.status);
-  if (headResult.value.id !== input.expectedParentRevisionId) {
-    return responseError("STALE_GEOMETRY_REVISION: expected parent is not the current geometry head.", 409);
+  try {
+    const completion = unwrap(await loadCompletion(db, input.projectId, input.completionId));
+    const solid = unwrap(resolveCanonicalSolid(completion, input.projectId));
+    const digest = unwrap(await verifyStoredBrep(db, solid));
+    const prior = unwrap(await findPriorRevision(db, input.projectId, completion, solid, digest));
+    if (prior) return NextResponse.json({ revision: prior, persisted: true, idempotentReplay: true }, { status: 200 });
+    const head = unwrap(await loadRevisionHead(db, input.projectId, completion.model_identity_id));
+    if (head.id !== input.expectedParentRevisionId) {
+      throw new GeometryPersistenceError("STALE_GEOMETRY_REVISION: expected parent is not the current geometry head.", 409);
+    }
+    const payload = buildRevisionPayload({
+      projectId: input.projectId, actorId: input.actorId, requestId: input.requestId,
+      completion, solid, digest, parentId: head.id, revisionNumber: head.number + 1
+    });
+    if (validateGeometryRevisionV1(payload.candidate).status !== "PASS") {
+      throw new GeometryPersistenceError("Geometry revision contract failed server validation.", 422);
+    }
+    const committed = unwrap(await commitRevision(db, payload, input.projectId, completion, solid, digest));
+    if (committed.replay) {
+      return NextResponse.json({ revision: committed.revision, persisted: true, idempotentReplay: true }, { status: 200 });
+    }
+    return NextResponse.json({
+      revision: payload.candidate, persisted: true,
+      audit: { eventId: payload.auditRecord.event_id, chainSequence: committed.audit.chain_sequence }
+    }, { status: 201 });
+  } catch (error) {
+    if (error instanceof GeometryPersistenceError) return responseError(error.message, error.status);
+    return responseError("Geometry revision persistence failed without reporting success.", 503);
   }
-  const payload = buildRevisionPayload({
-    projectId: input.projectId, actorId: input.actorId, requestId: input.requestId,
-    completion, solid, digest, parentId: headResult.value.id, revisionNumber: headResult.value.number + 1
-  });
-  if (validateGeometryRevisionV1(payload.candidate).status !== "PASS") {
-    return responseError("Geometry revision contract failed server validation.", 422);
-  }
-  const committed = await commitRevision(db, payload, input.projectId, completion, solid, digest);
-  if (!committed.ok) return responseError(committed.message, committed.status);
-  if (committed.value.replay) {
-    return NextResponse.json({ revision: committed.value.revision, persisted: true, idempotentReplay: true }, { status: 200 });
-  }
-  return NextResponse.json({
-    revision: payload.candidate, persisted: true,
-    audit: { eventId: payload.auditRecord.event_id, chainSequence: committed.value.audit.chain_sequence }
-  }, { status: 201 });
 }
