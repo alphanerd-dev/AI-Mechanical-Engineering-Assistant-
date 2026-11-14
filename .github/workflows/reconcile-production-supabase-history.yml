@@ -99,9 +99,9 @@ jobs:
           mkdir -p migration-history-evidence
           supabase migration list --db-url "$SUPABASE_DB_URL" \
             > migration-history-evidence/migration-list-before.txt 2>&1
-          supabase db dump --linked --schema public \
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public \
             --file migration-history-evidence/public-schema-before.sql \
-            --password "$SUPABASE_DB_PASSWORD"
+
 
           # The production schema effect must already exist. This workflow repairs
           # migration metadata only; it never replays the UPDATE or changes user rows.
@@ -221,9 +221,9 @@ jobs:
           set -euo pipefail
           supabase migration list --db-url "$SUPABASE_DB_URL" \
             > migration-history-evidence/migration-list-final.txt 2>&1
-          supabase db dump --linked --schema public \
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public \
             --file migration-history-evidence/public-schema-final.sql \
-            --password "$SUPABASE_DB_PASSWORD"
+
           grep -q 'chat_title' migration-history-evidence/public-schema-final.sql
           grep -q 'message_count' migration-history-evidence/public-schema-final.sql
           grep -q 'engineering_chat_sessions_project_updated_idx' migration-history-evidence/public-schema-final.sql

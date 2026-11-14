@@ -88,9 +88,9 @@ jobs:
           mkdir -p e2e-migration-history-evidence
           supabase migration list --db-url "$SUPABASE_DB_URL" \
             > e2e-migration-history-evidence/migration-list-before.txt 2>&1
-          supabase db dump --linked --schema public \
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public \
             --file e2e-migration-history-evidence/public-schema-before.sql \
-            --password "$SUPABASE_DB_PASSWORD"
+
 
           # The final audited schema must already contain the production-only
           # CAD FK indexes and no point-cloud tables before metadata reconciliation.
@@ -219,9 +219,9 @@ jobs:
           set -euo pipefail
           supabase migration list --db-url "$SUPABASE_DB_URL" \
             > e2e-migration-history-evidence/migration-list-final.txt 2>&1 || true
-          supabase db dump --linked --schema public \
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public \
             --file e2e-migration-history-evidence/public-schema-final.sql \
-            --password "$SUPABASE_DB_PASSWORD" || true
+ || true
 
       - uses: actions/upload-artifact@v4
         if: always()
