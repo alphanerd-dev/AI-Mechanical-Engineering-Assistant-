@@ -130,8 +130,9 @@ function hasIncompleteInput(evaluations: ReadinessEvaluations): boolean {
 }
 
 function deriveReadinessStatus(evaluations: ReadinessEvaluations): ManufacturingReadinessStatus {
-  if (hasExplicitFailure(evaluations) || evaluations.release.status === "BLOCKED") return "BLOCKED";
+  if (hasExplicitFailure(evaluations)) return "BLOCKED";
   if (hasIncompleteInput(evaluations)) return "INCOMPLETE";
+  if (evaluations.release.status === "BLOCKED") return "BLOCKED";
   return "READY_FOR_HUMAN_APPROVAL";
 }
 
