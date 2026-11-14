@@ -10,7 +10,7 @@ describe("privacy-preserving compromised password screening", () => {
         "User-Agent": "AI-Mechanical-Engineering-Assistant/1.0",
       });
       expect(String(input)).not.toContain("password");
-      return new Response("003E3C3B5A6D4A3A2A2F0F3E4A8A5E3D9A7:5\r\n", { status: 200 });
+      return new Response("61E4C9B93F3F0682250B6CF8331B7EE68FD8:5\r\n", { status: 200 });
     }) as unknown as typeof fetch;
 
     const result = await checkPasswordBreach("password", fetcher);
@@ -19,7 +19,7 @@ describe("privacy-preserving compromised password screening", () => {
 
   it("treats padded zero-count entries as safe", async () => {
     const fetcher = vi.fn(async () =>
-      new Response("003E3C3B5A6D4A3A2A2F0F3E4A8A5E3D9A7:0\r\n", { status: 200 }),
+      new Response("61E4C9B93F3F0682250B6CF8331B7EE68FD8:0\r\n", { status: 200 }),
     ) as unknown as typeof fetch;
 
     expect(await checkPasswordBreach("password", fetcher)).toEqual({ status: "safe" });
