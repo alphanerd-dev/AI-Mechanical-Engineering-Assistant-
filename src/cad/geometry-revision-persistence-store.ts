@@ -118,6 +118,11 @@ function validCommitReceipt(data: unknown, input: RevisionPayload): data is Row 
   if (!matchesRevisionReceipt(data, input)) return false;
   return matchesAuditReceipt(data, input);
 }
+function isStaleRevisionConflict(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  return error.code === "40001" ||
+    (typeof error.message === "string" && error.message.includes("STALE_GEOMETRY_REVISION"));
+}
 export async function commitRevision(input: {
   db: Db; payload: RevisionPayload; projectId: string; completion: Completion;
   solid: CanonicalSolid; digest: string;
@@ -128,6 +133,11 @@ export async function commitRevision(input: {
   });
   if (!error && validCommitReceipt(data, payload)) {
     return { ok: true, value: { revision: data.revision as Row, audit: data.audit as Row, replay: false } };
+  }
+  // The database trigger serializes writes on the model row. A competing writer
+  // can advance the head after our read; surface that expected race as HTTP 409.
+  if (isStaleRevisionConflict(error)) {
+    return failure("STALE_GEOMETRY_REVISION: another geometry revision advanced the model head. Reload revision history and retry.", 409);
   }
   const { data: reconciled } = await db.from("engineering_geometry_revisions").select("*")
     .eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
