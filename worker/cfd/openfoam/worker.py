@@ -251,6 +251,48 @@ def send_artifact_response(handler: "Handler") -> None:
     handler._send_bytes(200, artifact_path.read_bytes(), media_type)
 
 
+def read_manifest_body(handler: "Handler") -> dict[str, Any] | None:
+    try:
+        length = int(handler.headers.get("Content-Length", "0"))
+    except ValueError:
+        handler._send_json(400, {"error": "Content-Length must be an integer."})
+        return None
+    if length <= 0 or length > MAX_BODY_BYTES:
+        handler._send_json(413, {"error": "Request body must be between 1 byte and 16 KiB."})
+        return None
+    try:
+        data = json.loads(handler.rfile.read(length))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        handler._send_json(400, {"error": "Request body must contain valid JSON."})
+        return None
+    if not isinstance(data, dict):
+        handler._send_json(400, {"error": "CFD manifest must be a JSON object."})
+        return None
+    return data
+
+
+def execute_manifest_request(handler: "Handler", data: dict[str, Any]) -> None:
+    try:
+        handler._send_json(200, execute_case(data))
+    except WorkerTimeout as error:
+        handler._send_json(504, {"error": str(error)})
+    except WorkerError as error:
+        handler._send_json(422, {"error": str(error)})
+    except Exception:
+        handler._send_json(500, {"error": "OpenFOAM worker failed unexpectedly."})
+
+
+def process_manifest_request(handler: "Handler") -> None:
+    data = read_manifest_body(handler)
+    if data is None:
+        return
+    errors = validate_request(data)
+    if errors:
+        handler._send_json(400, {"error": "Invalid CFD manifest.", "details": errors})
+        return
+    execute_manifest_request(handler, data)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "OpenFOAM14Worker/0.1"
 
@@ -292,24 +334,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._authorized():
             self._send_json(401, {"error": "Unauthorized."})
             return
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-            if length <= 0 or length > MAX_BODY_BYTES:
-                self._send_json(413, {"error": "Request body must be between 1 byte and 16 KiB."})
-                return
-            data = json.loads(self.rfile.read(length))
-            errors = validate_request(data)
-            if errors:
-                self._send_json(400, {"error": "Invalid CFD manifest.", "details": errors})
-                return
-            result = execute_case(data)
-            self._send_json(200, result)
-        except WorkerTimeout as error:
-            self._send_json(504, {"error": str(error)})
-        except WorkerError as error:
-            self._send_json(422, {"error": str(error)})
-        except Exception:
-            self._send_json(500, {"error": "OpenFOAM worker failed unexpectedly."})
+        process_manifest_request(self)
 
     def log_message(self, format_string: str, *args: Any) -> None:
         print("%s - %s" % (self.address_string(), format_string % args), flush=True)
