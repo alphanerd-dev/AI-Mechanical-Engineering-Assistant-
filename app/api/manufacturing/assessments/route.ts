@@ -90,23 +90,28 @@ export async function POST(request: Request) {
   }
 }
 
+async function readAssessmentHistory(projectId: string, releaseId: string) {
+  const db = createServiceRoleClient();
+  const { data: assessment, error } = await db.from("engineering_manufacturing_assessments").select("*")
+    .eq("project_id", projectId).eq("release_id", releaseId).maybeSingle();
+  if (error) return fail("Manufacturing assessment history is unavailable.", 503);
+  if (!assessment) return fail("Manufacturing assessment was not found.", 404);
+  const { data: decisions, error: decisionError } = await db.from("engineering_manufacturing_decisions").select("*")
+    .eq("project_id", projectId).eq("assessment_id", assessment.id).order("decided_at", { ascending: true });
+  if (decisionError || !Array.isArray(decisions)) return fail("Manufacturing decision history is unavailable.", 503);
+  return NextResponse.json({ assessment, decisions, decisionStatus: decisions.length ? decisions[decisions.length - 1].decision : "PENDING" });
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const projectId = url.searchParams.get("projectId");
     const releaseId = url.searchParams.get("releaseId");
-    if (!isUuid(projectId) || !releaseId) return fail("Valid projectId and releaseId query parameters are required.", 400);
+    if (!isUuid(projectId)) return fail("A valid projectId query parameter is required.", 400);
+    if (!releaseId) return fail("A releaseId query parameter is required.", 400);
     const authorization = await authorizeSupabaseRequest("EVIDENCE.READ", projectId, { requestId: randomUUID() });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
-    const db = createServiceRoleClient();
-    const { data: assessment, error } = await db.from("engineering_manufacturing_assessments").select("*")
-      .eq("project_id", projectId).eq("release_id", releaseId).maybeSingle();
-    if (error) return fail("Manufacturing assessment history is unavailable.", 503);
-    if (!assessment) return fail("Manufacturing assessment was not found.", 404);
-    const { data: decisions, error: decisionError } = await db.from("engineering_manufacturing_decisions").select("*")
-      .eq("project_id", projectId).eq("assessment_id", assessment.id).order("decided_at", { ascending: true });
-    if (decisionError || !Array.isArray(decisions)) return fail("Manufacturing decision history is unavailable.", 503);
-    return NextResponse.json({ assessment, decisions, decisionStatus: decisions.length ? decisions[decisions.length - 1].decision : "PENDING" });
+    return readAssessmentHistory(projectId, releaseId);
   } catch {
     return fail("Manufacturing assessment history could not be read.", 503);
   }
