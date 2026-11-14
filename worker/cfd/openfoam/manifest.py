@@ -1,4 +1,4 @@
-"""Strict request validation and deterministic OpenFOAM case generation."""
+"""Strict validation for the bounded OpenFOAM request contract."""
 
 from __future__ import annotations
 
@@ -85,6 +85,15 @@ def validate_mesh_cell_count(mesh: Any) -> list[str]:
 def validate_mesh_settings(data: dict[str, Any]) -> list[str]:
     mesh = data.get("mesh")
     return validate_mesh_keys(mesh) + validate_mesh_cell_count(mesh)
+
+def missing_solver_errors() -> list[str]:
+    return [
+        "solver must be an object.",
+        "solver.maxIterations must be an integer between 50 and 10000.",
+        "solver.residualTolerance must be between 1e-10 and 1e-3.",
+        "solver.timeoutSeconds must be an integer between 5 and 600.",
+    ]
+
 
 def validate_solver_keys(solver: dict[str, Any]) -> list[str]:
     if set(solver) - {"maxIterations", "residualTolerance", "timeoutSeconds"}:
