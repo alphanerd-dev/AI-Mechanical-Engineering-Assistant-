@@ -91,6 +91,11 @@ interface ProvenanceContextInput {
   context: CADArtifactManifestContext;
 }
 
+function validateProviderVersion(value: unknown): string[] {
+  if (value === undefined) return [];
+  return nonEmptyString(value) ? [] : ["Host-authored CAD provider version must be non-empty when supplied."];
+}
+
 function validateProvenanceContext(input: ProvenanceContextInput): string[] {
   const { projectId, execution, context } = input;
   const errors = validateCADModelIdentity(context.modelIdentity, projectId).errors;
@@ -102,7 +107,7 @@ function validateProvenanceContext(input: ProvenanceContextInput): string[] {
     errors.push("CAD execution timeoutMs must be finite and positive.");
   }
   if (!nonEmptyString(context.providerId)) errors.push("Host-authored CAD provider id is required.");
-  if (context.providerVersion !== undefined && !nonEmptyString(context.providerVersion)) errors.push("Host-authored CAD provider version must be non-empty when supplied.");
+  errors.push(...validateProviderVersion(context.providerVersion));
   if (request?.backend !== execution.backend) {
     errors.push("CAD execution request backend does not match the worker result backend.");
   }
