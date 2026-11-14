@@ -19,7 +19,8 @@ from urllib.parse import unquote, urlsplit
 
 from artifacts import latest_time_directory, persist_case_artifacts, prune_artifacts
 from errors import WorkerError, WorkerTimeout
-from manifest import validate_request, write_case
+from case_builder import write_case
+from manifest import validate_request
 from solver import (
     detect_openfoam_version as detect_runtime_version,
     final_residuals,
