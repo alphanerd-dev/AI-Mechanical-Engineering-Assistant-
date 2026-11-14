@@ -5,10 +5,13 @@ import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { buildDurableAuditRecord } from "../../../../src/audit/durable-store";
 import { parseManufacturingDecisionRequest } from "../../../../lib/manufacturing/decision-request-schema";
+import type { ManufacturingDecisionRequest } from "../../../../lib/manufacturing/decision-request-schema";
 
 type Row = Record<string, unknown>;
-type DecisionInput = ReturnType<typeof parseManufacturingDecisionRequest> extends infer T ? Exclude<T, null> : never;
-type Result<T> = { ok: true; value: T } | { ok: false; message: string; status: number };
+type DecisionInput = ManufacturingDecisionRequest;
+function isRecord(value: unknown): value is Row {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
