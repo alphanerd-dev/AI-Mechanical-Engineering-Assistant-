@@ -41,7 +41,6 @@ ARTIFACT_NAMES = {
     "pressure-field",
     "solver.log",
 }
-ARTIFACT_NAME_TO_FILE = {name: name for name in ARTIFACT_NAMES}
 WORKER_TOKEN = os.environ.get("OPENFOAM_WORKER_TOKEN", "")
 FOAM_VERSION = "unverified"
 
@@ -202,8 +201,20 @@ def parse_artifact_request(path: str) -> tuple[str, str] | None:
     return job_id, filename
 
 
+def resolve_artifact_name(filename: str) -> str | None:
+    if filename == "mesh.tar.gz":
+        return "mesh.tar.gz"
+    if filename == "velocity-field.tar.gz":
+        return "velocity-field.tar.gz"
+    if filename == "pressure-field":
+        return "pressure-field"
+    if filename == "solver.log":
+        return "solver.log"
+    return None
+
+
 def resolve_artifact_file(artifact_root: Path, job_id: str, filename: str) -> Path | None:
-    safe_filename = ARTIFACT_NAME_TO_FILE.get(filename)
+    safe_filename = resolve_artifact_name(filename)
     if safe_filename is None:
         return None
     root = artifact_root.resolve()
