@@ -1,6 +1,6 @@
 # G2 Production and E2E Schema Audit — 13 November 2026
 
-**Status:** Read-only production/E2E schema comparison complete; G2 migration remains blocked pending migration-ledger reconciliation and explicit migration approval.
+**Status:** Production and E2E migration ledgers reconciled to canonical repository history; M2.2/M2.6 additive migration applied and verified in both environments; G2 schema rehearsal is in progress.
 **Environments:** Production and E2E Supabase projects, PostgreSQL 17.11.0.003 (GA).
 **Method:** Supabase project metadata, both migration ledgers, `information_schema`, `pg_constraint`, `pg_indexes`, `pg_policies`, Storage bucket metadata and aggregate referential-integrity checks. No application rows, artifact bytes or Storage object contents were read. No database writes, migrations or project-setting changes were performed.
 
@@ -116,7 +116,15 @@ For revision allocation, lock the `engineering_cad_models` row with `SELECT ... 
 
 A content-addressed object path such as `{project_id}/{model_id}/revisions/{geometry_revision_id}/{sha256}.brep` is compatible with the current Storage project-prefix policy and avoids reliance on disabled object versioning. Exact extension and MIME policy remain subject to the canonical artifact validator.
 
-## 6. Migration ledger discrepancy — blocking gate
+## 6. Migration ledger reconciliation — completed
+
+The original discrepancy was resolved with owner authorization using metadata-only ledger changes after confirming the schema effects already existed. The production and E2E ledgers now contain the 17 canonical repository versions. The E2E-only point-cloud history entries were retired only after confirming that no point-cloud tables remained. The production-only CAD index migration was reconciled as applied only after confirming its indexes existed.
+
+The original non-canonical timestamp for `engineering_chat_session_list_metadata` had no corresponding checked-in migration file or Git commit path in the repository. The repository and remote history do not preserve enough deployment metadata to prove why that timestamp was generated; the root cause is therefore **not recoverable from available records**. The exact migration name and resulting schema effect were verified, and the ledger was normalized to the checked-in canonical version.
+
+The M2.2/M2.6 migration `20261113210000_m2_display_derivatives_and_drawings` was rehearsed on E2E, corrected before application when the first attempt caught a dollar-quote syntax error, and then applied to both E2E and production. Both environments now have the two additive tables, completion composite index, derivative indexes, revision guard function/trigger and member-scoped read policies. No application rows or geometry bytes were changed.
+
+## 7. Original migration-ledger discrepancy — historical record
 
 The production migration ledger contains 17 entries; E2E contains 18. Eleven shared migration names have different version timestamps. The latest matching migration names are recorded as:
 
