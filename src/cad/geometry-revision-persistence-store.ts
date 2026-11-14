@@ -99,13 +99,21 @@ export function buildRevisionPayload(input: {
   return { candidate, revisionRecord, auditRecord, revisionId };
 }
 
-function validCommitReceipt(data: unknown, input: RevisionPayload): data is Row {
-  if (!isRecord(data)) return false;
-  if (!isRecord(data.revision)) return false;
+function isCommitReceiptShape(data: unknown): data is Row {
+  return isRecord(data) && isRecord(data.revision) && isRecord(data.audit);
+}
+function matchesRevisionReceipt(data: Row, input: RevisionPayload): boolean {
+  return isRecord(data.revision) && data.revision.id === input.revisionId;
+}
+function matchesAuditReceipt(data: Row, input: RevisionPayload): boolean {
   if (!isRecord(data.audit)) return false;
-  if (data.revision.id !== input.revisionId) return false;
   if (data.audit.event_id !== input.auditRecord.event_id) return false;
   return data.audit.event_hash === input.auditRecord.event_hash;
+}
+function validCommitReceipt(data: unknown, input: RevisionPayload): data is Row {
+  if (!isCommitReceiptShape(data)) return false;
+  if (!matchesRevisionReceipt(data, input)) return false;
+  return matchesAuditReceipt(data, input);
 }
 export async function commitRevision(input: {
   db: Db; payload: RevisionPayload; projectId: string; completion: Completion;
