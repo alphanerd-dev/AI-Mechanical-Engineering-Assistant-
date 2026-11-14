@@ -41,6 +41,7 @@ ARTIFACT_NAMES = {
     "pressure-field",
     "solver.log",
 }
+ARTIFACT_NAME_TO_FILE = {name: name for name in ARTIFACT_NAMES}
 WORKER_TOKEN = os.environ.get("OPENFOAM_WORKER_TOKEN", "")
 FOAM_VERSION = "unverified"
 
@@ -202,9 +203,22 @@ def parse_artifact_request(path: str) -> tuple[str, str] | None:
 
 
 def resolve_artifact_file(artifact_root: Path, job_id: str, filename: str) -> Path | None:
-    artifact_path = (artifact_root / job_id / filename).resolve()
-    expected_parent = (artifact_root / job_id).resolve()
-    if artifact_path.parent != expected_parent or not artifact_path.is_file():
+    safe_filename = ARTIFACT_NAME_TO_FILE.get(filename)
+    if safe_filename is None:
+        return None
+    root = artifact_root.resolve()
+    artifact_dir = next(
+        (
+            candidate
+            for candidate in root.iterdir()
+            if candidate.name == job_id and candidate.is_dir() and candidate.resolve().parent == root
+        ),
+        None,
+    )
+    if artifact_dir is None:
+        return None
+    artifact_path = artifact_dir / safe_filename
+    if artifact_path.resolve().parent != artifact_dir.resolve() or not artifact_path.is_file():
         return None
     return artifact_path
 
