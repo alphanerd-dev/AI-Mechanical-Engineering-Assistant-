@@ -45,6 +45,26 @@ describe("manufacturing durable record request schemas", () => {
     expect(parseManufacturingReadinessRequest(unsupportedRule)).toBeNull();
   });
 
+  it("rejects physically impossible geometry metrics and DFM limits at the API boundary", () => {
+    const negativeVolume = validAssessment();
+    (negativeVolume.metrics as Record<string, unknown>).volumeMm3 = -1;
+    expect(parseManufacturingReadinessRequest(negativeVolume)).toBeNull();
+
+    const fractionalSolidCount = validAssessment();
+    (fractionalSolidCount.metrics as Record<string, unknown>).solidCount = 1.5;
+    expect(parseManufacturingReadinessRequest(fractionalSolidCount)).toBeNull();
+
+    const impossibleOverhang = validAssessment();
+    const overhangRules = impossibleOverhang.dfmRules as unknown as Array<Record<string, unknown>>;
+    overhangRules[0] = { kind: "MAX_OVERHANG_DEG", maximumDeg: 270 };
+    expect(parseManufacturingReadinessRequest(impossibleOverhang)).toBeNull();
+
+    const negativeWallRule = validAssessment();
+    const wallRules = negativeWallRule.dfmRules as unknown as Array<Record<string, unknown>>;
+    wallRules[0] = { kind: "MIN_WALL_THICKNESS_MM", minimumMm: -0.5 };
+    expect(parseManufacturingReadinessRequest(negativeWallRule)).toBeNull();
+  });
+
   it("accepts only explicit human decisions with valid project and assessment identities", () => {
     expect(parseManufacturingDecisionRequest({
       projectId, assessmentId: "22222222-2222-4222-8222-222222222222",
