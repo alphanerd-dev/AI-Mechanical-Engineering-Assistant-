@@ -51,6 +51,13 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
         self.assertTrue(any("Reynolds number" in error for error in errors))
         self.assertTrue(any("cellsVertical" in error for error in errors))
 
+    def test_rejects_missing_solver_configuration(self):
+        invalid = {**self.request}
+        invalid.pop("solver")
+        errors = validate_request(invalid)
+        self.assertTrue(any("solver must be an object" in error for error in errors))
+        self.assertTrue(any("maxIterations" in error for error in errors))
+
     def test_case_generation_uses_bounded_body_force_and_half_channel_mesh(self):
         with tempfile.TemporaryDirectory() as temporary:
             case_dir = Path(temporary) / "case"
