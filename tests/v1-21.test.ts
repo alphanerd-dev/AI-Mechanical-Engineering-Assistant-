@@ -168,6 +168,15 @@ describe("V1.21 manufacturing readiness workflow",()=>{
     expect(result.checks.inspection).toBe(false);
   });
 
+  it("keeps an incomplete process plan classified as INCOMPLETE",()=>{
+    const result=assessManufacturingReadiness(readinessRequest({
+      processPlan:{...plan,operations:[]}
+    }));
+    expect(result.status).toBe("INCOMPLETE");
+    expect(result.checks.processPlan).toBe(false);
+    expect(result.evaluations.release.status).toBe("BLOCKED");
+  });
+
   it("returns incomplete when a required DFM measurement is absent",()=>{
     const result=assessManufacturingReadiness(readinessRequest({
       metrics:{...metrics,minWallThicknessMm:undefined}
