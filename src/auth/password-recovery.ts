@@ -4,35 +4,50 @@ export type PasswordUpdateValidation =
   | { ok: true; password: string }
   | { ok: false; reason: "missing-fields" | "password-policy" | "password-mismatch" };
 
+function isMissingPasswordField(value: unknown): boolean {
+  if (typeof value !== "string") return true;
+  return value.length === 0;
+}
+
+function getMissingFieldsValidation(
+  password: unknown,
+  confirmation: unknown,
+): PasswordUpdateValidation | null {
+  if (isMissingPasswordField(password)) {
+    return { ok: false, reason: "missing-fields" };
+  }
+  if (isMissingPasswordField(confirmation)) {
+    return { ok: false, reason: "missing-fields" };
+  }
+  return null;
+}
+
+function getPasswordPolicyValidation(
+  password: string,
+  confirmation: string,
+): PasswordUpdateValidation | null {
+  if (password.length < MINIMUM_PASSWORD_LENGTH) {
+    return { ok: false, reason: "password-policy" };
+  }
+  if (password !== confirmation) {
+    return { ok: false, reason: "password-mismatch" };
+  }
+  return null;
+}
+
 export function validatePasswordUpdate(
   password: unknown,
   confirmation: unknown,
 ): PasswordUpdateValidation {
-  if (typeof password !== "string") {
-    return { ok: false, reason: "missing-fields" };
-  }
+  const missingFields = getMissingFieldsValidation(password, confirmation);
+  if (missingFields) return missingFields;
 
-  if (typeof confirmation !== "string") {
-    return { ok: false, reason: "missing-fields" };
-  }
-
-  if (password.length === 0) {
-    return { ok: false, reason: "missing-fields" };
-  }
-
-  if (confirmation.length === 0) {
-    return { ok: false, reason: "missing-fields" };
-  }
-
-  if (password.length < MINIMUM_PASSWORD_LENGTH) {
-    return { ok: false, reason: "password-policy" };
-  }
-
-  if (password !== confirmation) {
-    return { ok: false, reason: "password-mismatch" };
-  }
-
-  return { ok: true, password };
+  const passwordValue = password as string;
+  const confirmationValue = confirmation as string;
+  return getPasswordPolicyValidation(passwordValue, confirmationValue) ?? {
+    ok: true,
+    password: passwordValue,
+  };
 }
 
 /**
