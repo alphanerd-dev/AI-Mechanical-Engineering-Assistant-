@@ -5,76 +5,16 @@ import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { buildDurableAuditRecord } from "../../../../src/audit/durable-store";
 import { assessManufacturingReadiness } from "../../../../src/manufacturing/readiness";
+import { parseManufacturingReadinessRequest } from "../../../../lib/manufacturing/readiness-request-schema";
 import type { ManufacturingReadinessRequest } from "../../../../src/manufacturing/readiness";
 
 type Row = Record<string, unknown>;
-type AssessmentInput = ManufacturingReadinessRequest & { releaseId: string; processPlan: Row; bom: Row; requiredArtifactIds: string[] };
 type Result<T> = { ok: true; value: T } | { ok: false; message: string; status: number };
 function isRecord(value: unknown): value is Row {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string" && item.trim().length > 0);
-}
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-function isPlanOperation(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return [
-    typeof value.id === "string", typeof value.name === "string",
-    typeof value.sequence === "number", typeof value.process === "string",
-    isStringArray(value.acceptanceCriteria),
-    value.predecessorIds === undefined || isStringArray(value.predecessorIds)
-  ].every(Boolean);
-}
-function isProcessPlan(value: unknown): value is Row {
-  if (!isRecord(value)) return false;
-  const valid = [
-    isUuid(value.projectId), typeof value.id === "string", typeof value.name === "string",
-    Array.isArray(value.operations), isStringArray(value.partArtifactIds),
-    isStringArray(value.requirementIds), isStringArray(value.assumptions),
-    ["DRAFT","READY","BLOCKED","RELEASED"].includes(String(value.status))
-  ].every(Boolean);
-  return valid && (value.operations as unknown[]).every(isPlanOperation);
-}
-function isBOMComponent(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return typeof value.partNumber === "string" && typeof value.name === "string" &&
-    typeof value.revision === "string" && typeof value.quantity === "number" &&
-    typeof value.unit === "string";
-}
-function isBOMInput(value: unknown): value is Row {
-  if (!isRecord(value)) return false;
-  return typeof value.id === "string" && typeof value.projectId === "string" &&
-    typeof value.revision === "string" && Array.isArray(value.components) &&
-    value.components.every(isBOMComponent);
-}
-function isInspectionInput(value: unknown): boolean {
-  if (!isRecord(value) || !isRecord(value.criterion) || !isRecord(value.result)) return false;
-  const criterion = value.criterion;
-  const result = value.result;
-  return [
-    typeof criterion.id === "string", typeof criterion.name === "string",
-    typeof criterion.characteristic === "string", typeof criterion.unit === "string",
-    typeof criterion.method === "string", typeof result.id === "string",
-    typeof result.criterionId === "string"
-  ].every(Boolean);
-}
-function isSupportedDfmRule(value: unknown): boolean {
-  return isRecord(value) &&
-    ["MIN_WALL_THICKNESS_MM","MAX_OVERHANG_DEG","REQUIRE_WATERTIGHT","MAX_ENVELOPE_MM","MIN_SOLID_COUNT"].includes(String(value.kind));
-}
-function isReadinessRequest(value: unknown): value is AssessmentInput {
-  if (!isRecord(value)) return false;
-  return [
-    typeof value.releaseId === "string" && value.releaseId.trim().length > 0,
-    isRecord(value.metrics),
-    Array.isArray(value.dfmRules) && value.dfmRules.every(isSupportedDfmRule),
-    ["MACHINING","ADDITIVE","SHEET_METAL","WELDING","CASTING","FORMING","ASSEMBLY"].includes(String(value.process)),
-    isProcessPlan(value.processPlan), isBOMInput(value.bom),
-    isStringArray(value.requiredArtifactIds), isInspectionInput(value.inspection)
-  ].every(Boolean);
 }
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -90,7 +30,7 @@ function failed<T>(message: string, status: number): Result<T> {
 }
 
 async function createAssessment(input: {
-  body: AssessmentInput; actorId: string; requestId: string;
+  body: ManufacturingReadinessRequest; actorId: string; requestId: string;
 }) {
   const { body, actorId, requestId } = input;
   const projectId = body.processPlan.projectId;
@@ -137,8 +77,8 @@ async function createAssessment(input: {
 export async function POST(request: Request) {
   const requestId = randomUUID();
   try {
-    const body: unknown = await request.json();
-    if (!isReadinessRequest(body)) return fail("Manufacturing readiness input is incomplete or malformed.", 400);
+    const body = parseManufacturingReadinessRequest(await request.json());
+    if (!body) return fail("Manufacturing readiness input is incomplete or malformed.", 400);
     const projectId = body.processPlan.projectId;
     const authorization = await authorizeSupabaseRequest("EVIDENCE.WRITE", projectId, { requestId });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
