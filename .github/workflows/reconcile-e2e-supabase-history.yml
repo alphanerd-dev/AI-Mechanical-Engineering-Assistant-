@@ -89,8 +89,7 @@ jobs:
           supabase migration list --db-url "$SUPABASE_DB_URL" \
             > e2e-migration-history-evidence/migration-list-before.txt 2>&1
           supabase db dump --db-url "$SUPABASE_DB_URL" --schema public \
-            --file e2e-migration-history-evidence/public-schema-before.sql \
-
+            --file e2e-migration-history-evidence/public-schema-before.sql
 
           # The final audited schema must already contain the production-only
           # CAD FK indexes and no point-cloud tables before metadata reconciliation.
