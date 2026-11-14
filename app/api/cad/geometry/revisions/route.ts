@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       .select("id, project_id, model_identity_id, execution_id, status, artifact_records, evidence_records, validation_receipt, storage_objects, created_by")
       .eq("id", completionId).eq("project_id", projectId).maybeSingle();
     if (completionError || !completion) return fail("Accepted CAD completion was not found in this project.", 404);
-    if (completion.status !== "ACCEPTED" || completion.created_by !== actorId ||
+    if (completion.status !== "ACCEPTED" ||
         typeof completion.model_identity_id !== "string" || typeof completion.execution_id !== "string" ||
         !Array.isArray(completion.evidence_records) || completion.evidence_records.length === 0 ||
         !isRecord(completion.validation_receipt) || !Array.isArray(completion.artifact_records) ||
@@ -70,6 +70,16 @@ export async function POST(request: Request) {
     if (bytes.length < 1 || bytes.length > 100 * 1024 * 1024) return fail("Canonical BREP artifact size is outside the supported limit.", 413);
     const artifactSha256 = createHash("sha256").update(bytes).digest("hex");
     if (provenance.artifactSha256 !== artifactSha256) return fail("Server-computed BREP digest does not match accepted completion provenance.", 409);
+    const { data: priorRevision, error: priorRevisionError } = await db.from("engineering_geometry_revisions")
+      .select("*").eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
+      .eq("source_completion_id", completionId).eq("canonical_artifact_id", String(solid.id)).maybeSingle();
+    if (priorRevisionError) return fail("Geometry revision idempotency lookup failed.", 503);
+    if (priorRevision) {
+      if (priorRevision.canonical_artifact_sha256 !== artifactSha256 || priorRevision.storage_object_name !== objectPath) {
+        return fail("The source completion is already bound to a different canonical geometry digest.", 409);
+      }
+      return NextResponse.json({ revision: priorRevision, persisted: true, idempotentReplay: true }, { status: 200 });
+    }
     const { data: heads, error: headError } = await db.from("engineering_geometry_revisions")
       .select("id, revision_number").eq("project_id", projectId)
       .eq("model_identity_id", completion.model_identity_id)
@@ -117,6 +127,15 @@ export async function POST(request: Request) {
       p_revision: revisionRecord, p_audit_record: auditRecord
     });
     if (commitError || !isRecord(committed) || !isRecord(committed.revision) || !isRecord(committed.audit)) {
+      // A concurrent retry may have won the unique source-artifact race. Reconcile
+      // before returning failure; never append a second audit event for the same revision.
+      const { data: reconciled } = await db.from("engineering_geometry_revisions")
+        .select("*").eq("project_id", projectId).eq("model_identity_id", completion.model_identity_id)
+        .eq("source_completion_id", completionId).eq("canonical_artifact_id", String(solid.id)).maybeSingle();
+      if (reconciled && reconciled.canonical_artifact_sha256 === artifactSha256 &&
+          reconciled.storage_object_name === objectPath) {
+        return NextResponse.json({ revision: reconciled, persisted: true, idempotentReplay: true }, { status: 200 });
+      }
       return fail("Geometry revision and audit transaction could not be confirmed; reload revision history before retrying.", 503);
     }
     if (committed.revision.id !== revisionId || committed.audit.event_id !== auditRecord.event_id ||
