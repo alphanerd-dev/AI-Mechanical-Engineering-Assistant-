@@ -64,6 +64,12 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
             self.assertIn("transform translational;", block_mesh)
             self.assertIn("type symmetryPlane;", block_mesh)
             self.assertIn("(1 20 1)", block_mesh)
+            functions = (case_dir / "system" / "functions").read_text()
+            self.assertIn("type probes;", functions)
+            self.assertIn("libs (sampling);", functions)
+            self.assertIn("fields (U);", functions)
+            self.assertIn("probeLocations", functions)
+            self.assertNotIn("#includeFunc probes", functions)
 
     def test_integrated_mass_flow_matches_plane_poiseuille_reference(self):
         height = self.request["heightM"]
