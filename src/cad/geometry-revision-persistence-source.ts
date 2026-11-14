@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { CanonicalSolid, Completion, GeometryRevisionDatabase, Result, Row, failure, isRecord } from "./geometry-revision-persistence-types";
+import { failure, isRecord } from "./geometry-revision-persistence-types";
+import type { CanonicalSolid, Completion, GeometryRevisionDatabase, Result, Row } from "./geometry-revision-persistence-types";
 
 type Db = GeometryRevisionDatabase;
 
