@@ -178,17 +178,31 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
   ]);
 }
 
+function validateChannelParameters(channelHeightM: number, meanVelocityMps: number): void {
+  if (!finitePositive(channelHeightM)) {
+    throw new Error("Channel height must be finite and positive.");
+  }
+  if (!finitePositive(meanVelocityMps)) {
+    throw new Error("Mean velocity must be finite and positive.");
+  }
+}
+
+function validateProfileCoordinate(yM: number, channelHeightM: number): void {
+  if (!Number.isFinite(yM)) {
+    throw new Error("Profile coordinate must be finite.");
+  }
+  if (yM < 0 || yM > channelHeightM) {
+    throw new Error("Profile coordinate must lie within the channel height.");
+  }
+}
+
 export function poiseuilleAxialVelocity(
   yM: number,
   channelHeightM: number,
   meanVelocityMps: number
 ): number {
-  if (!finitePositive(channelHeightM) || !finitePositive(meanVelocityMps)) {
-    throw new Error("Channel height and mean velocity must be finite and positive.");
-  }
-  if (!Number.isFinite(yM) || yM < 0 || yM > channelHeightM) {
-    throw new Error("Profile coordinate must lie within the channel height.");
-  }
+  validateChannelParameters(channelHeightM, meanVelocityMps);
+  validateProfileCoordinate(yM, channelHeightM);
   const normalizedY = yM / channelHeightM;
   return 6 * meanVelocityMps * normalizedY * (1 - normalizedY);
 }
