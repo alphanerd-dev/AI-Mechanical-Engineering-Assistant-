@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       projectId, resourceType: "MANUFACTURING_ASSESSMENT", resourceId: assessmentId,
       reason: "Deterministic manufacturing readiness assessment persisted; no machine or production release was executed.",
       metadata: { releaseId: body.releaseId, status: readiness.status, inputSha256 },
-      correlation: { requestId, taskId: assessmentId, artifactSha256: inputSha256 }
+      correlation: { requestId, taskId: assessmentId }
     });
     const { data: committed, error: commitError } = await db.rpc("record_manufacturing_assessment_with_audit", {
       p_assessment: record, p_audit_record: auditRecord
