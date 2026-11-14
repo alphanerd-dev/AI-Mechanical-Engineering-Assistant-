@@ -59,6 +59,7 @@ jobs:
     env:
       # Fixed E2E project ref; this job cannot be redirected to production.
       E2E_PROJECT_REF: mpbrlegwrrrfpeumtqhi
+      E2E_DATABASE_REGION: eu-west-1
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_E2E_DB_PASSWORD }}
       CONFIRMATION: ${{ github.event_name == 'push' && 'RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL' || github.event.inputs.confirmation }}
 
@@ -78,7 +79,7 @@ jobs:
             exit 1
           }
           encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')"
-          database_url="postgresql://postgres:${encoded_password}@db.${E2E_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+          database_url="postgresql://postgres.${E2E_PROJECT_REF}:${encoded_password}@aws-${E2E_DATABASE_REGION}.pooler.supabase.com:5432/postgres?sslmode=require"
           echo "::add-mask::${database_url}"
           echo "SUPABASE_DB_URL=${database_url}" >> "$GITHUB_ENV"
 
