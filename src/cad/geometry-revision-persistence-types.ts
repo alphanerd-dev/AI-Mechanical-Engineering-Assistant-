@@ -21,3 +21,24 @@ export function unwrap<T>(result: Result<T>): T {
   if (!result.ok) throw new GeometryPersistenceError(result.message, result.status);
   return result.value;
 }
+
+export interface GeometryRevisionQueryResult {
+  data: unknown;
+  error: unknown | null;
+}
+export interface GeometryRevisionQueryBuilder extends PromiseLike<GeometryRevisionQueryResult> {
+  select(columns: string): GeometryRevisionQueryBuilder;
+  eq(column: string, value: unknown): GeometryRevisionQueryBuilder;
+  maybeSingle(): Promise<GeometryRevisionQueryResult>;
+  order(column: string, options: { ascending: boolean }): GeometryRevisionQueryBuilder;
+  limit(count: number): Promise<GeometryRevisionQueryResult>;
+}
+export interface GeometryRevisionDatabase {
+  from(table: string): GeometryRevisionQueryBuilder;
+  rpc(name: string, args: Record<string, unknown>): Promise<GeometryRevisionQueryResult>;
+  storage: {
+    from(bucket: string): {
+      download(path: string): Promise<{ data: Blob | null; error: unknown | null }>;
+    };
+  };
+}
