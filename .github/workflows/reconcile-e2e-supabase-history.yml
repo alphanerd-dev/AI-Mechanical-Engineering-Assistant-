@@ -42,8 +42,14 @@ jobs:
           done
           supabase migration repair --help > "$RUNNER_TEMP/repair-help.txt"
           supabase migration list --help > "$RUNNER_TEMP/list-help.txt"
+          supabase db dump --help > "$RUNNER_TEMP/dump-help.txt"
+          supabase db push --help > "$RUNNER_TEMP/push-help.txt"
           grep -q -- '--status' "$RUNNER_TEMP/repair-help.txt"
-          grep -q -- '--linked' "$RUNNER_TEMP/list-help.txt"
+          grep -q -- '--yes' "$RUNNER_TEMP/repair-help.txt"
+          grep -q -- '--db-url' "$RUNNER_TEMP/repair-help.txt"
+          grep -q -- '--db-url' "$RUNNER_TEMP/list-help.txt"
+          grep -q -- '--db-url' "$RUNNER_TEMP/dump-help.txt"
+          grep -q -- '--db-url' "$RUNNER_TEMP/push-help.txt"
 
   reconcile:
     if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirmation == 'RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[reconcile-e2e-history]')) }}
@@ -53,7 +59,6 @@ jobs:
     env:
       # Fixed E2E project ref; this job cannot be redirected to production.
       E2E_PROJECT_REF: mpbrlegwrrrfpeumtqhi
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_E2E_DB_PASSWORD }}
 
     steps:
@@ -63,26 +68,25 @@ jobs:
         with:
           version: 2.98.2
 
-      - name: Require E2E credentials and link the fixed project
+      - name: Prepare fixed E2E database URL
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$SUPABASE_ACCESS_TOKEN" || {
-            echo "::error::Missing SUPABASE_ACCESS_TOKEN in the production GitHub environment."
-            exit 1
-          }
           test -n "$SUPABASE_DB_PASSWORD" || {
             echo "::error::Missing GitHub Actions secret SUPABASE_E2E_DB_PASSWORD. Add the E2E project's database password before running this repair."
             exit 1
           }
-          supabase link --project-ref "$E2E_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')"
+          database_url="postgresql://postgres:${encoded_password}@db.${E2E_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+          echo "::add-mask::${database_url}"
+          echo "SUPABASE_DB_URL=${database_url}" >> "$GITHUB_ENV"
 
       - name: Capture read-only E2E schema and migration evidence
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p e2e-migration-history-evidence
-          supabase migration list --linked --password "$SUPABASE_DB_PASSWORD" \
+          supabase migration list --db-url "$SUPABASE_DB_URL" \
             > e2e-migration-history-evidence/migration-list-before.txt 2>&1
           supabase db dump --linked --schema public \
             --file e2e-migration-history-evidence/public-schema-before.sql \
@@ -163,18 +167,18 @@ jobs:
           for i in "${!canonical[@]}"; do
             if ! has_remote "${canonical[$i]}"; then
               supabase migration repair "${canonical[$i]}" --status applied \
-                --linked --password "$SUPABASE_DB_PASSWORD"
+                --db-url "$SUPABASE_DB_URL" --yes
             fi
             if has_remote "${legacy[$i]}"; then
               supabase migration repair "${legacy[$i]}" --status reverted \
-                --linked --password "$SUPABASE_DB_PASSWORD"
+                --db-url "$SUPABASE_DB_URL" --yes
             fi
           done
 
           # The index migration is already reflected in the audited E2E schema.
           if ! has_remote 20261021161424; then
             supabase migration repair 20261021161424 --status applied \
-              --linked --password "$SUPABASE_DB_PASSWORD"
+              --db-url "$SUPABASE_DB_URL" --yes
           fi
 
           # These E2E-only point-cloud migrations net to no objects in the audited
@@ -182,7 +186,7 @@ jobs:
           for version in 20261021175904 20261101055943; do
             if has_remote "$version"; then
               supabase migration repair "$version" --status reverted \
-                --linked --password "$SUPABASE_DB_PASSWORD"
+                --db-url "$SUPABASE_DB_URL" --yes
             fi
           done
 
@@ -191,7 +195,7 @@ jobs:
         run: |
           set -euo pipefail
           after="e2e-migration-history-evidence/migration-list-after.txt"
-          supabase migration list --linked --password "$SUPABASE_DB_PASSWORD" > "$after" 2>&1
+          supabase migration list --db-url "$SUPABASE_DB_URL" > "$after" 2>&1
           cat "$after"
           awk -F '[│|]' '
             function t(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
@@ -204,7 +208,7 @@ jobs:
             echo "::error::E2E local and remote migration histories still differ."
             exit 1
           }
-          supabase db push --dry-run --linked --password "$SUPABASE_DB_PASSWORD" \
+          supabase db push --dry-run --db-url "$SUPABASE_DB_URL" \
             > e2e-migration-history-evidence/db-push-dry-run-after.txt 2>&1
           cat e2e-migration-history-evidence/db-push-dry-run-after.txt
 
@@ -213,7 +217,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase migration list --linked --password "$SUPABASE_DB_PASSWORD" \
+          supabase migration list --db-url "$SUPABASE_DB_URL" \
             > e2e-migration-history-evidence/migration-list-final.txt 2>&1 || true
           supabase db dump --linked --schema public \
             --file e2e-migration-history-evidence/public-schema-final.sql \
