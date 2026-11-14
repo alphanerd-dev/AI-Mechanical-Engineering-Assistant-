@@ -6,6 +6,7 @@ from worker import (
     final_residuals,
     integrate_mass_flux,
     last_probe_values,
+    parse_mesh_cell_count,
     validate_request,
     write_case,
 )
@@ -55,6 +56,8 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
             self.assertEqual(len(y_samples), 20)
             fv_models = (case_dir / "constant" / "fvModels").read_text()
             self.assertIn("explicit (0.24 0 0)", fv_models)
+            self.assertIn("selectionMode all;", fv_models)
+            self.assertNotIn("cellZone all;", fv_models)
             block_mesh = (case_dir / "system" / "blockMeshDict").read_text()
             self.assertIn("type cyclic;", block_mesh)
             self.assertIn("transform translational;", block_mesh)
@@ -85,6 +88,12 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
             * self.request["depthM"]
         )
         self.assertLessEqual(abs(mass_flow - expected) / expected, 0.005)
+
+    def test_check_mesh_parser_extracts_the_actual_cell_count(self):
+        output = "Checking geometry...\n    cells: 20\n    faces: 60\nMesh OK.\n"
+        self.assertEqual(parse_mesh_cell_count(output), 20)
+        with self.assertRaisesRegex(Exception, "did not contain a cell count"):
+            parse_mesh_cell_count("Mesh OK but no count")
 
     def test_probe_parser_extracts_vector_axial_components(self):
         with tempfile.TemporaryDirectory() as temporary:
