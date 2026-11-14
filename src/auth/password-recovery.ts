@@ -8,12 +8,19 @@ export function validatePasswordUpdate(
   password: unknown,
   confirmation: unknown,
 ): PasswordUpdateValidation {
-  if (
-    typeof password !== "string" ||
-    typeof confirmation !== "string" ||
-    !password ||
-    !confirmation
-  ) {
+  if (typeof password !== "string") {
+    return { ok: false, reason: "missing-fields" };
+  }
+
+  if (typeof confirmation !== "string") {
+    return { ok: false, reason: "missing-fields" };
+  }
+
+  if (password.length === 0) {
+    return { ok: false, reason: "missing-fields" };
+  }
+
+  if (confirmation.length === 0) {
     return { ok: false, reason: "missing-fields" };
   }
 
