@@ -1,11 +1,15 @@
 -- M2.2/M2.6: immutable project-scoped display derivatives and drawing source records.
 -- Canonical CAD completion artifacts remain immutable; these tables register derived/read-only artifacts.
+-- Composite keys enforce that every model/completion reference belongs to the same project.
+
+create unique index if not exists engineering_cad_completions_project_model_id_id_uidx
+  on public.engineering_cad_completions(project_id, model_identity_id, id);
 
 create table public.engineering_cad_display_derivatives (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.engineering_projects(id) on delete cascade,
-  model_identity_id uuid not null references public.engineering_cad_models(id) on delete cascade,
-  completion_id uuid not null references public.engineering_cad_completions(id) on delete cascade,
+  model_identity_id uuid not null,
+  completion_id uuid not null,
   source_artifact_id text not null check (length(trim(source_artifact_id)) between 1 and 160),
   source_artifact_sha256 text not null check (source_artifact_sha256 ~ '^[a-f0-9]{64}$'),
   model_revision bigint not null check (model_revision > 0),
@@ -24,7 +28,15 @@ create table public.engineering_cad_display_derivatives (
   check (position('..' in storage_object_path) = 0),
   unique (project_id, model_identity_id, source_artifact_id, source_artifact_sha256,
           model_revision, converter_provider_id, converter_version,
-          linear_deflection_mm, angular_deflection_rad)
+          linear_deflection_mm, angular_deflection_rad),
+  constraint engineering_cad_display_derivatives_model_project_fkey
+    foreign key (project_id, model_identity_id)
+    references public.engineering_cad_models(project_id, id)
+    on delete cascade,
+  constraint engineering_cad_display_derivatives_completion_model_project_fkey
+    foreign key (project_id, model_identity_id, completion_id)
+    references public.engineering_cad_completions(project_id, model_identity_id, id)
+    on delete cascade
 );
 
 create index engineering_cad_display_derivatives_project_model_idx
@@ -36,7 +48,7 @@ create or replace function private.enforce_current_cad_display_derivative_revisi
 returns trigger
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path to ''
 as $
 declare
   current_revision bigint;
@@ -66,7 +78,7 @@ create trigger engineering_cad_display_derivatives_current_revision
 create table public.engineering_cad_drawings (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.engineering_projects(id) on delete cascade,
-  model_identity_id uuid references public.engineering_cad_models(id) on delete set null,
+  model_identity_id uuid,
   display_name text not null check (length(trim(display_name)) between 1 and 180),
   format text not null check (format in ('PDF','SVG','DXF')),
   media_type text not null check (media_type in ('application/pdf','image/svg+xml','application/dxf')),
@@ -81,7 +93,11 @@ create table public.engineering_cad_drawings (
   created_by uuid not null references auth.users(id) on delete restrict,
   created_at timestamptz not null default now(),
   check (storage_object_path like project_id::text || '/%'),
-  check (position('..' in storage_object_path) = 0)
+  check (position('..' in storage_object_path) = 0),
+  constraint engineering_cad_drawings_model_project_fkey
+    foreign key (project_id, model_identity_id)
+    references public.engineering_cad_models(project_id, id)
+    on delete set null (model_identity_id)
 );
 
 create index engineering_cad_drawings_project_created_idx
