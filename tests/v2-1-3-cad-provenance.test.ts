@@ -7,7 +7,7 @@ import {CADExecutionRequest,CADExecutionResult} from "../src/cad/execution.js";
 import {GeometryValidation} from "../src/cad/artifacts.js";
 
 const model:CADModelIdentity={
-  id:"model-1",projectId:"project-1",name:"Bracket",nativeReferences:[],
+  id:"model-1",projectId:"project-1",name:"Bracket",nativeReferences:[],revision:7,
   createdAt:"2026-10-09T10:00:00.000Z",updatedAt:"2026-10-09T10:00:00.000Z"
 };
 const request:CADExecutionRequest={
@@ -45,13 +45,15 @@ describe("V2.1.3 CAD artifact provenance and validation integration",()=>{
     expect(manifest.provenance).toMatchObject({
       projectId:"project-1",modelIdentityId:"model-1",executionId:"exec-1",
       providerId:"cad.build123d",backend:"build123d",
-      sourceSha256:createCADSourceSha256(request.source),sourceFilename:"bracket.py"
+      sourceSha256:createCADSourceSha256(request.source),sourceFilename:"bracket.py",
+      modelRevision:7
     });
     expect(solid.provenance).toMatchObject({
       modelIdentityId:"model-1",sourceSha256:createCADSourceSha256(request.source),
       outputUri:"/artifacts/bracket.brep"
     });
     expect(solid.validationStatus).toBe("UNVALIDATED");
+    expect(solid.provenance?.sourceArtifactIds).toEqual([manifest.artifacts.find((artifact)=>artifact.kind==="SOURCE")!.id]);
   });
 
   it("uses stable artifact ids for the same project, execution, source and provider",()=>{
@@ -134,6 +136,10 @@ describe("V2.1.3 CAD artifact provenance and validation integration",()=>{
     const solid=manifest.artifacts.find(a=>a.kind==="SOLID")!;
     expect(validateCADArtifactProvenance(solid.provenance,{projectId:"project-1",outputUri:solid.uri}).status).toBe("PASS");
     expect(validateCADArtifactProvenance(solid.provenance,{projectId:"project-2"}).status).toBe("FAIL");
+    expect(validateCADArtifactProvenance({
+      ...solid.provenance,
+      sourceArtifactIds:["duplicate","duplicate"]
+    }).status).toBe("FAIL");
   });
 
   it("refuses to create artifact records from unsuccessful worker execution",()=>{

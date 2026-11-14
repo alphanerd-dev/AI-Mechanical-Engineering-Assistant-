@@ -12,6 +12,23 @@ describe("CAD artifact viewer registry", () => {
     expect(resolveCADArtifactViewer("stl")).toEqual(resolveCADArtifactViewer("STL"));
   });
 
+  it("enables a drawing preview only when trusted artifact metadata declares a supported media type", () => {
+    for (const mediaType of ["application/pdf", "image/svg+xml", "application/dxf", "image/vnd.dxf"]) {
+      expect(resolveCADArtifactViewer("DRAWING", mediaType)).toMatchObject({
+        mode: "DRAWING_PREVIEW",
+        previewAvailable: true,
+        downloadAvailable: true
+      });
+    }
+    for (const mediaType of [undefined, "text/html", "application/octet-stream", "image/png"]) {
+      expect(resolveCADArtifactViewer("DRAWING", mediaType)).toMatchObject({
+        mode: "DOWNLOAD_ONLY",
+        previewAvailable: false,
+        downloadAvailable: true
+      });
+    }
+  });
+
   it("keeps canonical BREP and exchange formats download-only", () => {
     for (const kind of ["SOLID", "STEP", "THREE_MF", "SOURCE", "DRAWING"]) {
       expect(resolveCADArtifactViewer(kind)).toMatchObject({

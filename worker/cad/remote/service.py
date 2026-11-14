@@ -35,6 +35,7 @@ ACTIVE_JOBS = 0
 MAX_CONCURRENCY = max(1, min(2, int(os.getenv("WORKER_MAX_CONCURRENCY", "1"))))
 EXECUTOR = threading.BoundedSemaphore(MAX_CONCURRENCY)
 VALIDATOR_SCRIPT = pathlib.Path("/opt/cad-worker/validate_brep.py")
+GEOMETRY_SCRIPT = pathlib.Path("/opt/cad-worker/geometry_kernel.py")
 GENERATOR_SCRIPT = pathlib.Path("/opt/cad-worker/execute_cad.py")
 ARTIFACT_NAMES = {
     "source": "source.py",
@@ -89,13 +90,13 @@ def runtime_readiness() -> dict[str, Any]:
     token_valid = bool(TOKEN_PATTERN.fullmatch(os.getenv("WORKER_API_TOKEN", "")))
     checks.append({"name": "server_authentication", "status": "PASS" if token_valid else "FAIL",
                    "detail": "A 256-bit bearer token is configured." if token_valid else "WORKER_API_TOKEN must be a 64-character lowercase hex token."})
-    scripts_ready = GENERATOR_SCRIPT.is_file() and VALIDATOR_SCRIPT.is_file()
+    scripts_ready = GENERATOR_SCRIPT.is_file() and VALIDATOR_SCRIPT.is_file() and GEOMETRY_SCRIPT.is_file()
     checks.append({"name": "trusted_worker_scripts", "status": "PASS" if scripts_ready else "FAIL",
-                   "detail": "The fixed generation and OCCT validation scripts are installed." if scripts_ready else "A required trusted worker script is missing."})
+                   "detail": "The fixed generation, validation and geometry-kernel scripts are installed." if scripts_ready else "A required trusted worker script is missing."})
     try:
         build123d_version = version("build123d")
-        from build123d import Cylinder, import_brep
-        library_ready = bool(build123d_version) and callable(Cylinder) and callable(import_brep)
+        from build123d import Cylinder, import_brep, import_step
+        library_ready = bool(build123d_version) and callable(Cylinder) and callable(import_brep) and callable(import_step)
         detail = "build123d and its OpenCascade bindings import successfully (" + build123d_version + ")."
     except Exception:
         library_ready = False
@@ -104,8 +105,172 @@ def runtime_readiness() -> dict[str, Any]:
     checks.append({"name": "build123d_occt_runtime", "status": "PASS" if library_ready else "FAIL", "detail": detail})
     ready = all(item["status"] == "PASS" for item in checks)
     return {"ready": ready, "status": "READY" if ready else "NOT_READY", "build123dVersion": build123d_version,
-            "capabilities": ["CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP"], "checks": checks}
+            "capabilities": ["CAD.CREATE_CYLINDER", "CAD.VALIDATE_BREP", "CAD.INSPECT_GEOMETRY", "CAD.TESSELLATE_GEOMETRY"], "checks": checks}
 
+
+
+def validate_geometry_artifact_base64(encoded: Any) -> str:
+    if not isinstance(encoded, str):
+        raise ValueError("A bounded geometry artifact base64 value is required.")
+    if len(encoded) > 6 * 1024 * 1024:
+        raise ValueError("A bounded geometry artifact base64 value is required.")
+    return encoded
+
+
+def validate_geometry_artifact_digest(digest: Any) -> str:
+    if not isinstance(digest, str):
+        raise ValueError("A SHA-256 geometry artifact digest is required.")
+    if not re.fullmatch(r"[a-f0-9]{64}", digest):
+        raise ValueError("A SHA-256 geometry artifact digest is required.")
+    return digest
+
+
+def decode_geometry_artifact_bytes(encoded: str) -> bytes:
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise ValueError("Geometry artifact base64 is malformed.") from exc
+
+
+def validate_geometry_artifact_bytes(artifact: bytes, digest: str) -> None:
+    if not artifact:
+        raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+    if len(artifact) > MAX_ARTIFACT_BYTES:
+        raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+    if hashlib.sha256(artifact).hexdigest() != digest:
+        raise ValueError("Geometry artifact failed size or SHA-256 validation.")
+
+
+def decode_geometry_artifact(payload: dict[str, Any]) -> tuple[bytes, str]:
+    encoded = validate_geometry_artifact_base64(payload.get("artifactBase64"))
+    digest = validate_geometry_artifact_digest(payload.get("artifactSha256"))
+    artifact = decode_geometry_artifact_bytes(encoded)
+    validate_geometry_artifact_bytes(artifact, digest)
+    return artifact, digest
+
+
+def validate_geometry_operation(payload: dict[str, Any]) -> tuple[str, str]:
+    operation = payload.get("operation")
+    geometry_format = payload.get("format")
+    if operation not in ("INSPECT", "TESSELLATE"):
+        raise ValueError("Geometry operation must be INSPECT or TESSELLATE.")
+    if geometry_format not in ("BREP", "STEP"):
+        raise ValueError("Geometry format must be BREP or STEP.")
+    return operation, geometry_format
+
+
+def parse_geometry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], bytes, str]:
+    allowed = {"operation", "format", "artifactBase64", "artifactSha256",
+               "linearDeflectionMm", "angularDeflectionRad"}
+    if set(payload) - allowed:
+        raise ValueError("Geometry request contains unsupported fields.")
+    operation, geometry_format = validate_geometry_operation(payload)
+    artifact, digest = decode_geometry_artifact(payload)
+    request = {
+        "operation": operation,
+        "format": geometry_format,
+        "artifactPath": "/artifacts/source.brep" if geometry_format == "BREP" else "/artifacts/source.step"
+    }
+    if operation == "TESSELLATE":
+        request.update(validate_geometry_deflection(payload))
+    return request, artifact, digest
+
+
+def validate_numeric_deflection(value: Any, label: str) -> int | float:
+    if not isinstance(value, (int, float)):
+        raise ValueError(label)
+    if isinstance(value, bool):
+        raise ValueError(label)
+    if value != value:
+        raise ValueError(label)
+    return value
+
+
+def validate_deflection_minimum(value: float, minimum: float, label: str) -> None:
+    if value < minimum:
+        raise ValueError(label)
+
+
+def validate_deflection_maximum(value: float, maximum: float, label: str) -> None:
+    if value > maximum:
+        raise ValueError(label)
+
+
+def validate_linear_geometry_deflection(value: Any) -> float:
+    label = "linearDeflectionMm must be between 0.001 and 5 mm."
+    numeric = validate_numeric_deflection(value, label)
+    validate_deflection_minimum(numeric, 0.001, label)
+    validate_deflection_maximum(numeric, 5, label)
+    return float(numeric)
+
+
+def validate_angular_geometry_deflection(value: Any) -> float:
+    label = "angularDeflectionRad must be between 0.01 and pi/2 radians."
+    numeric = validate_numeric_deflection(value, label)
+    validate_deflection_minimum(numeric, 0.01, label)
+    validate_deflection_maximum(numeric, 1.5707963267948966, label)
+    return float(numeric)
+
+
+def validate_geometry_deflection(payload: dict[str, Any]) -> dict[str, float]:
+    linear = validate_linear_geometry_deflection(payload.get("linearDeflectionMm", 0.1))
+    angular = validate_angular_geometry_deflection(payload.get("angularDeflectionRad", 0.35))
+    return {"linearDeflectionMm": linear, "angularDeflectionRad": angular}
+
+
+def execute_geometry_worker(request: dict[str, Any], artifact: bytes) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="occt-geometry-") as temp_root:
+        artifact_root = pathlib.Path(temp_root) / "artifacts"
+        artifact_root.mkdir(mode=0o700)
+        filename = "source.brep" if request["format"] == "BREP" else "source.step"
+        (artifact_root / filename).write_bytes(artifact)
+        env = dict(os.environ)
+        env["CAD_ARTIFACT_DIR"] = str(artifact_root)
+        result = subprocess.run(
+            [sys.executable, str(GEOMETRY_SCRIPT)],
+            input=json.dumps(request, separators=(",", ":")),
+            text=True, capture_output=True, timeout=MAX_VALIDATION_TIMEOUT_SECONDS,
+            env=env, cwd=temp_root, check=False
+        )
+        response = parse_geometry_worker_response(result)
+        return response
+
+
+def validate_geometry_worker_process(result: subprocess.CompletedProcess) -> None:
+    if result.returncode != 0:
+        raise RuntimeError("OpenCascade geometry worker returned no structured result.")
+    if not result.stdout.strip():
+        raise RuntimeError("OpenCascade geometry worker returned no structured result.")
+
+
+def parse_geometry_worker_json(stdout: str) -> Any:
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("OpenCascade geometry worker returned malformed JSON.") from exc
+
+
+def geometry_worker_failure_detail(response: Any) -> str:
+    if not isinstance(response, dict):
+        return "Geometry operation failed."
+    errors = response.get("errors")
+    if not isinstance(errors, list):
+        return "Geometry operation failed."
+    return "; ".join(item for item in errors if isinstance(item, str))
+
+
+def validate_geometry_worker_success(response: Any) -> dict[str, Any]:
+    if not isinstance(response, dict):
+        raise ValueError("Geometry operation failed.")
+    if response.get("status") != "COMPLETED":
+        raise ValueError(geometry_worker_failure_detail(response)[:500])
+    return response
+
+
+def parse_geometry_worker_response(result: subprocess.CompletedProcess) -> dict[str, Any]:
+    validate_geometry_worker_process(result)
+    response = parse_geometry_worker_json(result.stdout)
+    return validate_geometry_worker_success(response)
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "EngineeringCADWorker/0.1"
@@ -127,28 +292,40 @@ class Handler(BaseHTTPRequestHandler):
         if not authorized(self):
             json_response(self, 401, {"error": "Unauthorized"})
             return
-        if self.path not in ("/v1/cad/execute", "/v1/cad/validate"):
-            json_response(self, 404, {"error": "Not found"})
+        operation = self.resolve_post_operation()
+        if operation is None:
             return
         try:
             payload = read_json(self)
-            if not EXECUTOR.acquire(blocking=False):
-                json_response(self, 429, {"error": "CAD worker is at its concurrency limit; retry later."})
-                return
-            try:
-                if self.path == "/v1/cad/execute":
-                    response = self.execute_cad(payload)
-                else:
-                    response = self.validate_cad(payload)
+            response = self.run_bounded_operation(operation, payload)
+            if response is not None:
                 json_response(self, 200, response)
-            finally:
-                EXECUTOR.release()
         except ValueError as exc:
             json_response(self, 400, {"error": str(exc)})
         except subprocess.TimeoutExpired:
             json_response(self, 504, {"error": "CAD operation exceeded its execution timeout."})
         except Exception:
             json_response(self, 500, {"error": "CAD worker could not complete the bounded operation."})
+
+    def resolve_post_operation(self):
+        routes = {
+            "/v1/cad/execute": self.execute_cad,
+            "/v1/cad/validate": self.validate_cad,
+            "/v1/cad/geometry": self.geometry,
+        }
+        operation = routes.get(self.path)
+        if operation is None:
+            json_response(self, 404, {"error": "Not found"})
+        return operation
+
+    def run_bounded_operation(self, operation, payload):
+        if not EXECUTOR.acquire(blocking=False):
+            json_response(self, 429, {"error": "CAD worker is at its concurrency limit; retry later."})
+            return None
+        try:
+            return operation(payload)
+        finally:
+            EXECUTOR.release()
 
     def execute_cad(self, payload: dict[str, Any]) -> dict[str, Any]:
         execution_id = payload.get("id")
@@ -264,13 +441,27 @@ class Handler(BaseHTTPRequestHandler):
             verdict["artifactSha256"] = hashlib.sha256(artifact).hexdigest()
             return verdict
 
+    def geometry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        request, artifact, digest = parse_geometry_payload(payload)
+        response = execute_geometry_worker(request, artifact)
+        response["artifactSha256"] = digest
+        return response
+
     def log_message(self, format: str, *args: Any) -> None:
         return
 
 
-def main() -> None:
-    if not GENERATOR_SCRIPT.is_file() or not VALIDATOR_SCRIPT.is_file():
+def validate_trusted_worker_scripts() -> None:
+    if not GENERATOR_SCRIPT.is_file():
         raise RuntimeError("Trusted CAD worker scripts are missing.")
+    if not VALIDATOR_SCRIPT.is_file():
+        raise RuntimeError("Trusted CAD worker scripts are missing.")
+    if not GEOMETRY_SCRIPT.is_file():
+        raise RuntimeError("Trusted CAD worker scripts are missing.")
+
+
+def main() -> None:
+    validate_trusted_worker_scripts()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     server.daemon_threads = True
     print("ai-mechanical-cad-worker listening on " + HOST + ":" + str(PORT), flush=True)

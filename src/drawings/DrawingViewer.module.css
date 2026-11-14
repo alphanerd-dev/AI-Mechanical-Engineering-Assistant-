@@ -1,0 +1,109 @@
+.drawingFrame,
+.drawingCanvas {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 360px;
+  height: min(62vh, 760px);
+  overflow: hidden;
+  background: var(--color-background, #08111a);
+  border-radius: 10px;
+}
+
+.drawingFrame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: white;
+}
+
+.drawingFrame > span,
+.drawingCanvas footer {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  max-width: calc(100% - 24px);
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--color-text-muted, #a8b5bf);
+  background: rgba(5, 12, 18, 0.84);
+  font-size: 11px;
+}
+
+.drawingCanvas svg,
+.drawingCanvas img {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  color: var(--color-accent, #42c8b4);
+}
+
+.drawingStatus {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+  padding: 24px;
+  color: var(--color-text-muted, #a8b5bf);
+  text-align: center;
+  background: var(--color-background, #08111a);
+  border-radius: 10px;
+}
+
+
+.drawingToolbar,
+.drawingLayers {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px;
+  border-bottom: 1px solid #203240;
+  color: var(--color-text-muted, #a8b5bf);
+  font-size: 11px;
+}
+
+.drawingToolbar button {
+  min-height: 30px;
+  border: 1px solid #304453;
+  border-radius: 6px;
+  padding: 0 9px;
+  background: #10202d;
+  color: #dbe6ed;
+  font-size: 11px;
+}
+
+.drawingToolbar button[aria-pressed="true"] {
+  border-color: var(--color-accent, #42c8b4);
+  color: var(--color-accent, #42c8b4);
+}
+
+.drawingLayers label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.drawingMeasureHint {
+  margin: 0;
+  padding: 8px 12px;
+  color: #edc27a;
+  background: #1c2630;
+  font-size: 11px;
+}
+
+.measuringCanvas {
+  cursor: crosshair;
+}
+
+.sanitizedSvgImage {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
