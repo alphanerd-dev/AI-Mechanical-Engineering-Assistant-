@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     if (!releaseId) return fail("A releaseId query parameter is required.", 400);
     const authorization = await authorizeSupabaseRequest("EVIDENCE.READ", projectId, { requestId: randomUUID() });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
-    return readManufacturingAssessmentHistory(projectId, releaseId);
+    return readManufacturingAssessmentHistory({ projectId, releaseId });
   } catch {
     return fail("Manufacturing assessment history could not be read.", 503);
   }
