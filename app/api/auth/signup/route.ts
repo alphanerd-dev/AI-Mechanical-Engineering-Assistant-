@@ -6,7 +6,26 @@ import { validatePasswordUpdate } from "../../../../src/auth/password-recovery";
 
 export const runtime = "nodejs";
 
+function isSameOriginPost(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+
+  try {
+    return new URL(origin).origin === getPublicUrl("/", request).origin;
+  } catch {
+    return false;
+  }
+}
+
+function redirectToSignupError(request: Request, error: string) {
+  return NextResponse.redirect(getPublicUrl(`/signup?error=${error}`, request), { status: 303 });
+}
+
 export async function POST(request: Request) {
+  if (!isSameOriginPost(request)) {
+    return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  }
+
   try {
     const form = await request.formData();
     const email = String(form.get("email") ?? "").trim();
@@ -14,7 +33,7 @@ export async function POST(request: Request) {
 
     if (!email || !validation.ok) {
       const error = !email ? "missing-fields" : validation.reason;
-      return NextResponse.redirect(getPublicUrl(`/signup?error=${error}`, request), { status: 303 });
+      return redirectToSignupError(request, error);
     }
 
     const breachCheck = await checkPasswordBreach(validation.password);
@@ -22,7 +41,7 @@ export async function POST(request: Request) {
       const error = breachCheck.status === "compromised"
         ? "password-compromised"
         : "password-check-unavailable";
-      return NextResponse.redirect(getPublicUrl(`/signup?error=${error}`, request), { status: 303 });
+      return redirectToSignupError(request, error);
     }
 
     const callbackUrl = getPublicUrl("/auth/callback", request);
@@ -34,16 +53,10 @@ export async function POST(request: Request) {
       password: validation.password,
       options: { emailRedirectTo: callbackUrl.toString() },
     });
-    if (error) {
-      return NextResponse.redirect(getPublicUrl("/signup?error=registration-failed", request), { status: 303 });
-    }
+    if (error) return redirectToSignupError(request, "registration-failed");
 
     return NextResponse.redirect(getPublicUrl("/login?registered=1", request), { status: 303 });
   } catch {
-    try {
-      return NextResponse.redirect(getPublicUrl("/signup?error=registration-unavailable", request), { status: 303 });
-    } catch {
-      return NextResponse.json({ error: "Registration is temporarily unavailable." }, { status: 503 });
-    }
+    return redirectToSignupError(request, "registration-unavailable");
   }
 }
