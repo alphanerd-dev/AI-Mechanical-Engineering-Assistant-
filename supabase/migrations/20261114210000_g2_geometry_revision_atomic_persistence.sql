@@ -6,7 +6,7 @@ create or replace function public.record_geometry_revision_with_audit(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $function$
 declare
