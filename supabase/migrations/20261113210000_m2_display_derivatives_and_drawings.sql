@@ -41,6 +41,8 @@ create table public.engineering_cad_display_derivatives (
 
 create index engineering_cad_display_derivatives_project_model_idx
   on public.engineering_cad_display_derivatives(project_id, model_identity_id, created_at desc);
+create index engineering_cad_display_derivatives_completion_idx
+  on public.engineering_cad_display_derivatives(project_id, model_identity_id, completion_id);
 
 -- Serialize derivative insertion against model revision changes. This prevents a
 -- worker that started on revision N from registering its result as current after N+1.
