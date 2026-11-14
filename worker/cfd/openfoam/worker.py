@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
-from artifacts import persist_case_artifacts, prune_artifacts
+from artifacts import latest_time_directory, persist_case_artifacts, prune_artifacts
 from errors import WorkerError, WorkerTimeout
 from manifest import validate_request, write_case
 from solver import (
@@ -25,7 +25,6 @@ from solver import (
     final_residuals,
     integrate_mass_flux,
     last_probe_values,
-    latest_time_directory,
     parse_mesh_cell_count,
     run_tool as run_openfoam_tool,
 )
