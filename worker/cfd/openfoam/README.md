@@ -66,6 +66,12 @@ Every successful run returns a job ID, solver version, convergence flag, mesh ce
 
 The app-level provider remains unavailable until a durable execution adapter is configured. This worker image alone does not enable a production CFD route.
 
+### Explicit execution limitation
+
+This first worker version exposes a **synchronous, single-request-at-a-time** HTTP interface. It does not yet provide durable remote job status, queued execution, or a cancellation endpoint. If a client disconnects or aborts its HTTP request, the solver process is not guaranteed to stop immediately; its own wall-clock timeout remains the enforcement boundary.
+
+Do not connect this synchronous endpoint directly to the web request path or enable it as a durable `ExecutionEngine` backend. The next integration increment must add an asynchronous job lifecycle with persisted job state, cancellation that terminates the solver process group, lease/heartbeat handling, and artifact upload into the existing project evidence/storage boundary. Only then should the provider executor be wired into the durable worker runtime.
+
 ## Licensing
 
 OpenFOAM is GPL-licensed. Any redistribution of this worker image must preserve the applicable GPL license notices and source-code obligations for the OpenFOAM components. The TypeScript application communicates with the solver as a separate process/service; this boundary is not a substitute for a proper license review.
