@@ -4,25 +4,13 @@ import { createClient } from "../../../../lib/supabase/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { buildDurableAuditRecord } from "../../../../src/audit/durable-store";
+import { parseManufacturingDecisionRequest } from "../../../../lib/manufacturing/decision-request-schema";
 
 type Row = Record<string, unknown>;
-type DecisionInput = { projectId: string; assessmentId: string; decision: "APPROVED" | "REJECTED"; comment?: string };
+type DecisionInput = ReturnType<typeof parseManufacturingDecisionRequest> extends infer T ? Exclude<T, null> : never;
 type Result<T> = { ok: true; value: T } | { ok: false; message: string; status: number };
-function isRecord(value: unknown): value is Row {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isUuid(value: unknown): value is string {
-  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
-}
-function parseDecision(value: unknown): DecisionInput | null {
-  if (!isRecord(value)) return null;
-  if (!isUuid(value.projectId) || !isUuid(value.assessmentId)) return null;
-  if (value.decision !== "APPROVED" && value.decision !== "REJECTED") return null;
-  if (value.comment !== undefined && (typeof value.comment !== "string" || value.comment.length > 1000)) return null;
-  return { projectId: value.projectId, assessmentId: value.assessmentId, decision: value.decision, comment: value.comment as string | undefined };
 }
 function authorizationStatus(reason: string) {
   return reason.includes("unavailable") ? 503 : 403;
@@ -99,7 +87,7 @@ async function submitDecision(input: DecisionInput, actorId: string, requestId: 
 export async function POST(request: Request) {
   const requestId = randomUUID();
   try {
-    const input = parseDecision(await request.json());
+    const input = parseManufacturingDecisionRequest(await request.json());
     if (!input) return fail("A valid projectId, assessmentId, decision and optional comment are required.", 400);
     const authorization = await authorizeSupabaseRequest("APPROVAL.GRANT", input.projectId, { requestId, taskId: input.assessmentId });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
