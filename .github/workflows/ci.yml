@@ -177,7 +177,7 @@ jobs:
           chmod 777 .openfoam-smoke
           TOKEN="$(openssl rand -hex 32)"
           docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --entrypoint sh ai-mechanical-engineering-assistant-openfoam:14 -c 'touch /artifacts/.mount-write-check'
-          test -s .openfoam-smoke/.mount-write-check
+          test -e .openfoam-smoke/.mount-write-check
           rm .openfoam-smoke/.mount-write-check
           set +e
           docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --env "OPENFOAM_WORKER_TOKEN=$TOKEN" --env OPENFOAM_ARTIFACT_DIR=/artifacts --entrypoint python3 ai-mechanical-engineering-assistant-openfoam:14 /app/smoke_request.py
