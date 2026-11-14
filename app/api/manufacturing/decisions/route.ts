@@ -45,10 +45,12 @@ export async function POST(request: Request) {
     if (assessment.created_by === actorId) return fail("The assessment author cannot approve or reject their own release.", 403);
 
     const { data: prior, error: priorError } = await db.from("engineering_manufacturing_decisions").select("*")
-      .eq("project_id", input.projectId).eq("assessment_id", input.assessmentId)
-      .eq("decided_by", actorId).eq("decision", input.decision).maybeSingle();
+      .eq("project_id", input.projectId).eq("assessment_id", input.assessmentId).maybeSingle();
     if (priorError) return fail("Manufacturing decision idempotency lookup failed.", 503);
-    if (prior) return NextResponse.json({ decision: prior, idempotentReplay: true }, { status: 200 });
+    if (prior && prior.decided_by === actorId && prior.decision === input.decision) {
+      return NextResponse.json({ decision: prior, idempotentReplay: true }, { status: 200 });
+    }
+    if (prior) return fail("This manufacturing assessment already has a final human decision.", 409);
 
     const decisionId = randomUUID();
     const decidedAt = new Date().toISOString();
@@ -71,9 +73,11 @@ export async function POST(request: Request) {
     });
     if (commitError || !isRecord(committed) || !isRecord(committed.decision) || !isRecord(committed.audit)) {
       const { data: reconciled } = await db.from("engineering_manufacturing_decisions").select("*")
-        .eq("project_id", input.projectId).eq("assessment_id", input.assessmentId)
-        .eq("decided_by", actorId).eq("decision", input.decision).maybeSingle();
-      if (reconciled) return NextResponse.json({ decision: reconciled, idempotentReplay: true }, { status: 200 });
+        .eq("project_id", input.projectId).eq("assessment_id", input.assessmentId).maybeSingle();
+      if (reconciled && reconciled.decided_by === actorId && reconciled.decision === input.decision) {
+        return NextResponse.json({ decision: reconciled, idempotentReplay: true }, { status: 200 });
+      }
+      if (reconciled) return fail("This manufacturing assessment already has a final human decision.", 409);
       return fail("Manufacturing decision and audit transaction could not be confirmed.", 503);
     }
     return NextResponse.json({ decision: committed.decision, audit: committed.audit }, { status: 201 });
