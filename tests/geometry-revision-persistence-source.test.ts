@@ -63,7 +63,7 @@ describe("trusted geometry revision source verification", () => {
       storage: {
         from: (bucket: string) => ({
           download: async (path: string) => ({
-            data: bucket === "engineering-cad-artifacts" && path === objectPath ? new Blob([bytes]) : null,
+            data: bucket === "engineering-cad-artifacts" && path === objectPath ? new Blob(["synthetic-brep"]) : null,
             error: null
           })
         })
