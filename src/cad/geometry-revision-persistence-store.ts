@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { buildDurableAuditRecord } from "../audit/durable-store";
-import { GeometryRevisionV1 } from "./geometry-revision";
-import { CanonicalSolid, Completion, GeometryRevisionDatabase, Result, Row, failure, isRecord } from "./geometry-revision-persistence-types";
+import type { GeometryRevisionV1 } from "./geometry-revision";
+import { failure, isRecord } from "./geometry-revision-persistence-types";
+import type { CanonicalSolid, Completion, GeometryRevisionDatabase, Result, Row } from "./geometry-revision-persistence-types";
 
 type Db = GeometryRevisionDatabase;
 export type RevisionPayload = { candidate: GeometryRevisionV1; revisionRecord: Row; auditRecord: Row; revisionId: string };
