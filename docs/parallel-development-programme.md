@@ -20,8 +20,8 @@ This snapshot supersedes earlier dated branch/PR status tables below where they 
 
 ### Next execution order
 
-1. Finish monitoring the G2 merge deployment and run read-only production route checks.
-2. Implement G2 trusted revision persistence against the accepted CAD completion and exact existing BREP object. Recompute the Storage-byte SHA-256 server-side, enforce expected-parent concurrency, idempotent replay and atomic audit append. Rehearse on E2E; do not apply to production without explicit database-owner approval.
+1. Completed: the G2 merge deployment reached READY; read-only production route smoke checks returned HTTP 200 and the inspected runtime-error window was clean.
+2. Complete authenticated POST/GET acceptance for PR #165 (accepted completion, BREP digest mismatch, stale parent, idempotent retry and audit-chain assertions). Keep production migration approval separate.
 3. Advance the CAD/FEA/CFD evidence workflows without making the renderer or CFD capability more mature than the evidence supports.
 4. Add durable manufacturing assessment/inspection records behind project authorization and audit, preserving the existing human-approval gate and no-machine-control boundary.
 5. Expose bounded LLM orchestration only after durable run journaling, per-action idempotency, lease recovery and authenticated acceptance are complete.
@@ -266,7 +266,7 @@ Current real-world economic outcomes remain **NOT MEASURED** until matched user 
 - PR #139 — G1 bounded geometry operation API.
 - PR #141 — parallel engineering development programme.
 - PR #142 — Engineering R&D skill profile.
-- Production `main` was READY at commit `fb64bfdb5908fd49a5f9a26b89a62083b7b0bcba` at the start of this development cycle. No production deployment was initiated by this cycle.
+- Production app deployment from G2 merge commit `132436fd1cf4ca66ec122ca13d8313e2b4681b84` reached READY. The later documentation-only main commit did not change the deployed app; PR #165/#166 are not deployed.
 
 ### Active pull requests and verified status
 
