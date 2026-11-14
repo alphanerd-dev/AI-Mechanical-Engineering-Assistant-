@@ -267,7 +267,7 @@ boundaryField
     )
     (case_dir / "constant" / "physicalProperties").write_text(
         foam_header("physicalProperties", "constant", "dictionary")
-        + f"viscosityModel Newtonian;\nnu {viscosity:.12g};\n",
+        + f"viscosityModel constant;\nnu {viscosity:.12g};\n",
         encoding="utf-8",
     )
     (case_dir / "constant" / "momentumTransport").write_text(
