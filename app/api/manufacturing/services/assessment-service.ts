@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { buildDurableAuditRecord } from "../../../../src/audit/durable-store";
 import { assessManufacturingReadiness } from "../../../../src/manufacturing/readiness";
-import type { ManufacturingReadinessRequest } from "../../src/manufacturing/readiness";
+import type { ManufacturingReadinessRequest } from "../../../../src/manufacturing/readiness";
 
 type Row = Record<string, unknown>;
 type HttpFailure = { message: string; status: number };
