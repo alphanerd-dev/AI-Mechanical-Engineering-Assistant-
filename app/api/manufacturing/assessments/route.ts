@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
-import { parseManufacturingReadinessRequest } from "../../../../lib/manufacturing/readiness-request-schema";
-import { createManufacturingAssessment, readManufacturingAssessmentHistory } from "../../../../lib/manufacturing/assessment-service";
+import { parseManufacturingReadinessRequest } from "../services/readiness-request-schema";
+import { createManufacturingAssessment, readManufacturingAssessmentHistory } from "../services/assessment-service";
 
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
