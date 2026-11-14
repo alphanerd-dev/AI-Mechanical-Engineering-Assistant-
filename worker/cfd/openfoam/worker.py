@@ -23,6 +23,7 @@ from errors import WorkerError, WorkerTimeout
 from case_builder import write_case
 from manifest import validate_request
 from solver import (
+    MassFlowInput,
     detect_openfoam_version as detect_runtime_version,
     final_residuals,
     integrate_mass_flux,
