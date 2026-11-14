@@ -1,0 +1,220 @@
+name: Reconcile Production Supabase Migration History
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/reconcile-production-supabase-history.yml"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Audit only or reconcile the one verified production timestamp mismatch"
+        required: true
+        type: choice
+        default: audit
+        options:
+          - audit
+          - repair_production_history
+      confirmation:
+        description: "For the metadata-only repair, type RECONCILE_PRODUCTION_HISTORY_TO_REPOSITORY_CANONICAL"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-history-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.98.2
+      - name: Validate the pinned CLI and canonical migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(supabase --version)" = "2.98.2"
+          test -s supabase/migrations/20261101200000_engineering_chat_session_list_metadata.sql
+          supabase link --help > "$RUNNER_TEMP/link-help.txt"
+          supabase migration list --help > "$RUNNER_TEMP/list-help.txt"
+          supabase migration repair --help > "$RUNNER_TEMP/repair-help.txt"
+          supabase db dump --help > "$RUNNER_TEMP/dump-help.txt"
+          supabase db push --help > "$RUNNER_TEMP/push-help.txt"
+          grep -q -- '--project-ref' "$RUNNER_TEMP/link-help.txt"
+          grep -q -- '--password' "$RUNNER_TEMP/link-help.txt"
+          grep -q -- '--linked' "$RUNNER_TEMP/list-help.txt"
+          grep -q -- '--status' "$RUNNER_TEMP/repair-help.txt"
+          grep -q -- '--file' "$RUNNER_TEMP/dump-help.txt"
+          grep -q -- '--dry-run' "$RUNNER_TEMP/push-help.txt"
+
+  reconcile:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      # Fixed project target: callers cannot redirect this workflow to another database.
+      PRODUCTION_PROJECT_REF: mepmogsqhxxasahwhete
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      OPERATION: ${{ inputs.operation }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.98.2
+
+      - name: Require production credentials and link the fixed project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN" || {
+            echo "::error::Missing production environment secret SUPABASE_ACCESS_TOKEN."
+            exit 1
+          }
+          test -n "$SUPABASE_DB_PASSWORD" || {
+            echo "::error::Missing production environment secret SUPABASE_DB_PASSWORD."
+            exit 1
+          }
+          test -s supabase/migrations/20261101200000_engineering_chat_session_list_metadata.sql
+          supabase link --project-ref "$PRODUCTION_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Capture read-only migration and schema evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p migration-history-evidence
+          supabase migration list --linked --password "$SUPABASE_DB_PASSWORD" \
+            > migration-history-evidence/migration-list-before.txt 2>&1
+          supabase db dump --linked --schema public \
+            --file migration-history-evidence/public-schema-before.sql \
+            --password "$SUPABASE_DB_PASSWORD"
+
+          # The production schema effect must already exist. This workflow repairs
+          # migration metadata only; it never replays the UPDATE or changes user rows.
+          grep -q 'chat_title' migration-history-evidence/public-schema-before.sql
+          grep -q 'message_count' migration-history-evidence/public-schema-before.sql
+          grep -q 'engineering_chat_sessions_project_updated_idx' migration-history-evidence/public-schema-before.sql
+
+      - name: Verify exact pre-repair state
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="migration-history-evidence/migration-list-before.txt"
+          trim() { sed -E 's/^[[:space:]]+|[[:space:]]+$//g'; }
+          has_remote() {
+            local version="$1"
+            awk -F '[│|]' -v v="$version" '
+              function t(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+              t($2) == v { found = 1 }
+              END { exit !found }
+            ' "$state"
+          }
+          expected=(
+            20261007222703 20261010054845 20261012132557 20261013125414
+            20261013220000 20261014120000 20261014170000 20261014190000
+            20261015010000 20261015011000 20261017104855 20261017105801
+            20261021161424 20261028144952 20261028151719 20261028163543
+            20261101200000
+          )
+          for version in "${expected[@]}"; do
+            test -n "$(find supabase/migrations -maxdepth 1 -name "${version}_*.sql" -print -quit)"
+          done
+
+          # All existing production migrations except the final chat metadata entry
+          # must already match the repository's canonical versions.
+          for version in "${expected[@]:0:16}"; do
+            has_remote "$version" || {
+              echo "::error::Expected production migration $version is missing."
+              exit 1
+            }
+          done
+
+          legacy_present=false
+          canonical_present=false
+          has_remote 20261105150148 && legacy_present=true
+          has_remote 20261101200000 && canonical_present=true
+          if [[ "$legacy_present" == "$canonical_present" ]]; then
+            echo "::error::Expected exactly one of legacy 20261105150148 or canonical 20261101200000."
+            exit 1
+          fi
+
+          if [[ "$OPERATION" == "repair_production_history" && "$CONFIRMATION" != "RECONCILE_PRODUCTION_HISTORY_TO_REPOSITORY_CANONICAL" ]]; then
+            echo "::error::Explicit repair confirmation did not match. No migration history was changed."
+            exit 1
+          fi
+
+      - name: Repair only the verified chat metadata migration timestamp
+        if: ${{ inputs.operation == 'repair_production_history' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The SQL effect and all three expected schema objects were verified above.
+          # Mark the checked-in canonical version applied first, then retire the
+          # legacy version. Neither command executes migration SQL.
+          supabase migration repair 20261101200000 --status applied \
+            --linked --password "$SUPABASE_DB_PASSWORD"
+          supabase migration repair 20261105150148 --status reverted \
+            --linked --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Verify canonical history and zero pending schema migrations
+        if: ${{ inputs.operation == 'repair_production_history' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          after="migration-history-evidence/migration-list-after.txt"
+          supabase migration list --linked --password "$SUPABASE_DB_PASSWORD" > "$after" 2>&1
+          cat "$after"
+          awk -F '[│|]' '
+            function t(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+            /^[[:space:]]*Local/ { next }
+            t($1) ~ /^[0-9]{14}$/ || t($2) ~ /^[0-9]{14}$/ {
+              if (t($1) != t($2)) bad = 1
+            }
+            END { exit bad }
+          ' "$after" || {
+            echo "::error::Local and remote migration versions still differ."
+            exit 1
+          }
+
+          if awk -F '[│|]' '$2 ~ /20261105150148/ { found = 1 } END { exit !found }' "$after"; then
+            echo "::error::Legacy chat metadata migration version remains applied."
+            exit 1
+          fi
+
+          supabase db push --dry-run --linked --password "$SUPABASE_DB_PASSWORD" \
+            > migration-history-evidence/db-push-dry-run-after.txt 2>&1
+          cat migration-history-evidence/db-push-dry-run-after.txt
+
+      - name: Capture final read-only verification
+        if: ${{ inputs.operation == 'repair_production_history' || inputs.operation == 'audit' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked --password "$SUPABASE_DB_PASSWORD" \
+            > migration-history-evidence/migration-list-final.txt 2>&1
+          supabase db dump --linked --schema public \
+            --file migration-history-evidence/public-schema-final.sql \
+            --password "$SUPABASE_DB_PASSWORD"
+          grep -q 'chat_title' migration-history-evidence/public-schema-final.sql
+          grep -q 'message_count' migration-history-evidence/public-schema-final.sql
+          grep -q 'engineering_chat_sessions_project_updated_idx' migration-history-evidence/public-schema-final.sql
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-migration-history-evidence
+          path: migration-history-evidence/
+          if-no-files-found: warn
+          retention-days: 30
