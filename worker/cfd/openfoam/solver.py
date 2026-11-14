@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import subprocess
@@ -49,7 +50,7 @@ def parse_mesh_cell_count(output: str) -> int:
     return int(matches[-1])
 
 
-def last_probe_values(probe_file: Path, expected_samples: int) -> list[float]:
+def read_last_probe_line(probe_file: Path) -> str:
     if not probe_file.is_file():
         raise WorkerError("OpenFOAM velocity probe output is missing.")
     data_lines = [
@@ -59,11 +60,28 @@ def last_probe_values(probe_file: Path, expected_samples: int) -> list[float]:
     ]
     if not data_lines:
         raise WorkerError("OpenFOAM velocity probe output contains no samples.")
-    values = [float(value) for value in NUMBER.findall(data_lines[-1])]
+    return data_lines[-1]
+
+
+def parse_probe_row(line: str) -> list[float]:
+    values = [float(value) for value in NUMBER.findall(line)]
+    if not all(math.isfinite(value) for value in values):
+        raise WorkerError("OpenFOAM velocity probe output contains non-finite values.")
+    return values
+
+
+def extract_axial_velocity(values: list[float], expected_samples: int) -> list[float]:
     expected_count = 1 + 3 * expected_samples
     if len(values) < expected_count:
         raise WorkerError("OpenFOAM velocity probe output has an unexpected column count.")
     return [values[1 + index * 3] for index in range(expected_samples)]
+
+
+def last_probe_values(probe_file: Path, expected_samples: int) -> list[float]:
+    return extract_axial_velocity(
+        parse_probe_row(read_last_probe_line(probe_file)),
+        expected_samples
+    )
 
 
 def final_residuals(log_text: str) -> dict[str, float]:
