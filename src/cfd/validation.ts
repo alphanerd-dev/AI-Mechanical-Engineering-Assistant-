@@ -96,13 +96,15 @@ function validateMeshSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>)
     : ["mesh.cellsVertical must be an integer between 20 and 200."];
 }
 
-function validateIntegerSetting(
-  value: unknown,
-  minimum: number,
-  maximum: number,
-  message: string
-): string[] {
-  return validInteger(value, minimum, maximum) ? [] : [message];
+interface IntegerSettingRule {
+  value: unknown;
+  minimum: number;
+  maximum: number;
+  message: string;
+}
+
+function validateIntegerSetting(rule: IntegerSettingRule): string[] {
+  return validInteger(rule.value, rule.minimum, rule.maximum) ? [] : [rule.message];
 }
 
 function validateResidualTolerance(value: unknown): string[] {
@@ -116,19 +118,19 @@ function validateResidualTolerance(value: unknown): string[] {
 function validateSolverSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
   const solver = candidate.solver;
   return [
-    ...validateIntegerSetting(
-      solver?.maxIterations,
-      50,
-      10000,
-      "solver.maxIterations must be an integer between 50 and 10000."
-    ),
+    ...validateIntegerSetting({
+      value: solver?.maxIterations,
+      minimum: 50,
+      maximum: 10000,
+      message: "solver.maxIterations must be an integer between 50 and 10000."
+    }),
     ...validateResidualTolerance(solver?.residualTolerance),
-    ...validateIntegerSetting(
-      solver?.timeoutSeconds,
-      5,
-      600,
-      "solver.timeoutSeconds must be an integer between 5 and 600."
-    )
+    ...validateIntegerSetting({
+      value: solver?.timeoutSeconds,
+      minimum: 5,
+      maximum: 600,
+      message: "solver.timeoutSeconds must be an integer between 5 and 600."
+    })
   ];
 }
 
