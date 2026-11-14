@@ -45,11 +45,6 @@ function hasTrustedProvider(provenance: Row, completion: Completion, projectId: 
   ];
   return fields.every(Boolean);
 }
-function boundStorageObject(solid: Row, completion: Completion, projectId: string): string | null {
-  const objectPath = [projectId, completion.model_identity_id, completion.execution_id, "solid.brep"].join("/");
-  const uri = "storage://engineering-cad-artifacts/" + objectPath;
-  return solid.uri === uri && completion.storage_objects.includes(objectPath) ? objectPath : null;
-}
 
 function resolveProvenance(solid: Row, completion: Completion, projectId: string): Result<Row> {
   const provenance = isRecord(solid.provenance) ? solid.provenance : null;
