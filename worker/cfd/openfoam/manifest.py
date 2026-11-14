@@ -71,34 +71,54 @@ def validate_mesh_settings(data: dict[str, Any]) -> list[str]:
     return errors
 
 
+def missing_solver_errors() -> list[str]:
+    return [
+        "solver must be an object.",
+        "solver.maxIterations must be an integer between 50 and 10000.",
+        "solver.residualTolerance must be between 1e-10 and 1e-3.",
+        "solver.timeoutSeconds must be an integer between 5 and 600."
+    ]
+
+
+def validate_solver_keys(solver: dict[str, Any]) -> list[str]:
+    if set(solver) - {"maxIterations", "residualTolerance", "timeoutSeconds"}:
+        return ["solver contains unsupported fields."]
+    return []
+
+
+def validate_max_iterations(solver: dict[str, Any]) -> list[str]:
+    value = solver.get("maxIterations")
+    valid = isinstance(value, int) and not isinstance(value, bool) and 50 <= value <= 10000
+    return [] if valid else ["solver.maxIterations must be an integer between 50 and 10000."]
+
+
+def validate_residual_tolerance(solver: dict[str, Any]) -> list[str]:
+    value = solver.get("residualTolerance")
+    valid = (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and 1e-10 <= value <= 1e-3
+    )
+    return [] if valid else ["solver.residualTolerance must be between 1e-10 and 1e-3."]
+
+
+def validate_solver_timeout(solver: dict[str, Any]) -> list[str]:
+    value = solver.get("timeoutSeconds")
+    valid = isinstance(value, int) and not isinstance(value, bool) and 5 <= value <= 600
+    return [] if valid else ["solver.timeoutSeconds must be an integer between 5 and 600."]
+
+
 def validate_solver_settings(data: dict[str, Any]) -> list[str]:
     solver = data.get("solver")
     if not isinstance(solver, dict):
-        return [
-            "solver must be an object.",
-            "solver.maxIterations must be an integer between 50 and 10000.",
-            "solver.residualTolerance must be between 1e-10 and 1e-3.",
-            "solver.timeoutSeconds must be an integer between 5 and 600."
-        ]
-    errors: list[str] = []
-    if set(solver) - {"maxIterations", "residualTolerance", "timeoutSeconds"}:
-        errors.append("solver contains unsupported fields.")
-    iterations = solver.get("maxIterations")
-    if not isinstance(iterations, int) or isinstance(iterations, bool) or not 50 <= iterations <= 10000:
-        errors.append("solver.maxIterations must be an integer between 50 and 10000.")
-    tolerance = solver.get("residualTolerance")
-    if (
-        isinstance(tolerance, bool) or
-        not isinstance(tolerance, (int, float)) or
-        not math.isfinite(tolerance) or
-        not 1e-10 <= tolerance <= 1e-3
-    ):
-        errors.append("solver.residualTolerance must be between 1e-10 and 1e-3.")
-    timeout = solver.get("timeoutSeconds")
-    if not isinstance(timeout, int) or isinstance(timeout, bool) or not 5 <= timeout <= 600:
-        errors.append("solver.timeoutSeconds must be an integer between 5 and 600.")
-    return errors
-
+        return missing_solver_errors()
+    return (
+        validate_solver_keys(solver)
+        + validate_max_iterations(solver)
+        + validate_residual_tolerance(solver)
+        + validate_solver_timeout(solver)
+    )
 
 def validate_request(data: Any) -> list[str]:
     if not isinstance(data, dict):
