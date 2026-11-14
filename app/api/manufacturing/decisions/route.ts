@@ -9,6 +9,7 @@ import type { ManufacturingDecisionRequest } from "../../../../lib/manufacturing
 
 type Row = Record<string, unknown>;
 type DecisionInput = ManufacturingDecisionRequest;
+type Result<T> = { ok: true; value: T } | { ok: false; message: string; status: number };
 function isRecord(value: unknown): value is Row {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
