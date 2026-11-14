@@ -9,7 +9,6 @@ import { parseManufacturingReadinessRequest } from "../../../../lib/manufacturin
 import type { ManufacturingReadinessRequest } from "../../../../src/manufacturing/readiness";
 
 type Row = Record<string, unknown>;
-type Result<T> = { ok: true; value: T } | { ok: false; message: string; status: number };
 function isRecord(value: unknown): value is Row {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -23,12 +22,10 @@ function authorizationStatus(reason: string) {
   return reason.includes("unavailable") ? 503 : 403;
 }
 function assessmentReceipt(value: unknown): value is Row {
-  return isRecord(value) && isRecord(value.assessment) && isRecord(value.audit);
+  if (!isRecord(value)) return false;
+  if (!isRecord(value.assessment)) return false;
+  return isRecord(value.audit);
 }
-function failed<T>(message: string, status: number): Result<T> {
-  return { ok: false, message, status };
-}
-
 async function createAssessment(input: {
   body: ManufacturingReadinessRequest; actorId: string; requestId: string;
 }) {
