@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { ManufacturingReadinessRequest } from "../../../../src/manufacturing/readiness";
 
 const finite = z.number().finite();
+const nonNegative = finite.nonnegative();
+const positive = finite.positive();
 const process = z.enum(["MACHINING","ADDITIVE","SHEET_METAL","WELDING","CASTING","FORMING","ASSEMBLY"]);
 const processPlan = z.object({
   id: z.string().min(1), projectId: z.string().uuid(), name: z.string().min(1),
@@ -36,17 +38,17 @@ const inspection = z.object({
   }).strict()
 }).strict();
 const metrics = z.object({
-  solidCount: finite.optional(), volumeMm3: finite.optional(), surfaceAreaMm2: finite.optional(),
-  boundingBoxMm: z.object({ x: finite, y: finite, z: finite }).strict().optional(),
-  watertight: z.boolean().optional(), minWallThicknessMm: finite.optional(),
-  maxOverhangDeg: finite.optional(), triangleCount: finite.optional()
+  solidCount: z.number().int().nonnegative().optional(), volumeMm3: nonNegative.optional(), surfaceAreaMm2: nonNegative.optional(),
+  boundingBoxMm: z.object({ x: nonNegative, y: nonNegative, z: nonNegative }).strict().optional(),
+  watertight: z.boolean().optional(), minWallThicknessMm: nonNegative.optional(),
+  maxOverhangDeg: finite.min(0).max(180).optional(), triangleCount: z.number().int().nonnegative().optional()
 }).strict();
 const dfmRule = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("MIN_WALL_THICKNESS_MM"), minimumMm: finite }).strict(),
-  z.object({ kind: z.literal("MAX_OVERHANG_DEG"), maximumDeg: finite }).strict(),
+  z.object({ kind: z.literal("MIN_WALL_THICKNESS_MM"), minimumMm: nonNegative }).strict(),
+  z.object({ kind: z.literal("MAX_OVERHANG_DEG"), maximumDeg: finite.min(0).max(180) }).strict(),
   z.object({ kind: z.literal("REQUIRE_WATERTIGHT"), required: z.boolean() }).strict(),
-  z.object({ kind: z.literal("MAX_ENVELOPE_MM"), axis: z.enum(["x","y","z"]), maximumMm: finite }).strict(),
-  z.object({ kind: z.literal("MIN_SOLID_COUNT"), minimum: finite }).strict()
+  z.object({ kind: z.literal("MAX_ENVELOPE_MM"), axis: z.enum(["x","y","z"]), maximumMm: positive }).strict(),
+  z.object({ kind: z.literal("MIN_SOLID_COUNT"), minimum: z.number().int().min(1) }).strict()
 ]);
 
 const requestSchema = z.object({
