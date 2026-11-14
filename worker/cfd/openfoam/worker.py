@@ -185,29 +185,72 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+def parse_artifact_request(path: str) -> tuple[str, str] | None:
+    parts = [unquote(part) for part in urlsplit(path).path.split("/") if part]
+    if len(parts) != 5 or parts[:3] != ["v1", "cfd", "artifacts"]:
+        return None
+    job_id, filename = parts[3], parts[4]
+    if not re.fullmatch(r"[a-f0-9]{32}", job_id) or filename not in ARTIFACT_NAMES:
+        return None
+    return job_id, filename
+
+
+def resolve_artifact_file(artifact_root: Path, job_id: str, filename: str) -> Path | None:
+    artifact_path = (artifact_root / job_id / filename).resolve()
+    expected_parent = (artifact_root / job_id).resolve()
+    if artifact_path.parent != expected_parent or not artifact_path.is_file():
+        return None
+    return artifact_path
+
+
+def send_artifact_response(handler: "Handler") -> None:
+    if not handler._authorized():
+        handler._send_json(401, {"error": "Unauthorized."})
+        return
+    request = parse_artifact_request(handler.path)
+    if request is None:
+        handler._send_json(404, {"error": "Not found."})
+        return
+    job_id, filename = request
+    artifact_path = resolve_artifact_file(ARTIFACT_ROOT, job_id, filename)
+    if artifact_path is None:
+        handler._send_json(404, {"error": "Not found."})
+        return
+    media_type = "application/gzip" if filename.endswith(".gz") else "text/plain"
+    handler._send_bytes(200, artifact_path.read_bytes(), media_type)
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "OpenFOAM14Worker/0.1"
+
+    def _authorized(self) -> bool:
+        if not WORKER_TOKEN:
+            return False
+        supplied = self.headers.get("Authorization", "")
+        expected = f"Bearer {WORKER_TOKEN}"
+        return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
+
+    def _send_bytes(self, status: int, payload: bytes, media_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", media_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _send_json(self, status: int, payload: dict[str, Any]) -> None:
+        encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
     def do_GET(self) -> None:
         if self.path == "/health":
             self._send_json(200, {"ready": True, "solver": "OpenFOAM", "solverVersion": "14"})
             return
         if self.path.startswith("/v1/cfd/artifacts/"):
-            if not self._authorized():
-                self._send_json(401, {"error": "Unauthorized."})
-                return
-            parts = [unquote(part) for part in urlsplit(self.path).path.split("/") if part]
-            if len(parts) != 5 or parts[:3] != ["v1", "cfd", "artifacts"]:
-                self._send_json(404, {"error": "Not found."})
-                return
-            job_id, filename = parts[3], parts[4]
-            if not re.fullmatch(r"[a-f0-9]{32}", job_id) or filename not in ARTIFACT_NAMES:
-                self._send_json(404, {"error": "Not found."})
-                return
-            artifact_path = (ARTIFACT_ROOT / job_id / filename).resolve()
-            expected_parent = (ARTIFACT_ROOT / job_id).resolve()
-            if artifact_path.parent != expected_parent or not artifact_path.is_file():
-                self._send_json(404, {"error": "Not found."})
-                return
-            media_type = "application/gzip" if filename.endswith(".gz") else "text/plain"
-            self._send_bytes(200, artifact_path.read_bytes(), media_type)
+            send_artifact_response(self)
             return
         self._send_json(404, {"error": "Not found."})
 
