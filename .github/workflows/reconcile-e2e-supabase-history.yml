@@ -52,7 +52,7 @@ jobs:
           grep -q -- '--db-url' "$RUNNER_TEMP/push-help.txt"
 
   reconcile:
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirmation == 'RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[reconcile-e2e-history]')) }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.event.inputs.confirmation == 'RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[reconcile-e2e-history]')) }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30

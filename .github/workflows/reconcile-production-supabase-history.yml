@@ -68,8 +68,8 @@ jobs:
       # Fixed project target: callers cannot redirect this workflow to another database.
       PRODUCTION_PROJECT_REF: mepmogsqhxxasahwhete
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      OPERATION: ${{ github.event_name == 'push' && 'repair_production_history' || inputs.operation }}
-      CONFIRMATION: ${{ github.event_name == 'push' && 'RECONCILE_PRODUCTION_HISTORY_TO_REPOSITORY_CANONICAL' || inputs.confirmation }}
+      OPERATION: ${{ github.event_name == 'push' && 'repair_production_history' || github.event.inputs.operation }}
+      CONFIRMATION: ${{ github.event_name == 'push' && 'RECONCILE_PRODUCTION_HISTORY_TO_REPOSITORY_CANONICAL' || github.event.inputs.confirmation }}
 
     steps:
       - uses: actions/checkout@v4
