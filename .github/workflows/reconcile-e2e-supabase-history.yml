@@ -52,7 +52,7 @@ jobs:
           grep -q -- '--db-url' "$RUNNER_TEMP/push-help.txt"
 
   reconcile:
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.event.inputs.confirmation == 'RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[reconcile-e2e-history]')) }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[reconcile-e2e-history]'))) }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30
@@ -60,6 +60,7 @@ jobs:
       # Fixed E2E project ref; this job cannot be redirected to production.
       E2E_PROJECT_REF: mpbrlegwrrrfpeumtqhi
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_E2E_DB_PASSWORD }}
+      CONFIRMATION: ${{ github.event_name == 'push' && 'RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL' || github.event.inputs.confirmation }}
 
     steps:
       - uses: actions/checkout@v4
@@ -133,6 +134,10 @@ jobs:
           for version in "${expected[@]}"; do
             test -n "$(find supabase/migrations -maxdepth 1 -name "${version}_*.sql" -print -quit)"
           done
+          if [[ "$CONFIRMATION" != "RECONCILE_E2E_HISTORY_TO_REPOSITORY_CANONICAL" ]]; then
+            echo "::error::Explicit E2E repair confirmation did not match. No migration history was changed."
+            exit 1
+          fi
           for i in "${!legacy[@]}"; do
             if ! has_remote "${legacy[$i]}" && ! has_remote "${expected[$i]}"; then
               echo "::error::Neither canonical ${expected[$i]} nor E2E legacy ${legacy[$i]} exists remotely."
