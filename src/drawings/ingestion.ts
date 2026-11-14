@@ -296,8 +296,7 @@ function inspectDXF(context: DrawingInspectionContext): CADDrawingInspection | n
     throw new Error("DXF media type does not match the declared file format.");
   }
   const source = decodeUtf8(context.bytes);
-  if (/[^	
- -~]/.test(source)) {
+  if (/[^\x09\x0a\x0d\x20-\x7e]/.test(source)) {
     throw new Error("DXF preview currently accepts ASCII-compatible text only.");
   }
   const parsed = parseDXF(source);
