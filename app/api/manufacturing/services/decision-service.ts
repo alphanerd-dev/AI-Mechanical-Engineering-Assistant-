@@ -71,6 +71,19 @@ function createDecisionPayload(input: {
   });
   return { record, auditRecord };
 }
+function successfulDecisionResponse(data: unknown) {
+  if (!validDecisionReceipt(data)) return null;
+  return NextResponse.json({ decision: data.decision, audit: data.audit }, { status: 201 });
+}
+function reconciledDecisionResponse(input: {
+  prior: Row | null; actorId: string; decision: ManufacturingDecisionRequest["decision"];
+}) {
+  if (!input.prior) return null;
+  if (input.prior.decided_by !== input.actorId || input.prior.decision !== input.decision) {
+    return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
+  }
+  return NextResponse.json({ decision: input.prior, idempotentReplay: true }, { status: 200 });
+}
 async function writeDecision(input: {
   request: ManufacturingDecisionRequest; actorId: string; record: Row; auditRecord: Row;
 }) {
@@ -78,22 +91,14 @@ async function writeDecision(input: {
   const { data, error } = await db.rpc("record_manufacturing_decision_with_audit", {
     p_decision: input.record, p_audit_record: input.auditRecord
   });
-  if (!error) {
-    if (validDecisionReceipt(data)) {
-      return NextResponse.json({ decision: data.decision, audit: data.audit }, { status: 201 });
-    }
-  }
+  const successful = error ? null : successfulDecisionResponse(data);
+  if (successful) return successful;
   const { data: reconciled } = await db.from("engineering_manufacturing_decisions").select("*")
     .eq("project_id", input.request.projectId).eq("assessment_id", input.request.assessmentId).maybeSingle();
-  if (reconciled) {
-    if (reconciled.decided_by !== input.actorId) {
-      return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
-    }
-    if (reconciled.decision !== input.request.decision) {
-      return fail({ message: "This manufacturing assessment already has a final human decision.", status: 409 });
-    }
-    return NextResponse.json({ decision: reconciled, idempotentReplay: true }, { status: 200 });
-  }
+  const replay = reconciledDecisionResponse({
+    prior: reconciled as Row | null, actorId: input.actorId, decision: input.request.decision
+  });
+  if (replay) return replay;
   return fail({ message: "Manufacturing decision and audit transaction could not be confirmed.", status: 503 });
 }
 export async function submitManufacturingDecision(input: {
