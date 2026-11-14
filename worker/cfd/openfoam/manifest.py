@@ -60,25 +60,31 @@ def validate_flow_physics(data: dict[str, Any]) -> list[str]:
     return errors
 
 
+def validate_mesh_keys(mesh: Any) -> list[str]:
+    unsupported = isinstance(mesh, dict) and bool(set(mesh) - {"cellsVertical"})
+    return ["mesh contains unsupported fields."] if unsupported else []
+
+
+def is_integer_value(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_mesh_cell_count_in_range(value: int) -> bool:
+    return 20 <= value <= 200
+
+
+def validate_mesh_cell_count(mesh: Any) -> list[str]:
+    cells = mesh.get("cellsVertical") if isinstance(mesh, dict) else None
+    if not is_integer_value(cells):
+        return ["mesh.cellsVertical must be an integer between 20 and 200."]
+    if not is_mesh_cell_count_in_range(cells):
+        return ["mesh.cellsVertical must be an integer between 20 and 200."]
+    return []
+
+
 def validate_mesh_settings(data: dict[str, Any]) -> list[str]:
     mesh = data.get("mesh")
-    errors: list[str] = []
-    if isinstance(mesh, dict) and set(mesh) - {"cellsVertical"}:
-        errors.append("mesh contains unsupported fields.")
-    cells = mesh.get("cellsVertical") if isinstance(mesh, dict) else None
-    if not isinstance(cells, int) or isinstance(cells, bool) or not 20 <= cells <= 200:
-        errors.append("mesh.cellsVertical must be an integer between 20 and 200.")
-    return errors
-
-
-def missing_solver_errors() -> list[str]:
-    return [
-        "solver must be an object.",
-        "solver.maxIterations must be an integer between 50 and 10000.",
-        "solver.residualTolerance must be between 1e-10 and 1e-3.",
-        "solver.timeoutSeconds must be an integer between 5 and 600."
-    ]
-
+    return validate_mesh_keys(mesh) + validate_mesh_cell_count(mesh)
 
 def validate_solver_keys(solver: dict[str, Any]) -> list[str]:
     if set(solver) - {"maxIterations", "residualTolerance", "timeoutSeconds"}:
