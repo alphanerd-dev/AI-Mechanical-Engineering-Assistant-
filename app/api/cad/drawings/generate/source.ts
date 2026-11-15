@@ -1,12 +1,16 @@
-import { createHash } from "node:crypto";
+import {
+  loadCompletion,
+  resolveCanonicalSolid,
+  verifyStoredBrep
+} from "../../../../../src/cad/geometry-revision-persistence-source";
 import { CAD_ARTIFACT_BUCKET } from "../../../../../src/cad/persistence";
+import type { CanonicalSolid, Completion, GeometryRevisionDatabase, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
 import { fail } from "./request";
 
-type Row = Record<string, unknown>;
 type ServiceDb = ReturnType<typeof import("../../../../../lib/supabase/service").createServiceRoleClient>;
 export interface AcceptedShaftSource {
-  completion: Row;
-  solid: Row;
+  completion: Completion;
+  solid: CanonicalSolid;
   diameterMm: number;
   lengthMm: number;
 }
@@ -32,45 +36,22 @@ export async function loadCurrentGeometryRevision(serviceDb: ServiceDb, input: {
   }
   return revision;
 }
-function matchesCanonicalArtifact(item: unknown, artifactId: unknown): boolean {
-  if (!isRecord(item)) return false;
-  return item.id === artifactId;
-}
-function findCanonicalSolid(completion: Row, revision: Row): Row {
-  if (!Array.isArray(completion.artifact_records)) fail({ message: "Accepted completion manifest has no artifact records.", status: 422, code: "SOURCE_ARTIFACT_MISSING" });
-  const artifact = completion.artifact_records.find((item: unknown) => matchesCanonicalArtifact(item, revision.canonical_artifact_id));
-  if (!isRecord(artifact)) fail({ message: "Canonical source artifact is absent from the accepted completion manifest.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
-  if (artifact.kind !== "SOLID") fail({ message: "Canonical source artifact is not a solid.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
-  if (artifact.validationStatus !== "PASS") fail({ message: "Canonical source artifact did not pass geometry validation.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
-  if (!isRecord(artifact.provenance)) fail({ message: "Canonical source artifact provenance is missing.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
-  return artifact;
-}
-function validateCanonicalSolidLineage(solid: Row, revision: Row): void {
-  if (!isRecord(solid.provenance)) fail({ message: "Canonical source artifact provenance is missing.", status: 422, code: "SOURCE_DIGEST_MISMATCH" });
+function validateRevisionArtifactBinding(revision: Row, solid: CanonicalSolid): void {
+  if (solid.id !== revision.canonical_artifact_id) fail({ message: "Canonical solid ID does not match the geometry revision.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
   if (solid.provenance.artifactSha256 !== revision.canonical_artifact_sha256) {
-    fail({ message: "Canonical source artifact digest does not match the immutable geometry revision.", status: 422, code: "SOURCE_DIGEST_MISMATCH" });
+    fail({ message: "Canonical solid digest does not match the immutable geometry revision.", status: 422, code: "SOURCE_DIGEST_MISMATCH" });
   }
-  const expectedUri = "storage://" + String(revision.storage_bucket) + "/" + String(revision.storage_object_name);
-  if (solid.uri !== expectedUri) fail({ message: "Canonical source storage lineage does not match the immutable geometry revision.", status: 422, code: "SOURCE_STORAGE_MISMATCH" });
+  if (revision.storage_bucket !== CAD_ARTIFACT_BUCKET) fail({ message: "Geometry revision storage bucket is invalid.", status: 422, code: "SOURCE_STORAGE_INVALID" });
+  if (solid.objectPath !== revision.storage_object_name) fail({ message: "Geometry revision storage path does not match the accepted completion.", status: 422, code: "SOURCE_STORAGE_MISMATCH" });
 }
-function isValidCylinderBounds(bounds: unknown): bounds is Row {
-  if (!isRecord(bounds)) return false;
-  if (!finitePositive(bounds.x) || !finitePositive(bounds.y) || !finitePositive(bounds.z)) return false;
-  return Math.abs((bounds.x as number) - (bounds.y as number)) <= 0.02;
-}
-interface GeometryReceiptContext {
-  receipt: unknown;
-  revision: Row;
-  projectId: string;
-  modelIdentityId: string;
-  solid: Row;
-}
-function isValidGeometryReceipt(input: GeometryReceiptContext): boolean {
+function isValidGeometryReceipt(input: {
+  receipt: unknown; revision: Row; projectId: string; modelIdentityId: string; solidId: string;
+}): input["receipt"] is Row {
   const receipt = input.receipt;
   if (!isRecord(receipt)) return false;
   if (receipt.artifactSha256 !== input.revision.canonical_artifact_sha256) return false;
   if (receipt.projectId !== input.projectId) return false;
-  if (receipt.artifactId !== input.solid.id) return false;
+  if (receipt.artifactId !== input.solidId) return false;
   if (receipt.modelIdentityId !== input.modelIdentityId) return false;
   if (typeof receipt.checkedBy !== "string" || !receipt.checkedBy.trim()) return false;
   if (typeof receipt.validatorProviderId !== "string" || !receipt.validatorProviderId.trim()) return false;
@@ -79,53 +60,43 @@ function isValidGeometryReceipt(input: GeometryReceiptContext): boolean {
   if (!isRecord(receipt.validation)) return false;
   return receipt.validation.valid === true;
 }
-function extractAcceptedCylinderDimensions(input: {
-  completion: Row; revision: Row; projectId: string; modelIdentityId: string; solid: Row;
+function extractCylinderDimensions(input: {
+  completion: Completion; revision: Row; projectId: string; modelIdentityId: string; solidId: string;
 }): { diameterMm: number; lengthMm: number } {
   const receipt = input.completion.validation_receipt;
-  const measurements = isRecord(receipt) && isRecord(receipt.geometryMeasurements) ? receipt.geometryMeasurements : undefined;
-  const bounds = measurements?.boundingBoxMm;
   if (!isValidGeometryReceipt({
     receipt, revision: input.revision, projectId: input.projectId,
-    modelIdentityId: input.modelIdentityId, solid: input.solid
+    modelIdentityId: input.modelIdentityId, solidId: input.solidId
   })) {
     fail({ message: "Accepted geometry receipt identity or validation status is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   }
-  if (!isValidCylinderBounds(bounds)) {
-    fail({ message: "Accepted geometry receipt does not contain source-bound cylinder dimensions suitable for this drawing generator.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  const measurements = receipt.geometryMeasurements;
+  const bounds = isRecord(measurements) ? measurements.boundingBoxMm : undefined;
+  if (!isRecord(bounds)) fail({ message: "Accepted geometry receipt has no bounding box measurements.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  if (!finitePositive(bounds.x)) fail({ message: "Accepted shaft X extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  if (!finitePositive(bounds.y)) fail({ message: "Accepted shaft Y extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  if (!finitePositive(bounds.z)) fail({ message: "Accepted shaft Z extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  if (Math.abs(bounds.x - bounds.y) > 0.02) {
+    fail({ message: "Source geometry is not a world-Z cylindrical shaft within 0.02 mm cross-section tolerance.", status: 422, code: "UNSUPPORTED_SHAFT_GEOMETRY" });
   }
-  return { diameterMm: ((bounds.x as number) + (bounds.y as number)) / 2, lengthMm: bounds.z as number };
+  return { diameterMm: (bounds.x + bounds.y) / 2, lengthMm: bounds.z };
 }
 export async function loadAcceptedShaftSource(
   serviceDb: ServiceDb, revision: Row, projectId: string, modelIdentityId: string
 ): Promise<AcceptedShaftSource> {
-  const { data, error } = await serviceDb.from("engineering_cad_completions").select("*")
-    .eq("id", revision.source_completion_id).eq("project_id", projectId)
-    .eq("model_identity_id", modelIdentityId).maybeSingle();
-  if (error) fail({ message: "Accepted CAD completion for the source geometry revision could not be loaded.", status: 503, code: "SOURCE_COMPLETION_UNAVAILABLE" });
-  if (!isRecord(data)) fail({ message: "Accepted CAD completion for the source geometry revision could not be loaded.", status: 503, code: "SOURCE_COMPLETION_UNAVAILABLE" });
-  if (data.status !== "ACCEPTED") fail({ message: "Drawing generation requires an accepted CAD completion manifest.", status: 422, code: "SOURCE_COMPLETION_NOT_ACCEPTED" });
-  const solid = findCanonicalSolid(data, revision);
-  validateCanonicalSolidLineage(solid, revision);
-  const dimensions = extractAcceptedCylinderDimensions({ completion: data, revision, projectId, modelIdentityId, solid });
-  return { completion: data, solid, ...dimensions };
-}
-function validateSourceStorageIdentity(revision: Row): { bucket: string; path: string } {
-  const bucket = String(revision.storage_bucket);
-  const path = String(revision.storage_object_name);
-  const validPath = path.startsWith(String(revision.project_id) + "/") && !path.includes("..");
-  if (bucket !== CAD_ARTIFACT_BUCKET) fail({ message: "Canonical source storage bucket is invalid.", status: 422, code: "SOURCE_STORAGE_INVALID" });
-  if (!validPath) fail({ message: "Canonical source storage path is invalid.", status: 422, code: "SOURCE_STORAGE_INVALID" });
-  return { bucket, path };
-}
-export async function verifyCanonicalSourceBytes(serviceDb: ServiceDb, revision: Row): Promise<void> {
-  const { bucket, path } = validateSourceStorageIdentity(revision);
-  const downloaded = await serviceDb.storage.from(bucket).download(path);
-  if (downloaded.error) fail({ message: "Canonical source geometry bytes could not be retrieved.", status: 503, code: "SOURCE_STORAGE_UNAVAILABLE" });
-  if (!downloaded.data) fail({ message: "Canonical source geometry bytes could not be retrieved.", status: 503, code: "SOURCE_STORAGE_UNAVAILABLE" });
-  const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
-  const digest = createHash("sha256").update(bytes).digest("hex");
-  if (digest !== revision.canonical_artifact_sha256) {
-    fail({ message: "Canonical source geometry bytes no longer match their immutable SHA-256 receipt.", status: 422, code: "SOURCE_DIGEST_MISMATCH" });
-  }
+  const completionResult = await loadCompletion(
+    serviceDb as unknown as GeometryRevisionDatabase, projectId, String(revision.source_completion_id)
+  );
+  if (!completionResult.ok) fail({ message: completionResult.message, status: completionResult.status, code: "SOURCE_COMPLETION_UNAVAILABLE" });
+  const completion = completionResult.value;
+  const solidResult = resolveCanonicalSolid(completion, projectId);
+  if (!solidResult.ok) fail({ message: solidResult.message, status: solidResult.status, code: "SOURCE_ARTIFACT_MISMATCH" });
+  const solid = solidResult.value;
+  validateRevisionArtifactBinding(revision, solid);
+  const storedResult = await verifyStoredBrep(serviceDb as unknown as GeometryRevisionDatabase, solid);
+  if (!storedResult.ok) fail({ message: storedResult.message, status: storedResult.status, code: "SOURCE_DIGEST_MISMATCH" });
+  const dimensions = extractCylinderDimensions({
+    completion, revision, projectId, modelIdentityId, solidId: solid.id
+  });
+  return { completion, solid, ...dimensions };
 }
