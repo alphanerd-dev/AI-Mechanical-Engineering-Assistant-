@@ -31,6 +31,7 @@ describe("source-bound shaft orthographic SVG drawing", () => {
     expect(first.parameters.sourceRevisionNumber).toBe(3);
     expect(first.svg).toContain("L = 200.00 mm");
     expect(first.svg).toContain("Ø 20.00 mm");
+    expect(first.svg).toContain('cx="264.00"');
     expect(first.svg).toContain("PRELIMINARY — NOT FOR MANUFACTURE");
     expect(first.svg).toContain("&lt;prototype&gt; &amp; coupling");
     expect(inspectCADDrawingUpload({
