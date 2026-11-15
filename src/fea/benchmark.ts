@@ -63,11 +63,16 @@ function validReference(reference: unknown): reference is FEABenchmarkReference 
       reference.units.modulus !== "MPa" || reference.units.deflection !== "mm") return false;
   if (!finitePositive(reference.sectionSecondMomentMm4)) return false;
   if (!finitePositive(reference.expectedTipDeflectionMm)) return false;
-  if (!finitePositive(reference.displacementRelativeTolerance)) return false;
+  if (!finitePositive(reference.displacementRelativeTolerance) || reference.displacementRelativeTolerance > 0.3) return false;
   if (!finiteNonNegative(reference.displacementRelativeError)) return false;
-  if (!finitePositive(reference.reactionRelativeTolerance)) return false;
+  if (!finitePositive(reference.reactionRelativeTolerance) || reference.reactionRelativeTolerance > 0.01) return false;
   if (!finiteNonNegative(reference.reactionRelativeError)) return false;
   if (!isRecord(reference.expectedSupportReactionN) || !isRecord(reference.measuredSupportReactionN)) return false;
+  for (const axis of ["x", "y", "z"]) {
+    if (!finiteNonNegative(reference.expectedSupportReactionN[axis])) return false;
+    if (typeof reference.measuredSupportReactionN[axis] !== "number" ||
+        !Number.isFinite(reference.measuredSupportReactionN[axis])) return false;
+  }
   if (!finiteNonNegative(reference.measuredMaximumDisplacementMm)) return false;
   if (!finiteNonNegative(reference.bendingDeflectionMm)) return false;
   if (!finiteNonNegative(reference.firstOrderShearDeflectionMm)) return false;
@@ -94,12 +99,18 @@ function validateReferenceAgainstIndependentCalculation(
     (measuredReaction.y as number) - force,
     (measuredReaction.z as number)
   ) / force;
+  const expectedReaction = reference.expectedSupportReactionN;
   const displacementError = Math.abs(reference.measuredMaximumDisplacementMm - expectedDeflection) / expectedDeflection;
   const errors: string[] = [];
   if (Math.abs(reference.sectionSecondMomentMm4 - inertia) > inertia * 1e-9) errors.push("Section second moment does not match the independent reference calculation.");
   if (Math.abs(reference.bendingDeflectionMm - bending) > bending * 1e-9) errors.push("Bending deflection does not match the independent reference calculation.");
   if (Math.abs(reference.firstOrderShearDeflectionMm - shear) > shear * 1e-9) errors.push("Shear deflection does not match the independent reference calculation.");
   if (Math.abs(reference.expectedTipDeflectionMm - expectedDeflection) > expectedDeflection * 1e-9) errors.push("Expected tip deflection does not match the independent reference calculation.");
+  if (Math.abs(expectedReaction.x as number) > 1e-9 ||
+      Math.abs((expectedReaction.y as number) - force) > Math.max(1e-9, force * 1e-9) ||
+      Math.abs(expectedReaction.z as number) > 1e-9) {
+    errors.push("Expected support reaction does not match the applied benchmark load.");
+  }
   if (!finiteNonNegative(result.maxDisplacementMm) ||
       Math.abs(reference.measuredMaximumDisplacementMm - result.maxDisplacementMm) > Math.max(1e-12, result.maxDisplacementMm * 1e-9)) {
     errors.push("Benchmark displacement does not match the normalized solver result.");
@@ -141,6 +152,12 @@ export function validateFEACantileverBoxResult(
   const base = validateFEAExecution(result, ["DISPLACEMENT", "STRESS", "REACTION_FORCE"]);
   const checks = [...base.checks];
   const blockingReasons = [...base.blockingReasons];
+  const solverValid = result.analysis === "STATIC_STRUCTURAL" && result.solver === "calculix" &&
+    typeof result.solverVersion === "string" && result.solverVersion.length > 0 &&
+    result.mesh.elementType === "C3D4";
+  checks.push(check("pinned_solver_contract", solverValid,
+    solverValid ? "The result identifies the supported CalculiX/C3D4 contract." : "The result does not match the supported CalculiX/C3D4 contract."));
+  if (!solverValid) blockingReasons.push("The result does not match the supported CalculiX/C3D4 contract.");
   const reference = result.benchmarkReference;
   const referenceValid = validReference(reference);
   checks.push(check("analytical_benchmark_reference", referenceValid,
@@ -163,6 +180,6 @@ export function validateFEACantileverBoxResult(
     status: blockingReasons.length ? "FAIL" : "PASS",
     checks,
     blockingReasons: [...new Set(blockingReasons)],
-    warnings: [...base.warnings, ...result.warnings]
+    warnings: base.warnings
   };
 }
