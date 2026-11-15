@@ -65,9 +65,13 @@ def public_job(job: dict[str, Any]) -> dict[str, Any]:
     return {key: job[key] for key in ("jobId", "status", "result", "error", "errorCode", "cancelRequested") if key in job}
 
 
-def validate_request(request: Any) -> tuple[str, int]:
-    if not isinstance(request, dict):
+def require_request_object(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
         raise ValueError("Execution request must be a JSON object.")
+    return value
+
+
+def require_job_id(request: dict[str, Any]) -> str:
     job_id = request.get("id")
     if not isinstance(job_id, str):
         raise ValueError("Execution request id is required.")
@@ -75,19 +79,44 @@ def validate_request(request: Any) -> tuple[str, int]:
         uuid.UUID(job_id)
     except ValueError as exc:
         raise ValueError("Execution request id must be a UUID.") from exc
+    return job_id
+
+
+def validate_worker_route(request: dict[str, Any]) -> None:
     if request.get("backend") != "fea-worker":
         raise ValueError("Only the fea-worker backend is supported.")
     if request.get("capability") != "ANALYSIS.STATIC_STRUCTURAL":
         raise ValueError("Only ANALYSIS.STATIC_STRUCTURAL is supported.")
-    if not isinstance(request.get("inputs"), dict):
+
+
+def require_fea_inputs(request: dict[str, Any]) -> dict[str, Any]:
+    inputs = request.get("inputs")
+    if not isinstance(inputs, dict):
         raise ValueError("FEA inputs must be a JSON object.")
-    timeout_ms = request.get("timeoutMs")
-    if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or not 1000 <= timeout_ms <= MAX_TIMEOUT_MS:
-        raise ValueError("timeoutMs must be an integer between 1000 and 120000.")
-    inputs = request["inputs"]
-    if inputs.get("analysis") != "STATIC_STRUCTURAL" or inputs.get("benchmark") != "cantilever_box":
+    if inputs.get("analysis") != "STATIC_STRUCTURAL":
+        raise ValueError("The current CalculiX runtime requires STATIC_STRUCTURAL analysis.")
+    if inputs.get("benchmark") != "cantilever_box":
         raise ValueError("The current CalculiX runtime supports the cantilever_box reference benchmark only.")
+    return inputs
+
+
+def require_worker_timeout(request: dict[str, Any]) -> int:
+    timeout_ms = request.get("timeoutMs")
+    if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int):
+        raise ValueError("timeoutMs must be an integer between 1000 and 120000.")
+    if not 1000 <= timeout_ms <= MAX_TIMEOUT_MS:
+        raise ValueError("timeoutMs must be an integer between 1000 and 120000.")
+    return timeout_ms
+
+
+def validate_request(request: Any) -> tuple[str, int]:
+    body = require_request_object(request)
+    job_id = require_job_id(body)
+    validate_worker_route(body)
+    require_fea_inputs(body)
+    timeout_ms = require_worker_timeout(body)
     return job_id, timeout_ms
+
 
 
 def has_only_finite_numbers(value: Any) -> bool:
@@ -100,8 +129,7 @@ def has_only_finite_numbers(value: Any) -> bool:
     return True
 
 
-def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) -> dict[str, Any]:
-    raw_result: dict[str, Any] | None = None
+def extract_json_result(stdout: str) -> dict[str, Any]:
     for line in reversed(stdout.splitlines()):
         candidate = line.strip()
         if not candidate:
@@ -111,26 +139,45 @@ def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) 
         except json.JSONDecodeError:
             continue
         if isinstance(value, dict):
-            raw_result = value
-            break
-    if raw_result is None:
-        raise RuntimeError("CalculiX worker returned no valid JSON result.")
-    if not has_only_finite_numbers(raw_result):
+            return value
+    raise RuntimeError("CalculiX worker returned no valid JSON result.")
+
+
+def validate_json_result_numbers(result: dict[str, Any]) -> None:
+    if not has_only_finite_numbers(result):
         raise RuntimeError("CalculiX worker returned non-finite numeric values.")
-    warnings = raw_result.get("warnings") if isinstance(raw_result.get("warnings"), list) else []
+
+
+def result_warnings(result: dict[str, Any], success: bool) -> list[str]:
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        normalized = [str(item) for item in warnings]
+    else:
+        normalized = []
+    if not success and not normalized:
+        normalized.append(str(result.get("error") or "CalculiX reference benchmark failed."))
+    return normalized
+
+
+def normalize_worker_result(raw_result: dict[str, Any], return_code: int, request: dict[str, Any]) -> dict[str, Any]:
     success = return_code == 0 and raw_result.get("success") is True
-    if not success and not warnings:
-        warnings = [str(raw_result.get("error") or "CalculiX reference benchmark failed.")]
     return {
         "success": success,
         "outputs": {"feaResult": raw_result},
-        "warnings": warnings,
+        "warnings": result_warnings(raw_result, success),
         "artifactIds": [],
         "provider": "open.calculix",
         "providerVersion": str(raw_result.get("solverVersion") or "unknown"),
         "executionId": request["id"],
         "completedAt": utc_now(),
     }
+
+
+def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) -> dict[str, Any]:
+    raw_result = extract_json_result(stdout)
+    validate_json_result_numbers(raw_result)
+    return normalize_worker_result(raw_result, return_code, request)
+
 
 
 def terminate_process(process: subprocess.Popen[str] | None) -> None:
