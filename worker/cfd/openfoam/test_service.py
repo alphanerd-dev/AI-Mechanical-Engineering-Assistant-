@@ -69,6 +69,14 @@ class OpenFOAMServiceTests(unittest.TestCase):
         self.assertEqual(job_id, valid_request()["id"])
         self.assertEqual(timeout, 125000)
 
+    def test_execution_timeout_matches_worker_budget_ceiling(self):
+        request = valid_request()
+        request["timeoutMs"] = 730000
+        self.assertEqual(service.validate_request(request)[1], 730000)
+        request["timeoutMs"] = 730001
+        with self.assertRaisesRegex(ValueError, "730000"):
+            service.validate_request(request)
+
     def test_rejects_wrong_backend_capability_and_insufficient_timeout(self):
         request = valid_request()
         request["backend"] = "fea-worker"
