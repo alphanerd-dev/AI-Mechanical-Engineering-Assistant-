@@ -145,7 +145,7 @@ class ShaftOrthographicRenderer {
     ].join("");
   }
   private endView(): string {
-    const centerX = 246;
+    const centerX = 264;
     const centerY = 76 + this.input.diameterMm * this.scale / 2;
     const radius = this.input.diameterMm * this.scale / 2;
     return [
