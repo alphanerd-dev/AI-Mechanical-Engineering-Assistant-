@@ -16,8 +16,10 @@ type DurableAuthorizationResult =
   | { allowed: false; response: NextResponse };
 
 type SupabaseAuthorization = Awaited<ReturnType<typeof authorizeSupabaseRequest>>;
+type AllowedAuthorization = Extract<SupabaseAuthorization, { allowed: true }>;
+type DeniedAuthorization = Extract<SupabaseAuthorization, { allowed: false }>;
 
-function authorizationDenied(authorization: SupabaseAuthorization): NextResponse {
+function authorizationDenied(authorization: DeniedAuthorization): NextResponse {
   const status = authorizationFailureStatus(authorization);
   return jsonError(
     authorization.reason,
@@ -29,7 +31,7 @@ function authorizationDenied(authorization: SupabaseAuthorization): NextResponse
 async function requestTaskAuthorization(input: {
   projectId: string;
   requestId: string;
-}): Promise<SupabaseAuthorization | NextResponse> {
+}): Promise<AllowedAuthorization | NextResponse> {
   try {
     const authorization = await authorizeSupabaseRequest(
       "TASK.EXECUTE", input.projectId, { requestId: input.requestId }
@@ -44,7 +46,7 @@ async function requestEvidenceAuthorization(input: {
   projectId: string;
   backend: ExecutionBackend;
   requestId: string;
-}): Promise<SupabaseAuthorization | NextResponse | undefined> {
+}): Promise<AllowedAuthorization | NextResponse | undefined> {
   const requiresEvidenceWrite = input.backend === "fea-worker" || input.backend === "cfd-worker";
   if (!requiresEvidenceWrite) return undefined;
   try {
@@ -64,8 +66,8 @@ async function requestEvidenceAuthorization(input: {
 }
 
 function evidenceIdentityError(
-  execution: SupabaseAuthorization,
-  evidence: SupabaseAuthorization | undefined
+  execution: AllowedAuthorization,
+  evidence: AllowedAuthorization | undefined
 ): NextResponse | undefined {
   if (evidence && evidence.subject !== execution.subject) {
     return jsonError("Execution and evidence-write identities do not match.", 401, "SESSION_IDENTITY_MISMATCH");
