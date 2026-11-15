@@ -58,11 +58,11 @@ def job_artifact_directory(job: dict[str, Any]) -> Path:
     if not isinstance(directory, Path):
         raise RuntimeError("Job artifact directory is unavailable.")
     root = ARTIFACT_ROOT.resolve()
+    if directory.is_symlink():
+        raise RuntimeError("Job artifact directory cannot be a symbolic link.")
     resolved = directory.resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise RuntimeError("Job artifact directory escaped the configured root.") from exc
+    if resolved.parent != root:
+        raise RuntimeError("Job artifact directory escaped the configured root.")
     return resolved
 
 
@@ -349,7 +349,11 @@ def restore_jobs() -> None:
     root = ARTIFACT_ROOT.resolve()
     for metadata in ARTIFACT_ROOT.glob("*/job.json"):
         try:
+            if metadata.is_symlink() or metadata.parent.is_symlink():
+                continue
             directory = metadata.parent.resolve()
+            if metadata.resolve().parent != directory:
+                continue
             if directory.parent != root or not re.fullmatch(r"[a-f0-9]{32}", directory.name):
                 continue
             job = json.loads(metadata.read_text(encoding="utf-8"))
