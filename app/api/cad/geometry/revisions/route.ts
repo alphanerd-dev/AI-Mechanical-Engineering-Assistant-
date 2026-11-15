@@ -60,6 +60,11 @@ export async function GET(request: Request) {
     if (!isUuid(modelIdentityId)) return fail("A valid modelIdentityId query parameter is required.", 400);
     const authorization = await authorizeSupabaseRequest("EVIDENCE.READ", projectId, { requestId: randomUUID(), taskId: modelIdentityId });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
+    const sessionDb = await createClient();
+    const { data: identity, error: identityError } = await sessionDb.auth.getUser();
+    if (identityError || !identity.user || identity.user.id !== authorization.subject) {
+      return fail("Authenticated project identity could not be confirmed.", 401);
+    }
     const db = createServiceRoleClient() as unknown as GeometryRevisionDatabase;
     const { data, error } = await db.from("engineering_geometry_revisions").select("*")
       .eq("project_id", projectId).eq("model_identity_id", modelIdentityId)
