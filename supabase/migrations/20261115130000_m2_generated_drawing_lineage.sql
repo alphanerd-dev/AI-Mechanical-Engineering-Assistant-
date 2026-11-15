@@ -34,6 +34,10 @@ alter table public.engineering_cad_drawings
     references public.engineering_geometry_revisions(project_id, model_identity_id, id)
     on delete restrict;
 
+create unique index engineering_cad_drawings_generated_idempotency_idx
+  on public.engineering_cad_drawings(project_id, model_identity_id, source_geometry_revision_id, generator_id, generator_version, sha256)
+  where source_geometry_revision_id is not null;
+
 create index engineering_cad_drawings_source_revision_idx
   on public.engineering_cad_drawings(project_id, model_identity_id, source_geometry_revision_id)
   where source_geometry_revision_id is not null;
