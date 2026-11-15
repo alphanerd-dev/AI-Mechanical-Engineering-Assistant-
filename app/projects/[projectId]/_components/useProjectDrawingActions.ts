@@ -9,11 +9,14 @@ export function useProjectDrawingActions(input: {
   refresh: () => Promise<void>;
   setSelectedId: (drawingId: string) => void;
 }) {
+  const {
+    projectId, modelIdentityId, file, setFile, refresh, setSelectedId
+  } = input;
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const generationBlocked = !input.modelIdentityId || generating || uploading;
+  const generationBlocked = !modelIdentityId || generating || uploading;
 
   const generateShaftDrawing = useCallback(async () => {
     if (generationBlocked) return;
@@ -21,35 +24,36 @@ export function useProjectDrawingActions(input: {
     setError(null);
     setNotice(null);
     try {
-      const drawingId = await submitShaftDrawingGeneration(input.projectId, input.modelIdentityId);
+      const drawingId = await submitShaftDrawingGeneration(projectId, modelIdentityId);
       setNotice("Preliminary shaft drawing generated from the current accepted geometry revision. Not for manufacture.");
-      await input.refresh();
-      input.setSelectedId(drawingId);
+      await refresh();
+      setSelectedId(drawingId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Preliminary shaft drawing generation failed.");
     } finally {
       setGenerating(false);
     }
-  }, [generationBlocked, input]);
+  }, [generationBlocked, projectId, modelIdentityId, refresh, setSelectedId]);
 
   const upload = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!input.file || uploading) return;
+    const selectedFile = file;
+    if (!selectedFile || uploading) return;
     setUploading(true);
     setError(null);
     setNotice(null);
     try {
-      const drawingId = await submitDrawingUpload(input.projectId, input.modelIdentityId, input.file);
-      input.setFile(null);
+      const drawingId = await submitDrawingUpload(projectId, modelIdentityId, selectedFile);
+      setFile(null);
       setNotice("Drawing uploaded to private project storage. Preview is read-only and does not validate dimensions.");
-      await input.refresh();
-      input.setSelectedId(drawingId);
+      await refresh();
+      setSelectedId(drawingId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Drawing upload failed.");
     } finally {
       setUploading(false);
     }
-  }, [input, uploading]);
+  }, [file, uploading, projectId, modelIdentityId, setFile, refresh, setSelectedId]);
 
   return { uploading, generating, generationBlocked, error, notice, generateShaftDrawing, upload };
 }
