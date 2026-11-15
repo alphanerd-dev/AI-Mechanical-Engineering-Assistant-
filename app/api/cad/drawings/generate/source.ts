@@ -1,11 +1,10 @@
 import {
-  loadCompletion,
-  resolveCanonicalSolid,
-  verifyStoredBrep
+  loadCompletion, resolveCanonicalSolid, verifyStoredBrep
 } from "../../../../../src/cad/geometry-revision-persistence-source";
-import { CAD_ARTIFACT_BUCKET } from "../../../../../src/cad/persistence";
 import type { CanonicalSolid, Completion, GeometryRevisionDatabase, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
 import { fail } from "./request";
+import { extractCylinderDimensions } from "./shaft-dimensions";
+import { isRecord, validateRevisionArtifactBinding } from "./source-validation";
 
 type ServiceDb = ReturnType<typeof import("../../../../../lib/supabase/service").createServiceRoleClient>;
 export interface AcceptedShaftSource {
@@ -14,12 +13,7 @@ export interface AcceptedShaftSource {
   diameterMm: number;
   lengthMm: number;
 }
-function isRecord(value: unknown): value is Row {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-function finitePositive(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
+
 export async function loadCurrentGeometryRevision(serviceDb: ServiceDb, input: {
   projectId: string; modelIdentityId: string; geometryRevisionId: string;
 }): Promise<Row> {
@@ -36,123 +30,7 @@ export async function loadCurrentGeometryRevision(serviceDb: ServiceDb, input: {
   }
   return revision;
 }
-function validateRevisionArtifactBinding(revision: Row, solid: CanonicalSolid): void {
-  if (solid.id !== revision.canonical_artifact_id) fail({ message: "Canonical solid ID does not match the geometry revision.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
-  if (solid.provenance.artifactSha256 !== revision.canonical_artifact_sha256) {
-    fail({ message: "Canonical solid digest does not match the immutable geometry revision.", status: 422, code: "SOURCE_DIGEST_MISMATCH" });
-  }
-  if (revision.storage_bucket !== CAD_ARTIFACT_BUCKET) fail({ message: "Geometry revision storage bucket is invalid.", status: 422, code: "SOURCE_STORAGE_INVALID" });
-  if (solid.objectPath !== revision.storage_object_name) fail({ message: "Geometry revision storage path does not match the accepted completion.", status: 422, code: "SOURCE_STORAGE_MISMATCH" });
-}
-function hasReceiptArtifactBinding(input: {
-  receipt: Row; revision: Row; projectId: string; modelIdentityId: string; solidId: string;
-}): boolean {
-  if (input.receipt.artifactSha256 !== input.revision.canonical_artifact_sha256) return false;
-  if (input.receipt.projectId !== input.projectId) return false;
-  if (input.receipt.artifactId !== input.solidId) return false;
-  return input.receipt.modelIdentityId === input.modelIdentityId;
-}
-function hasTrustedReceiptValidator(receipt: Row): boolean {
-  if (typeof receipt.checkedBy !== "string" || !receipt.checkedBy.trim()) return false;
-  if (typeof receipt.validatorProviderId !== "string" || !receipt.validatorProviderId.trim()) return false;
-  if (typeof receipt.validatorVersion !== "string" || !receipt.validatorVersion.trim()) return false;
-  if (typeof receipt.checkedAt !== "string" || Number.isNaN(Date.parse(receipt.checkedAt))) return false;
-  return true;
-}
-function hasPassedGeometryValidation(receipt: Row): boolean {
-  if (!isRecord(receipt.validation)) return false;
-  return receipt.validation.valid === true;
-}
-function isValidGeometryReceipt(input: {
-  receipt: unknown; revision: Row; projectId: string; modelIdentityId: string; solidId: string;
-}): boolean {
-  if (!isRecord(input.receipt)) return false;
-  if (!hasReceiptArtifactBinding({ ...input, receipt: input.receipt })) return false;
-  if (!hasTrustedReceiptValidator(input.receipt)) return false;
-  return hasPassedGeometryValidation(input.receipt);
-}
-function requireShaftSpecification(completion: Completion): Row {
-  const specification = completion.specification;
-  if (!isRecord(specification)) fail({ message: "Accepted CAD specification is missing.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
-  if (specification.kind !== "CYLINDER") {\n    fail({ message: "Drawing generator currently supports cylindrical shaft geometry only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });\n  }\n  if (specification.name !== "shaft") {
-    fail({ message: "Drawing generator currently supports accepted cylindrical shaft specifications only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });
-  }
-  if (!finitePositive(specification.diameterMm) || !finitePositive(specification.lengthMm)) {
-    fail({ message: "Accepted shaft specification dimensions are invalid.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
-  }
-  return specification;
-}
-function requireShaftBounds(receipt: Row): Row {
-  const measurements = receipt.geometryMeasurements;
-  const bounds = isRecord(measurements) ? measurements.boundingBoxMm : undefined;
-  if (!isRecord(bounds)) fail({ message: "Accepted geometry receipt has no bounding box measurements.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  if (!finitePositive(bounds.x)) fail({ message: "Accepted shaft X extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  if (!finitePositive(bounds.y)) fail({ message: "Accepted shaft Y extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  if (!finitePositive(bounds.z)) fail({ message: "Accepted shaft Z extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  return bounds;
-}
-function isValidDimensionCheck(value: unknown): value is Row {
-  if (!isRecord(value)) return false;
-  if (value.axis !== "x" && value.axis !== "y" && value.axis !== "z") return false;
-  if (value.passed !== true) return false;
-  if (!finitePositive(value.actualMm)) return false;
-  if (!finitePositive(value.expectedMm)) return false;
-  return finitePositive(value.toleranceMm);
-}
-function collectDimensionChecks(measurements: Row): Map<string, Row> {
-  const values = measurements.dimensionChecks;
-  if (!Array.isArray(values) || values.length !== 3) {
-    fail({ message: "Accepted geometry receipt must contain exactly three axis dimension checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  }
-  const checks = new Map<string, Row>();
-  for (const value of values) {
-    if (!isValidDimensionCheck(value)) fail({ message: "Accepted geometry receipt contains an invalid dimension check.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-    if (checks.has(value.axis as string)) fail({ message: "Accepted geometry receipt contains duplicate axis checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-    checks.set(value.axis as string, value);
-  }
-  if (!checks.has("x") || !checks.has("y") || !checks.has("z")) {
-    fail({ message: "Accepted geometry receipt must validate X, Y and Z dimensions.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  }
-  return checks;
-}
-function validateAxisDimension(input: { axis: string; check: Row; measuredMm: number; expectedMm: number }): void {
-  const tolerance = input.check.toleranceMm as number;
-  if (Math.abs((input.check.expectedMm as number) - input.expectedMm) > tolerance) {
-    fail({ message: "Accepted " + input.axis.toUpperCase() + " dimension check does not match the CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
-  }
-  if (Math.abs((input.check.actualMm as number) - input.measuredMm) > tolerance) {
-    fail({ message: "Accepted " + input.axis.toUpperCase() + " dimension check does not match measured geometry.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  }
-  if (Math.abs(input.measuredMm - input.expectedMm) > tolerance) {
-    fail({ message: "Measured " + input.axis.toUpperCase() + " dimension does not match the accepted CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
-  }
-}
-function validateSpecificationDimensions(input: { specification: Row; bounds: Row; checks: Map<string, Row> }): void {
-  const diameterMm = input.specification.diameterMm as number;
-  const lengthMm = input.specification.lengthMm as number;
-  validateAxisDimension({ axis: "x", check: input.checks.get("x") as Row, measuredMm: input.bounds.x as number, expectedMm: diameterMm });
-  validateAxisDimension({ axis: "y", check: input.checks.get("y") as Row, measuredMm: input.bounds.y as number, expectedMm: diameterMm });
-  validateAxisDimension({ axis: "z", check: input.checks.get("z") as Row, measuredMm: input.bounds.z as number, expectedMm: lengthMm });
-}
-function extractCylinderDimensions(input: {
-  completion: Completion; revision: Row; projectId: string; modelIdentityId: string; solidId: string;
-}): { diameterMm: number; lengthMm: number } {
-  const receipt = input.completion.validation_receipt;
-  if (!isValidGeometryReceipt({
-    receipt, revision: input.revision, projectId: input.projectId,
-    modelIdentityId: input.modelIdentityId, solidId: input.solidId
-  })) {
-    fail({ message: "Accepted geometry receipt identity or validation status is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  }
-  const receiptRecord = receipt as Row;
-  const specification = requireShaftSpecification(input.completion);
-  const measurements = receiptRecord.geometryMeasurements;
-  if (!isRecord(measurements)) fail({ message: "Accepted geometry measurements are missing.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  const bounds = requireShaftBounds(receiptRecord);
-  const checks = collectDimensionChecks(measurements);
-  validateSpecificationDimensions({ specification, bounds, checks });
-  return { diameterMm: ((bounds.x as number) + (bounds.y as number)) / 2, lengthMm: bounds.z as number };
-}
+
 export async function loadAcceptedShaftSource(input: {
   serviceDb: ServiceDb; revision: Row; projectId: string; modelIdentityId: string;
 }): Promise<AcceptedShaftSource> {
@@ -160,9 +38,13 @@ export async function loadAcceptedShaftSource(input: {
   const completionResult = await loadCompletion(
     serviceDb as unknown as GeometryRevisionDatabase, projectId, String(revision.source_completion_id)
   );
-  if (!completionResult.ok) fail({ message: completionResult.message, status: completionResult.status, code: "SOURCE_COMPLETION_UNAVAILABLE" });
+  if (!completionResult.ok) {
+    fail({ message: completionResult.message, status: completionResult.status, code: "SOURCE_COMPLETION_UNAVAILABLE" });
+  }
   const completion = completionResult.value;
-  if (completion.model_identity_id !== modelIdentityId) fail({ message: "Source completion belongs to a different CAD model.", status: 422, code: "SOURCE_COMPLETION_MODEL_MISMATCH" });
+  if (completion.model_identity_id !== modelIdentityId) {
+    fail({ message: "Source completion belongs to a different CAD model.", status: 422, code: "SOURCE_COMPLETION_MODEL_MISMATCH" });
+  }
   const solidResult = resolveCanonicalSolid(completion, projectId);
   if (!solidResult.ok) fail({ message: solidResult.message, status: solidResult.status, code: "SOURCE_ARTIFACT_MISMATCH" });
   const solid = solidResult.value;
