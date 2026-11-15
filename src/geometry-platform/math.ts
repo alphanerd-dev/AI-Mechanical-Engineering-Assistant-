@@ -122,7 +122,8 @@ function normalizeScaledVector(vector: Vector3, minimumMagnitude: number): Vecto
   return [scaled[0] / scaledMagnitude, scaled[1] / scaledMagnitude, scaled[2] / scaledMagnitude];
 }
 function isAtOrBelowMinimumMagnitude(scale: number, scaledMagnitude: number, minimumMagnitude: number): boolean {
-  return minimumMagnitude > 0 && scale <= minimumMagnitude / scaledMagnitude;
+  if (minimumMagnitude <= 0) return false;
+  return scale <= minimumMagnitude / scaledMagnitude;
 }
 export function normalizeVector(vector: Vector3, minimumMagnitude = 0): Vector3 {
   finiteVector(vector, "vector");
