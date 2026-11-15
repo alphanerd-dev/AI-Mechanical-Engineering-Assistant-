@@ -145,7 +145,7 @@ function validateSolverInputs(backend: ExecutionBackend, inputs: Record<string, 
 }
 function timeoutForBackend(backend: ExecutionBackend, inputs: Record<string, unknown>): number {
   if (backend === "python-worker") return 30_000;
-  if (backend === "fea-worker") return 120_000;
+  if (backend === "fea-worker") return 150_000;
   if (backend !== "cfd-worker") return 2_000;
   const solver = isRecord(inputs.solver) ? inputs.solver : {};
   const seconds = typeof solver.timeoutSeconds === "number" ? solver.timeoutSeconds : 600;
