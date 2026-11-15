@@ -373,6 +373,49 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
     except Exception as exc:
         fail_job(job_id, exc)
 
+def restored_job_directories(
+    metadata: Path,
+    state_root: Path,
+    artifact_root: Path,
+) -> tuple[Path, Path] | None:
+    if metadata.is_symlink() or metadata.parent.is_symlink():
+        return None
+    state_directory = metadata.parent.resolve()
+    if metadata.resolve().parent != state_directory:
+        return None
+    storage_id = state_directory.name
+    if state_directory.parent != state_root:
+        return None
+    if not re.fullmatch(r"[a-f0-9]{32}", storage_id):
+        return None
+    artifact_directory = ARTIFACT_ROOT / storage_id
+    if artifact_directory.is_symlink():
+        return None
+    if artifact_directory.resolve().parent != artifact_root:
+        return None
+    return state_directory, artifact_directory
+
+
+def load_restored_job(metadata: Path) -> dict[str, Any] | None:
+    job = json.loads(metadata.read_text(encoding="utf-8"))
+    if not isinstance(job, dict) or not isinstance(job.get("jobId"), str):
+        return None
+    if not is_valid_job_uuid(job["jobId"]):
+        return None
+    return job
+
+
+def reconcile_restored_job(job: dict[str, Any]) -> None:
+    if job.get("status") not in {"QUEUED", "RUNNING"}:
+        return
+    job.update(
+        status="FAILED",
+        error="Worker restarted while this job was active; automatic replay is disabled.",
+        errorCode="RECONCILIATION_REQUIRED",
+        updatedAt=utc_now(),
+    )
+
+
 def restore_jobs() -> None:
     JOB_STATE_ROOT.mkdir(parents=True, exist_ok=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -380,31 +423,16 @@ def restore_jobs() -> None:
     artifact_root = ARTIFACT_ROOT.resolve()
     for metadata in JOB_STATE_ROOT.glob("*/job.json"):
         try:
-            if metadata.is_symlink() or metadata.parent.is_symlink():
+            directories = restored_job_directories(metadata, state_root, artifact_root)
+            if directories is None:
                 continue
-            state_directory = metadata.parent.resolve()
-            if metadata.resolve().parent != state_directory:
-                continue
-            storage_id = state_directory.name
-            if state_directory.parent != state_root or not re.fullmatch(r"[a-f0-9]{32}", storage_id):
-                continue
-            artifact_directory = ARTIFACT_ROOT / storage_id
-            if artifact_directory.is_symlink() or artifact_directory.resolve().parent != artifact_root:
-                continue
-            job = json.loads(metadata.read_text(encoding="utf-8"))
-            if not isinstance(job, dict) or not isinstance(job.get("jobId"), str):
-                continue
-            if not is_valid_job_uuid(job["jobId"]):
+            state_directory, artifact_directory = directories
+            job = load_restored_job(metadata)
+            if job is None:
                 continue
             job["stateDirectory"] = state_directory
             job["artifactDirectory"] = artifact_directory
-            if job.get("status") in {"QUEUED", "RUNNING"}:
-                job.update(
-                    status="FAILED",
-                    error="Worker restarted while this job was active; automatic replay is disabled.",
-                    errorCode="RECONCILIATION_REQUIRED",
-                    updatedAt=utc_now(),
-                )
+            reconcile_restored_job(job)
             JOBS[job["jobId"]] = job
             persist_job(job)
         except (OSError, json.JSONDecodeError, RuntimeError):
