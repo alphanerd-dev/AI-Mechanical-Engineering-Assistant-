@@ -4,7 +4,7 @@ function hasNonEmptyPath(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 function isAbsoluteArtifactPath(value: string): boolean {
-  return value.startsWith("/") || value.startsWith("\\\\") || /^[A-Za-z]:/.test(value);
+  return value.startsWith("/") || value.charCodeAt(0) === 92 || /^[A-Za-z]:/.test(value);
 }
 function hasSafeArtifactSegments(value: string): boolean {
   return value.split(/[\\/]/).every(segment =>
@@ -14,7 +14,7 @@ function hasSafeArtifactSegments(value: string): boolean {
 function safeRelativePath(value: unknown): boolean {
   if (!hasNonEmptyPath(value)) return false;
   if (isAbsoluteArtifactPath(value)) return false;
-  if (value.includes("\\0")) return false;
+  if (value.includes(String.fromCharCode(0))) return false;
   return hasSafeArtifactSegments(value);
 }
 function validKind(value: unknown): boolean {
