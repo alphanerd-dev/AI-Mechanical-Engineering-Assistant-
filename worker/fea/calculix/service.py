@@ -26,7 +26,8 @@ PORT = int(os.getenv("WORKER_PORT", "8090"))
 API_TOKEN = os.getenv("WORKER_API_TOKEN", "")
 ARTIFACT_ROOT = Path(os.getenv("FEA_ARTIFACT_DIR", "/artifacts")).resolve()
 MAX_BODY_BYTES = 1_000_000
-MAX_TIMEOUT_MS = 120_000
+MAX_TIMEOUT_MS = 150_000
+MAX_SOLVER_TIMEOUT_MS = 120_000
 WORKER_SCRIPT = Path(__file__).with_name("worker.py")
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.RLock()
@@ -202,7 +203,7 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
     payload = dict(request["inputs"])
     payload["analysis"] = "STATIC_STRUCTURAL"
     payload["benchmark"] = "cantilever_box"
-    payload["timeoutMs"] = timeout_ms
+    payload["timeoutMs"] = min(timeout_ms, MAX_SOLVER_TIMEOUT_MS)
     environment = os.environ.copy()
     environment["FEA_ARTIFACT_DIR"] = str(directory)
 
@@ -240,7 +241,7 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
         try:
             stdout, stderr = process.communicate(
                 input=json.dumps(payload, separators=(",", ":"), allow_nan=False),
-                timeout=(timeout_ms + 5000) / 1000,
+                timeout=max(1, (timeout_ms - 5000) / 1000),
             )
         except subprocess.TimeoutExpired:
             terminate_process(process)
