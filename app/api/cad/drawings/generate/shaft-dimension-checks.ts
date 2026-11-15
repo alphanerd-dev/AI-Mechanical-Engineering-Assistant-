@@ -1,6 +1,8 @@
-import type { Row } from "../../../../../src/cad/geometry-revision-persistence-types";
+import type { Completion, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
 import { fail } from "./request";
-import { isRecord } from "./source-validation";
+import {
+  isRecord, isValidGeometryReceipt, requireShaftBounds, requireShaftSpecification
+} from "./source-validation";
 
 function finitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -62,4 +64,37 @@ export function validateSpecificationDimensions(input: {
   validateAxisDimension({ axis: "x", check: input.checks.get("x") as Row, measuredMm: input.bounds.x as number, expectedMm: diameterMm });
   validateAxisDimension({ axis: "y", check: input.checks.get("y") as Row, measuredMm: input.bounds.y as number, expectedMm: diameterMm });
   validateAxisDimension({ axis: "z", check: input.checks.get("z") as Row, measuredMm: input.bounds.z as number, expectedMm: lengthMm });
+}
+
+export function extractCylinderDimensions(input: {
+  completion: Completion;
+  revision: Row;
+  projectId: string;
+  modelIdentityId: string;
+  solidId: string;
+}): { diameterMm: number; lengthMm: number } {
+  const receipt = input.completion.validation_receipt;
+  const validReceipt = isValidGeometryReceipt({
+    receipt,
+    revision: input.revision,
+    projectId: input.projectId,
+    modelIdentityId: input.modelIdentityId,
+    solidId: input.solidId
+  });
+  if (!validReceipt) {
+    fail({ message: "Accepted geometry receipt identity or validation status is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  }
+  const receiptRecord = receipt as Row;
+  const specification = requireShaftSpecification(input.completion);
+  const bounds = requireShaftBounds(receiptRecord);
+  const measurements = receiptRecord.geometryMeasurements;
+  if (!isRecord(measurements)) {
+    fail({ message: "Accepted geometry measurements are missing.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  }
+  const checks = collectDimensionChecks(measurements);
+  validateSpecificationDimensions({ specification, bounds, checks });
+  return {
+    diameterMm: ((bounds.x as number) + (bounds.y as number)) / 2,
+    lengthMm: bounds.z as number
+  };
 }
