@@ -29,6 +29,10 @@ GMSH_VERSION = "4.15.2"
 ALLOWED_ANALYSIS = "STATIC_STRUCTURAL"
 ALLOWED_ELEMENT_TYPE = "C3D4"
 
+def finite_number(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
 def fail(message: str) -> None:
     print(json.dumps({"success": False, "error": message, "warnings": []}))
     raise SystemExit(1)
@@ -304,16 +308,16 @@ def main():
     total_force_n = request.get("totalForceN")
     dimensions = request.get("dimensionsMm") or {}
     element_size_mm = request.get("elementSizeMm")
-    if not all(isinstance(value, (int, float)) and math.isfinite(value) and 0 < value <= 1e9 for value in (youngs_modulus_mpa, total_force_n)):
+    if not all(finite_number(value) and 0 < value <= 1e9 for value in (youngs_modulus_mpa, total_force_n)):
         fail("Material stiffness and total force must be positive finite values no greater than 1e9.")
-    if not isinstance(element_size_mm, (int, float)) or not math.isfinite(element_size_mm) or not 1 <= element_size_mm <= 100:
+    if not finite_number(element_size_mm) or not 1 <= element_size_mm <= 100:
         fail("Element size must be between 1 and 100 mm.")
     timeout_ms = request.get("timeoutMs", 30000)
     if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or not 1000 <= timeout_ms <= 120000:
         fail("timeoutMs must be an integer between 1000 and 120000.")
-    if not isinstance(poisson_ratio, (int, float)) or not math.isfinite(poisson_ratio) or not -1 < poisson_ratio < 0.5:
+    if not finite_number(poisson_ratio) or not -1 < poisson_ratio < 0.5:
         fail("Poisson ratio is invalid.")
-    if not all(isinstance(dimensions.get(key), (int, float)) and math.isfinite(dimensions[key]) for key in ("length","width","height")):
+    if not all(finite_number(dimensions.get(key)) for key in ("length","width","height")):
         fail("All benchmark dimensions must be finite numbers.")
     length_mm = float(dimensions["length"])
     width_mm = float(dimensions["width"])
