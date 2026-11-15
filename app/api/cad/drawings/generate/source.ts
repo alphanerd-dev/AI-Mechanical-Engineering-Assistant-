@@ -36,9 +36,9 @@ function findCanonicalSolid(completion: Row, revision: Row): Row {
   if (!Array.isArray(completion.artifact_records)) fail("Accepted completion manifest has no artifact records.", 422, "SOURCE_ARTIFACT_MISSING");
   const artifact = completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === revision.canonical_artifact_id);
   if (!isRecord(artifact)) fail("Canonical source artifact is absent from the accepted completion manifest.", 422, "SOURCE_ARTIFACT_MISMATCH");
-  if (artifact.kind !== "SOLID" || artifact.validationStatus !== "PASS" || !isRecord(artifact.provenance)) {
-    fail("Canonical source artifact is not an accepted validated solid.", 422, "SOURCE_ARTIFACT_MISMATCH");
-  }
+  if (artifact.kind !== "SOLID") fail("Canonical source artifact is not a solid.", 422, "SOURCE_ARTIFACT_MISMATCH");
+  if (artifact.validationStatus !== "PASS") fail("Canonical source artifact did not pass geometry validation.", 422, "SOURCE_ARTIFACT_MISMATCH");
+  if (!isRecord(artifact.provenance)) fail("Canonical source artifact provenance is missing.", 422, "SOURCE_ARTIFACT_MISMATCH");
   return artifact;
 }
 function validateCanonicalSolidLineage(solid: Row, revision: Row): void {
@@ -65,7 +65,10 @@ function extractAcceptedCylinderDimensions(completion: Row, revision: Row, proje
   const receipt = completion.validation_receipt;
   const measurements = isRecord(receipt) && isRecord(receipt.geometryMeasurements) ? receipt.geometryMeasurements : undefined;
   const bounds = measurements?.boundingBoxMm;
-  if (!isValidGeometryReceipt(receipt, revision, projectId, modelIdentityId, solid) || !isValidCylinderBounds(bounds)) {
+  if (!isValidGeometryReceipt(receipt, revision, projectId, modelIdentityId, solid)) {
+    fail("Accepted geometry receipt identity or validation status is invalid.", 422, "GEOMETRY_MEASUREMENTS_UNAVAILABLE");
+  }
+  if (!isValidCylinderBounds(bounds)) {
     fail("Accepted geometry receipt does not contain source-bound cylinder dimensions suitable for this drawing generator.", 422, "GEOMETRY_MEASUREMENTS_UNAVAILABLE");
   }
   return {
@@ -79,7 +82,8 @@ export async function loadAcceptedShaftSource(
   const { data, error } = await serviceDb.from("engineering_cad_completions").select("*")
     .eq("id", revision.source_completion_id).eq("project_id", projectId)
     .eq("model_identity_id", modelIdentityId).maybeSingle();
-  if (error || !isRecord(data)) fail("Accepted CAD completion for the source geometry revision could not be loaded.", 503, "SOURCE_COMPLETION_UNAVAILABLE");
+  if (error) fail("Accepted CAD completion for the source geometry revision could not be loaded.", 503, "SOURCE_COMPLETION_UNAVAILABLE");
+  if (!isRecord(data)) fail("Accepted CAD completion for the source geometry revision could not be loaded.", 503, "SOURCE_COMPLETION_UNAVAILABLE");
   if (data.status !== "ACCEPTED") fail("Drawing generation requires an accepted CAD completion manifest.", 422, "SOURCE_COMPLETION_NOT_ACCEPTED");
   const solid = findCanonicalSolid(data, revision);
   validateCanonicalSolidLineage(solid, revision);
