@@ -60,9 +60,10 @@ export async function parseDrawingGenerationRequest(request: Request): Promise<D
     title: optionalLabel({ body, field: "title", maximum: 120 })
   };
 }
-async function resolveProjectAuthorization(input: { projectId: string }) {
-  let executionAuthorization;
-  let evidenceAuthorization;
+type ProjectAuthorization = Awaited<ReturnType<typeof authorizeSupabaseRequest>>;
+async function resolveProjectAuthorization(input: { projectId: string }): Promise<ProjectAuthorization> {
+  let executionAuthorization: ProjectAuthorization;
+  let evidenceAuthorization: ProjectAuthorization;
   try {
     executionAuthorization = await authorizeSupabaseRequest("TASK.EXECUTE", input.projectId);
     evidenceAuthorization = await authorizeSupabaseRequest("EVIDENCE.WRITE", input.projectId);
