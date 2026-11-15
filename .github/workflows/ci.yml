@@ -222,10 +222,10 @@ jobs:
             supabase init
           fi
           test -f supabase/config.toml
-      - name: Start isolated local Supabase services
-        run: supabase start
+      - name: Start isolated local Supabase services with diagnostics
+        run: supabase start --debug
       - name: Replay every migration against an empty local database
-        run: supabase db reset --local
+        run: supabase db reset --local --debug
       - name: Stop local Supabase services
         if: always()
         run: supabase stop
