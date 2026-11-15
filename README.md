@@ -105,6 +105,7 @@ Start with:
 - [Documentation guide](docs/README.md) — canonical docs and historical records.
 - [Model/provider stack](docs/reasoning-model-provider-stack.md) — current chat provider and separate structured-reasoning transport.
 - [Playwright runbook](docs/playwright-e2e.md) — safe authenticated browser testing.
+- [CodeScene PR Refactoring Agent](docs/codescene-pr-refactoring-agent.md) — opt-in, approval-bounded Code Health refactoring from PR comments.
 - [Worker security](docs/worker-security.md) — isolation and artifact controls.
 
 ## Development rules
