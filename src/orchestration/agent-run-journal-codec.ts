@@ -124,21 +124,61 @@ function hasRunPayload(row: Record<string, unknown>): boolean {
   if (!Array.isArray(row.action_history) || row.action_history.length > 25) return false;
   return row.action_history.every(isRecord);
 }
-function validateRunCounters(row: Record<string, unknown>): void {
-  const initial = asNumber(row.initial_graph_revision);
-  const current = asNumber(row.current_graph_revision);
-  const next = asNumber(row.next_action_index);
-  if (!Number.isSafeInteger(initial) || (initial as number) < 1) throw new Error("Persisted initial graph revision is invalid.");
-  if (!Number.isSafeInteger(current) || (current as number) < (initial as number)) throw new Error("Persisted current graph revision is invalid.");
-  if (!Number.isInteger(next) || (next as number) < 0 || (next as number) > 25) throw new Error("Persisted next action index is invalid.");
-  if (typeof row.plan_hash !== "string" || !SHA256_PATTERN.test(row.plan_hash)) throw new Error("Persisted plan hash is invalid.");
-  if (typeof row.request_hash !== "string" || !SHA256_PATTERN.test(row.request_hash)) throw new Error("Persisted request hash is invalid.");
-  if (row.current_action !== null && row.current_action !== undefined && !isRecord(row.current_action)) throw new Error("Persisted in-flight action is invalid.");
-  if (row.cancel_requested_at !== null && row.cancel_requested_at !== undefined && typeof row.cancel_requested_at !== "string") throw new Error("Persisted cancellation timestamp is invalid.");
-  if (row.error !== null && row.error !== undefined && typeof row.error !== "string") throw new Error("Persisted run error is invalid.");
-  if (typeof row.created_at !== "string" || Number.isNaN(Date.parse(row.created_at))) throw new Error("Persisted creation timestamp is invalid.");
-  if (typeof row.updated_at !== "string" || Number.isNaN(Date.parse(row.updated_at))) throw new Error("Persisted update timestamp is invalid.");
+function requireInitialGraphRevision(row: Record<string, unknown>): number {
+  const revision = asNumber(row.initial_graph_revision);
+  if (!Number.isSafeInteger(revision) || (revision as number) < 1) {
+    throw new Error("Persisted initial graph revision is invalid.");
+  }
+  return revision as number;
 }
+function validateCurrentGraphRevision(row: Record<string, unknown>, initialRevision: number): void {
+  const revision = asNumber(row.current_graph_revision);
+  if (!Number.isSafeInteger(revision) || (revision as number) < initialRevision) {
+    throw new Error("Persisted current graph revision is invalid.");
+  }
+}
+function validateNextActionIndex(row: Record<string, unknown>): void {
+  const index = asNumber(row.next_action_index);
+  if (!Number.isInteger(index) || (index as number) < 0 || (index as number) > 25) {
+    throw new Error("Persisted next action index is invalid.");
+  }
+}
+function validatePersistedHashes(row: Record<string, unknown>): void {
+  if (typeof row.plan_hash !== "string" || !SHA256_PATTERN.test(row.plan_hash)) {
+    throw new Error("Persisted plan hash is invalid.");
+  }
+  if (typeof row.request_hash !== "string" || !SHA256_PATTERN.test(row.request_hash)) {
+    throw new Error("Persisted request hash is invalid.");
+  }
+}
+function validatePersistedOptionalFields(row: Record<string, unknown>): void {
+  if (row.current_action !== null && row.current_action !== undefined && !isRecord(row.current_action)) {
+    throw new Error("Persisted in-flight action is invalid.");
+  }
+  if (row.cancel_requested_at !== null && row.cancel_requested_at !== undefined && typeof row.cancel_requested_at !== "string") {
+    throw new Error("Persisted cancellation timestamp is invalid.");
+  }
+  if (row.error !== null && row.error !== undefined && typeof row.error !== "string") {
+    throw new Error("Persisted run error is invalid.");
+  }
+}
+function validatePersistedTimestamps(row: Record<string, unknown>): void {
+  if (typeof row.created_at !== "string" || Number.isNaN(Date.parse(row.created_at))) {
+    throw new Error("Persisted creation timestamp is invalid.");
+  }
+  if (typeof row.updated_at !== "string" || Number.isNaN(Date.parse(row.updated_at))) {
+    throw new Error("Persisted update timestamp is invalid.");
+  }
+}
+function validateRunCounters(row: Record<string, unknown>): void {
+  const initialRevision = requireInitialGraphRevision(row);
+  validateCurrentGraphRevision(row, initialRevision);
+  validateNextActionIndex(row);
+  validatePersistedHashes(row);
+  validatePersistedOptionalFields(row);
+  validatePersistedTimestamps(row);
+}
+
 function parseRunStatus(value: unknown): AgentRunJournalStatus | undefined {
   if (typeof value !== "string") return undefined;
   return RUN_STATUSES.includes(value as AgentRunJournalStatus) ? value as AgentRunJournalStatus : undefined;
