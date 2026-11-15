@@ -7,7 +7,8 @@ Infrastructure implementation is present on the engineering-cycle branch. It is 
 - Model output is an untrusted proposal, not an execution instruction.
 - The server persists the bounded plan, graph revision, policy/limit snapshot and deterministic plan digest before claiming work.
 - Only the service role can read/insert journal rows. Table updates are performed through narrowly scoped security-definer RPCs with an empty search path.
-- Each action has a stable sequence, action digest and idempotency key.
+- Each action has a stable sequence, action digest and idempotency key. The persisted action key is recomputed from the run ID, sequence index and digest prefix during decoding.
+- The decoder rejects non-contiguous action history, history/index disagreement, malformed in-flight identities and invalid action timestamps before a worker can resume a run.
 - The begin-action RPC persists the action intent before an external side effect.
 - The checkpoint-action RPC atomically appends the result, advances the graph revision and increments the next action index.
 - Worker leases are fenced by worker ID, UUID lease token and database-clock expiry.
@@ -20,7 +21,7 @@ A worker that loses its lease before beginning an action can be replaced. An exp
 - Maximum 25 planned actions.
 - Plan snapshot: 1 MiB.
 - In-flight action: 64 KiB.
-- Action outcome: 128 KiB.
+- Action outcome: 64 KiB.
 - Checkpoint: 256 KiB.
 - Action history: 4 MiB.
 
