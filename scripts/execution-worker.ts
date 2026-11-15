@@ -6,6 +6,7 @@ import {ExecutionBackendAdapter,ExecutionEngine} from "../src/execution/executor
 import {PythonWorkerAdapter} from "../src/execution/python-worker.js";
 import {HttpExecutionWorkerClient,HttpPythonWorkerClient} from "../src/execution/http-python-worker.js";
 import {CalculixBenchmarkWorkerAdapter} from "../src/execution/calculix-benchmark-worker.js";
+import {OpenFOAMLaminarChannelWorkerAdapter} from "../src/execution/openfoam14-worker.js";
 import {SafeNumericalAdapter} from "../src/execution/safe-numerical.js";
 import {SupabaseExecutionJobStore} from "../src/execution/supabase-job-store.js";
 function boundedInteger(value:string|undefined,fallback:number,min:number,max:number):number{
@@ -36,6 +37,16 @@ if(process.env.CALCULIX_WORKER_URL){
   fetch,
   token,
   {pollIntervalMs:boundedInteger(process.env.CALCULIX_WORKER_POLL_INTERVAL_MS,500,100,5000),maxPolls:boundedInteger(process.env.CALCULIX_WORKER_MAX_POLLS,300,1,1200)}
+ )));
+}
+if(process.env.OPENFOAM_WORKER_URL){
+ const token=process.env.OPENFOAM_WORKER_API_TOKEN?.trim();
+ if(!token)throw new Error("OPENFOAM_WORKER_URL requires OPENFOAM_WORKER_API_TOKEN.");
+ adapters.push(new OpenFOAMLaminarChannelWorkerAdapter(new HttpExecutionWorkerClient(
+  process.env.OPENFOAM_WORKER_URL,
+  fetch,
+  token,
+  {pollIntervalMs:boundedInteger(process.env.OPENFOAM_WORKER_POLL_INTERVAL_MS,1000,250,10000),maxPolls:boundedInteger(process.env.OPENFOAM_WORKER_MAX_POLLS,750,1,1200)}
  )));
 }
 const engine=new ExecutionEngine(adapters),workerId=(process.env.EXECUTION_WORKER_ID?.trim()||`${hostname()}-${process.pid}`).slice(0,128);
