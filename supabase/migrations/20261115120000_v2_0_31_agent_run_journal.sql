@@ -154,7 +154,7 @@ create or replace function public.begin_engineering_agent_action(
 )
 returns text
 language plpgsql security definer set search_path = ''
-as $
+as $$
 declare
   v_run public.engineering_agent_runs%rowtype;
   v_existing jsonb;
@@ -191,7 +191,7 @@ begin
    where id = p_run_id;
   return 'STARTED';
 end;
-$;
+$$;
 revoke all on function public.begin_engineering_agent_action(uuid,text,uuid,integer,text,text,jsonb) from public, anon, authenticated;
 grant execute on function public.begin_engineering_agent_action(uuid,text,uuid,integer,text,text,jsonb) to service_role;
 
