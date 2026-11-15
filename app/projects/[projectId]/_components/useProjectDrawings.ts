@@ -15,10 +15,12 @@ export function useProjectDrawings(projectId: string) {
     refresh: data.refresh,
     setSelectedId: data.setSelectedId
   });
+  const clearActionError = actions.clearError;
+  const refreshDrawingData = data.refresh;
   const refresh = useCallback(async () => {
-    actions.clearError();
-    await data.refresh();
-  }, [actions.clearError, data.refresh]);
+    clearActionError();
+    await refreshDrawingData();
+  }, [clearActionError, refreshDrawingData]);
   return {
     ...data,
     ...actions,
