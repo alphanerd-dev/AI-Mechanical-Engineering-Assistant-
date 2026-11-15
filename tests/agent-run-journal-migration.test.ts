@@ -23,6 +23,9 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
     expect(sql).toContain("renew_engineering_agent_run");
     expect(sql).toContain("lease_token");
     expect(sql).toContain("lease_expires_at > clock_timestamp()");
+    expect(sql).toContain("if p_run_id is null or p_lease_token is null");
+    expect(sql).toContain("if p_worker_id is null or length(trim(p_worker_id)) < 1");
+    expect(sql).not.toContain("return null;");
     expect(sql).not.toContain("create policy");
   });
 
