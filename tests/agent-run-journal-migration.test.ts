@@ -18,7 +18,7 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
   it("keeps journal access server-only and fences all worker RPCs", () => {
     expect(sql).toContain("enable row level security");
     expect(sql).toContain("revoke all on table public.engineering_agent_runs from public, anon, authenticated");
-    expect(sql).toContain("grant select, insert, update on table public.engineering_agent_runs to service_role");
+    expect(sql).toContain("grant select, insert on table public.engineering_agent_runs to service_role");
     expect(sql).toContain("claim_engineering_agent_run");
     expect(sql).toContain("renew_engineering_agent_run");
     expect(sql).toContain("lease_token");
@@ -37,8 +37,11 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
 
   it("requires project-scoped cancellation and service-role-only function execution", () => {
     expect(sql).toContain("request_engineering_agent_run_cancellation");
+    expect(sql).toContain("resume_engineering_agent_run_after_approval");
+    expect(sql).toContain("approvalEvidenceId");
+    expect(sql).toContain("stale_agent_graph");
     expect(sql).toContain("where id = p_run_id and project_id = p_project_id for update");
-    expect(sql.match(/security definer set search_path = ''/g)?.length).toBe(5);
+    expect(sql.match(/security definer set search_path = ''/g)?.length).toBe(6);
     expect(sql).not.toContain("grant execute on function public.claim_engineering_agent_run(uuid,text,integer) to authenticated");
   });
 });
