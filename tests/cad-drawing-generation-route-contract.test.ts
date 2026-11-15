@@ -22,12 +22,12 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
     expect(source).toContain("STALE_DRAWING_SOURCE");
     expect(source).toContain('order("revision_number", { ascending: false })');
     expect(source).toContain("verifyStoredBrep");
-    expect(source).toContain("canonical_artifact_sha256");
+    expect(sourceValidation).toContain("canonical_artifact_sha256");
     expect(route).toContain("loadAcceptedShaftSource");
   });
 
   it("requires an accepted geometry receipt and source-matching canonical solid", () => {
-    expect(source).toContain('data.status !== "ACCEPTED"');
+    expect(source).toContain("loadCompletion");
     expect(source).toContain("resolveCanonicalSolid");
     expect(source).toContain("verifyStoredBrep");
     expect(shaftDimensions).toContain('specification.kind !== "CYLINDER"');
