@@ -7,13 +7,24 @@ function safeRelativePath(value: unknown): boolean {
 function validKind(value: unknown): boolean {
   return value === "FEA_MODEL" || value === "FEA_RESULT";
 }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function hasMediaType(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function hasSha256(value: unknown): boolean {
+  return typeof value === "string" && SHA256.test(value);
+}
 function validArtifact(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const artifact = value as Record<string, unknown>;
-  return validKind(artifact.kind) &&
-    safeRelativePath(artifact.path) &&
-    typeof artifact.mediaType === "string" && artifact.mediaType.trim().length > 0 &&
-    typeof artifact.sha256 === "string" && SHA256.test(artifact.sha256);
+  if (!isRecord(value)) return false;
+  const artifactChecks = [
+    validKind(value.kind),
+    safeRelativePath(value.path),
+    hasMediaType(value.mediaType),
+    hasSha256(value.sha256)
+  ];
+  return artifactChecks.every(Boolean);
 }
 function hasRequiredKinds(kinds: Set<string>): boolean {
   return kinds.has("FEA_MODEL") && kinds.has("FEA_RESULT");
