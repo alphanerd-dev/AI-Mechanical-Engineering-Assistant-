@@ -3,18 +3,27 @@ import { createHash } from "node:crypto";
 function normalizeArray(value: unknown[], seen: Set<object>): unknown[] {
   if (Object.keys(value).length !== value.length) throw new Error("Agent journal arrays must be dense JSON arrays.");
   if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal arrays cannot contain symbol keys.");
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) {
+      throw new Error("Agent journal arrays must be dense JSON arrays.");
+    }
+  }
   return value.map(item => normalizeJson(item, seen));
 }
 function normalizeObject(value: object, seen: Set<object>): Record<string, unknown> {
   const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
+  if (prototype !== Object.prototype) {
+    if (prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
+  }
   if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal payload cannot contain symbol keys.");
   const entries = Object.entries(value as Record<string, unknown>)
     .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
   return Object.fromEntries(entries.map(([key, item]) => [key, normalizeJson(item, seen)]));
 }
 function normalizeJson(value: unknown, seen: Set<object>): unknown {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (value === null) return value;
+  if (typeof value === "string") return value;
+  if (typeof value === "boolean") return value;
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new Error("Agent journal payload must contain finite JSON values only.");
     return value;
