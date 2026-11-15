@@ -302,7 +302,7 @@ function isGeometryHead(value: unknown): value is Row {
 function addGeometryHead(heads: Map<string, string>, value: unknown): void {
   if (!isGeometryHead(value)) return;
   if (heads.has(value.model_identity_id as string)) return;
-  heads.set(value.model_identity_id as string, value.id as string);
+  heads.set(value.model_identity_id as string, value.revision_id as string);
 }
 function buildGeometryHeads(values: unknown[]): Map<string, string> {
   const heads = new Map<string, string>();
@@ -311,9 +311,10 @@ function buildGeometryHeads(values: unknown[]): Map<string, string> {
 }
 async function fetchCurrentGeometryHeads(db: Database, projectId: string, modelIdentityIds: string[]): Promise<Map<string, string>> {
   if (!modelIdentityIds.length) return new Map<string, string>();
-  const { data, error } = await db.from("engineering_geometry_revisions").select("id,model_identity_id")
-    .eq("project_id", projectId).in("model_identity_id", modelIdentityIds)
-    .order("revision_number", { ascending: false }).limit(500);
+  const { data, error } = await db.rpc("get_current_geometry_revision_heads", {
+    p_project_id: projectId,
+    p_model_identity_ids: modelIdentityIds
+  });
   if (error || !Array.isArray(data)) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
   return buildGeometryHeads(data);
 }
