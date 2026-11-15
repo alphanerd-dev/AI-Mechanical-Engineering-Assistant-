@@ -5,54 +5,44 @@ import type { CanonicalSolid, Completion, GeometryRevisionDatabase, Row } from "
 import { fail } from "./request";
 import { extractCylinderDimensions } from "./shaft-dimensions";
 import { isRecord, validateRevisionArtifactBinding } from "./source-validation";
+export { loadCurrentGeometryRevision } from "./source-revision";
 
 type ServiceDb = ReturnType<typeof import("../../../../../lib/supabase/service").createServiceRoleClient>;
 export interface AcceptedShaftSource {
-  completion: Completion;
-  solid: CanonicalSolid;
-  diameterMm: number;
-  lengthMm: number;
+  completion: Completion; solid: CanonicalSolid; diameterMm: number; lengthMm: number;
 }
-
-export async function loadCurrentGeometryRevision(serviceDb: ServiceDb, input: {
-  projectId: string; modelIdentityId: string; geometryRevisionId: string;
-}): Promise<Row> {
-  const { data, error } = await serviceDb.from("engineering_geometry_revisions").select("*")
-    .eq("project_id", input.projectId).eq("model_identity_id", input.modelIdentityId)
-    .order("revision_number", { ascending: false }).limit(1);
-  if (error) fail({ message: "Current accepted geometry revision could not be loaded.", status: 503, code: "GEOMETRY_REVISION_UNAVAILABLE" });
-  if (!Array.isArray(data)) fail({ message: "Current accepted geometry revision could not be loaded.", status: 503, code: "GEOMETRY_REVISION_UNAVAILABLE" });
-  if (data.length === 0) fail({ message: "Current accepted geometry revision could not be loaded.", status: 503, code: "GEOMETRY_REVISION_UNAVAILABLE" });
-  if (!isRecord(data[0])) fail({ message: "Current accepted geometry revision could not be loaded.", status: 503, code: "GEOMETRY_REVISION_UNAVAILABLE" });
-  const revision = data[0];
-  if (revision.id !== input.geometryRevisionId) {
-    fail({ message: "The requested drawing source is stale. Reload the current geometry revision before generating a drawing.", status: 409, code: "STALE_DRAWING_SOURCE" });
-  }
-  return revision;
-}
-
-export async function loadAcceptedShaftSource(input: {
+interface SourceInput {
   serviceDb: ServiceDb; revision: Row; projectId: string; modelIdentityId: string;
-}): Promise<AcceptedShaftSource> {
-  const { serviceDb, revision, projectId, modelIdentityId } = input;
-  const completionResult = await loadCompletion(
-    serviceDb as unknown as GeometryRevisionDatabase, projectId, String(revision.source_completion_id)
+}
+async function loadSourceCompletion(input: SourceInput): Promise<Completion> {
+  const result = await loadCompletion(
+    input.serviceDb as unknown as GeometryRevisionDatabase,
+    input.projectId,
+    String(input.revision.source_completion_id)
   );
-  if (!completionResult.ok) {
-    fail({ message: completionResult.message, status: completionResult.status, code: "SOURCE_COMPLETION_UNAVAILABLE" });
-  }
-  const completion = completionResult.value;
-  if (completion.model_identity_id !== modelIdentityId) {
+  if (!result.ok) fail({ message: result.message, status: result.status, code: "SOURCE_COMPLETION_UNAVAILABLE" });
+  if (result.value.model_identity_id !== input.modelIdentityId) {
     fail({ message: "Source completion belongs to a different CAD model.", status: 422, code: "SOURCE_COMPLETION_MODEL_MISMATCH" });
   }
-  const solidResult = resolveCanonicalSolid(completion, projectId);
-  if (!solidResult.ok) fail({ message: solidResult.message, status: solidResult.status, code: "SOURCE_ARTIFACT_MISMATCH" });
-  const solid = solidResult.value;
-  validateRevisionArtifactBinding(revision, solid);
-  const storedResult = await verifyStoredBrep(serviceDb as unknown as GeometryRevisionDatabase, solid);
-  if (!storedResult.ok) fail({ message: storedResult.message, status: storedResult.status, code: "SOURCE_DIGEST_MISMATCH" });
+  return result.value;
+}
+function resolveRevisionSolid(input: { completion: Completion; revision: Row; projectId: string }): CanonicalSolid {
+  const result = resolveCanonicalSolid(input.completion, input.projectId);
+  if (!result.ok) fail({ message: result.message, status: result.status, code: "SOURCE_ARTIFACT_MISMATCH" });
+  validateRevisionArtifactBinding(input.revision, result.value);
+  return result.value;
+}
+async function verifyCanonicalSource(input: { serviceDb: ServiceDb; solid: CanonicalSolid }): Promise<void> {
+  const result = await verifyStoredBrep(input.serviceDb as unknown as GeometryRevisionDatabase, input.solid);
+  if (!result.ok) fail({ message: result.message, status: result.status, code: "SOURCE_DIGEST_MISMATCH" });
+}
+export async function loadAcceptedShaftSource(input: SourceInput): Promise<AcceptedShaftSource> {
+  const completion = await loadSourceCompletion(input);
+  const solid = resolveRevisionSolid({ completion, revision: input.revision, projectId: input.projectId });
+  await verifyCanonicalSource({ serviceDb: input.serviceDb, solid });
   const dimensions = extractCylinderDimensions({
-    completion, revision, projectId, modelIdentityId, solidId: solid.id
+    completion, revision: input.revision, projectId: input.projectId,
+    modelIdentityId: input.modelIdentityId, solidId: solid.id
   });
   return { completion, solid, ...dimensions };
 }
