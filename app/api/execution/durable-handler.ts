@@ -15,51 +15,79 @@ type DurableAuthorizationResult =
   | { allowed: true; ownerId: string }
   | { allowed: false; response: NextResponse };
 
+type SupabaseAuthorization = Awaited<ReturnType<typeof authorizeSupabaseRequest>>;
+
+function authorizationDenied(authorization: SupabaseAuthorization): NextResponse {
+  const status = authorizationFailureStatus(authorization);
+  return jsonError(
+    authorization.reason,
+    status,
+    status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED"
+  );
+}
+
+async function requestTaskAuthorization(input: {
+  projectId: string;
+  requestId: string;
+}): Promise<SupabaseAuthorization | NextResponse> {
+  try {
+    const authorization = await authorizeSupabaseRequest(
+      "TASK.EXECUTE", input.projectId, { requestId: input.requestId }
+    );
+    return authorization.allowed ? authorization : authorizationDenied(authorization);
+  } catch {
+    return jsonError("Engineering authorization is unavailable.", 503, "AUTHORIZATION_UNAVAILABLE");
+  }
+}
+
+async function requestEvidenceAuthorization(input: {
+  projectId: string;
+  backend: ExecutionBackend;
+  requestId: string;
+}): Promise<SupabaseAuthorization | NextResponse | undefined> {
+  const requiresEvidenceWrite = input.backend === "fea-worker" || input.backend === "cfd-worker";
+  if (!requiresEvidenceWrite) return undefined;
+  try {
+    const authorization = await authorizeSupabaseRequest(
+      "EVIDENCE.WRITE", input.projectId, { requestId: input.requestId }
+    );
+    return authorization.allowed
+      ? authorization
+      : jsonError(
+        authorization.reason,
+        authorizationFailureStatus(authorization),
+        authorizationFailureStatus(authorization) === 503 ? "AUDIT_STORE_UNAVAILABLE" : "EVIDENCE_WRITE_DENIED"
+      );
+  } catch {
+    return jsonError("Engineering authorization is unavailable.", 503, "AUTHORIZATION_UNAVAILABLE");
+  }
+}
+
+function evidenceIdentityError(
+  execution: SupabaseAuthorization,
+  evidence: SupabaseAuthorization | undefined
+): NextResponse | undefined {
+  if (evidence && evidence.subject !== execution.subject) {
+    return jsonError("Execution and evidence-write identities do not match.", 401, "SESSION_IDENTITY_MISMATCH");
+  }
+  return undefined;
+}
+
 async function authorizeDurableExecution(input: {
   projectId: string;
   backend: ExecutionBackend;
   requestId: string;
 }): Promise<DurableAuthorizationResult> {
-  let authorization: Awaited<ReturnType<typeof authorizeSupabaseRequest>>;
-  let evidenceAuthorization: Awaited<ReturnType<typeof authorizeSupabaseRequest>> | undefined;
-  try {
-    authorization = await authorizeSupabaseRequest("TASK.EXECUTE", input.projectId, { requestId: input.requestId });
-    if (input.backend === "fea-worker" || input.backend === "cfd-worker") {
-      evidenceAuthorization = await authorizeSupabaseRequest(
-        "EVIDENCE.WRITE", input.projectId, { requestId: input.requestId }
-      );
-    }
-  } catch {
-    return { allowed: false, response: jsonError("Engineering authorization is unavailable.", 503, "AUTHORIZATION_UNAVAILABLE") };
+  const authorization = await requestTaskAuthorization(input);
+  if (authorization instanceof NextResponse) {
+    return { allowed: false, response: authorization };
   }
-  if (!authorization.allowed) {
-    const status = authorizationFailureStatus(authorization);
-    return {
-      allowed: false,
-      response: jsonError(
-        authorization.reason,
-        status,
-        status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "ENGINEERING_ROLE_REQUIRED"
-      )
-    };
+  const evidenceAuthorization = await requestEvidenceAuthorization(input);
+  if (evidenceAuthorization instanceof NextResponse) {
+    return { allowed: false, response: evidenceAuthorization };
   }
-  if (evidenceAuthorization && !evidenceAuthorization.allowed) {
-    const status = authorizationFailureStatus(evidenceAuthorization);
-    return {
-      allowed: false,
-      response: jsonError(
-        evidenceAuthorization.reason,
-        status,
-        status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "EVIDENCE_WRITE_DENIED"
-      )
-    };
-  }
-  if (evidenceAuthorization && evidenceAuthorization.subject !== authorization.subject) {
-    return {
-      allowed: false,
-      response: jsonError("Execution and evidence-write identities do not match.", 401, "SESSION_IDENTITY_MISMATCH")
-    };
-  }
+  const identityError = evidenceIdentityError(authorization, evidenceAuthorization);
+  if (identityError) return { allowed: false, response: identityError };
   if (!authorization.subject) {
     return {
       allowed: false,
