@@ -1,6 +1,6 @@
 # Geometry Platform — Architecture Charter
 
-**Status:** G0 and G1 are merged. G2 immutable revision schema and provider-neutral contract are merged in [PR #163](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/163); the migration was rehearsed on E2E only. Production migration remains approval-gated, and trusted revision persistence/API integration is the next G2 increment. No native kernel is delivered.
+**Status — 15 November 2026:** G0, G1 and G2 are implemented on main. G2 immutable revision schema/contract was merged in [PR #163](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/163); trusted server-side persistence, authorized history reads, exact BREP digest verification, idempotency/concurrency and atomic audit were delivered in [PR #165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165). The additive G2 and manufacturing migrations are applied to production; the production application is READY at commit 9bfb57e86e70db84a682d162bba9253e0185c920. Authenticated production-session API acceptance remains open. No native geometry kernel is delivered.
 **Repository boundary:** This repository, initially alongside the existing CAD modules.  
 **Product rule:** AI proposes. Deterministic systems execute. Validation decides. Evidence proves.
 
@@ -165,20 +165,12 @@ The initial typed facade includes:
 
 The adapter does not own execution, persistence, validation, identity, rendering or worker lifecycle. No native algorithms, general transforms, topology IDs, Boolean operations, assemblies or parametric history are claimed. Existing routes and production behavior were not switched to the new facade in G1.
 
-## G2 — immutable identity schema delivered; persistence integration next
+## G2 — immutable identity and trusted persistence delivered; acceptance hardening next
 
 The G2 schema and provider-neutral TypeScript contract are merged in PR #163. The migration creates `engineering_geometry_revisions` as a project-scoped lineage index over existing CAD model/completion/Storage records; it does not create a second artifact registry or duplicate geometry bytes. Composite model/completion/self-revision foreign keys, model-row locking, current-head sequencing, accepted-completion checks, exact SOLID artifact binding and immutable UPDATE/DELETE guards are included.
 
-The G2 migration was rehearsed on the dedicated E2E Supabase project. The rollback-only test exercised initial/child revision creation, stale-parent and skipped-number rejection, duplicate source-artifact binding rejection, and immutable mutation rejection; synthetic rows were rolled back. **Production remains at the pre-G2 schema baseline. No G2 production migration has been applied.**
+The original G2 schema was first rehearsed on the dedicated E2E Supabase project with rollback-only tests for initial/child revision creation, stale-parent and skipped-number rejection, duplicate source-artifact binding and immutable mutation rejection. The subsequent trusted-persistence and manufacturing increments were applied to production through eight additive migrations on 15 November 2026. Production migration history confirms all eight versions are present. Post-migration checks confirmed RLS on the evidence tables, no direct authenticated/anon table reads, service_role SELECT/INSERT without UPDATE/DELETE, immutable triggers and SECURITY INVOKER write RPCs restricted to service_role. The original rollback rehearsal remains evidence for the schema invariants; it is not a substitute for authenticated production API acceptance.
 
-The next implementation increment is the trusted server persistence boundary. It must:
-- Resolve the accepted CAD completion within the authorized project/model.
-- Resolve exactly one canonical SOLID artifact from the existing completion manifest.
-- Download the exact private Storage object and recompute SHA-256 server-side; never trust a browser-supplied digest.
-- Preserve the existing execution-scoped object path and avoid duplicate artifact storage.
-- Enforce expected-parent concurrency and idempotent replay against the database's model-row lock and uniqueness constraints.
-- Commit the immutable revision and durable audit-chain event in one PostgreSQL transaction.
-- Expose only project-authorized reads; keep service-role writes server-only.
-- Pass authenticated E2E and failure/retry tests before any route is promoted.
+The trusted persistence boundary is implemented in PR #165. It resolves the accepted completion and exactly one canonical SOLID from the server-owned manifest, downloads the existing private execution-scoped BREP object, recomputes SHA-256, rejects digest/provenance mismatch, enforces expected-parent concurrency and idempotent replay, and commits the immutable revision plus audit event in one transaction. Project-authorized reads are exposed through the authenticated API; privileged writes remain server-side.
 
-The production migration, route cutover and any irreversible database action require separate explicit database-owner approval. G3 native mathematical primitives must wait until the G2 persistence and lineage acceptance gates pass.
+**Remaining G2 exit work:** authenticated production-session creation/history tests using a real project and accepted CAD completion; negative tests for mismatched digest/provenance, stale parent, replay and cross-project access; and audit-chain assertions. The routes are deployed, but successful authenticated production transactions have not yet been demonstrated. G3 native mathematical primitives should begin only after these G2 lineage acceptance gates pass.
