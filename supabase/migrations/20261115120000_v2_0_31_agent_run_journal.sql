@@ -68,7 +68,7 @@ begin
     raise exception 'Invalid agent run lease duration.';
   end if;
   select * into v_run from public.engineering_agent_runs where id = p_run_id for update;
-  if not found then return; end if;
+  if not found then return null; end if;
   if v_run.status = 'RUNNING' and v_run.lease_expires_at <= clock_timestamp() and v_run.current_action is not null then
     update public.engineering_agent_runs
        set status = 'RECONCILIATION_REQUIRED',
