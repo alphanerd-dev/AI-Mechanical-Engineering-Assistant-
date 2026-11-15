@@ -12,6 +12,8 @@ describe("M2 generated drawing lineage migration", () => {
     expect(sql).toContain("generator_id text");
     expect(sql).toContain("generator_version text");
     expect(sql).toContain("generation_parameters jsonb");
+    expect(sql).toContain("pg_column_size(generation_parameters) <= 65536");
+    expect(sql).toContain("cardinality(p_model_identity_ids) > 100");
     expect(sql).toContain("engineering_geometry_revisions(project_id, model_identity_id, id)");
   });
 
