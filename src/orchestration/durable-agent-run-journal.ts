@@ -1,61 +1,19 @@
-import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  AgentActionCheckpoint, AgentRunClaim, AgentRunRecord, BeginAgentActionState, CreateAgentRunInput
+} from "./agent-run-journal-types.js";
+import {
+  buildAgentRunRow, isRecord, isUniqueViolation, rpcBoolean, rpcText, toAgentRunRecord
+} from "./agent-run-journal-codec.js";
 
-export type AgentRunJournalStatus =
-  | "PLANNED" | "RUNNING" | "WAITING_APPROVAL" | "COMPLETED"
-  | "FAILED" | "CANCELLED" | "RECONCILIATION_REQUIRED";
-export type AgentActionCheckpointStatus = "RUNNING" | "WAITING_APPROVAL" | "COMPLETED" | "FAILED" | "CANCELLED";
+export * from "./agent-run-journal-types.js";
+export { canonicalAgentRunDigest, createAgentActionIdentity } from "./agent-run-journal-codec.js";
 
-export interface AgentRunPlan {
-  baseGraphRevision: number;
-  actions: readonly unknown[];
-}
-export interface CreateAgentRunInput {
-  runId: string;
-  ownerId: string;
-  projectId: string;
-  idempotencyKey: string;
-  initialGraphRevision: number;
-  taskGraphSnapshot: Record<string, unknown>;
-  limitsSnapshot: Record<string, unknown>;
-  plan: AgentRunPlan;
-}
-export interface AgentRunRecord {
-  id: string;
-  ownerId: string;
-  projectId: string;
-  status: AgentRunJournalStatus;
-  initialGraphRevision: number;
-  currentGraphRevision: number;
-  planHash: string;
-  plan: Record<string, unknown>;
-  checkpoint: Record<string, unknown>;
-  actionHistory: Record<string, unknown>[];
-  nextActionIndex: number;
-  currentAction?: Record<string, unknown>;
-  cancelRequestedAt?: string;
-  error?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-export interface AgentRunClaim {
-  run: AgentRunRecord;
-  workerId: string;
-  leaseToken: string;
-}
-export interface AgentActionIdentity {
-  actionIndex: number;
-  actionKey: string;
-  actionHash: string;
-  action: Record<string, unknown>;
-}
-export interface AgentActionCheckpoint {
-  identity: AgentActionIdentity;
-  outcome: Record<string, unknown>;
-  graphRevision: number;
-  nextStatus?: AgentActionCheckpointStatus;
-  error?: string;
-}
+const TABLE = "engineering_agent_runs";
+const BEGIN_STATES: readonly BeginAgentActionState[] = [
+  "STARTED", "IN_FLIGHT", "ALREADY_CHECKPOINTED", "NOT_CLAIMED", "NOT_FOUND"
+];
+
 export class AgentRunIdempotencyConflictError extends Error {
   constructor() {
     super("This agent-run Idempotency-Key was already used with a different request.");
@@ -68,134 +26,13 @@ export class AgentRunJournalError extends Error {
     this.name = "AgentRunJournalError";
   }
 }
-
-const TABLE = "engineering_agent_runs";
-const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
-const SHA256_PATTERN = /^[a-f0-9]{64}$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+function readRun(value: unknown, operation: string): AgentRunRecord {
+  try { return toAgentRunRecord(value); }
+  catch { throw new AgentRunJournalError(operation); }
 }
-function isJsonPrimitive(value: unknown): boolean {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
-  return typeof value === "number" && Number.isFinite(value);
-}
-function assertJsonArray(value: unknown[], seen: Set<object>): void {
-  if (Object.keys(value).length !== value.length || Object.getOwnPropertySymbols(value).length > 0) {
-    throw new Error("Agent journal arrays must be dense JSON arrays without symbol keys.");
-  }
-  for (const item of value) assertJsonCompatible(item, seen);
-}
-function assertJsonObject(value: object, seen: Set<object>): void {
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
-  if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal payload cannot contain symbol keys.");
-  for (const item of Object.values(value as Record<string, unknown>)) assertJsonCompatible(item, seen);
-}
-function assertJsonCompatible(value: unknown, seen = new Set<object>()): void {
-  if (isJsonPrimitive(value)) return;
-  if (value === null || typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
-  if (seen.has(value)) throw new Error("Agent journal payload cannot contain circular references.");
-  seen.add(value);
-  if (Array.isArray(value)) assertJsonArray(value, seen);
-  else assertJsonObject(value, seen);
-  seen.delete(value);
-}
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (isRecord(value)) {
-    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
-      .map(([key, item]) => [key, canonical(item)]));
-  }
-  return value;
-}
-export function canonicalAgentRunDigest(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
-}
-function validateActionIndex(actionIndex: number): void {
-  if (!Number.isInteger(actionIndex) || actionIndex < 0 || actionIndex >= 25) {
-    throw new Error("Agent action index must be an integer from 0 to 24.");
-  }
-}
-function validateRunId(runId: string): void {
-  if (!runId.trim()) throw new Error("Agent action identity requires a run ID.");
-}
-export function createAgentActionIdentity(runId: string, actionIndex: number, action: Record<string, unknown>): AgentActionIdentity {
-  validateRunId(runId);
-  validateActionIndex(actionIndex);
-  const actionHash = canonicalAgentRunDigest(action);
-  return { actionIndex, actionHash, actionKey: "agent:" + runId + ":" + actionIndex + ":" + actionHash.slice(0, 32), action };
-}
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-function asNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-const RUN_STATUSES: readonly AgentRunJournalStatus[] = [
-  "PLANNED", "RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED", "CANCELLED", "RECONCILIATION_REQUIRED"
-];
-function hasPersistedRunIdentity(row: Record<string, unknown>): boolean {
-  return typeof row.id === "string" && typeof row.owner_id === "string" && typeof row.project_id === "string";
-}
-function hasPersistedRunPayload(row: Record<string, unknown>): boolean {
-  return isRecord(row.plan) && isRecord(row.checkpoint) && Array.isArray(row.action_history);
-}
-function hasPersistedRunStatus(row: Record<string, unknown>): boolean {
-  return typeof row.status === "string" && RUN_STATUSES.includes(row.status as AgentRunJournalStatus);
-}
-function toRun(value: unknown): AgentRunRecord {
-  if (!isRecord(value) || !hasPersistedRunIdentity(value) ||
-      !hasPersistedRunPayload(value) || !hasPersistedRunStatus(value)) {
-    throw new AgentRunJournalError("validating a persisted run");
-  }
-  const row = value;
-  return {
-    id: row.id as string,
-    ownerId: row.owner_id as string,
-    projectId: row.project_id as string,
-    status: row.status as AgentRunJournalStatus,
-    initialGraphRevision: asNumber(row.initial_graph_revision) ?? 0,
-    currentGraphRevision: asNumber(row.current_graph_revision) ?? 0,
-    planHash: asString(row.plan_hash) ?? "",
-    plan: row.plan as Record<string, unknown>,
-    checkpoint: row.checkpoint as Record<string, unknown>,
-    actionHistory: (row.action_history as unknown[]).filter(isRecord),
-    nextActionIndex: asNumber(row.next_action_index) ?? 0,
-    ...(isRecord(row.current_action) ? { currentAction: row.current_action } : {}),
-    ...(asString(row.cancel_requested_at) ? { cancelRequestedAt: asString(row.cancel_requested_at) } : {}),
-    ...(asString(row.error) ? { error: asString(row.error) } : {}),
-    createdAt: asString(row.created_at) ?? new Date(0).toISOString(),
-    updatedAt: asString(row.updated_at) ?? new Date(0).toISOString()
-  };
-}
-function isUniqueViolation(error: unknown): boolean {
-  return isRecord(error) && error.code === "23505";
-}
-function buildAgentRunRow(input: CreateAgentRunInput): Record<string, unknown> {
-  if (!IDEMPOTENCY_PATTERN.test(input.idempotencyKey)) throw new Error("Agent run idempotency key is invalid.");
-  if (!Number.isInteger(input.initialGraphRevision) || input.initialGraphRevision < 1) throw new Error("Initial graph revision is invalid.");
-  if (input.plan.baseGraphRevision !== input.initialGraphRevision || input.plan.actions.length < 1 || input.plan.actions.length > 25) {
-    throw new Error("Agent plan revision or bounded action count is invalid.");
-  }
-  const plan = { taskGraphSnapshot: input.taskGraphSnapshot, limitsSnapshot: input.limitsSnapshot, proposal: input.plan };
-  const requestHash = canonicalAgentRunDigest({
-    projectId: input.projectId, initialGraphRevision: input.initialGraphRevision,
-    taskGraphSnapshot: input.taskGraphSnapshot, limitsSnapshot: input.limitsSnapshot, plan
-  });
-  const planHash = canonicalAgentRunDigest(plan);
-  if (!SHA256_PATTERN.test(requestHash) || !SHA256_PATTERN.test(planHash)) throw new AgentRunJournalError("hashing a run request");
-  return {
-    id: input.runId, owner_id: input.ownerId, project_id: input.projectId,
-    idempotency_key: input.idempotencyKey, request_hash: requestHash, plan_hash: planHash,
-    initial_graph_revision: input.initialGraphRevision, current_graph_revision: input.initialGraphRevision,
-    status: "PLANNED", plan, checkpoint: {}, action_history: [], next_action_index: 0
-  };
-}
-function rpcBoolean(data: unknown): boolean {
-  if (typeof data === "boolean") return data;
-  if (Array.isArray(data) && typeof data[0] === "boolean") return data[0];
-  return false;
+function beginState(value: unknown): BeginAgentActionState {
+  const state = rpcText(value);
+  return BEGIN_STATES.includes(state as BeginAgentActionState) ? state as BeginAgentActionState : "NOT_CLAIMED";
 }
 
 export class SupabaseAgentRunJournal {
@@ -204,9 +41,9 @@ export class SupabaseAgentRunJournal {
   async createOrGet(input: CreateAgentRunInput): Promise<{ run: AgentRunRecord; created: boolean }> {
     const row = buildAgentRunRow(input);
     const inserted = await this.client.from(TABLE).insert(row).select("*").single();
-    if (!inserted.error && inserted.data) return { run: toRun(inserted.data), created: true };
+    if (!inserted.error && inserted.data) return { run: readRun(inserted.data, "validating a new run"), created: true };
     if (!isUniqueViolation(inserted.error)) throw new AgentRunJournalError("creating a run");
-    return this.resolveIdempotentReplay(input, row.request_hash as string);
+    return this.resolveIdempotentReplay(input, String(row.request_hash));
   }
 
   private async resolveIdempotentReplay(
@@ -218,13 +55,13 @@ export class SupabaseAgentRunJournal {
       .eq("idempotency_key", input.idempotencyKey).maybeSingle();
     if (existing.error || !existing.data) throw new AgentRunJournalError("resolving an idempotent run submission");
     if (existing.data.request_hash !== requestHash) throw new AgentRunIdempotencyConflictError();
-    return { run: toRun(existing.data), created: false };
+    return { run: readRun(existing.data, "validating an idempotent run"), created: false };
   }
 
   async getForProject(runId: string, projectId: string): Promise<AgentRunRecord | undefined> {
     const result = await this.client.from(TABLE).select("*").eq("id", runId).eq("project_id", projectId).maybeSingle();
     if (result.error) throw new AgentRunJournalError("reading a run");
-    return result.data ? toRun(result.data) : undefined;
+    return result.data ? readRun(result.data, "validating a run read") : undefined;
   }
 
   async claim(runId: string, workerId: string, leaseSeconds = 45): Promise<AgentRunClaim | undefined> {
@@ -234,10 +71,10 @@ export class SupabaseAgentRunJournal {
     if (result.error) throw new AgentRunJournalError("claiming a run");
     const row = Array.isArray(result.data) ? result.data[0] : result.data;
     if (!row) return undefined;
-    const claim = toRun(row);
-    const leaseToken = asString(isRecord(row) ? row.lease_token : undefined);
-    if (!leaseToken || claim.status !== "RUNNING") return undefined;
-    return { run: claim, workerId, leaseToken };
+    const run = readRun(row, "validating a claimed run");
+    const leaseToken = isRecord(row) && typeof row.lease_token === "string" ? row.lease_token : "";
+    if (!leaseToken || run.status !== "RUNNING") return undefined;
+    return { run, workerId, leaseToken };
   }
 
   async heartbeat(claim: AgentRunClaim, leaseSeconds = 45): Promise<{ active: boolean; cancelRequested: boolean }> {
@@ -253,7 +90,7 @@ export class SupabaseAgentRunJournal {
     };
   }
 
-  async beginAction(claim: AgentRunClaim, identity: AgentActionIdentity): Promise<"STARTED" | "IN_FLIGHT" | "ALREADY_CHECKPOINTED" | "NOT_CLAIMED" | "NOT_FOUND"> {
+  async beginAction(claim: AgentRunClaim, identity: AgentActionCheckpoint["identity"]): Promise<BeginAgentActionState> {
     const result = await this.client.rpc("begin_engineering_agent_action", {
       p_run_id: claim.run.id,
       p_worker_id: claim.workerId,
@@ -264,7 +101,7 @@ export class SupabaseAgentRunJournal {
       p_action: identity.action
     });
     if (result.error) throw new AgentRunJournalError("persisting an action intent");
-    return rpcBoolean(result.data);
+    return beginState(result.data);
   }
 
   async checkpointAction(claim: AgentRunClaim, checkpoint: AgentActionCheckpoint): Promise<boolean> {
@@ -289,6 +126,6 @@ export class SupabaseAgentRunJournal {
     });
     if (result.error) throw new AgentRunJournalError("requesting run cancellation");
     const row = Array.isArray(result.data) ? result.data[0] : result.data;
-    return row ? toRun(row) : undefined;
+    return row ? readRun(row, "validating a cancellation result") : undefined;
   }
 }
