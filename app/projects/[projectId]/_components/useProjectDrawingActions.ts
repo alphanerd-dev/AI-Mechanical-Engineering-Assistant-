@@ -1,0 +1,53 @@
+import { useCallback, useState, type FormEvent } from "react";
+import { submitDrawingUpload, submitShaftDrawingGeneration } from "./project-drawings-api";
+
+export function useProjectDrawingActions(input: {
+  projectId: string;
+  modelIdentityId: string;
+  file: File | null;
+  refresh: () => Promise<void>;
+  setSelectedId: (drawingId: string) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const generationBlocked = !input.modelIdentityId || generating || uploading;
+
+  const generateShaftDrawing = useCallback(async () => {
+    if (generationBlocked) return;
+    setGenerating(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const drawingId = await submitShaftDrawingGeneration(input.projectId, input.modelIdentityId);
+      setNotice("Preliminary shaft drawing generated from the current accepted geometry revision. Not for manufacture.");
+      await input.refresh();
+      input.setSelectedId(drawingId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Preliminary shaft drawing generation failed.");
+    } finally {
+      setGenerating(false);
+    }
+  }, [generationBlocked, input]);
+
+  const upload = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!input.file || uploading) return;
+    setUploading(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const drawingId = await submitDrawingUpload(input.projectId, input.modelIdentityId, input.file);
+      setNotice("Drawing uploaded to private project storage. Preview is read-only and does not validate dimensions.");
+      await input.refresh();
+      input.setSelectedId(drawingId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Drawing upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }, [input, uploading]);
+
+  return { uploading, generating, generationBlocked, error, notice, generateShaftDrawing, upload };
+}
