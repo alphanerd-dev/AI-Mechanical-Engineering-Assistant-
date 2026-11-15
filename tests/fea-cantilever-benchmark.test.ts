@@ -95,11 +95,23 @@ describe("CalculiX cantilever-box benchmark contract", () => {
     expect(validateFEACantileverBoxResult(request, result).status).toBe("FAIL");
   });
 
-  it("rejects unsafe or incomplete solver artifact manifests", () => {
-    const result = referenceResult();
-    result.artifacts[0] = { ...result.artifacts[0], path: "../outside.inp" };
-    const validation = validateFEACantileverBoxResult(request, result);
-    expect(validation.status).toBe("FAIL");
-    expect(validation.blockingReasons.join(" ")).toMatch(/unsafe/);
+  it("rejects traversal, absolute, drive-qualified and malformed solver artifact paths", () => {
+    const unsafePaths = [
+      "../outside.inp",
+      "nested/../outside.inp",
+      "/etc/passwd",
+      "C:\\outside.inp",
+      "\\\\server\\share\\outside.inp",
+      "nested/./part.inp",
+      "nested//part.inp",
+      "invalid\\0path.inp"
+    ];
+    for (const path of unsafePaths) {
+      const result = referenceResult();
+      result.artifacts[0] = { ...result.artifacts[0], path };
+      const validation = validateFEACantileverBoxResult(request, result);
+      expect(validation.status, path).toBe("FAIL");
+      expect(validation.blockingReasons.join(" "), path).toMatch(/unsafe/);
+    }
   });
 });
