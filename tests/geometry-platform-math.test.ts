@@ -3,7 +3,8 @@ import {
   DEFAULT_GEOMETRY_TOLERANCE_POLICY, IDENTITY_RIGID_TRANSFORM, addVectors, composeRigidTransforms,
   containsPointInBounds, createBoundingBox3, createCircle3, createLine3, createPlane3, crossProduct,
   distanceBetweenPointsMm, dotProduct, invertRigidTransform, isWithinLinearTolerance, normalizeVector,
-  projectPointOntoLine, projectPointOntoPlane, transformPoint, transformVector, validateRigidTransform3
+  projectPointOntoLine, projectPointOntoPlane, scaleVector, transformPoint, transformVector, validateRigidTransform3,
+  vectorMagnitude
 } from "../src/geometry-platform/math.js";
 
 describe("Geometry Platform G3 mathematical foundation",()=>{
@@ -61,5 +62,24 @@ describe("Geometry Platform G3 mathematical foundation",()=>{
     const inverse=invertRigidTransform(combined);
     const original=transformPoint(inverse,transformPoint(combined,[7,-2,3]));
     expect(original[0]).toBeCloseTo(7,12); expect(original[1]).toBeCloseTo(-2,12); expect(original[2]).toBeCloseTo(3,12);
+  });
+
+  it("normalizes very large finite vectors without overflow and rejects unrepresentable results",()=>{
+    const normalized=normalizeVector([1e308,1e308,0]);
+    expect(normalized[0]).toBeCloseTo(Math.SQRT1_2,12);
+    expect(normalized[1]).toBeCloseTo(Math.SQRT1_2,12);
+    expect(normalized[2]).toBe(0);
+    expect(()=>vectorMagnitude([1e308,1e308,0])).toThrow(/finite numeric range/);
+    expect(()=>scaleVector([1e308,0,0],2)).toThrow(/finite numeric range/);
+    expect(()=>dotProduct([1e308,0,0],[1e308,0,0])).toThrow(/finite numeric range/);
+    expect(()=>crossProduct([1e308,0,0],[0,1e308,0])).toThrow(/finite numeric range/);
+    expect(()=>addVectors([1e308,0,0],[1e308,0,0])).toThrow(/finite numeric range/);
+  });
+  it("applies inclusive linear tolerance boundaries deterministically",()=>{
+    const bounds=createBoundingBox3([[0,0,0],[1,1,1]]);
+    expect(containsPointInBounds(bounds,[1+1e-6,0.5,0.5],1e-6)).toBe(true);
+    expect(containsPointInBounds(bounds,[1+1.1e-6,0.5,0.5],1e-6)).toBe(false);
+    expect(containsPointInBounds(bounds,[1,0.5,0.5],0)).toBe(true);
+    expect(containsPointInBounds(bounds,[1.000001,0.5,0.5],0)).toBe(false);
   });
 });
