@@ -32,7 +32,7 @@ COPY --chown=openfoam:openfoam worker.py /app/worker.py
 COPY --chown=openfoam:openfoam errors.py manifest.py case_builder.py solver.py artifacts.py /app/
 COPY --chown=openfoam:openfoam run_case.py service.py /app/
 COPY --chown=openfoam:openfoam test_worker.py test_service.py /app/
-COPY --chown=openfoam:openfoam smoke_request.py /app/smoke_request.py
+COPY --chown=openfoam:openfoam smoke_request.py smoke_async_service.py /app/
 
 RUN python3 -m unittest -v test_worker test_service
 
