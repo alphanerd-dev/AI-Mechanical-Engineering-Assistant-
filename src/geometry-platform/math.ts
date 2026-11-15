@@ -26,19 +26,33 @@ export const IDENTITY_RIGID_TRANSFORM: RigidTransform3 = Object.freeze({
 });
 
 function finiteVector(value: readonly number[], name: string): void {
-  if (!Array.isArray(value) || value.length !== 3 || value.some(item => !Number.isFinite(item)))
-    throw new Error(name + " must contain exactly three finite numbers.");
+  if (!Array.isArray(value)) throw new Error(name + " must be an array.");
+  if (value.length !== 3) throw new Error(name + " must contain exactly three numbers.");
+  for (const item of value) {
+    if (!Number.isFinite(item)) throw new Error(name + " must contain only finite numbers.");
+  }
 }
 function positiveFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) throw new Error(name + " must be finite and positive.");
 }
+function validateToleranceId(policy: GeometryTolerancePolicy): string[] {
+  return typeof policy?.id === "string" && policy.id.trim()
+    ? [] : ["Tolerance policy id is required."];
+}
+function validateLinearTolerance(value: number): string[] {
+  return Number.isFinite(value) && value > 0 ? [] : ["linearMm tolerance must be finite and positive."];
+}
+function validateAngularTolerance(value: number): string[] {
+  return Number.isFinite(value) && value > 0 && value <= Math.PI
+    ? [] : ["angularRad tolerance must be finite, positive and no greater than pi."];
+}
 export function validateTolerancePolicy(policy: GeometryTolerancePolicy): string[] {
-  const errors: string[] = [];
-  if (!policy || typeof policy.id !== "string" || !policy.id.trim()) errors.push("Tolerance policy id is required.");
-  if (!Number.isFinite(policy?.linearMm) || policy.linearMm <= 0) errors.push("linearMm tolerance must be finite and positive.");
-  if (!Number.isFinite(policy?.angularRad) || policy.angularRad <= 0 || policy.angularRad > Math.PI)
-    errors.push("angularRad tolerance must be finite, positive and no greater than pi.");
-  return errors;
+  if (!policy) return ["Tolerance policy is required."];
+  return [
+    ...validateToleranceId(policy),
+    ...validateLinearTolerance(policy.linearMm),
+    ...validateAngularTolerance(policy.angularRad)
+  ];
 }
 export function addVectors(a: Vector3, b: Vector3): Vector3 {
   finiteVector(a,"a"); finiteVector(b,"b");
@@ -109,13 +123,18 @@ export function createBoundingBox3(points:readonly Point3[]):BoundingBox3 {
   }
   return {min,max};
 }
+function pointWithinBoundsAxis(bounds: BoundingBox3, point: Point3, axis: number, toleranceMm: number): boolean {
+  const lower = bounds.min[axis];
+  const upper = bounds.max[axis];
+  const coordinate = point[axis];
+  return lower <= upper && coordinate >= lower - toleranceMm && coordinate <= upper + toleranceMm;
+}
 export function containsPointInBounds(bounds:BoundingBox3,point:Point3,toleranceMm=DEFAULT_GEOMETRY_TOLERANCE_POLICY.linearMm):boolean {
   finiteVector(bounds.min,"bounds.min"); finiteVector(bounds.max,"bounds.max"); finiteVector(point,"point");
   if(!Number.isFinite(toleranceMm)||toleranceMm<0) return false;
-  for(let axis=0;axis<3;axis++) {
-    if(bounds.min[axis]>bounds.max[axis]||point[axis]<bounds.min[axis]-toleranceMm||point[axis]>bounds.max[axis]+toleranceMm) return false;
-  }
-  return true;
+  return pointWithinBoundsAxis(bounds,point,0,toleranceMm)
+    && pointWithinBoundsAxis(bounds,point,1,toleranceMm)
+    && pointWithinBoundsAxis(bounds,point,2,toleranceMm);
 }
 function multiplyMatrixVector(matrix:Matrix3,vector:Vector3):Vector3 {
   return [dotProduct(matrix[0],vector),dotProduct(matrix[1],vector),dotProduct(matrix[2],vector)];
@@ -132,20 +151,44 @@ function determinant3(m:Matrix3):number {
   const [a,b,c]=m;
   return a[0]*(b[1]*c[2]-b[2]*c[1])-a[1]*(b[0]*c[2]-b[2]*c[0])+a[2]*(b[0]*c[1]-b[1]*c[0]);
 }
-export function validateRigidTransform3(transform:RigidTransform3,tolerance=1e-9):string[] {
-  if(!transform||!Array.isArray(transform.rotation)||transform.rotation.length!==3) return ["rotation must be a 3x3 matrix."];
-  try {
-    transform.rotation.forEach((row,index)=>finiteVector(row,"rotation["+index+"]"));
-    finiteVector(transform.translationMm,"translationMm");
-  } catch(error) { return [error instanceof Error?error.message:"Transform contains invalid numeric values."]; }
-  if(!Number.isFinite(tolerance)||tolerance<=0) return ["Transform tolerance must be finite and positive."];
-  for(let i=0;i<3;i++) for(let j=i;j<3;j++) {
-    if(Math.abs(dotProduct(transform.rotation[i],transform.rotation[j])-(i===j?1:0))>tolerance)
-      return ["rotation matrix must be orthonormal."];
+function validateRotationShape(rotation: Matrix3): string[] {
+  if (!Array.isArray(rotation) || rotation.length !== 3) return ["rotation must be a 3x3 matrix."];
+  for (let row = 0; row < 3; row++) {
+    try { finiteVector(rotation[row], "rotation[" + row + "]"); }
+    catch (error) { return [error instanceof Error ? error.message : "Rotation contains invalid values."]; }
   }
-  if(Math.abs(determinant3(transform.rotation)-1)>tolerance*4)
-    return ["rotation matrix must be right-handed with determinant +1."];
   return [];
+}
+function validateTranslation(translation: Vector3): string[] {
+  try { finiteVector(translation, "translationMm"); return []; }
+  catch (error) { return [error instanceof Error ? error.message : "Translation contains invalid values."]; }
+}
+function validateRotationOrthonormality(rotation: Matrix3, tolerance: number): string[] {
+  for (let row = 0; row < 3; row++) {
+    for (let column = row; column < 3; column++) {
+      const expected = row === column ? 1 : 0;
+      if (Math.abs(dotProduct(rotation[row], rotation[column]) - expected) > tolerance) {
+        return ["rotation matrix must be orthonormal."];
+      }
+    }
+  }
+  return [];
+}
+function validateRotationHandedness(rotation: Matrix3, tolerance: number): string[] {
+  return Math.abs(determinant3(rotation) - 1) <= tolerance * 4
+    ? [] : ["rotation matrix must be right-handed with determinant +1."];
+}
+export function validateRigidTransform3(transform:RigidTransform3,tolerance=1e-9):string[] {
+  if (!transform) return ["Transform is required."];
+  const shapeErrors = validateRotationShape(transform.rotation);
+  if (shapeErrors.length) return shapeErrors;
+  const translationErrors = validateTranslation(transform.translationMm);
+  if (translationErrors.length) return translationErrors;
+  if (!Number.isFinite(tolerance) || tolerance <= 0) return ["Transform tolerance must be finite and positive."];
+  return [
+    ...validateRotationOrthonormality(transform.rotation, tolerance),
+    ...validateRotationHandedness(transform.rotation, tolerance)
+  ];
 }
 function assertRigidTransform(transform:RigidTransform3):void {
   const errors=validateRigidTransform3(transform);
