@@ -1,5 +1,5 @@
 import { FilePlus2, FileText } from "lucide-react";
-import type { DrawingRecord } from "./ProjectDrawingsPanel";
+import type { DrawingRecord } from "./useProjectDrawings";
 import styles from "./ProjectDrawingsPanel.module.css";
 
 function dateLabel(value: string): string {
