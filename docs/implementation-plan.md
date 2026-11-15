@@ -1,9 +1,27 @@
 # Implementation Plan and Milestones
 
-**Updated:** 14 November 2026  
-**Status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested scope. M2.2–M2.6 CAD/drawing implementation, OpenFOAM 14 bounded CFD worker/provider, deterministic manufacturing-readiness pilot and first-party password recovery are present on `main`. G2 immutable revision schema/contract was merged in PR #163 at `132436fd1cf4ca66ec122ca13d8313e2b4681b84`; its production app deployment reached READY. Issue #145's production migration-ledger reconciliation is complete; the production ledger matches the 18 canonical migrations. PR #165 adds trusted revision persistence/API integration, but its additive schema remains E2E-only and authenticated API acceptance is pending. PR #166 adds durable manufacturing assessment/decision records; its schema is E2E-only and authenticated acceptance is pending. Renderer selection, authenticated CAD/CAE acceptance and production CFD runtime readiness remain open gates.
+**Updated:** 15 November 2026
+
+**Current release status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested chat scope. M2.2–M2.6 CAD/drawing implementation is merged. PR [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) (G2 trusted geometry revision persistence) and PR [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) (durable manufacturing assessments and human decisions) are merged to main. Production Vercel deployment dpl_GWprsLfzpeboh45REeM1gwwhNN5c is **READY** at 9bfb57e86e70db84a682d162bba9253e0185c920; the production alias points to that deployment. The eight additive migrations for geometry revision persistence and manufacturing evidence/decisions have been applied to production and verified in migration history. RLS, service-role privileges, immutable triggers and write-RPC security were checked after migration.
+
+**Current focus:** renderer selection, CAD/CAE artifact workflow validation, stale-source behavior, production CFD worker integration and broader capability validation. The G2 geometry revision and manufacturing evidence/decision implementations are merged, deployed and backed by the production schema.
 
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
+
+## Production database migration record — 15 November 2026
+
+The following eight additive migrations were applied to the production Supabase project and verified in migration history:
+
+1. `20261114201216_g2_geometry_revision_atomic_persistence`
+2. `20261114202036_manufacturing_durable_approval_records`
+3. `20261114203550_manufacturing_service_role_least_privilege`
+4. `20261114210018_manufacturing_assessment_project_fk`
+5. `20261114210117_manufacturing_source_evidence_trust_boundary`
+6. `20261114210554_manufacturing_decision_rpc_definer_lock`
+7. `20261114210901_manufacturing_decision_advisory_lock`
+8. `20261114211126_project_evidence_fk_indexes`
+
+Post-migration inspection confirmed RLS is enabled on the evidence tables; `authenticated` and `anon` have no direct table-read grants; `service_role` has SELECT/INSERT but no UPDATE/DELETE on immutable evidence records; immutable triggers are enabled; and the three write RPCs use `SECURITY INVOKER` with execution restricted to `service_role`. These are schema/privilege checks, not substitutes for authenticated user-level API acceptance.
 
 ## Product and engineering rule
 
@@ -20,8 +38,8 @@ Preserve the existing Next.js/React/TypeScript control plane, Supabase project/w
 | Conversational chat | assistant-ui + Vercel AI SDK; streamed project chat route; project-scoped history; Gemini provider; Markdown/code/math rendering; edit/copy/regenerate/stop controls. | Conversational answers do not execute CAD/FEA, privileged tools, project mutations or formal validation. |
 | Engineering task interaction | Separate Engineering Core panel for existing registered deterministic workflows and decision states. | It is not an LLM tool-call executor. A capability must be explicitly implemented and validated before it is exposed. |
 | Deterministic calculations | Shaft torque, pump-power and a new solid-shaft static-yield pilot with explicit gear geometry, axial force, deterministic diameter solve, revisioned state, digests and validation receipt. | The shaft pilot is preliminary static yield only; it is not fatigue, complete shaft design, ASME compliance or design approval. |
-| CAD | Bounded build123d authoring plus an isolated OCCT worker for BREP/STEP import, topology inspection, tessellation and independent BREP validation; private display-derivative registration is included in PR #154. | Do not infer general CAD/assembly support or automatic validation of every exported format. |
-| Visualization | Renderer-neutral display-derivative contracts, strict GLB validation, read-only CAD viewport, PDF/SVG/DXF drawing ingestion/preview and the Babylon-vs-Three benchmark harness are implemented in PR #154. | The renderer remains unselected pending the benchmark decision and authenticated desktop/Android acceptance. Drawing preview still requires an authorized canonical artifact and trusted server-side media metadata. |
+| CAD | Bounded build123d authoring plus isolated OCCT BREP/STEP import, topology inspection, tessellation and independent BREP validation; private display-derivative registration, strict GLB validation, read-only viewport, PDF/SVG/ASCII-DXF ingestion and trusted G2 revision persistence/read APIs are merged. | Do not infer general CAD/assembly support, stable topology identity across edits or automatic validation of every exported format. |
+| Visualization | Renderer-neutral display-derivative contracts, strict GLB validation, read-only CAD viewport, PDF/SVG/ASCII-DXF ingestion/preview and Babylon-vs-Three benchmark harness are merged. | The production renderer remains unselected pending paired physical desktop/Android benchmark and authenticated acceptance. The viewport is read-only; it does not validate canonical geometry. |
 | FEA | Reference Gmsh/CalculiX benchmark plus the bounded open FEA runtime worker in PR #154; build, worker tests and runtime smoke passed in exact-head CI run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787). | The runtime remains a bounded pilot; no general FEA mesh/result-field viewer, broad structural certification or engineering approval is claimed. |
 | Physical perception | Isolated Open3D inspection/ICP registration prototype. | No public scan upload, persistent artifact registry integration or production perception claim. |
 | CI and browser evidence | Core CI includes tests, worker checks, security analysis and production build. The isolated Playwright public UI suite includes the authenticated chat-rendering test. | Each run proves only the assertions that ran on its exact SHA and environment. |
@@ -68,7 +86,7 @@ Acceptance still requires CI on the exact pull-request SHA, authenticated previe
 
 | ID | Milestone | Status | Main exit gate |
 |---|---|---|---|
-| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | IMPLEMENTATION IN PR #154; REPOSITORY CI PASSED; EXTERNAL EXIT GATES OPEN | Exact-head worker/build/security/code-health CI passed. Remaining: authenticated preview/database acceptance, renderer decision from paired physical desktop/Android runs, and browser verification of stale-source behavior. Viewer failure must not change validation state. |
+| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | IMPLEMENTATION MERGED; PRODUCTION DEPLOYED; RENDERER AND ARTIFACT WORKFLOW GATES OPEN | M2.2–M2.6 implementation and G2 persistence are on main and deployed. Remaining: artifact and drawing workflow validation, stale-source behavior, and renderer decision from paired physical desktop/Android runs. Viewer failure must not change validation state. |
 | M3 | FEA mesh and result-field visualization | PLANNED | Supported mesh/field fixtures render with correct source values, units and legends; malformed or incomplete data fails closed; convergence and engineering review remain distinct. |
 | M4 | Typed P&ID/PFD data model and viewer | PLANNED | Diagram IDs and connectivity round-trip; references are authorized; unsupported symbols/invalid connections are explicit. |
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | DEFERRED | A concrete user need, measured outcome, provider/license review, benchmark, independent validator, runtime isolation and rollback plan exist. |
@@ -119,18 +137,16 @@ Physical perception remains a separately staged roadmap path: the current Open3D
 
 ### Parallel bounded capability increments
 
-The following draft PRs advance separate domains without changing the M2 acceptance boundary:
+- **PR #144 — bounded LLM operational authority:** merged at the core layer. Typed model-plan validation and backend policy enforcement are implemented; authenticated product-route exposure remains blocked on durable run journaling, per-action idempotency, lease recovery and ambiguous-timeout recovery.
+- **PR #165 — G2 trusted geometry revisions:** merged as da81141e7e0a6138d8abdf4c3f39075a6c3ff0d5. The server resolves accepted CAD completions, verifies exact private BREP bytes and SHA-256, derives provider-version provenance from the trusted host manifest, enforces expected-parent concurrency/idempotency, and writes immutable revision plus audit atomically.
+- **PR #166 — manufacturing readiness evidence:** merged as 9bfb57e86e70db84a682d162bba9253e0185c920. Immutable project-scoped assessments and separate append-only APPROVED/REJECTED decisions support four-eyes authorization and atomic audit writes. Inputs remain USER_SUPPLIED_UNVERIFIED; approval is an auditable human decision, not production release.
+- **PR #156/#162 — OpenFOAM 14 CFD:** the bounded laminar plane-Poiseuille worker/provider and analytical acceptance are merged. It remains a single-benchmark experimental integration and is not enabled as a general production CFD route.
 
-- **PR #144 — bounded LLM operational authority:** core-level action planning and backend policy enforcement are implemented and repository checks passed. Product-route exposure remains blocked on durable run journaling, per-action idempotency, lease recovery and authenticated route acceptance.
-- **PR #166 — manufacturing readiness evidence:** deterministic DFM, process-plan, BOM, inspection and artifact-link checks are persisted as immutable assessment snapshots. Independent APPROVED/REJECTED decisions use four-eyes authorization and an atomic audit write. E2E schema is applied; authenticated route acceptance remains pending. No CAM, MES or machine dispatch occurs.
-- **PR #156 — OpenFOAM 14 CFD:** a single laminar plane-Poiseuille benchmark worker and independent numerical acceptance contract are implemented. It is not a general CFD platform; exact-head solver/container acceptance remains under CI verification.
-- **PR #165 — G2 trusted geometry revisions:** adds authenticated project-scoped revision persistence/read APIs, server-side BREP digest verification, host-controlled provider-version provenance, idempotent retries and an atomic audit transaction. E2E schema is applied; authenticated API acceptance and production migration approval remain pending.
-
-These increments remain draft candidates until their stated integration, external environment and human-review gates pass.
+The two database-backed increments are deployed and their additive migrations are applied to production. Manufacturing decisions remain advisory records; they do not perform CAM, MES, machine dispatch or automatic production release.
 
 ## M2 — Shared artifact and CAD visualization foundation (FOUNDATION IN PROGRESS)
 
-**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 contracts, display derivatives, GLB validation/viewport, drawing ingestion, bounded OCCT import/tessellation and the FEA runtime pilot are implemented in draft PR #154. Exact-head repository CI and code-health/security gates passed at `049f534`; preview/database, authenticated browser and physical-device renderer acceptance remain open.
+**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 contracts, display derivatives, GLB validation/viewport, drawing ingestion, bounded OCCT import/tessellation and the FEA runtime pilot are merged. G2 trusted geometry revision persistence is also merged and deployed. Exact-head repository CI, security/code-health checks and production build passed on the merged implementation heads. Remaining: artifact workflow validation, stale-source behavior and physical-device renderer benchmark/selection.
 
 ### M2 work sequence
 
@@ -155,7 +171,7 @@ These increments remain draft candidates until their stated integration, externa
 - Core navigation, selection and visibility work on target desktop and representative Android browsers, including resource disposal and context-loss recovery.
 - Engineering-grade measurements are computed from canonical geometry or another declared deterministic authority, not guessed from display triangles.
 - Authenticated browser acceptance uses the dedicated non-production project and exact candidate revision — **pending an authorized preview deployment and test account/session**.
-- Existing CAD/OCCT regression and evidence acceptance pass on the exact candidate revision — **repository tests, worker builds/smokes, CAD intent-to-verified-artifact E2E and production build passed in run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787); browser/database acceptance remains pending**.
+- Existing CAD/OCCT regression and evidence acceptance pass on the exact candidate revision — **repository tests, worker builds/smokes, CAD intent-to-verified-artifact E2E and production build passed in run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787); browser/database workflow validation remains a follow-on quality activity**.
 
 
 

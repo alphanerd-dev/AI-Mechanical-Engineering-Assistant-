@@ -65,11 +65,11 @@ The remote worker independently checks an allowlisted deterministic source templ
 
 The wider catalog includes CAD generation, geometry validation, geometry diff/comparison, wall-thickness and DFM checks, candidate ranking and STEP export adapters. Their existence does not imply a complete general-purpose CAD pipeline or automatic validation of every export format. A BREP receipt validates only the exact BREP bytes covered by that receipt; STEP/STL/3MF derivatives need applicable independent checks.
 
-There is no complete interactive browser CAD viewer in the current chat increment. See [Verified CAD Workspace](v2-1-6-cad-verified-workspace.md) and [CAD Correction Loop](cad-correction-loop.md).
+The read-only interactive CAD viewport and drawing ingestion/preview are implemented; they remain limited to the supported artifact/format contracts and require authenticated workflow acceptance. See [Verified CAD Workspace](v2-1-6-cad-verified-workspace.md) and [CAD Correction Loop](cad-correction-loop.md).
 
 ## FEA and simulation
 
-The repository includes a reference open structural-analysis path using Gmsh 4.15.2, C3D4 tetrahedral mesh generation and CalculiX 2.20. The deterministic benchmark is `cantilever_box`; the worker does not accept arbitrary generated solver decks in this reference version. It normalizes solver completion, mesh counts, maximum displacement, von Mises stress, reaction forces and artifact hashes.
+The repository includes a reference open structural-analysis path using Gmsh 4.15.2, C3D4 tetrahedral mesh generation and CalculiX 2.20, plus the bounded open FEA runtime worker. The OpenFOAM 14 worker/provider supports one laminar plane-Poiseuille benchmark with independent analytical acceptance; the app-level provider is not yet connected to durable execution. The deterministic benchmark is `cantilever_box`; the worker does not accept arbitrary generated solver decks in this reference version. It normalizes solver completion, mesh counts, maximum displacement, von Mises stress, reaction forces and artifact hashes.
 
 Execution-integrity checks can establish process completion, a non-empty mesh and finite outputs. They do not independently establish mesh convergence, correct geometry/material/loads/supports/contacts, physical-model adequacy or structural safety. There is no complete connected browser FEA field viewer yet. See [Open FEA execution](fea-engine-v1.18.md).
 
@@ -83,15 +83,15 @@ Research providers can retrieve source-backed findings, but source authority or 
 
 ## Visualization, geometry and artifact maturity
 
-**Current state:** the bounded CAD path uses deterministic build123d generation, a separate worker and independent OCCT BREP validation. This is not a general-purpose browser CAD viewer or a complete multi-format geometry service. The repository does not yet have the shared artifact/viewer registry or interactive CAD/FEA/P&ID viewers described in the roadmap.
+**Current state:** the bounded CAD path includes deterministic build123d authoring, isolated OCCT BREP/STEP import and topology/tessellation, independent BREP validation, private display-derivative persistence, strict GLB validation and a read-only CAD viewport. PDF/SVG/ASCII-DXF drawing ingestion/preview is implemented. G2 adds immutable project-scoped geometry revisions with trusted server-side canonical BREP digest/provenance checks and atomic audit. This is still not a general-purpose CAD/assembly system or a native proprietary B-rep kernel. FEA field and P&ID/PFD viewers remain roadmap work.
 
-**Accepted architectural direction (not yet an implementation claim):**
+**Accepted architecture and delivered foundation:**
 
 - Geometry foundation: OCCT-first hybrid. OCCT is the initial kernel direction; the product-owned engineering geometry layer and stable artifact contracts sit above kernel-specific adapters. Existing build123d authoring remains a bounded provider. CadQuery, FreeCAD and Onshape remain candidates for separately justified workflows.
 - Renderer: benchmark Babylon.js against Three.js. No production renderer is selected by the decision. WebGL 2 is the initial browser compatibility baseline; WebGPU remains a future evaluation.
 - Scientific visualization: evaluate VTK.js independently for mesh and result fields. Do not assume the CAD renderer is the correct scientific field renderer.
 - Drawings: separate 2D subsystem for PDF, SVG and DXF initially; DWG requires a separately licensed and validated route.
-- Proprietary geometry platform: accepted strategic direction, not yet delivered as an implementation. The first task is a repository contract audit; OCCT remains the initial exact-geometry provider and build123d remains the bounded authoring provider. Native kernel algorithms will be developed progressively and promoted only through shared conformance gates.
+- Proprietary geometry platform: product-owned identity, revision, operation contracts, units/frames/tolerances, provenance, artifact lineage and validation relationships are implemented progressively in the existing repository modules. OCCT remains the initial mature exact-geometry provider and build123d remains the bounded authoring provider. No native B-rep kernel or native Boolean/topology algorithm suite is delivered; native algorithms must be promoted only through shared conformance gates.
 
 **Non-negotiable representation boundary:** canonical CAD/source bytes remain authoritative. Tessellated meshes are display derivatives only and must include source artifact ID, source revision and digest, converter/kernel identity and version, tessellation settings, units and coordinate frame. A display derivative must not silently become a canonical artifact. Picking a displayed face/edge maps to a persistent CAD topology reference only when the conversion process emits and validates that mapping.
 
