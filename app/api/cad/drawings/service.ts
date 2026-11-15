@@ -292,12 +292,21 @@ async function fetchDrawingRows(db: Database, projectId: string, modelIdentityId
   return data ?? [];
 }
 
+function isObjectRecord(value: unknown): value is Row {
+  if (value === null) return false;
+  if (typeof value !== "object") return false;
+  return !Array.isArray(value);
+}
+function hasModelIdentity(value: Row): boolean {
+  return typeof value.model_identity_id === "string";
+}
+function hasRevisionIdentity(value: Row): boolean {
+  return typeof value.revision_id === "string";
+}
 function isGeometryHead(value: unknown): value is Row {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const row = value as Row;
-  if (typeof row.model_identity_id !== "string") return false;
-  if (typeof row.revision_id !== "string") return false;
-  return true;
+  if (!isObjectRecord(value)) return false;
+  if (!hasModelIdentity(value)) return false;
+  return hasRevisionIdentity(value);
 }
 function addGeometryHead(heads: Map<string, string>, value: unknown): void {
   if (!isGeometryHead(value)) return;
