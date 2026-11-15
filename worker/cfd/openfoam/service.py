@@ -112,9 +112,9 @@ def require_openfoam_inputs(request: dict[str, Any]) -> dict[str, Any]:
 
 def require_execution_timeout(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError("timeoutMs must be an integer between 10000 and 720000.")
+        raise ValueError("timeoutMs must be an integer between 10000 and 730000.")
     if not 10000 <= value <= MAX_TIMEOUT_MS:
-        raise ValueError("timeoutMs must be an integer between 10000 and 720000.")
+        raise ValueError("timeoutMs must be an integer between 10000 and 730000.")
     return value
 
 
