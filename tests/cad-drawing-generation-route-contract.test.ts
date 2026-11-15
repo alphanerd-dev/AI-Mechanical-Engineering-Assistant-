@@ -30,6 +30,9 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
     expect(source).toContain('artifact.validationStatus !== "PASS"');
     expect(source).toContain("geometryMeasurements");
     expect(source).toContain("boundingBoxMm");
+    expect(source).toContain('specification.kind !== "CYLINDER"');
+    expect(source).toContain('specification.name !== "shaft"');
+    expect(source).toContain("verifyStoredBrep");
   });
 
   it("persists a private drawing, immutable lineage and audit record with duplicate replay", () => {
