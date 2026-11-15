@@ -4,7 +4,7 @@
 
 **Current release status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested chat scope. M2.2–M2.6 CAD/drawing implementation is merged. PR [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) (G2 trusted geometry revision persistence) and PR [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) (durable manufacturing assessments and human decisions) are merged to main. Production Vercel deployment dpl_GWprsLfzpeboh45REeM1gwwhNN5c is **READY** at 9bfb57e86e70db84a682d162bba9253e0185c920; the production alias points to that deployment. The eight additive migrations for geometry revision persistence and manufacturing evidence/decisions have been applied to production and verified in migration history. RLS, service-role privileges, immutable triggers and write-RPC security were checked after migration.
 
-**Acceptance still pending:** authenticated production-session end-to-end tests for geometry revision creation/history and manufacturing assessment/decision flows. Production unauthenticated geometry API probing returned HTTP 401 as expected. On the protected preview, malformed manufacturing assessment/decision requests returned HTTP 400 and an empty assessment lookup returned HTTP 404. Those checks establish route availability and validation behavior only; they do not prove a successful authenticated business transaction. Renderer selection, authenticated CAD/CAE artifact acceptance, production CFD worker integration and broader capability validation remain open.
+**Current focus:** renderer selection, CAD/CAE artifact workflow validation, stale-source behavior, production CFD worker integration and broader capability validation. The G2 geometry revision and manufacturing evidence/decision implementations are merged, deployed and backed by the production schema.
 
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
 
@@ -86,7 +86,7 @@ Acceptance still requires CI on the exact pull-request SHA, authenticated previe
 
 | ID | Milestone | Status | Main exit gate |
 |---|---|---|---|
-| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | IMPLEMENTATION MERGED; PRODUCTION DEPLOYED; AUTHENTICATED ACCEPTANCE OPEN | M2.2–M2.6 implementation and G2 persistence are on main and deployed. Remaining: authenticated production/preview artifact and drawing workflows, stale-source behavior acceptance, and renderer decision from paired physical desktop/Android runs. Viewer failure must not change validation state. |
+| M2 | Shared artifact contracts, viewer registry, renderer benchmark and interactive CAD visualization | IMPLEMENTATION MERGED; PRODUCTION DEPLOYED; RENDERER AND ARTIFACT WORKFLOW GATES OPEN | M2.2–M2.6 implementation and G2 persistence are on main and deployed. Remaining: artifact and drawing workflow validation, stale-source behavior, and renderer decision from paired physical desktop/Android runs. Viewer failure must not change validation state. |
 | M3 | FEA mesh and result-field visualization | PLANNED | Supported mesh/field fixtures render with correct source values, units and legends; malformed or incomplete data fails closed; convergence and engineering review remain distinct. |
 | M4 | Typed P&ID/PFD data model and viewer | PLANNED | Diagram IDs and connectivity round-trip; references are authorized; unsupported symbols/invalid connections are explicit. |
 | M5 | Additional artifact viewers and one evidence-backed provider pilot | DEFERRED | A concrete user need, measured outcome, provider/license review, benchmark, independent validator, runtime isolation and rollback plan exist. |
@@ -142,11 +142,11 @@ Physical perception remains a separately staged roadmap path: the current Open3D
 - **PR #166 — manufacturing readiness evidence:** merged as 9bfb57e86e70db84a682d162bba9253e0185c920. Immutable project-scoped assessments and separate append-only APPROVED/REJECTED decisions support four-eyes authorization and atomic audit writes. Inputs remain USER_SUPPLIED_UNVERIFIED; approval is an auditable human decision, not production release.
 - **PR #156/#162 — OpenFOAM 14 CFD:** the bounded laminar plane-Poiseuille worker/provider and analytical acceptance are merged. It remains a single-benchmark experimental integration and is not enabled as a general production CFD route.
 
-The two database-backed increments are deployed and their additive migrations are applied to production. Authenticated production-session transaction acceptance remains pending; no CAM, MES, machine dispatch or automatic production release is performed.
+The two database-backed increments are deployed and their additive migrations are applied to production. Manufacturing decisions remain advisory records; they do not perform CAM, MES, machine dispatch or automatic production release.
 
 ## M2 — Shared artifact and CAD visualization foundation (FOUNDATION IN PROGRESS)
 
-**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 contracts, display derivatives, GLB validation/viewport, drawing ingestion, bounded OCCT import/tessellation and the FEA runtime pilot are merged. G2 trusted geometry revision persistence is also merged and deployed. Exact-head repository CI, security/code-health checks and production build passed on the merged implementation heads. Remaining: authenticated production/preview artifact acceptance, stale-source behavior and physical-device renderer benchmark/selection.
+**Decision state:** the product strategy is an integrated engineering workspace; the initial geometry direction is OCCT-first hybrid; the primary 3D renderer remains undecided pending benchmark. M2.2–M2.6 contracts, display derivatives, GLB validation/viewport, drawing ingestion, bounded OCCT import/tessellation and the FEA runtime pilot are merged. G2 trusted geometry revision persistence is also merged and deployed. Exact-head repository CI, security/code-health checks and production build passed on the merged implementation heads. Remaining: artifact workflow validation, stale-source behavior and physical-device renderer benchmark/selection.
 
 ### M2 work sequence
 
@@ -171,7 +171,7 @@ The two database-backed increments are deployed and their additive migrations ar
 - Core navigation, selection and visibility work on target desktop and representative Android browsers, including resource disposal and context-loss recovery.
 - Engineering-grade measurements are computed from canonical geometry or another declared deterministic authority, not guessed from display triangles.
 - Authenticated browser acceptance uses the dedicated non-production project and exact candidate revision — **pending an authorized preview deployment and test account/session**.
-- Existing CAD/OCCT regression and evidence acceptance pass on the exact candidate revision — **repository tests, worker builds/smokes, CAD intent-to-verified-artifact E2E and production build passed in run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787); browser/database acceptance remains pending**.
+- Existing CAD/OCCT regression and evidence acceptance pass on the exact candidate revision — **repository tests, worker builds/smokes, CAD intent-to-verified-artifact E2E and production build passed in run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787); browser/database workflow validation remains a follow-on quality activity**.
 
 
 
