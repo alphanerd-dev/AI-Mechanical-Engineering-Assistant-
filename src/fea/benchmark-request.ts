@@ -66,14 +66,27 @@ function validateForce(value: unknown): string[] {
 function validateElementSize(value: unknown): string[] {
   return inRange(value, 1, 100) ? [] : ["elementSizeMm must be between 1 and 100 mm."];
 }
+function hasMeshEstimateInputs(dimensions: Record<string, unknown>, elementSize: unknown): boolean {
+  return finitePositive(dimensions.length) &&
+    finitePositive(dimensions.width) &&
+    finitePositive(dimensions.height) &&
+    finitePositive(elementSize);
+}
+function estimateTetrahedralElementCount(dimensions: Record<string, unknown>, elementSize: number): number {
+  const divisions = [dimensions.length, dimensions.width, dimensions.height]
+    .map(dimension => Math.ceil((dimension as number) / elementSize));
+  return divisions.reduce((count, division) => count * division, 6);
+}
+function exceedsMeshResourceLimit(estimate: number): boolean {
+  if (!Number.isSafeInteger(estimate)) return true;
+  return estimate > MAX_ESTIMATED_ELEMENTS;
+}
 function validateMeshResourceLimit(dimensions: Record<string, unknown>, elementSize: unknown): string[] {
-  if (!finitePositive(dimensions.length) || !finitePositive(dimensions.width) ||
-      !finitePositive(dimensions.height) || !finitePositive(elementSize)) return [];
-  const estimate = Math.ceil(dimensions.length / elementSize) *
-    Math.ceil(dimensions.width / elementSize) * Math.ceil(dimensions.height / elementSize) * 6;
-  return Number.isSafeInteger(estimate) && estimate <= MAX_ESTIMATED_ELEMENTS
-    ? []
-    : ["Estimated tetrahedral mesh exceeds the 200000-element worker limit."];
+  if (!hasMeshEstimateInputs(dimensions, elementSize)) return [];
+  const estimate = estimateTetrahedralElementCount(dimensions, elementSize as number);
+  return exceedsMeshResourceLimit(estimate)
+    ? ["Estimated tetrahedral mesh exceeds the 200000-element worker limit."]
+    : [];
 }
 function validateMesh(value: Record<string, unknown>, dimensions: Record<string, unknown>): string[] {
   return [
