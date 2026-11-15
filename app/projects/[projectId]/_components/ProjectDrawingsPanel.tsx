@@ -95,6 +95,7 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const generationBlocked = !modelIdentityId || generating || uploading;
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -147,7 +148,7 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
   }, [projectId]);
 
   const generateShaftDrawing = async () => {
-    if (!modelIdentityId || generating || uploading) return;
+    if (generationBlocked) return;
     setGenerating(true);
     setError(null);
     setNotice(null);
@@ -205,7 +206,7 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
         <button type="submit" className={styles.primary} disabled={!file || uploading || generating}>
           <Upload size={13} aria-hidden="true" /> {uploading ? "Uploading…" : "Upload drawing"}
         </button>
-        <button type="button" className={styles.secondary} onClick={() => void generateShaftDrawing()} disabled={!modelIdentityId || generating || uploading || loading}>
+        <button type="button" className={styles.secondary} onClick={() => void generateShaftDrawing()} disabled={generationBlocked || loading}>
           <FilePlus2 size={13} aria-hidden="true" /> {generating ? "Generating…" : "Generate preliminary shaft drawing"}
         </button>
         {file && <span className={styles.meta}>{file.name} · {(file.size / 1024).toFixed(1)} KiB</span>}
