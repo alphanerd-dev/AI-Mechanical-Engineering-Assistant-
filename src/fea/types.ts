@@ -58,6 +58,33 @@ export interface GmshMeshResult{
   error?:string;
 }
 
+export interface FEACantileverBoxBenchmarkRequest {
+  analysis: "STATIC_STRUCTURAL";
+  benchmark: "cantilever_box";
+  dimensionsMm: { length: number; width: number; height: number };
+  material: { youngsModulusMpa: number; poissonRatio: number };
+  totalForceN: number;
+  elementSizeMm: number;
+}
+export interface FEABenchmarkReference {
+  referenceId: string;
+  units: { length: "mm"; force: "N"; modulus: "MPa"; deflection: "mm" };
+  sectionSecondMomentMm4: number;
+  bendingDeflectionMm: number;
+  firstOrderShearDeflectionMm: number;
+  expectedTipDeflectionMm: number;
+  measuredMaximumDisplacementMm: number;
+  displacementRelativeError: number;
+  displacementRelativeTolerance: number;
+  displacementPassed: boolean;
+  expectedSupportReactionN: { x: number; y: number; z: number };
+  measuredSupportReactionN: { x: number; y: number; z: number };
+  reactionRelativeError: number;
+  reactionRelativeTolerance: number;
+  reactionPassed: boolean;
+  passed: boolean;
+}
+
 export interface FEAStaticStructuralRequest{
   id:string;
   modelArtifactId:string;
