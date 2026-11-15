@@ -222,17 +222,9 @@ jobs:
             supabase init
           fi
           test -f supabase/config.toml
-          # Docker DNS service names are case-sensitive in this local stack.
+          # Use a lowercase Docker-safe project ID; the repository name contains uppercase characters.
           sed -i -E 's/^project_id = .*/project_id = "engineering-assistant-ci"/' supabase/config.toml
-          grep -q '^project_id = "engineering-assistant-ci"
-      - name: Start isolated local Supabase services with diagnostics
-        run: supabase start --debug
-      - name: Replay every migration against an empty local database
-        run: supabase db reset --local --debug
-      - name: Stop local Supabase services
-        if: always()
-        run: supabase stop
- supabase/config.toml
+          grep -Fx 'project_id = "engineering-assistant-ci"' supabase/config.toml
       - name: Start isolated local Supabase services with diagnostics
         run: supabase start --debug
       - name: Replay every migration against an empty local database
