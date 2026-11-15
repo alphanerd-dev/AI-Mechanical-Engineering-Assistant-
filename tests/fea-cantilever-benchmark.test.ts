@@ -104,7 +104,7 @@ describe("CalculiX cantilever-box benchmark contract", () => {
       "\\\\server\\share\\outside.inp",
       "nested/./part.inp",
       "nested//part.inp",
-      "invalid\\0path.inp"
+      "invalid" + String.fromCharCode(0) + "path.inp"
     ];
     for (const path of unsafePaths) {
       const result = referenceResult();
