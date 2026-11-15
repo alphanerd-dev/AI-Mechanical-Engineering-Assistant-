@@ -130,6 +130,8 @@ jobs:
         run: docker build --tag ai-mechanical-engineering-assistant-fea:1.18 --file worker/fea/calculix/Dockerfile worker
       - name: Test open FEA worker
         run: docker run --rm --entrypoint python ai-mechanical-engineering-assistant-fea:1.18 /app/test_worker.py
+      - name: Test asynchronous CalculiX worker service
+        run: docker run --rm --entrypoint python ai-mechanical-engineering-assistant-fea:1.18 /app/test_service.py
       - name: Smoke test open FEA runtime
         shell: bash
         run: |
