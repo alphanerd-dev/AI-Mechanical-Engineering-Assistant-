@@ -417,17 +417,28 @@ def confined_job_artifact(job_id: str, filename: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def is_safe_artifact_relative_path(relative_path: str) -> bool:
+    if not relative_path:
+        return False
+    if relative_path.startswith("/"):
+        return False
+    if "\\" in relative_path:
+        return False
+    return True
+
+
 def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
     try:
         job_hex = uuid.UUID(job_id).hex
     except ValueError:
         return None
-    if not relative_path or relative_path.startswith("/") or "\\" in relative_path:
+    if not is_safe_artifact_relative_path(relative_path):
         return None
     filename = normalize_artifact_path(relative_path)
     if filename is None:
         return None
     return confined_job_artifact(job_hex, filename)
+
 
 
 class WorkerHandler(BaseHTTPRequestHandler):
