@@ -101,18 +101,26 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
 
   const selected = useMemo(() => drawings.find((item) => item.id === selectedId) ?? drawings[0] ?? null, [drawings, selectedId]);
 
-  const loadDrawings = useCallback(async () => {
+  const loadDrawings = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch("/api/cad/drawings?projectId=" + encodeURIComponent(projectId), { cache: "no-store" });
+      const response = await fetch(
+        "/api/cad/drawings?projectId=" + encodeURIComponent(projectId),
+        { cache: "no-store", signal }
+      );
       const body = await response.json().catch(() => ({}));
-      if (!response.ok || !Array.isArray(body.drawings)) throw new Error(typeof body.error === "string" ? body.error : "Project drawings could not be loaded.");
-      setDrawings(body.drawings as DrawingRecord[]);
-      setSelectedId((current) => body.drawings.some((item: DrawingRecord) => item.id === current) ? current : body.drawings[0]?.id ?? "");
+      if (!response.ok || !Array.isArray(body.drawings)) {
+        throw new Error(typeof body.error === "string" ? body.error : "Project drawings could not be loaded.");
+      }
+      const items = body.drawings as DrawingRecord[];
+      setDrawings(items);
+      setSelectedId((current) => items.some((item) => item.id === current) ? current : items[0]?.id ?? "");
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Project drawings could not be loaded.");
+      if (!signal?.aborted) {
+        setError(cause instanceof Error ? cause.message : "Project drawings could not be loaded.");
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [projectId]);
 
@@ -123,29 +131,10 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
   }, [loadDrawings]);
 
   useEffect(() => {
-    let active = true;
-    void fetch("/api/cad/drawings?projectId=" + encodeURIComponent(projectId), { cache: "no-store" })
-      .then(async (response) => {
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok || !Array.isArray(body.drawings)) {
-          throw new Error(typeof body.error === "string" ? body.error : "Project drawings could not be loaded.");
-        }
-        return body.drawings as DrawingRecord[];
-      })
-      .then((items) => {
-        if (!active) return;
-        setDrawings(items);
-        setSelectedId((current) => items.some((item) => item.id === current) ? current : items[0]?.id ?? "");
-        setError(null);
-      })
-      .catch((cause: unknown) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Project drawings could not be loaded.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => { active = false; };
-  }, [projectId]);
+    const controller = new AbortController();
+    void loadDrawings(controller.signal);
+    return () => controller.abort();
+  }, [loadDrawings]);
 
   const generateShaftDrawing = async () => {
     if (generationBlocked) return;
