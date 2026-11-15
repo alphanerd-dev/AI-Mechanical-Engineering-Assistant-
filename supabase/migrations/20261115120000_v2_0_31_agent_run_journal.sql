@@ -152,9 +152,9 @@ create or replace function public.begin_engineering_agent_action(
   p_action_hash text,
   p_action jsonb
 )
-returns boolean
+returns text
 language plpgsql security definer set search_path = ''
-as $$
+as $
 declare
   v_run public.engineering_agent_runs%rowtype;
   v_existing jsonb;
@@ -171,15 +171,15 @@ begin
     if v_existing is null or v_existing->>'actionHash' <> p_action_hash or v_existing->>'actionKey' <> p_action_key then
       raise exception 'Agent action replay conflicts with the persisted action digest.';
     end if;
-    return true;
+    return 'ALREADY_CHECKPOINTED';
   end if;
   if v_run.status <> 'RUNNING' or v_run.lease_owner <> p_worker_id or v_run.lease_token <> p_lease_token
      or v_run.lease_expires_at <= clock_timestamp() or v_run.cancel_requested_at is not null then
-    return false;
+    return 'NOT_CLAIMED';
   end if;
   if p_action_index <> v_run.next_action_index then raise exception 'Agent action sequence is out of order.'; end if;
   if v_run.current_action is not null then
-    if v_run.current_action->>'actionKey' = p_action_key and v_run.current_action->>'actionHash' = p_action_hash then return true; end if;
+    if v_run.current_action->>'actionKey' = p_action_key and v_run.current_action->>'actionHash' = p_action_hash then return 'IN_FLIGHT'; end if;
     raise exception 'A different agent action is already in flight.';
   end if;
   update public.engineering_agent_runs
@@ -189,9 +189,9 @@ begin
      ),
      updated_at = clock_timestamp()
    where id = p_run_id;
-  return true;
+  return 'STARTED';
 end;
-$$;
+$;
 revoke all on function public.begin_engineering_agent_action(uuid,text,uuid,integer,text,text,jsonb) from public, anon, authenticated;
 grant execute on function public.begin_engineering_agent_action(uuid,text,uuid,integer,text,text,jsonb) to service_role;
 
@@ -218,7 +218,7 @@ begin
   if p_action_hash is null or p_action_hash !~ '^[0-9a-f]{64}$' then raise exception 'Invalid agent action digest.'; end if;
   if p_outcome is null or jsonb_typeof(p_outcome) <> 'object' or pg_column_size(p_outcome) > 262144 then raise exception 'Invalid or oversized agent action outcome.'; end if;
   if p_graph_revision is null or p_graph_revision < 1 then raise exception 'Invalid task graph revision.'; end if;
-  if p_next_status not in ('RUNNING','WAITING_APPROVAL','COMPLETED','FAILED','CANCELLED') then raise exception 'Invalid next agent run status.'; end if;
+  if p_next_status is null or p_next_status not in ('RUNNING','WAITING_APPROVAL','COMPLETED','FAILED','CANCELLED') then raise exception 'Invalid next agent run status.'; end if;
   select * into v_run from public.engineering_agent_runs where id = p_run_id for update;
   if not found then return false; end if;
   if p_action_index < v_run.next_action_index then
