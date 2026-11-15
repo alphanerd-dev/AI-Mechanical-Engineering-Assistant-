@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       revision, drawingNumber, title,
       diameterMm: source.diameterMm, lengthMm: source.lengthMm
     });
-    return NextResponse.json({ drawing }, { status: 201, headers: { "cache-control": "no-store" } });
+    return NextResponse.json({ drawing }, { status: drawing.idempotentReplay ? 200 : 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
     return drawingGenerationErrorResponse(error);
   }
