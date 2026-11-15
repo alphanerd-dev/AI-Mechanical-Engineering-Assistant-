@@ -5,7 +5,7 @@ import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../.
 export const MAX_DRAWING_GENERATION_REQUEST_BYTES = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 export type DrawingGenerationInput = {
-  projectId: string; modelIdentityId: string; geometryRevisionId: string;
+  projectId: string; modelIdentityId: string; geometryRevisionId?: string;
   drawingNumber?: string; title?: string;
 };
 export interface DrawingGenerationFailure {
@@ -77,7 +77,7 @@ export async function parseDrawingGenerationRequest(request: Request): Promise<D
   return {
     projectId: requiredUuid({ body, field: "projectId" }),
     modelIdentityId: requiredUuid({ body, field: "modelIdentityId" }),
-    geometryRevisionId: requiredUuid({ body, field: "geometryRevisionId" }),
+    ...(body.geometryRevisionId === undefined ? {} : { geometryRevisionId: requiredUuid({ body, field: "geometryRevisionId" }) }),
     drawingNumber: optionalLabel({ body, field: "drawingNumber", maximum: 80 }),
     title: optionalLabel({ body, field: "title", maximum: 120 })
   };
