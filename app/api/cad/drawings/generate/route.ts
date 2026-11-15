@@ -10,11 +10,11 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   try {
     const input = await parseDrawingGenerationRequest(request);
-    const { subject, sessionDb } = await requireAuthorizedIdentity(input.projectId);
+    const { subject, sessionDb } = await requireAuthorizedIdentity({ projectId: input.projectId });
     const serviceDb = createServiceRoleClient();
     const model = await serviceDb.from("engineering_cad_models").select("id")
       .eq("id", input.modelIdentityId).eq("project_id", input.projectId).maybeSingle();
-    if (model.error || !model.data) fail("CAD model identity does not belong to this project.", 404, "MODEL_NOT_FOUND");
+    if (model.error || !model.data) fail({ message: "CAD model identity does not belong to this project.", status: 404, code: "MODEL_NOT_FOUND" });
 
     const revision = await loadCurrentGeometryRevision(serviceDb, input);
     await verifyCanonicalSourceBytes(serviceDb, revision);
