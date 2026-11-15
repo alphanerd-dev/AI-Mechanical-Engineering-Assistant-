@@ -1,4 +1,3 @@
-import { isRecord } from "./agent-run-journal-codec.js";
 import {
   validatePersistedActionIdentity, type AgentActionIdentityContext
 } from "./agent-run-journal-action-identity.js";
