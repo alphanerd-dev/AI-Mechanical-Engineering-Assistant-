@@ -172,7 +172,7 @@ function timeoutForBackend(backend: ExecutionBackend, inputs: Record<string, unk
   const seconds = typeof solver.timeoutSeconds === "number" ? solver.timeoutSeconds : 600;
   return asExecutionTimeoutMs((seconds + 130) * 1000);
 }
-function requestedOutputsForBackend(backend: ExecutionBackend, outputs: string[]): RequestedOutput[] {
+function requestedOutputsForBackend(backend: ExecutionBackend, outputs: RequestedOutput[]): RequestedOutput[] {
   const normalized: Partial<Record<ExecutionBackend, RequestedOutput[]>> = {
     "fea-worker": ["DISPLACEMENT", "STRESS", "REACTION_FORCE"] as RequestedOutput[],
     "cfd-worker": ["VELOCITY_PROFILE", "MASS_FLOW", "RESIDUALS", "ARTIFACTS"] as RequestedOutput[]
