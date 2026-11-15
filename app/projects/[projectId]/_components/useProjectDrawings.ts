@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useProjectDrawingActions } from "./useProjectDrawingActions";
 import { useProjectDrawingsData } from "./useProjectDrawingsData";
-import type { DrawingRecord } from "./project-drawings-types";
-
 export type { DrawingRecord } from "./project-drawings-types";
 
 export function useProjectDrawings(projectId: string) {
