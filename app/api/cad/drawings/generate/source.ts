@@ -46,7 +46,7 @@ function validateRevisionArtifactBinding(revision: Row, solid: CanonicalSolid): 
 }
 function isValidGeometryReceipt(input: {
   receipt: unknown; revision: Row; projectId: string; modelIdentityId: string; solidId: string;
-}): input["receipt"] is Row {
+}): boolean {
   const receipt = input.receipt;
   if (!isRecord(receipt)) return false;
   if (receipt.artifactSha256 !== input.revision.canonical_artifact_sha256) return false;
@@ -70,7 +70,8 @@ function extractCylinderDimensions(input: {
   })) {
     fail({ message: "Accepted geometry receipt identity or validation status is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   }
-  const measurements = receipt.geometryMeasurements;
+  const receiptRecord = receipt as Row;
+  const measurements = receiptRecord.geometryMeasurements;
   const bounds = isRecord(measurements) ? measurements.boundingBoxMm : undefined;
   if (!isRecord(bounds)) fail({ message: "Accepted geometry receipt has no bounding box measurements.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   if (!finitePositive(bounds.x)) fail({ message: "Accepted shaft X extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
@@ -89,6 +90,7 @@ export async function loadAcceptedShaftSource(
   );
   if (!completionResult.ok) fail({ message: completionResult.message, status: completionResult.status, code: "SOURCE_COMPLETION_UNAVAILABLE" });
   const completion = completionResult.value;
+  if (completion.model_identity_id !== modelIdentityId) fail({ message: "Source completion belongs to a different CAD model.", status: 422, code: "SOURCE_COMPLETION_MODEL_MISMATCH" });
   const solidResult = resolveCanonicalSolid(completion, projectId);
   if (!solidResult.ok) fail({ message: solidResult.message, status: solidResult.status, code: "SOURCE_ARTIFACT_MISMATCH" });
   const solid = solidResult.value;
