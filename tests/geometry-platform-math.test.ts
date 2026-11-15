@@ -48,10 +48,10 @@ describe("Geometry Platform G3 mathematical foundation", () => {
   });
 
   it("computes axis-aligned bounds and exact tolerance boundaries", () => {
-    const bounds = createBoundingBox3([[-2, 1, 0], [4, -3, 8], [0, 2, -1]]);
+    const bounds = createBoundingBox3([[0, 0, 0], [4, 2, 8], [-2, -3, -1]]);
     expect(bounds).toEqual({ min: [-2, -3, -1], max: [4, 2, 8] });
-    expect(containsPointInBounds(bounds, [4.000001, 0, 0])).toBe(true);
-    expect(containsPointInBounds(bounds, [4.0000011, 0, 0])).toBe(false);
+    expect(containsPointInBounds(bounds, [-2 - 1e-6, 0, 0])).toBe(true);
+    expect(containsPointInBounds(bounds, [-2 - 1.000001e-6, 0, 0])).toBe(false);
     expect(isWithinLinearTolerance(1e-6)).toBe(true);
     expect(isWithinLinearTolerance(1.000001e-6)).toBe(false);
     expect(isWithinLinearTolerance(Number.NaN)).toBe(false);
@@ -65,6 +65,7 @@ describe("Geometry Platform G3 mathematical foundation", () => {
     expect(validateRigidTransform3({ rotation: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], translationMm: [0, 0, 0] })).not.toEqual([]);
     expect(validateRigidTransform3({ rotation: [[1, 0.1, 0], [0, 1, 0], [0, 0, 1]], translationMm: [0, 0, 0] })).not.toEqual([]);
     expect(validateRigidTransform3({ rotation: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], translationMm: [0, 0, 0] }, 100)).not.toEqual([]);
+    expect(validateRigidTransform3({ rotation: [[1e308, 0, 0], [0, 1, 0], [0, 0, 1]], translationMm: [0, 0, 0] })).not.toEqual([]);
     expect(validateRigidTransform3(valid, MAX_RIGID_TRANSFORM_VALIDATION_TOLERANCE + 1e-6)).not.toEqual([]);
   });
 
