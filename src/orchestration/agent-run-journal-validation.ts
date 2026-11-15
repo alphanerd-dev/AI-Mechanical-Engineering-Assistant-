@@ -35,9 +35,9 @@ function requireRunRow(value: unknown): Record<string, unknown> {
   return value;
 }
 function validateRunIdentity(row: Record<string, unknown>): void {
-  if (!isUuid(row.id) || !isUuid(row.owner_id) || !isUuid(row.project_id)) {
-    throw new Error("Persisted agent run identity is invalid.");
-  }
+  if (!isUuid(row.id)) throw new Error("Persisted agent run ID is invalid.");
+  if (!isUuid(row.owner_id)) throw new Error("Persisted agent run owner is invalid.");
+  if (!isUuid(row.project_id)) throw new Error("Persisted agent run project is invalid.");
 }
 function validateRunPlanAndCheckpoint(row: Record<string, unknown>): void {
   const validPlan = isRecord(row.plan);
@@ -54,9 +54,9 @@ function validateRunPayload(row: Record<string, unknown>): void {
   validateActionHistory(row.action_history);
 }
 function requireSafeRevision(value: unknown, label: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
-    throw new Error("Persisted " + label + " graph revision is invalid.");
-  }
+  if (typeof value !== "number") throw new Error("Persisted " + label + " graph revision is invalid.");
+  if (!Number.isSafeInteger(value)) throw new Error("Persisted " + label + " graph revision is invalid.");
+  if (value < 1) throw new Error("Persisted " + label + " graph revision is invalid.");
   return value;
 }
 function validateGraphRevisions(row: Record<string, unknown>): void {
@@ -66,9 +66,9 @@ function validateGraphRevisions(row: Record<string, unknown>): void {
 }
 function validateNextActionIndex(row: Record<string, unknown>): void {
   const index = row.next_action_index;
-  if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index > 25) {
-    throw new Error("Persisted next action index is invalid.");
-  }
+  if (typeof index !== "number") throw new Error("Persisted next action index is invalid.");
+  if (!Number.isInteger(index)) throw new Error("Persisted next action index is invalid.");
+  if (index < 0 || index > 25) throw new Error("Persisted next action index is invalid.");
 }
 function validatePersistedHashes(row: Record<string, unknown>): void {
   if (typeof row.plan_hash !== "string" || !SHA256_PATTERN.test(row.plan_hash)) {
