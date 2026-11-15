@@ -40,9 +40,12 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 
 function validateDimensions(input: ShaftOrthographicDrawingInput): void {
-  if (!Number.isFinite(input.diameterMm) || !Number.isFinite(input.lengthMm)) throw new Error("Shaft dimensions must be finite.");
-  if (input.diameterMm <= 0 || input.lengthMm <= 0) throw new Error("Shaft dimensions must be positive.");
-  if (input.diameterMm > MAX_DIMENSION_MM || input.lengthMm > MAX_DIMENSION_MM) throw new Error("Shaft dimensions must not exceed 100000 mm.");
+  if (!Number.isFinite(input.diameterMm)) throw new Error("diameterMm must be finite.");
+  if (!Number.isFinite(input.lengthMm)) throw new Error("lengthMm must be finite.");
+  if (input.diameterMm <= 0) throw new Error("diameterMm must be positive.");
+  if (input.lengthMm <= 0) throw new Error("lengthMm must be positive.");
+  if (input.diameterMm > MAX_DIMENSION_MM) throw new Error("diameterMm must not exceed 100000 mm.");
+  if (input.lengthMm > MAX_DIMENSION_MM) throw new Error("lengthMm must not exceed 100000 mm.");
 }
 function validateSourceIdentity(input: ShaftOrthographicDrawingInput): void {
   if (!UUID.test(input.sourceGeometryRevisionId)) throw new Error("A valid source geometry revision ID is required.");
@@ -57,12 +60,12 @@ function escapeXmlLabel(input: { value: string }): string {
 function validateLabels(input: ShaftOrthographicDrawingInput): DrawingLabels {
   const drawingNumber = input.drawingNumber.trim();
   const title = input.title.trim();
-  if (!drawingNumber || drawingNumber.length > 80 || /[\x00-\x1f\x7f\\/]/.test(drawingNumber)) {
-    throw new Error("drawingNumber is required and must be a safe short label.");
-  }
-  if (!title || title.length > 120 || /[\x00-\x1f\x7f]/.test(title)) {
-    throw new Error("title is required and must be a safe short label.");
-  }
+  if (!drawingNumber) throw new Error("drawingNumber is required.");
+  if (drawingNumber.length > 80) throw new Error("drawingNumber is too long.");
+  if (/[\x00-\x1f\x7f\\/]/.test(drawingNumber)) throw new Error("drawingNumber contains unsafe characters.");
+  if (!title) throw new Error("title is required.");
+  if (title.length > 120) throw new Error("title is too long.");
+  if (/[\x00-\x1f\x7f]/.test(title)) throw new Error("title contains control characters.");
   return { drawingNumber: escapeXmlLabel({ value: drawingNumber }), title: escapeXmlLabel({ value: title }) };
 }
 
