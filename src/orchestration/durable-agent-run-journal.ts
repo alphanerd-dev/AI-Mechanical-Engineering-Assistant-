@@ -76,6 +76,21 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+function assertJsonCompatible(value: unknown, seen = new Set<object>()): void {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number" && Number.isFinite(value)) return;
+  if (typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
+  if (seen.has(value)) throw new Error("Agent journal payload cannot contain circular references.");
+  seen.add(value);
+  if (Array.isArray(value)) value.forEach(item => assertJsonCompatible(item, seen));
+  else {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
+    if (Object.getOwnPropertySymbols(value).length) throw new Error("Agent journal payload cannot contain symbol keys.");
+    Object.values(value as Record<string, unknown>).forEach(item => assertJsonCompatible(item, seen));
+  }
+  seen.delete(value);
+}
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (isRecord(value)) {
@@ -222,7 +237,7 @@ export class SupabaseAgentRunJournal {
     };
   }
 
-  async beginAction(claim: AgentRunClaim, identity: AgentActionIdentity): Promise<boolean> {
+  async beginAction(claim: AgentRunClaim, identity: AgentActionIdentity): Promise<"STARTED" | "IN_FLIGHT" | "ALREADY_CHECKPOINTED" | "NOT_CLAIMED" | "NOT_FOUND"> {
     const result = await this.client.rpc("begin_engineering_agent_action", {
       p_run_id: claim.run.id,
       p_worker_id: claim.workerId,
