@@ -25,21 +25,24 @@ function rejectedSubmission(response: WorkerSubmitResponse): ExecutionResult {
     artifactIds: []
   };
 }
-function successfulStatus(status: WorkerStatusResponse): ExecutionResult | undefined {
-  if (status.status !== "SUCCEEDED") return undefined;
-  return status.result ?? {
-    success: false, outputs: {},
-    warnings: ["Worker reported success without a result."],
-    artifactIds: []
-  };
-}
-function failedStatus(status: WorkerStatusResponse): ExecutionResult | undefined {
-  if (status.status !== "FAILED" && status.status !== "CANCELLED") return undefined;
-  return {
-    success: false, outputs: {},
-    warnings: [status.error ?? ("Worker job " + status.status.toLowerCase() + ".")],
-    artifactIds: []
-  };
+function terminalStatusResult(status: WorkerStatusResponse): ExecutionResult | undefined {
+  switch (status.status) {
+    case "SUCCEEDED":
+      return status.result ?? {
+        success: false, outputs: {},
+        warnings: ["Worker reported success without a result."],
+        artifactIds: []
+      };
+    case "FAILED":
+    case "CANCELLED":
+      return {
+        success: false, outputs: {},
+        warnings: [status.error ?? ("Worker job " + status.status.toLowerCase() + ".")],
+        artifactIds: []
+      };
+    default:
+      return undefined;
+  }
 }
 
 export class HttpExecutionWorkerClient {
@@ -80,7 +83,7 @@ export class HttpExecutionWorkerClient {
     for (let attempt = 0; attempt <= this.maxPolls; attempt++) {
       if (signal?.aborted) throw signal.reason ?? new Error("Execution cancelled.");
       const status = await this.service.status(jobId, signal);
-      const terminal = successfulStatus(status) ?? failedStatus(status);
+      const terminal = terminalStatusResult(status);
       if (terminal) return terminal;
       if (attempt < this.maxPolls) await sleep(this.pollIntervalMs, signal);
     }
