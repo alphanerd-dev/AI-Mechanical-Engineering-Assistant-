@@ -1,6 +1,11 @@
 import { useCallback, useState, type FormEvent } from "react";
 import { submitDrawingUpload, submitShaftDrawingGeneration } from "./project-drawings-api";
 
+function actionErrorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof Error) return cause.message;
+  return fallback;
+}
+
 export function useProjectDrawingActions(input: {
   projectId: string;
   modelIdentityId: string;
@@ -29,7 +34,7 @@ export function useProjectDrawingActions(input: {
       await refresh();
       setSelectedId(drawingId);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Preliminary shaft drawing generation failed.");
+      setError(actionErrorMessage(cause, "Preliminary shaft drawing generation failed."));
     } finally {
       setGenerating(false);
     }
@@ -49,7 +54,7 @@ export function useProjectDrawingActions(input: {
       await refresh();
       setSelectedId(drawingId);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Drawing upload failed.");
+      setError(actionErrorMessage(cause, "Drawing upload failed."));
     } finally {
       setUploading(false);
     }
