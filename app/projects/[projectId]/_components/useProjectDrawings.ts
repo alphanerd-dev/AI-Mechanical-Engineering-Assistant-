@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useProjectDrawingActions } from "./useProjectDrawingActions";
 import { useProjectDrawingsData } from "./useProjectDrawingsData";
 export type { DrawingRecord } from "./project-drawings-types";
@@ -15,6 +15,10 @@ export function useProjectDrawings(projectId: string) {
     refresh: data.refresh,
     setSelectedId: data.setSelectedId
   });
+  const refresh = useCallback(async () => {
+    actions.clearError();
+    await data.refresh();
+  }, [actions.clearError, data.refresh]);
   return {
     ...data,
     ...actions,
@@ -22,6 +26,7 @@ export function useProjectDrawings(projectId: string) {
     setModelIdentityId,
     file,
     setFile,
-    error: actions.error ?? data.error
+    error: actions.error ?? data.error,
+    refresh
   };
 }
