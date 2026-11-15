@@ -389,19 +389,32 @@ def cancel_job(job_id: str) -> dict[str, Any] | None:
     return public_job(job)
 
 
+def is_safe_artifact_job_id(job_id: str) -> bool:
+    pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+    return bool(re.fullmatch(pattern, job_id, re.IGNORECASE))
+
+
+def is_safe_artifact_relative_path(relative_path: str) -> bool:
+    if not relative_path:
+        return False
+    if relative_path.startswith("/") or "\\" in relative_path:
+        return False
+    return all(part not in {"", ".", ".."} for part in relative_path.split("/"))
+
+
 def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
-    if not re.fullmatch(r"[0-9a-f-]{36}", job_id):
+    if not is_safe_artifact_job_id(job_id):
         return None
-    if not relative_path or relative_path.startswith("/") or "\\" in relative_path:
+    if not is_safe_artifact_relative_path(relative_path):
         return None
-    candidate = (ARTIFACT_ROOT / job_id / relative_path).resolve()
+    job_root = (ARTIFACT_ROOT / job_id).resolve()
     try:
-        candidate.relative_to((ARTIFACT_ROOT / job_id).resolve())
-    except ValueError:
+        candidate = (job_root / relative_path).resolve()
+        candidate.relative_to(job_root)
+    except (OSError, ValueError):
         return None
-    if not candidate.is_file():
-        return None
-    return candidate
+    return candidate if candidate.is_file() else None
+
 
 
 class WorkerHandler(BaseHTTPRequestHandler):
