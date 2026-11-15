@@ -135,25 +135,45 @@ def wait_for_job(client: SmokeHttpClient, job_id: str) -> dict[str, Any]:
     raise TimeoutError("OpenFOAM durable job did not reach a terminal state within its execution budget.")
 
 
-def require_successful_cfd_result(job: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
+def require_terminal_success(job: dict[str, Any]) -> dict[str, Any]:
     if job.get("status") != "SUCCEEDED":
         raise RuntimeError(f"OpenFOAM service job failed: {job.get('error') or job}")
     execution = job.get("result")
     if not isinstance(execution, dict) or execution.get("success") is not True:
         raise AssertionError("OpenFOAM service did not return a successful execution result.")
+    return execution
+
+
+def require_typed_cfd_result(execution: dict[str, Any]) -> dict[str, Any]:
     outputs = execution.get("outputs")
     result = outputs.get("cfdResult") if isinstance(outputs, dict) else None
     if not isinstance(result, dict):
         raise AssertionError("OpenFOAM service did not return a typed CFD result.")
-    if result.get("status") != "COMPLETED" or result.get("solverVersion") != "14":
-        raise AssertionError("OpenFOAM solver completion or version identity is invalid.")
+    return result
+
+
+def validate_cfd_solver_identity(result: dict[str, Any]) -> None:
+    if result.get("status") != "COMPLETED":
+        raise AssertionError("OpenFOAM solver did not complete.")
+    if result.get("solverVersion") != "14":
+        raise AssertionError("OpenFOAM solver version identity is invalid.")
+
+
+def validate_cfd_mesh_and_profile(result: dict[str, Any], request: dict[str, Any]) -> None:
     expected_cells = request["inputs"]["mesh"]["cellsVertical"]
     if result.get("meshCells") != expected_cells:
         raise AssertionError("OpenFOAM mesh cardinality does not match the request.")
-    if len(result.get("velocityProfile", [])) < 20:
+    profile = result.get("velocityProfile")
+    if not isinstance(profile, list) or len(profile) < 20:
         raise AssertionError("OpenFOAM velocity profile is incomplete.")
-    return result
 
+
+def require_successful_cfd_result(job: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
+    execution = require_terminal_success(job)
+    result = require_typed_cfd_result(execution)
+    validate_cfd_solver_identity(result)
+    validate_cfd_mesh_and_profile(result, request)
+    return result
 
 def download_artifact(client: SmokeHttpClient, job_id: str, artifact: dict[str, Any]) -> Path:
     path = artifact.get("path")
