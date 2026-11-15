@@ -8,10 +8,11 @@ function finitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 function isSupportedAxis(axis: unknown): axis is "x" | "y" | "z" {
-  return axis === "x" || axis === "y" || axis === "z";
+  return ["x", "y", "z"].includes(axis as string);
 }
 function isValidDimensionCheck(value: unknown): value is Row {
-  if (!isRecord(value) || !isSupportedAxis(value.axis)) return false;
+  if (!isRecord(value)) return false;
+  if (!isSupportedAxis(value.axis)) return false;
   if (value.passed !== true) return false;
   if (!finitePositive(value.actualMm)) return false;
   if (!finitePositive(value.expectedMm)) return false;
