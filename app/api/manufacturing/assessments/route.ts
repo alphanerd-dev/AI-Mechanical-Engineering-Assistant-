@@ -43,6 +43,11 @@ export async function GET(request: Request) {
     if (!releaseId) return fail("A releaseId query parameter is required.", 400);
     const authorization = await authorizeSupabaseRequest("EVIDENCE.READ", projectId, { requestId: randomUUID() });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
+    const sessionDb = await createClient();
+    const { data: identity, error: identityError } = await sessionDb.auth.getUser();
+    if (identityError || !identity.user || identity.user.id !== authorization.subject) {
+      return fail("Authenticated project identity could not be confirmed.", 401);
+    }
     return readManufacturingAssessmentHistory({ projectId, releaseId });
   } catch {
     return fail("Manufacturing assessment history could not be read.", 503);
