@@ -65,7 +65,7 @@ interface GeometryReceiptContext {
   modelIdentityId: string;
   solid: Row;
 }
-function isValidGeometryReceipt(input: GeometryReceiptContext): input["receipt"] is Row {
+function isValidGeometryReceipt(input: GeometryReceiptContext): boolean {
   const receipt = input.receipt;
   if (!isRecord(receipt)) return false;
   if (receipt.artifactSha256 !== input.revision.canonical_artifact_sha256) return false;
