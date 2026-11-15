@@ -21,6 +21,9 @@ type DrawingRecord = {
   warnings: string[];
   createdAt: string;
   signedUrl: string | null;
+  isStale?: boolean | null;
+  sourceRevisionNumber?: number | null;
+  generatorId?: string | null;
 };
 
 function dateLabel(value: string): string {
@@ -68,6 +71,35 @@ async function submitDrawingUpload(projectId: string, modelIdentityId: string, f
   return readDrawingUploadId(response);
 }
 
+async function currentGeometryRevisionId(projectId: string, modelIdentityId: string): Promise<string> {
+  const url = "/api/cad/geometry/revisions?projectId=" + encodeURIComponent(projectId) +
+    "&modelIdentityId=" + encodeURIComponent(modelIdentityId);
+  const response = await fetch(url, { cache: "no-store" });
+  const body: unknown = await response.json().catch(() => ({}));
+  const record = asObjectRecord(body);
+  const revisions = record?.revisions;
+  if (!response.ok || !Array.isArray(revisions) || revisions.length === 0) {
+    throw new Error(typeof record?.error === "string" ? record.error : "No saved geometry revision is available for this model.");
+  }
+  const latest = asObjectRecord(revisions[revisions.length - 1]);
+  if (!latest || typeof latest.id !== "string") throw new Error("The latest geometry revision could not be identified.");
+  return latest.id;
+}
+
+async function submitShaftDrawingGeneration(projectId: string, modelIdentityId: string): Promise<string> {
+  const geometryRevisionId = await currentGeometryRevisionId(projectId, modelIdentityId);
+  const response = await fetch("/api/cad/drawings/generate", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId, modelIdentityId, geometryRevisionId })
+  });
+  const body: unknown = await response.json().catch(() => ({}));
+  const record = asObjectRecord(body);
+  const drawing = asObjectRecord(record?.drawing);
+  if (response.ok && typeof drawing?.id === "string") return drawing.id;
+  throw new Error(typeof record?.error === "string" ? record.error : "Preliminary shaft drawing generation failed.");
+}
+
 export default function ProjectDrawingsPanel({ projectId, models }: {
   projectId: string;
   models: Array<{ id: string; name: string }>;
@@ -78,6 +110,7 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -128,6 +161,23 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
       });
     return () => { active = false; };
   }, [projectId]);
+
+  const generateShaftDrawing = async () => {
+    if (!modelIdentityId || generating || uploading) return;
+    setGenerating(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const drawingId = await submitShaftDrawingGeneration(projectId, modelIdentityId);
+      setNotice("Preliminary shaft drawing generated from the current accepted geometry revision. Not for manufacture.");
+      await refresh();
+      setSelectedId(drawingId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Preliminary shaft drawing generation failed.");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const upload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
