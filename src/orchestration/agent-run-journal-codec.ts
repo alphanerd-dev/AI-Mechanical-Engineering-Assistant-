@@ -63,16 +63,22 @@ export function createAgentActionIdentity(runId: string, actionIndex: number, ac
   const actionHash = canonicalAgentRunDigest(action);
   return { actionIndex, actionHash, actionKey: "agent:" + runId + ":" + actionIndex + ":" + actionHash.slice(0, 32), action };
 }
+function validateRunIdentifiers(input: CreateAgentRunInput): void {
+  if (!UUID_PATTERN.test(input.runId)) throw new Error("Agent run ID must be a UUID.");
+  if (!UUID_PATTERN.test(input.ownerId)) throw new Error("Agent run owner ID must be a UUID.");
+  if (!UUID_PATTERN.test(input.projectId)) throw new Error("Agent run project ID must be a UUID.");
+}
 function validateIdempotencyKey(key: string): void {
   if (!IDEMPOTENCY_PATTERN.test(key)) throw new Error("Agent run idempotency key is invalid.");
 }
 function validateInitialRevision(revision: number): void {
-  if (!Number.isInteger(revision) || revision < 1) throw new Error("Initial graph revision is invalid.");
+  if (!Number.isSafeInteger(revision) || revision < 1) throw new Error("Initial graph revision is invalid.");
 }
 function validatePlanRevision(planRevision: number, graphRevision: number): void {
   if (planRevision !== graphRevision) throw new Error("Agent plan base revision does not match the graph snapshot.");
 }
 function validatePlanActionCount(actions: readonly unknown[]): void {
+  if (!Array.isArray(actions)) throw new Error("Agent plan actions must be an array.");
   if (actions.length < 1 || actions.length > 25) throw new Error("Agent plan must contain from 1 to 25 actions.");
 }
 function createPlanSnapshot(input: CreateAgentRunInput): Record<string, unknown> {
@@ -88,6 +94,7 @@ function createRunHashes(input: CreateAgentRunInput, plan: Record<string, unknow
   return { requestHash, planHash };
 }
 export function buildAgentRunRow(input: CreateAgentRunInput): Record<string, unknown> {
+  validateRunIdentifiers(input);
   validateIdempotencyKey(input.idempotencyKey);
   validateInitialRevision(input.initialGraphRevision);
   validatePlanRevision(input.plan.baseGraphRevision, input.initialGraphRevision);
