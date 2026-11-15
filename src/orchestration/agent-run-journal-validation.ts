@@ -1,5 +1,8 @@
 import type { AgentRunRecord, CreateAgentRunInput } from "./agent-run-journal-types.js";
 import { buildAgentRunRow, isRecord, toAgentRunRecord } from "./agent-run-journal-codec.js";
+import {
+  validatePersistedActionHistory, validatePersistedCurrentAction
+} from "./agent-run-journal-action-validation.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -44,14 +47,15 @@ function validateRunPlanAndCheckpoint(row: Record<string, unknown>): void {
   const validCheckpoint = isRecord(row.checkpoint);
   if (!validPlan || !validCheckpoint) throw new Error("Persisted agent run payload is invalid.");
 }
-function validateActionHistory(value: unknown): void {
-  if (!Array.isArray(value)) throw new Error("Persisted agent run payload history is invalid.");
-  if (value.length > 25) throw new Error("Persisted agent run payload history is invalid.");
-  if (!value.every(isRecord)) throw new Error("Persisted agent run payload history is invalid.");
-}
 function validateRunPayload(row: Record<string, unknown>): void {
   validateRunPlanAndCheckpoint(row);
-  validateActionHistory(row.action_history);
+  const runId = row.id as string;
+  const nextActionIndex = row.next_action_index as number;
+  const historyLength = validatePersistedActionHistory(row.action_history, runId);
+  if (historyLength !== nextActionIndex) {
+    throw new Error("Persisted action history does not match the next action index.");
+  }
+  validatePersistedCurrentAction(row.current_action, runId, nextActionIndex);
 }
 function requireSafeRevision(value: unknown, label: string): number {
   if (typeof value !== "number") throw new Error("Persisted " + label + " graph revision is invalid.");
@@ -81,9 +85,6 @@ function validatePersistedHashes(row: Record<string, unknown>): void {
 function isAbsent(value: unknown): boolean {
   return value === null || value === undefined;
 }
-function validateOptionalCurrentAction(value: unknown): void {
-  if (!isAbsent(value) && !isRecord(value)) throw new Error("Persisted in-flight action is invalid.");
-}
 function validateOptionalCancellationTimestamp(value: unknown): void {
   if (!isAbsent(value) && typeof value !== "string") throw new Error("Persisted cancellation timestamp is invalid.");
 }
@@ -91,7 +92,6 @@ function validateOptionalError(value: unknown): void {
   if (!isAbsent(value) && typeof value !== "string") throw new Error("Persisted run error is invalid.");
 }
 function validateOptionalFields(row: Record<string, unknown>): void {
-  validateOptionalCurrentAction(row.current_action);
   validateOptionalCancellationTimestamp(row.cancel_requested_at);
   validateOptionalError(row.error);
 }
@@ -103,13 +103,15 @@ function validatePersistedTimestamps(row: Record<string, unknown>): void {
     throw new Error("Persisted update timestamp is invalid.");
   }
 }
-function validatePersistedIdentityAndPayload(row: Record<string, unknown>): void {
+function validatePersistedIdentity(row: Record<string, unknown>): void {
   validateRunIdentity(row);
-  validateRunPayload(row);
 }
 function validatePersistedProgress(row: Record<string, unknown>): void {
   validateGraphRevisions(row);
   validateNextActionIndex(row);
+}
+function validatePersistedPayload(row: Record<string, unknown>): void {
+  validateRunPayload(row);
 }
 function validatePersistedIntegrity(row: Record<string, unknown>): void {
   validatePersistedHashes(row);
@@ -117,8 +119,9 @@ function validatePersistedIntegrity(row: Record<string, unknown>): void {
   validatePersistedTimestamps(row);
 }
 function validatePersistedRun(row: Record<string, unknown>): void {
-  validatePersistedIdentityAndPayload(row);
+  validatePersistedIdentity(row);
   validatePersistedProgress(row);
+  validatePersistedPayload(row);
   validatePersistedIntegrity(row);
 }
 export function toValidatedAgentRunRecord(value: unknown): AgentRunRecord {
