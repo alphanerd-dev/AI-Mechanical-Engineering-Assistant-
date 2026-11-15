@@ -2,7 +2,7 @@ import type { AgentRunRecord, CreateAgentRunInput } from "./agent-run-journal-ty
 import { buildAgentRunRow, isRecord, toAgentRunRecord } from "./agent-run-journal-codec.js";
 import {
   validatePersistedActionHistory, validatePersistedCurrentAction
-} from "./agent-run-journal-action-validation.js";
+} from "./agent-run-journal-action-history.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -51,11 +51,11 @@ function validateRunPayload(row: Record<string, unknown>): void {
   validateRunPlanAndCheckpoint(row);
   const runId = row.id as string;
   const nextActionIndex = row.next_action_index as number;
-  const historyLength = validatePersistedActionHistory(row.action_history, runId);
+  const historyLength = validatePersistedActionHistory(row.action_history, { runId });
   if (historyLength !== nextActionIndex) {
     throw new Error("Persisted action history does not match the next action index.");
   }
-  validatePersistedCurrentAction(row.current_action, runId, nextActionIndex);
+  validatePersistedCurrentAction(row.current_action, { runId, nextActionIndex });
 }
 function requireSafeRevision(value: unknown, label: string): number {
   if (typeof value !== "number") throw new Error("Persisted " + label + " graph revision is invalid.");
