@@ -18,14 +18,15 @@ This index points to the current product and operational contracts. It also dist
 - [ADR — Renderer benchmark and abstraction](architecture/adr-2026-11-08-renderer-benchmark.md) — Babylon.js vs Three.js benchmark; WebGL 2 baseline; no production renderer selected yet.
 - [ADR — OCCT-first hybrid geometry foundation](architecture/adr-2026-11-08-hybrid-geometry-foundation.md) — initial OCCT provider, provider adapters and canonical/display geometry separation; remains valid for the initial provider direction.
 - [ADR — Proprietary geometry platform and progressive kernel ownership](architecture/adr-2026-11-08-proprietary-geometry-platform.md) — supersedes the earlier decision not to pursue a proprietary kernel; approves a product-owned platform and staged native algorithm development.
-- [Geometry Platform Charter](geometry-platform/README.md) — ownership boundaries, repository placement, conformance suite and G0–G7 delivery sequence.
+- [Geometry Platform Charter](geometry-platform/README.md) — current G0–G2 implementation status, ownership boundaries, repository placement, conformance suite and G3–G7 delivery sequence.
+- [Manufacturing capability inventory](manufacturing/manufacturing-capability-inventory.md) — deterministic readiness scope, durable assessment/decision records and no-dispatch boundary.
 - [G2 Identity, Revision and Canonical Representation Design](geometry-platform/g2-identity-revision-design.md) — immutable geometry revision contract, artifact digest binding, concurrency and migration gates.
 - [G2 Production and E2E Schema Audit](geometry-platform/g2-production-schema-audit.md) — read-only production/E2E schema comparison, artifact ownership, Storage/RLS contracts and migration-ledger blocker.
 - [G0 Repository Audit](geometry-platform/g0-repository-audit.md) — current CAD architecture inventory, gaps, worker trust boundaries and G1 contract proposal.
 - [ADR — Integrated engineering workspace strategy](architecture/adr-2026-11-08-integrated-engineering-workspace.md) — modular CAD/CAE/perception/manufacturing/lifecycle domains under shared engineering contracts.
 - [ADR — Bounded LLM operational authority](architecture/adr-2026-11-08-bounded-llm-operational-authority.md) — model-proposed task mutations and capability actions enforced by backend contracts, policies and approval gates.
 
-These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above.
+These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above. The [G2 Production and E2E Schema Audit](geometry-platform/g2-production-schema-audit.md) is a historical pre-G2 production snapshot; its original statement that production had no G2 schema is superseded by the 15 November 2026 implementation/deployment snapshot in the Implementation Plan and Geometry Platform Charter.
 
 ## Application, chat and acceptance
 
