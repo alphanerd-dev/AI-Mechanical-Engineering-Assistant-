@@ -61,8 +61,24 @@ export async function parseDrawingGenerationRequest(request: Request): Promise<D
   };
 }
 async function resolveProjectAuthorization(input: { projectId: string }) {
-  try { return await authorizeSupabaseRequest("TASK.EXECUTE", input.projectId); }
-  catch { fail({ message: "Project authorization is unavailable.", status: 503, code: "AUTHORIZATION_UNAVAILABLE" }); }
+  let executionAuthorization;
+  let evidenceAuthorization;
+  try {
+    executionAuthorization = await authorizeSupabaseRequest("TASK.EXECUTE", input.projectId);
+    evidenceAuthorization = await authorizeSupabaseRequest("EVIDENCE.WRITE", input.projectId);
+  } catch {
+    fail({ message: "Project authorization is unavailable.", status: 503, code: "AUTHORIZATION_UNAVAILABLE" });
+  }
+  if (!executionAuthorization.allowed) {
+    fail({ message: executionAuthorization.reason, status: authorizationFailureStatus(executionAuthorization), code: "PROJECT_ACCESS_DENIED" });
+  }
+  if (!evidenceAuthorization.allowed) {
+    fail({ message: evidenceAuthorization.reason, status: authorizationFailureStatus(evidenceAuthorization), code: "EVIDENCE_WRITE_DENIED" });
+  }
+  if (executionAuthorization.subject !== evidenceAuthorization.subject) {
+    fail({ message: "Execution and evidence-write authorization identities do not match.", status: 401, code: "SESSION_IDENTITY_MISMATCH" });
+  }
+  return executionAuthorization;
 }
 async function confirmSessionIdentity(input: { subject: string }) {
   const sessionDb = await createClient();
