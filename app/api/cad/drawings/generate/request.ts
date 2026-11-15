@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../../lib/supabase/server";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../../src/auth/supabase-service";
+import { DrawingGenerationError, fail } from "./errors";
+export { DrawingGenerationError, fail } from "./errors";
+export type { DrawingGenerationFailure } from "./errors";
 
 export const MAX_DRAWING_GENERATION_REQUEST_BYTES = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
@@ -8,22 +11,6 @@ export type DrawingGenerationInput = {
   projectId: string; modelIdentityId: string; geometryRevisionId?: string;
   drawingNumber?: string; title?: string;
 };
-export interface DrawingGenerationFailure {
-  message: string; status: number; code?: string;
-}
-export class DrawingGenerationError extends Error {
-  readonly status: number;
-  readonly code?: string;
-  constructor(input: DrawingGenerationFailure) {
-    super(input.message);
-    this.status = input.status;
-    this.code = input.code;
-    this.name = "DrawingGenerationError";
-  }
-}
-export function fail(input: DrawingGenerationFailure): never {
-  throw new DrawingGenerationError(input);
-}
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
