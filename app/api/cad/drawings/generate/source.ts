@@ -32,9 +32,13 @@ export async function loadCurrentGeometryRevision(serviceDb: ServiceDb, input: {
   }
   return revision;
 }
+function matchesCanonicalArtifact(item: unknown, artifactId: unknown): boolean {
+  if (!isRecord(item)) return false;
+  return item.id === artifactId;
+}
 function findCanonicalSolid(completion: Row, revision: Row): Row {
   if (!Array.isArray(completion.artifact_records)) fail({ message: "Accepted completion manifest has no artifact records.", status: 422, code: "SOURCE_ARTIFACT_MISSING" });
-  const artifact = completion.artifact_records.find((item: unknown) => isRecord(item) && item.id === revision.canonical_artifact_id);
+  const artifact = completion.artifact_records.find((item: unknown) => matchesCanonicalArtifact(item, revision.canonical_artifact_id));
   if (!isRecord(artifact)) fail({ message: "Canonical source artifact is absent from the accepted completion manifest.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
   if (artifact.kind !== "SOLID") fail({ message: "Canonical source artifact is not a solid.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
   if (artifact.validationStatus !== "PASS") fail({ message: "Canonical source artifact did not pass geometry validation.", status: 422, code: "SOURCE_ARTIFACT_MISMATCH" });
@@ -54,27 +58,40 @@ function isValidCylinderBounds(bounds: unknown): bounds is Row {
   if (!finitePositive(bounds.x) || !finitePositive(bounds.y) || !finitePositive(bounds.z)) return false;
   return Math.abs((bounds.x as number) - (bounds.y as number)) <= 0.02;
 }
-function isValidGeometryReceipt(receipt: unknown, revision: Row, projectId: string, modelIdentityId: string, solid: Row): receipt is Row {
+interface GeometryReceiptContext {
+  receipt: unknown;
+  revision: Row;
+  projectId: string;
+  modelIdentityId: string;
+  solid: Row;
+}
+function isValidGeometryReceipt(input: GeometryReceiptContext): input["receipt"] is Row {
+  const receipt = input.receipt;
   if (!isRecord(receipt)) return false;
-  if (receipt.artifactSha256 !== revision.canonical_artifact_sha256) return false;
-  if (receipt.projectId !== projectId || receipt.artifactId !== solid.id || receipt.modelIdentityId !== modelIdentityId) return false;
-  if (!isRecord(receipt.validation) || receipt.validation.valid !== true) return false;
+  if (receipt.artifactSha256 !== input.revision.canonical_artifact_sha256) return false;
+  if (receipt.projectId !== input.projectId) return false;
+  if (receipt.artifactId !== input.solid.id) return false;
+  if (receipt.modelIdentityId !== input.modelIdentityId) return false;
+  if (!isRecord(receipt.validation)) return false;
+  if (receipt.validation.valid !== true) return false;
   return receipt.validation.checkedBy === receipt.checkedBy;
 }
-function extractAcceptedCylinderDimensions(completion: Row, revision: Row, projectId: string, modelIdentityId: string, solid: Row): { diameterMm: number; lengthMm: number } {
-  const receipt = completion.validation_receipt;
+function extractAcceptedCylinderDimensions(input: {
+  completion: Row; revision: Row; projectId: string; modelIdentityId: string; solid: Row;
+}): { diameterMm: number; lengthMm: number } {
+  const receipt = input.completion.validation_receipt;
   const measurements = isRecord(receipt) && isRecord(receipt.geometryMeasurements) ? receipt.geometryMeasurements : undefined;
   const bounds = measurements?.boundingBoxMm;
-  if (!isValidGeometryReceipt(receipt, revision, projectId, modelIdentityId, solid)) {
+  if (!isValidGeometryReceipt({
+    receipt, revision: input.revision, projectId: input.projectId,
+    modelIdentityId: input.modelIdentityId, solid: input.solid
+  })) {
     fail({ message: "Accepted geometry receipt identity or validation status is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   }
   if (!isValidCylinderBounds(bounds)) {
     fail({ message: "Accepted geometry receipt does not contain source-bound cylinder dimensions suitable for this drawing generator.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   }
-  return {
-    diameterMm: ((bounds.x as number) + (bounds.y as number)) / 2,
-    lengthMm: bounds.z as number
-  };
+  return { diameterMm: ((bounds.x as number) + (bounds.y as number)) / 2, lengthMm: bounds.z as number };
 }
 export async function loadAcceptedShaftSource(
   serviceDb: ServiceDb, revision: Row, projectId: string, modelIdentityId: string
@@ -87,7 +104,7 @@ export async function loadAcceptedShaftSource(
   if (data.status !== "ACCEPTED") fail({ message: "Drawing generation requires an accepted CAD completion manifest.", status: 422, code: "SOURCE_COMPLETION_NOT_ACCEPTED" });
   const solid = findCanonicalSolid(data, revision);
   validateCanonicalSolidLineage(solid, revision);
-  const dimensions = extractAcceptedCylinderDimensions(data, revision, projectId, modelIdentityId, solid);
+  const dimensions = extractAcceptedCylinderDimensions({ completion: data, revision, projectId, modelIdentityId, solid });
   return { completion: data, solid, ...dimensions };
 }
 function validateSourceStorageIdentity(revision: Row): { bucket: string; path: string } {
