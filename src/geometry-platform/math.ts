@@ -106,19 +106,28 @@ export function vectorMagnitude(vector: Vector3): number {
  * and very small non-zero vectors do not fail because of an arbitrary absolute epsilon.
  * minimumMagnitude is an optional caller-declared threshold in the vector's own units.
  */
-export function normalizeVector(vector: Vector3, minimumMagnitude = 0): Vector3 {
-  finiteVector(vector, "vector");
+function validateMinimumMagnitude(minimumMagnitude: number): void {
   if (!Number.isFinite(minimumMagnitude) || minimumMagnitude < 0) {
     throw new Error("minimumMagnitude must be finite and non-negative.");
   }
+}
+function normalizeScaledVector(vector: Vector3, minimumMagnitude: number): Vector3 {
   const scale = Math.max(Math.abs(vector[0]), Math.abs(vector[1]), Math.abs(vector[2]));
   if (scale === 0) throw new Error("Cannot normalize a zero or near-zero vector.");
   const scaled: Vector3 = [vector[0] / scale, vector[1] / scale, vector[2] / scale];
   const scaledMagnitude = Math.hypot(scaled[0], scaled[1], scaled[2]);
-  if (minimumMagnitude > 0 && scale <= minimumMagnitude / scaledMagnitude) {
+  if (isAtOrBelowMinimumMagnitude(scale, scaledMagnitude, minimumMagnitude)) {
     throw new Error("Cannot normalize a zero or near-zero vector.");
   }
   return [scaled[0] / scaledMagnitude, scaled[1] / scaledMagnitude, scaled[2] / scaledMagnitude];
+}
+function isAtOrBelowMinimumMagnitude(scale: number, scaledMagnitude: number, minimumMagnitude: number): boolean {
+  return minimumMagnitude > 0 && scale <= minimumMagnitude / scaledMagnitude;
+}
+export function normalizeVector(vector: Vector3, minimumMagnitude = 0): Vector3 {
+  finiteVector(vector, "vector");
+  validateMinimumMagnitude(minimumMagnitude);
+  return normalizeScaledVector(vector, minimumMagnitude);
 }
 export function distanceBetweenPointsMm(a: Point3, b: Point3): number {
   return vectorMagnitude(subtractPoints(a, b));
