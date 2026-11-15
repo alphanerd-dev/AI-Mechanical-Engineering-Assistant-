@@ -296,7 +296,7 @@ function isGeometryHead(value: unknown): value is Row {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Row;
   if (typeof row.model_identity_id !== "string") return false;
-  if (typeof row.id !== "string") return false;
+  if (typeof row.revision_id !== "string") return false;
   return true;
 }
 function addGeometryHead(heads: Map<string, string>, value: unknown): void {
@@ -315,7 +315,8 @@ async function fetchCurrentGeometryHeads(db: Database, projectId: string, modelI
     p_project_id: projectId,
     p_model_identity_ids: modelIdentityIds
   });
-  if (error || !Array.isArray(data)) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
+  if (error) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
+  if (!Array.isArray(data)) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
   return buildGeometryHeads(data);
 }
 async function serializeDrawingRow(db: Database, row: Row, currentGeometryRevisionId?: string) {
