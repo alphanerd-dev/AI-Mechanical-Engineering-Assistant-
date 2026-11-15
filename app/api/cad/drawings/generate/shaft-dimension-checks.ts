@@ -1,5 +1,5 @@
 import type { Completion, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
-import { fail } from "./request";
+import { fail } from "./errors";
 import {
   isRecord, isValidGeometryReceipt, requireShaftBounds, requireShaftSpecification
 } from "./source-validation";
