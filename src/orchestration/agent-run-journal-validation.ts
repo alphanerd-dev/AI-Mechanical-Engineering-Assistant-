@@ -39,16 +39,19 @@ function validateRunIdentity(row: Record<string, unknown>): void {
     throw new Error("Persisted agent run identity is invalid.");
   }
 }
+function validateRunPlanAndCheckpoint(row: Record<string, unknown>): void {
+  const validPlan = isRecord(row.plan);
+  const validCheckpoint = isRecord(row.checkpoint);
+  if (!validPlan || !validCheckpoint) throw new Error("Persisted agent run payload is invalid.");
+}
+function validateActionHistory(value: unknown): void {
+  if (!Array.isArray(value)) throw new Error("Persisted agent run payload history is invalid.");
+  if (value.length > 25) throw new Error("Persisted agent run payload history is invalid.");
+  if (!value.every(isRecord)) throw new Error("Persisted agent run payload history is invalid.");
+}
 function validateRunPayload(row: Record<string, unknown>): void {
-  if (!isRecord(row.plan) || !isRecord(row.checkpoint)) {
-    throw new Error("Persisted agent run payload is invalid.");
-  }
-  if (!Array.isArray(row.action_history) || row.action_history.length > 25) {
-    throw new Error("Persisted agent run payload history is invalid.");
-  }
-  if (!row.action_history.every(isRecord)) {
-    throw new Error("Persisted agent run payload history is invalid.");
-  }
+  validateRunPlanAndCheckpoint(row);
+  validateActionHistory(row.action_history);
 }
 function requireSafeRevision(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
@@ -75,19 +78,22 @@ function validatePersistedHashes(row: Record<string, unknown>): void {
     throw new Error("Persisted request hash is invalid.");
   }
 }
+function isAbsent(value: unknown): boolean {
+  return value === null || value === undefined;
+}
+function validateOptionalCurrentAction(value: unknown): void {
+  if (!isAbsent(value) && !isRecord(value)) throw new Error("Persisted in-flight action is invalid.");
+}
+function validateOptionalCancellationTimestamp(value: unknown): void {
+  if (!isAbsent(value) && typeof value !== "string") throw new Error("Persisted cancellation timestamp is invalid.");
+}
+function validateOptionalError(value: unknown): void {
+  if (!isAbsent(value) && typeof value !== "string") throw new Error("Persisted run error is invalid.");
+}
 function validateOptionalFields(row: Record<string, unknown>): void {
-  const currentAction = row.current_action;
-  if (currentAction !== null && currentAction !== undefined && !isRecord(currentAction)) {
-    throw new Error("Persisted in-flight action is invalid.");
-  }
-  const cancelRequestedAt = row.cancel_requested_at;
-  if (cancelRequestedAt !== null && cancelRequestedAt !== undefined && typeof cancelRequestedAt !== "string") {
-    throw new Error("Persisted cancellation timestamp is invalid.");
-  }
-  const error = row.error;
-  if (error !== null && error !== undefined && typeof error !== "string") {
-    throw new Error("Persisted run error is invalid.");
-  }
+  validateOptionalCurrentAction(row.current_action);
+  validateOptionalCancellationTimestamp(row.cancel_requested_at);
+  validateOptionalError(row.error);
 }
 function validatePersistedTimestamps(row: Record<string, unknown>): void {
   if (typeof row.created_at !== "string" || Number.isNaN(Date.parse(row.created_at))) {
