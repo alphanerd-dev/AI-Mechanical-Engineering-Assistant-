@@ -30,12 +30,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function readJsonBody(request: Request): Promise<unknown> {
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
-    fail("Drawing generation request exceeds 16 KiB.", 413, "REQUEST_TOO_LARGE");
+    fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
   }
   const bytes = new Uint8Array(await request.arrayBuffer());
-  if (bytes.byteLength > MAX_DRAWING_GENERATION_REQUEST_BYTES) fail("Drawing generation request exceeds 16 KiB.", 413, "REQUEST_TOO_LARGE");
+  if (bytes.byteLength > MAX_DRAWING_GENERATION_REQUEST_BYTES) fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
   try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
-  catch { fail("Drawing generation request must be valid UTF-8 JSON.", 400, "INVALID_JSON"); }
+  catch { fail({ message: "Drawing generation request must be valid UTF-8 JSON.", status: 400, code: "INVALID_JSON" }); }
 }
 function requiredUuid(input: { body: Record<string, unknown>; field: string }): string {
   const value = input.body[input.field];
@@ -51,7 +51,7 @@ function optionalLabel(input: { body: Record<string, unknown>; field: string; ma
 }
 export async function parseDrawingGenerationRequest(request: Request): Promise<DrawingGenerationInput> {
   const body = await readJsonBody(request);
-  if (!isRecord(body)) fail("Drawing generation request must be a JSON object.", 400, "INVALID_JSON");
+  if (!isRecord(body)) fail({ message: "Drawing generation request must be a JSON object.", status: 400, code: "INVALID_JSON" });
   return {
     projectId: requiredUuid({ body, field: "projectId" }),
     modelIdentityId: requiredUuid({ body, field: "modelIdentityId" }),
@@ -62,20 +62,20 @@ export async function parseDrawingGenerationRequest(request: Request): Promise<D
 }
 async function resolveProjectAuthorization(projectId: string) {
   try { return await authorizeSupabaseRequest("TASK.EXECUTE", projectId); }
-  catch { fail("Project authorization is unavailable.", 503, "AUTHORIZATION_UNAVAILABLE"); }
+  catch { fail({ message: "Project authorization is unavailable.", status: 503, code: "AUTHORIZATION_UNAVAILABLE" }); }
 }
 async function confirmSessionIdentity(subject: string) {
   const sessionDb = await createClient();
   const user = await sessionDb.auth.getUser();
-  if (user.error) fail("Authenticated project identity could not be confirmed.", 401, "SESSION_IDENTITY_MISMATCH");
-  if (!user.data.user) fail("Authenticated project identity could not be confirmed.", 401, "SESSION_IDENTITY_MISMATCH");
-  if (user.data.user.id !== subject) fail("Authenticated project identity could not be confirmed.", 401, "SESSION_IDENTITY_MISMATCH");
+  if (user.error) fail({ message: "Authenticated project identity could not be confirmed.", status: 401, code: "SESSION_IDENTITY_MISMATCH" });
+  if (!user.data.user) fail({ message: "Authenticated project identity could not be confirmed.", status: 401, code: "SESSION_IDENTITY_MISMATCH" });
+  if (user.data.user.id !== subject) fail({ message: "Authenticated project identity could not be confirmed.", status: 401, code: "SESSION_IDENTITY_MISMATCH" });
   return sessionDb;
 }
 export async function requireAuthorizedIdentity(projectId: string) {
   const authorization = await resolveProjectAuthorization(projectId);
-  if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization), "PROJECT_ACCESS_DENIED");
-  if (!authorization.subject) fail("Authenticated project identity is unavailable.", 503, "IDENTITY_UNAVAILABLE");
+  if (!authorization.allowed) fail({ message: authorization.reason, status: authorizationFailureStatus(authorization), code: "PROJECT_ACCESS_DENIED" });
+  if (!authorization.subject) fail({ message: "Authenticated project identity is unavailable.", status: 503, code: "IDENTITY_UNAVAILABLE" });
   const sessionDb = await confirmSessionIdentity(authorization.subject);
   return { subject: authorization.subject, sessionDb };
 }
