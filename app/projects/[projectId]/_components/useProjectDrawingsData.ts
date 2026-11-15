@@ -17,6 +17,22 @@ function selectedDrawingId(items: DrawingRecord[], currentId: string): string {
   return items.some((item) => item.id === currentId) ? currentId : items[0]?.id ?? "";
 }
 
+function recordLoadFailure(
+  cause: unknown,
+  signal: AbortSignal | undefined,
+  setError: (message: string) => void
+): void {
+  if (signal?.aborted) return;
+  setError(cause instanceof Error ? cause.message : "Project drawings could not be loaded.");
+}
+
+function completeLoad(
+  signal: AbortSignal | undefined,
+  setLoading: (loading: boolean) => void
+): void {
+  if (!signal?.aborted) setLoading(false);
+}
+
 export function useProjectDrawingsData(projectId: string) {
   const [drawings, setDrawings] = useState<DrawingRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -34,11 +50,9 @@ export function useProjectDrawingsData(projectId: string) {
       setSelectedId((current) => selectedDrawingId(items, current));
       setError(null);
     } catch (cause) {
-      if (!signal?.aborted) {
-        setError(cause instanceof Error ? cause.message : "Project drawings could not be loaded.");
-      }
+      recordLoadFailure(cause, signal, setError);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      completeLoad(signal, setLoading);
     }
   }, [projectId]);
 
