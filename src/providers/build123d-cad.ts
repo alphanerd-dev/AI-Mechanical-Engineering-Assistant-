@@ -44,6 +44,7 @@ export class Build123dCADProvider implements CapabilityProvider {
   readonly id = "cad.build123d";
   readonly capabilities = ["CAD.CREATE_PART", "CAD.EXECUTE_GENERATED_SOURCE"];
   readonly promotionManifest = PROVIDER_PROMOTION_INVENTORY.find((entry) => entry.providerId === this.id);
+  readonly providerVersion = this.promotionManifest?.providerVersion;
 
   private readonly createExecutionId: () => string;
   private readonly now: () => string;
@@ -140,6 +141,7 @@ export class Build123dCADProvider implements CapabilityProvider {
       modelIdentity,
       request: executionRequest,
       providerId: this.id,
+      providerVersion: this.providerVersion,
       requirementIds,
       generatedAt: this.now()
     });

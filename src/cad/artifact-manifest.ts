@@ -8,6 +8,8 @@ export interface CADArtifactManifestContext {
   request: CADExecutionRequest;
   /** Host-authored identity of the adapter that actually handled this execution. */
   providerId: string;
+  /** Version from the host-controlled promotion manifest, never request input. */
+  providerVersion?: string;
   requirementIds?: string[];
   generatedAt?: string;
 }
@@ -89,6 +91,11 @@ interface ProvenanceContextInput {
   context: CADArtifactManifestContext;
 }
 
+function validateProviderVersion(value: unknown): string[] {
+  if (value === undefined) return [];
+  return nonEmptyString(value) ? [] : ["Host-authored CAD provider version must be non-empty when supplied."];
+}
+
 function validateProvenanceContext(input: ProvenanceContextInput): string[] {
   const { projectId, execution, context } = input;
   const errors = validateCADModelIdentity(context.modelIdentity, projectId).errors;
@@ -100,6 +107,7 @@ function validateProvenanceContext(input: ProvenanceContextInput): string[] {
     errors.push("CAD execution timeoutMs must be finite and positive.");
   }
   if (!nonEmptyString(context.providerId)) errors.push("Host-authored CAD provider id is required.");
+  errors.push(...validateProviderVersion(context.providerVersion));
   if (request?.backend !== execution.backend) {
     errors.push("CAD execution request backend does not match the worker result backend.");
   }
@@ -129,6 +137,7 @@ function createExecutionProvenance(input: ExecutionProvenanceInput): CADExecutio
     modelIdentityId: context.modelIdentity.id,
     executionId: request.id,
     providerId: context.providerId.trim(),
+    ...(context.providerVersion ? { providerVersion: context.providerVersion.trim() } : {}),
     backend: request.backend,
     sourceSha256: createCADSourceSha256(request.source),
     sourceFilename: request.filename.trim(),

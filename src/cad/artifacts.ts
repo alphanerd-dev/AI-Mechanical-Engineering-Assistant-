@@ -11,6 +11,8 @@ export interface CADExecutionProvenance extends ArtifactProvenance {
   modelIdentityId:string;
   executionId:string;
   providerId:string;
+  /** Exact package/runtime version recorded by the trusted provider adapter. */
+  providerVersion?:string;
   backend:CADExecutionBackend;
   sourceSha256:string;
   sourceFilename:string;
