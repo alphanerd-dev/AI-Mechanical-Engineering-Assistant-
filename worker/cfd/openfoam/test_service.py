@@ -166,7 +166,15 @@ class OpenFOAMServiceTests(unittest.TestCase):
         artifact = job_dir / "solver.log"
         artifact.write_text("OpenFOAM log", encoding="utf-8")
         self.assertEqual(service.resolve_artifact(job_id, "solver.log"), artifact)
-        self.assertIsNone(service.resolve_artifact(job_id, "../solver.log"))
+        for unsafe_path in (
+            "../solver.log",
+            "/etc/passwd",
+            "C:\\solver.log",
+            "nested\\solver.log",
+            "artifacts/../solver.log",
+            "unknown.bin",
+        ):
+            self.assertIsNone(service.resolve_artifact(job_id, unsafe_path), unsafe_path)
         outside = service.ARTIFACT_ROOT / "outside.log"
         outside.write_text("outside", encoding="utf-8")
         (job_dir / "escape.log").symlink_to(outside)
