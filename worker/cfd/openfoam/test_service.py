@@ -146,7 +146,7 @@ class OpenFOAMServiceTests(unittest.TestCase):
 
     def test_restart_marks_active_jobs_for_reconciliation_not_replay(self):
         job_id = valid_request()["id"]
-        state_dir = service.JOB_STATE_ROOT / job_id
+        state_dir = service.JOB_STATE_ROOT / ("a" * 32)
         state_dir.mkdir(parents=True)
         (state_dir / "job.json").write_text(json.dumps({
             "jobId": job_id,
@@ -158,6 +158,8 @@ class OpenFOAMServiceTests(unittest.TestCase):
         restored = service.JOBS[job_id]
         self.assertEqual(restored["status"], "FAILED")
         self.assertEqual(restored["errorCode"], "RECONCILIATION_REQUIRED")
+        self.assertEqual(restored["stateDirectory"], state_dir)
+        self.assertEqual(restored["artifactDirectory"], service.ARTIFACT_ROOT / ("a" * 32))
 
     def test_queued_cancellation_is_persisted_without_spawning_solver(self):
         request = valid_request()
@@ -169,10 +171,15 @@ class OpenFOAMServiceTests(unittest.TestCase):
 
     def test_artifact_resolution_rejects_path_traversal_and_symlink_escape(self):
         job_id = valid_request()["id"]
-        job_dir = service.ARTIFACT_ROOT / __import__("uuid").UUID(job_id).hex
+        job_dir = service.ARTIFACT_ROOT / ("b" * 32)
         job_dir.mkdir(parents=True)
         artifact = job_dir / "solver.log"
         artifact.write_text("OpenFOAM log", encoding="utf-8")
+        service.JOBS[job_id] = {
+            "jobId": job_id,
+            "artifactDirectory": job_dir,
+            "stateDirectory": service.JOB_STATE_ROOT / ("b" * 32),
+        }
         self.assertEqual(service.resolve_artifact(job_id, "solver.log"), artifact)
         for unsafe_path in (
             "../solver.log",
