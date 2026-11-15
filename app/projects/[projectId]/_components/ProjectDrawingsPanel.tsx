@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertCircle, FilePlus2, FileText, RefreshCw, Upload } from "lucide-react";
-import DrawingViewer from "../../../../src/drawings/DrawingViewer";
+import ProjectDrawingList from "./ProjectDrawingList";
+import ProjectDrawingPreview from "./ProjectDrawingPreview";
 import styles from "./ProjectDrawingsPanel.module.css";
 
-type DrawingRecord = {
+export type DrawingRecord = {
   id: string;
   projectId: string;
   modelIdentityId: string | null;
@@ -25,11 +26,6 @@ type DrawingRecord = {
   sourceRevisionNumber?: number | null;
   generatorId?: string | null;
 };
-
-function dateLabel(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
-}
 
 function asObjectRecord(value: unknown): Record<string, unknown> | null {
   if (value === null) return null;
@@ -204,24 +200,13 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
     {error && <p className={styles.error} role="alert"><AlertCircle size={13} />{error}</p>}
     {notice && <p className={styles.notice} role="status">{notice}</p>}
     <div className={styles.contentGrid}>
-      <div className={styles.column}>
-        <h3>Stored drawings · {drawings.length}</h3>
-        {loading ? <p className={styles.meta}>Loading project drawings…</p> :
-          drawings.length === 0 ? <div className={styles.empty}><span><FilePlus2 size={20} /></span><strong>No drawings uploaded</strong><p>Upload a PDF, safe-subset SVG or ASCII DXF to begin.</p></div> :
-          drawings.map((drawing) => <button key={drawing.id} type="button" className={styles.drawingRow} aria-pressed={selected?.id === drawing.id} onClick={() => setSelectedId(drawing.id)}>
-            <FileText size={15} aria-hidden="true" />
-            <span><strong>{drawing.displayName}</strong><small>{drawing.format} · {dateLabel(drawing.createdAt)} · {drawing.units ?? "units not recorded"}{drawing.isStale ? " · STALE SOURCE" : drawing.generatorId ? " · GENERATED" : ""}</small></span>
-          </button>)}
-      </div>
-      <div className="moduleStack">
-        <h3>Read-only preview</h3>
-        {selected?.signedUrl ? <DrawingViewer key={selected.id} src={selected.signedUrl} mediaType={selected.mediaType} label={selected.displayName} /> :
-          <div className={styles.empty}><span><FileText size={20} /></span><strong>No drawing selected</strong><p>Choose an uploaded drawing with an available short-lived access URL.</p></div>}
-        {selected?.isStale && <p className={styles.warning} role="status">This drawing was generated from an older geometry revision. Do not use it as the current model drawing; regenerate from the latest accepted revision.</p>}
-        {selected && <p className={styles.meta}>
-          SHA-256 {selected.sha256.slice(0, 16)}… · {selected.entityCount === null ? selected.parserVersion : selected.entityCount + " parsed entities"} · {selected.generatorId ? "Generated from revision " + selected.sourceRevisionNumber + ". " : ""}Source drawing is not a validated CAD model.
-        </p>}
-      </div>
+      <ProjectDrawingList
+        drawings={drawings}
+        loading={loading}
+        selectedId={selected?.id ?? ""}
+        onSelect={setSelectedId}
+      />
+      <ProjectDrawingPreview selected={selected} />
     </div>
   </section>;
 }
