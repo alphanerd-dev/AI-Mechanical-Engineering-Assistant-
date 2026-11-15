@@ -306,6 +306,10 @@ def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
         return None
     if not relative_path or relative_path.startswith("/") or "\\" in relative_path:
         return None
+    if relative_path.startswith("artifacts/"):
+        relative_path = relative_path[len("artifacts/"):]
+    if relative_path not in {"mesh.tar.gz", "velocity-field.tar.gz", "pressure-field", "solver.log"}:
+        return None
     candidate = (ARTIFACT_ROOT / job_hex / relative_path).resolve()
     try:
         candidate.relative_to((ARTIFACT_ROOT / job_hex).resolve())
