@@ -246,15 +246,22 @@ function validateRotationHandedness(rotation: Matrix3, tolerance: number): strin
   return Math.abs(determinant3(rotation) - 1) <= tolerance * 4
     ? [] : ["rotation matrix must be right-handed with determinant +1."];
 }
+function validateTransformTolerance(tolerance: number): string[] {
+  if (!Number.isFinite(tolerance)) return ["Transform tolerance must be finite."];
+  if (tolerance <= 0) return ["Transform tolerance must be positive."];
+  if (tolerance > MAX_RIGID_TRANSFORM_VALIDATION_TOLERANCE) {
+    return ["Transform tolerance must be no greater than 1e-3."];
+  }
+  return [];
+}
 export function validateRigidTransform3(transform: RigidTransform3, tolerance = 1e-9): string[] {
   if (!transform) return ["Transform is required."];
   const shapeErrors = validateRotationShape(transform.rotation);
   if (shapeErrors.length) return shapeErrors;
   const translationErrors = validateTranslation(transform.translationMm);
   if (translationErrors.length) return translationErrors;
-  if (!Number.isFinite(tolerance) || tolerance <= 0 || tolerance > MAX_RIGID_TRANSFORM_VALIDATION_TOLERANCE) {
-    return ["Transform tolerance must be finite, positive and no greater than 1e-3."];
-  }
+  const toleranceErrors = validateTransformTolerance(tolerance);
+  if (toleranceErrors.length) return toleranceErrors;
   return [
     ...validateRotationOrthonormality(transform.rotation, tolerance),
     ...validateRotationHandedness(transform.rotation, tolerance)
