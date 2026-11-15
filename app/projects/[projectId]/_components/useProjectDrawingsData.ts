@@ -13,6 +13,10 @@ async function fetchProjectDrawings(projectId: string, signal?: AbortSignal): Pr
   return body.drawings as DrawingRecord[];
 }
 
+function selectedDrawingId(items: DrawingRecord[], currentId: string): string {
+  return items.some((item) => item.id === currentId) ? currentId : items[0]?.id ?? "";
+}
+
 export function useProjectDrawingsData(projectId: string) {
   const [drawings, setDrawings] = useState<DrawingRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -27,7 +31,7 @@ export function useProjectDrawingsData(projectId: string) {
     try {
       const items = await fetchProjectDrawings(projectId, signal);
       setDrawings(items);
-      setSelectedId((current) => items.some((item) => item.id === current) ? current : items[0]?.id ?? "");
+      setSelectedId((current) => selectedDrawingId(items, current));
       setError(null);
     } catch (cause) {
       if (!signal?.aborted) {
