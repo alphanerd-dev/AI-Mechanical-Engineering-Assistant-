@@ -39,48 +39,46 @@ function recordLoadFailure(
   setError(cause instanceof Error ? cause.message : "Project drawings could not be loaded.");
 }
 
-function completeLoad(
-  signal: AbortSignal | undefined,
-  setLoading: (loading: boolean) => void
-): void {
-  if (!signal?.aborted) setLoading(false);
-}
-
 export function useProjectDrawingsData(projectId: string) {
   const [drawings, setDrawings] = useState<DrawingRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loading = refreshing || loadedProjectId !== projectId;
   const selected = useMemo(
     () => drawings.find((item) => item.id === selectedId) ?? drawings[0] ?? null,
     [drawings, selectedId]
   );
 
-  const loadDrawings = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
+  const fetchAndUpdateDrawings = useCallback(async (signal?: AbortSignal) => {
     try {
       const items = await fetchProjectDrawings(projectId, signal);
+      if (signal?.aborted) return;
       setDrawings(items);
       setSelectedId((current) => selectedDrawingId(items, current));
       setError(null);
     } catch (cause) {
       recordLoadFailure(cause, signal, setError);
     } finally {
-      completeLoad(signal, setLoading);
+      if (!signal?.aborted) {
+        setLoadedProjectId(projectId);
+        setRefreshing(false);
+      }
     }
   }, [projectId]);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    setRefreshing(true);
     setError(null);
-    await loadDrawings();
-  }, [loadDrawings]);
+    await fetchAndUpdateDrawings();
+  }, [fetchAndUpdateDrawings]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadDrawings(controller.signal);
+    void fetchAndUpdateDrawings(controller.signal);
     return () => controller.abort();
-  }, [loadDrawings]);
+  }, [fetchAndUpdateDrawings]);
 
   return { drawings, selected, selectedId, setSelectedId, loading, error, refresh };
 }
