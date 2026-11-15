@@ -218,8 +218,11 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
         </label>
       </div>
       <div className={styles.actions}>
-        <button type="submit" className={styles.primary} disabled={!file || uploading}>
+        <button type="submit" className={styles.primary} disabled={!file || uploading || generating}>
           <Upload size={13} aria-hidden="true" /> {uploading ? "Uploading…" : "Upload drawing"}
+        </button>
+        <button type="button" className={styles.secondary} onClick={() => void generateShaftDrawing()} disabled={!modelIdentityId || generating || uploading || loading}>
+          <FilePlus2 size={13} aria-hidden="true" /> {generating ? "Generating…" : "Generate preliminary shaft drawing"}
         </button>
         {file && <span className={styles.meta}>{file.name} · {(file.size / 1024).toFixed(1)} KiB</span>}
       </div>
@@ -233,15 +236,16 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
           drawings.length === 0 ? <div className={styles.empty}><span><FilePlus2 size={20} /></span><strong>No drawings uploaded</strong><p>Upload a PDF, safe-subset SVG or ASCII DXF to begin.</p></div> :
           drawings.map((drawing) => <button key={drawing.id} type="button" className={styles.drawingRow} aria-pressed={selected?.id === drawing.id} onClick={() => setSelectedId(drawing.id)}>
             <FileText size={15} aria-hidden="true" />
-            <span><strong>{drawing.displayName}</strong><small>{drawing.format} · {dateLabel(drawing.createdAt)} · {drawing.units ?? "units not recorded"}</small></span>
+            <span><strong>{drawing.displayName}</strong><small>{drawing.format} · {dateLabel(drawing.createdAt)} · {drawing.units ?? "units not recorded"}{drawing.isStale ? " · STALE SOURCE" : drawing.generatorId ? " · GENERATED" : ""}</small></span>
           </button>)}
       </div>
       <div className="moduleStack">
         <h3>Read-only preview</h3>
         {selected?.signedUrl ? <DrawingViewer key={selected.id} src={selected.signedUrl} mediaType={selected.mediaType} label={selected.displayName} /> :
           <div className={styles.empty}><span><FileText size={20} /></span><strong>No drawing selected</strong><p>Choose an uploaded drawing with an available short-lived access URL.</p></div>}
+        {selected?.isStale && <p className={styles.warning} role="status">This drawing was generated from an older geometry revision. Do not use it as the current model drawing; regenerate from the latest accepted revision.</p>}
         {selected && <p className={styles.meta}>
-          SHA-256 {selected.sha256.slice(0, 16)}… · {selected.entityCount === null ? selected.parserVersion : selected.entityCount + " parsed entities"} · Source drawing is not a validated CAD model.
+          SHA-256 {selected.sha256.slice(0, 16)}… · {selected.entityCount === null ? selected.parserVersion : selected.entityCount + " parsed entities"} · {selected.generatorId ? "Generated from revision " + selected.sourceRevisionNumber + ". " : ""}Source drawing is not a validated CAD model.
         </p>}
       </div>
     </div>
