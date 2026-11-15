@@ -39,10 +39,9 @@ RUN python3 -m unittest -v test_worker test_service
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HOME=/tmp/openfoam-home \
-    OPENFOAM_ARTIFACT_DIR=/artifacts \\
-    WORKER_HOST=0.0.0.0 \\
+    OPENFOAM_ARTIFACT_DIR=/artifacts \
+    WORKER_HOST=0.0.0.0 \
     WORKER_PORT=8091
-
 USER 10001:10001
 EXPOSE 8091
 ENTRYPOINT ["python3", "/app/service.py"]
