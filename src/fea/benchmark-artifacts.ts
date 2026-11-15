@@ -1,8 +1,21 @@
 import type { FEAStaticStructuralResult } from "./types.js";
 const SHA256 = /^[a-f0-9]{64}$/;
+function hasNonEmptyPath(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function isAbsoluteArtifactPath(value: string): boolean {
+  return value.startsWith("/") || value.startsWith("\\\\") || /^[A-Za-z]:/.test(value);
+}
+function hasSafeArtifactSegments(value: string): boolean {
+  return value.split(/[\\/]/).every(segment =>
+    segment.length > 0 && segment !== "." && segment !== ".."
+  );
+}
 function safeRelativePath(value: unknown): boolean {
-  if (typeof value !== "string" || !value.trim() || value.startsWith("/")) return false;
-  return !value.split(/[\\/]/).includes("..");
+  if (!hasNonEmptyPath(value)) return false;
+  if (isAbsoluteArtifactPath(value)) return false;
+  if (value.includes("\\0")) return false;
+  return hasSafeArtifactSegments(value);
 }
 function validKind(value: unknown): boolean {
   return value === "FEA_MODEL" || value === "FEA_RESULT";
