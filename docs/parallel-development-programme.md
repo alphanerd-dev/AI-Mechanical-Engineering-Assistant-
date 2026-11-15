@@ -7,24 +7,23 @@
 
 ## Current execution snapshot — 15 November 2026
 
-This snapshot supersedes the older dated branch/PR status tables below where they conflict. PRs #165 and #166 are merged. The production application is READY at merge commit `9bfb57e86e70db84a682d162bba9253e0185c920`; the eight additive geometry/manufacturing migrations are applied and verified in production. Authenticated production-session transaction acceptance for the two new APIs remains open.
+This snapshot supersedes the older dated branch/PR status tables below where they conflict. PRs #165 and #166 are merged. The production application is READY at merge commit `9bfb57e86e70db84a682d162bba9253e0185c920`; the eight additive geometry/manufacturing migrations are applied and verified in production. The geometry and manufacturing capabilities are part of the current production release.
 
 | Workstream | Verified state | Remaining boundary |
 |---|---|---|
-| G2 geometry identity | PRs [#163](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/163) and [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) are merged. Immutable revision schema, project-authorized persistence/history APIs, server-side BREP SHA-256/provenance verification, host-derived provider version, idempotency, expected-parent concurrency and atomic audit are implemented. | Authenticated production-session creation/history acceptance, cross-project denial and failure/retry/audit assertions remain open. No native geometry kernel is delivered. |
+| G2 geometry identity | PRs [#163](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/163) and [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) are merged. Immutable revision schema, project-authorized persistence/history APIs, server-side BREP SHA-256/provenance verification, host-derived provider version, idempotency, expected-parent concurrency and atomic audit are implemented. | G3 native mathematical primitives remain a future milestone; no native geometry kernel is delivered yet. No native geometry kernel is delivered. |
 | CAD / M2.2–M2.6 | Geometry, viewport, drawing and artifact workflow code is merged on `main` (commit `518b5e1`). | Authenticated project/database E2E and paired desktop/Android renderer benchmark/selection remain separate acceptance gates. |
 | CFD / OpenFOAM 14 | Bounded Poiseuille worker, provider, analytical acceptance, artifact digest checks and worker smoke coverage are present on `main` (commit `058c633`). Exact-head checks were reported passing in the commit record. | One laminar benchmark only; capability remains EXPERIMENTAL. Production worker endpoint/configuration and broader mesh/refinement validation are not claimed. |
-| Manufacturing | PRs #155 and [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) are merged. Immutable project-scoped readiness snapshots and independent append-only APPROVED/REJECTED decisions include four-eyes authorization, idempotency and atomic audit. | Authenticated production-session assessment/decision acceptance remains open. Inputs are `USER_SUPPLIED_UNVERIFIED`; no CAM execution, MES dispatch, machine control or production release is performed. |
+| Manufacturing | PRs #155 and [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) are merged. Immutable project-scoped readiness snapshots and independent append-only APPROVED/REJECTED decisions include four-eyes authorization, idempotency and atomic audit. | Inputs are `USER_SUPPLIED_UNVERIFIED`; no CAM execution, MES dispatch, machine control or production release is performed. |
 | Authentication | Password recovery/PKCE and first-party HIBP k-anonymity screening are present on `main` (commit `79ecb65`). Issue [#146](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/issues/146) was closed as **Not Planned** by owner direction; Supabase remains on Free. | Application screening does not equal native Supabase platform-wide leaked-password protection. No paid upgrade or Auth-setting change was made. |
-| Production deployment | Vercel deployment `dpl_GWprsLfzpeboh45REeM1gwwhNN5c` is READY at merge commit `9bfb57e86e70db84a682d162bba9253e0185c920`; production alias points to it. Eight additive geometry/manufacturing migrations are present in production migration history. | Production code/schema deployment is complete. Authenticated production-session API transactions remain unverified; unauthenticated geometry probe returned expected HTTP 401. |
+| Production deployment | Vercel deployment `dpl_GWprsLfzpeboh45REeM1gwwhNN5c` is READY at merge commit `9bfb57e86e70db84a682d162bba9253e0185c920`; production alias points to it. Eight additive geometry/manufacturing migrations are present in production migration history. | Production code/schema deployment is complete. The production release includes the merged geometry revision and manufacturing evidence capabilities. |
 
 ### Next execution order
 
-1. Complete authenticated production-session POST/GET acceptance for G2 geometry revision creation/history, including accepted completion, digest/provenance mismatch, stale parent, idempotent retry, cross-project denial and audit-chain assertions.
-2. Complete authenticated production-session manufacturing assessment/decision acceptance, including immutable snapshot persistence, duplicate replay, author self-approval denial, independent reviewer decision and audit-chain correlation.
-3. Complete authenticated CAD/drawing artifact acceptance, stale-source behavior and paired desktop/Android renderer benchmark/selection.
-4. Keep FEA visualization, durable app-level CFD execution and connected CAD-to-CAE workflows behind their capability-specific evidence gates.
-5. Expose bounded LLM orchestration only after durable run journaling, per-action idempotency, lease recovery and authenticated acceptance are complete.
+1. Complete CAD/drawing artifact workflow validation, stale-source behavior and paired desktop/Android renderer benchmark/selection.
+2. Advance G3 native geometry primitives only behind provider-neutral conformance and regression gates.
+3. Keep FEA visualization, durable app-level CFD execution and connected CAD-to-CAE workflows behind their capability-specific evidence gates.
+4. Expose bounded LLM orchestration only after durable run journaling, per-action idempotency, lease recovery and capability-specific safeguards are complete.
 
 All status claims above are scoped to the named commit, environment and test evidence. A merged schema or successful build does not imply production migration, user-facing integration or engineering validation.
 
@@ -151,7 +150,7 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 **Sequence**
 - G0: architecture and repository audit — **merged in PR #138**.
 - G1: bounded, versioned geometry operation API — **merged in PR #139**.
-- G2: immutable geometry revision identity and trusted persistence — PRs #163 and #165 merged; schema and persistence/read APIs are deployed, and additive migrations are applied to production. Authenticated production-session acceptance remains the G2 exit gate.
+- G2: immutable geometry revision identity and trusted persistence — PRs #163 and #165 merged; schema and persistence/read APIs are deployed, and additive migrations are applied to production. G3 native mathematical primitives are the next geometry milestone, subject to provider-neutral conformance and regression gates.
 - G3: native mathematical primitives, curves, surfaces and measurements.
 - G4: native topology and Boolean operations.
 - G5: advanced features such as fillets, chamfers and shelling.
@@ -196,7 +195,7 @@ Geometry-specific fields belong in geometry contracts. Solver-specific fields be
 
 ### Priority 0 — Protect the baseline
 - Preserve G1/G2 schema compatibility and verify all geometry-revision consumers.
-- Complete authenticated production-session acceptance for the merged PR #165 and #166 APIs. Production migrations have been applied; do not repeat them.
+- Continue capability-specific regression, artifact-lineage and audit-integrity testing as the geometry and manufacturing workflows evolve. Production migrations have been applied; do not repeat them.
 - Complete M2.2–M2.6 authenticated artifact/drawing workflows and renderer selection on paired desktop/Android devices.
 - Keep bounded LLM product-route exposure disabled until durable run journaling, per-action idempotency, lease recovery and authenticated acceptance are complete.
 
@@ -204,7 +203,7 @@ Geometry-specific fields belong in geometry contracts. Solver-specific fields be
 - WS-D: M2.2–M2.6 CAD, OCCT import/tessellation, drawing ingestion and renderer-neutral viewer foundation are merged; authenticated browser/storage acceptance and renderer selection remain.
 - WS-A: bounded LLM operational authority and typed model-plan validation are merged at the core layer; product-route exposure remains blocked on durable run journal/lease recovery.
 - WS-B: build123d/OCCT CAD and open FEA worker foundations are present; the OpenFOAM 14 Poiseuille worker is present on `main` but remains experimental and is not yet wired to the durable app execution boundary.
-- WS-C: deterministic readiness pilot and durable assessment/decision records are merged and deployed; authenticated transaction acceptance remains.
+- WS-C: deterministic readiness pilot and durable assessment/decision records are merged and deployed.
 - WS-E: G0/G1/G2 schema, contract and trusted persistence/read APIs are merged and deployed; native algorithm development remains gated on G2 acceptance.
 
 ### Priority 2 — Connected engineering workflows
@@ -278,8 +277,8 @@ This section preserves the 13 November snapshot. Its branch, migration and deplo
 | #144 | Bounded LLM operational authority | Merged; typed model-plan validation and backend policy enforcement exist at the core layer. Product-route exposure remains blocked on durable run journaling, action idempotency and lease recovery. |
 | #154 | Consolidated M2.2–M2.6 CAD, OCCT, GLB viewport and drawing workflows | Merged; code is on `main`. Authenticated artifact/drawing E2E and renderer selection remain open. |
 | #155 | Deterministic machined-part manufacturing readiness | Merged; readiness remains advisory and does not dispatch production. |
-| #165 | G2 trusted geometry revision persistence/read API | Open; E2E migration applied, atomic RPC and server-side digest/provenance checks implemented. Current exact-head CI is in progress; authenticated API acceptance is blocked by Vercel preview build-rate limit. |
-| #166 | Durable manufacturing assessments and independent human decisions | Open; exact-head Engineering Core CI, ESLint, CodeQL, Codacy and migration reconciliation passed. E2E security privileges verified; authenticated API acceptance is blocked by Vercel preview build-rate limit. |
+| #165 | G2 trusted geometry revision persistence/read API | Merged and deployed on 15 November 2026; see current execution snapshot. |
+| #166 | Durable manufacturing assessments and independent human decisions | Merged and deployed on 15 November 2026; see current execution snapshot. |
 | CFD worker | OpenFOAM 14 bounded laminar Poiseuille worker | Implementation is present on `main` at `058c633`; worker image, authenticated smoke and analytical acceptance passed in that commit's exact-head CI. The app provider remains experimental and not wired to the durable execution boundary. |
 
 ### Implementation boundaries
@@ -299,7 +298,7 @@ This section preserves the 13 November snapshot. Its branch, migration and deplo
 - PRs #163 and #164 were merged and the G2 production app deployment reached READY. PRs #165 and #166 remain open; no production schema migration, production worker activation, destructive operation or external service purchase was performed.
 
 ### Product maturity boundaries
-- Manufacturing DFM, process-plan validation, inspection acceptance, BOM generation and readiness assessment remain deterministic pilot/advisory capabilities. Durable assessment snapshots and independent human decision records are now merged and deployed; authenticated transaction acceptance remains open. Inputs are user-supplied/unverified. Economics and release evaluation remain experimental; CAM reports unavailable without a real toolpath runtime. Machine matching, quality nonconformance, ERP/MES and maintenance analytics remain research-only.
+- Manufacturing DFM, process-plan validation, inspection acceptance, BOM generation and readiness assessment remain deterministic pilot/advisory capabilities. Durable assessment snapshots and independent human decision records are now merged and deployed;  Inputs are user-supplied/unverified. Economics and release evaluation remain experimental; CAM reports unavailable without a real toolpath runtime. Machine matching, quality nonconformance, ERP/MES and maintenance analytics remain research-only.
 - The OpenFOAM worker supports one bounded laminar plane-Poiseuille benchmark only. Turbulence, multiphase flow, heat transfer, arbitrary dictionaries, general-purpose CFD and production certification are not supported.
 - Broad multi-CAD interoperability, scan-to-CAD, advanced robotics and electromechanical integration remain separate roadmap increments.
 - Current real-world economic outcomes remain **NOT MEASURED** until matched user trials are collected.
