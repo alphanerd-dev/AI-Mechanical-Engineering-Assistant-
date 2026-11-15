@@ -31,7 +31,8 @@ function hasManifestAndWarnings(value: Record<string, unknown>): boolean {
   return isValidMeshShape(value.mesh) && Array.isArray(value.artifacts) && Array.isArray(value.warnings);
 }
 function hasStringWarnings(value: Record<string, unknown>): boolean {
-  return (value.warnings as unknown[]).every(warning => typeof warning === "string");
+  if (!Array.isArray(value.warnings)) return false;
+  return value.warnings.every(warning => typeof warning === "string");
 }
 function isValidStaticResultShape(value: unknown): value is FEAStaticStructuralResult {
   if (!isRecord(value)) return false;
