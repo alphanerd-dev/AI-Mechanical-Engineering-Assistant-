@@ -165,23 +165,28 @@ def collect_case_results(
     }
 
 
-def run_case_in_temporary_directory(
-    request: dict[str, Any],
-    job_id: str,
-    artifact_dir: Path,
-    timeout: int,
-    started: float,
-) -> dict[str, Any]:
+@dataclass(frozen=True)
+class CaseExecutionContext:
+    request: dict[str, Any]
+    job_id: str
+    artifact_dir: Path
+    timeout_seconds: int
+    started_at: float
+
+
+def run_case_in_temporary_directory(context: CaseExecutionContext) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="openfoam14-", dir="/tmp") as temporary:
         case_dir = Path(temporary) / "case"
         case_dir.mkdir()
-        y_samples = write_case(case_dir, request)
-        logs, actual_mesh_cells = run_case_tools(case_dir, request, started, timeout)
-        case_results = collect_case_results(case_dir, request, y_samples, logs[-1])
-        artifacts = persist_case_artifacts(artifact_dir, case_dir, case_results, logs)
+        y_samples = write_case(case_dir, context.request)
+        logs, actual_mesh_cells = run_case_tools(
+            case_dir, context.request, context.started_at, context.timeout_seconds
+        )
+        case_results = collect_case_results(case_dir, context.request, y_samples, logs[-1])
+        artifacts = persist_case_artifacts(context.artifact_dir, case_dir, case_results, logs)
         converged = case_results["converged"]
         return {
-            "jobId": job_id,
+            "jobId": context.job_id,
             "status": "COMPLETED",
             "solver": "OpenFOAM",
             "solverVersion": FOAM_VERSION,
@@ -195,17 +200,11 @@ def run_case_in_temporary_directory(
         }
 
 
-def run_case_with_artifact_cleanup(
-    request: dict[str, Any],
-    job_id: str,
-    artifact_dir: Path,
-    timeout: int,
-    started: float,
-) -> dict[str, Any]:
+def run_case_with_artifact_cleanup(context: CaseExecutionContext) -> dict[str, Any]:
     try:
-        return run_case_in_temporary_directory(request, job_id, artifact_dir, timeout, started)
+        return run_case_in_temporary_directory(context)
     except Exception:
-        shutil.rmtree(artifact_dir, ignore_errors=True)
+        shutil.rmtree(context.artifact_dir, ignore_errors=True)
         raise
 
 
@@ -219,10 +218,15 @@ def execute_case(request: dict[str, Any], job_id: str | None = None, prune: bool
     artifact_dir.mkdir(parents=True, exist_ok=False)
     timeout = int(request["solver"]["timeoutSeconds"])
     started = time.monotonic()
+    context = CaseExecutionContext(
+        request=request,
+        job_id=resolved_job_id,
+        artifact_dir=artifact_dir,
+        timeout_seconds=timeout,
+        started_at=started,
+    )
     try:
-        return run_case_with_artifact_cleanup(
-            request, resolved_job_id, artifact_dir, timeout, started
-        )
+        return run_case_with_artifact_cleanup(context)
     except subprocess.TimeoutExpired as error:
         raise WorkerTimeout("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
 
