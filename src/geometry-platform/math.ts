@@ -36,7 +36,7 @@ function positiveFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) throw new Error(name + " must be finite and positive.");
 }
 function finiteResultVector(value: Vector3, name: string): Vector3 {
-  finiteVector(value, name + " must remain finite.");
+  if (!value.every(Number.isFinite)) throw new Error(name + " exceeds the finite numeric range.");
   return value;
 }
 function finiteResult(value: number, name: string): number {
