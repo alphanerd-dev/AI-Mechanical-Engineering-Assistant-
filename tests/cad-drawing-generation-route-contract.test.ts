@@ -6,6 +6,7 @@ const route = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate
 const request = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/request.ts"), "utf8");
 const source = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source.ts"), "utf8");
 const shaftDimensions = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/shaft-dimensions.ts"), "utf8");
+const shaftDimensionChecks = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/shaft-dimension-checks.ts"), "utf8");
 const sourceValidation = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source-validation.ts"), "utf8");
 const sourceRevision = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source-revision.ts"), "utf8");
 const persistence = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/persistence.ts"), "utf8");
@@ -33,11 +34,12 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
     expect(source).toContain("loadCompletion");
     expect(source).toContain("resolveCanonicalSolid");
     expect(source).toContain("verifyStoredBrep");
-    expect(shaftDimensions).toContain('specification.kind !== "CYLINDER"');
-    expect(shaftDimensions).toContain('specification.name !== "shaft"');
-    expect(shaftDimensions).toContain("geometryMeasurements");
-    expect(shaftDimensions).toContain("boundingBoxMm");
-    expect(shaftDimensions).toContain("dimensionChecks");
+    expect(shaftDimensions).toContain("extractCylinderDimensions");
+    expect(sourceValidation).toContain('specification.kind !== "CYLINDER"');
+    expect(sourceValidation).toContain('specification.name !== "shaft"');
+    expect(sourceValidation).toContain("geometryMeasurements");
+    expect(sourceValidation).toContain("boundingBoxMm");
+    expect(shaftDimensionChecks).toContain("dimensionChecks");
     expect(sourceValidation).toContain("validateRevisionArtifactBinding");
   });
 
