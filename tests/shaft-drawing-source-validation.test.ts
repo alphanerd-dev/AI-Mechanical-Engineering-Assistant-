@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CanonicalSolid, Completion, Row } from "../src/cad/geometry-revision-persistence-types.js";
-import { DrawingGenerationError } from "../app/api/cad/drawings/generate/request.js";
+import { DrawingGenerationError } from "../app/api/cad/drawings/generate/errors.js";
 import { extractCylinderDimensions } from "../app/api/cad/drawings/generate/shaft-dimensions.js";
 import { validateRevisionArtifactBinding } from "../app/api/cad/drawings/generate/source-validation.js";
 
