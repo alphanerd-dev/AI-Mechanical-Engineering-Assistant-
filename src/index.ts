@@ -213,3 +213,6 @@ console.log(JSON.stringify(result,null,2));
 // Opt-in reference CAD provider and isolated worker transport.
 export * from "./execution/docker-build123d-transport.js";
 export * from "./providers/build123d-cad.js";
+
+export * from "./drawings/ingestion.js";
+export * from "./drawings/shaft-orthographic.js";
