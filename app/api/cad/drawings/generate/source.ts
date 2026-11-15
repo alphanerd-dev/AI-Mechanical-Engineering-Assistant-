@@ -70,6 +70,13 @@ function extractCylinderDimensions(input: {
   })) {
     fail({ message: "Accepted geometry receipt identity or validation status is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   }
+  const specification = input.completion.specification;
+  if (!isRecord(specification) || specification.kind !== "CYLINDER" || specification.name !== "shaft") {
+    fail({ message: "Drawing generator currently supports accepted cylindrical shaft specifications only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });
+  }
+  if (!finitePositive(specification.diameterMm) || !finitePositive(specification.lengthMm)) {
+    fail({ message: "Accepted shaft specification dimensions are invalid.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
+  }
   const receiptRecord = receipt as Row;
   const measurements = receiptRecord.geometryMeasurements;
   const bounds = isRecord(measurements) ? measurements.boundingBoxMm : undefined;
@@ -77,10 +84,17 @@ function extractCylinderDimensions(input: {
   if (!finitePositive(bounds.x)) fail({ message: "Accepted shaft X extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   if (!finitePositive(bounds.y)) fail({ message: "Accepted shaft Y extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   if (!finitePositive(bounds.z)) fail({ message: "Accepted shaft Z extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  const measuredDiameter = (bounds.x + bounds.y) / 2;
   if (Math.abs(bounds.x - bounds.y) > 0.02) {
     fail({ message: "Source geometry is not a world-Z cylindrical shaft within 0.02 mm cross-section tolerance.", status: 422, code: "UNSUPPORTED_SHAFT_GEOMETRY" });
   }
-  return { diameterMm: (bounds.x + bounds.y) / 2, lengthMm: bounds.z };
+  if (Math.abs(measuredDiameter - specification.diameterMm) > 0.02) {
+    fail({ message: "Measured shaft diameter does not match the accepted CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
+  }
+  if (Math.abs(bounds.z - specification.lengthMm) > 0.02) {
+    fail({ message: "Measured shaft length does not match the accepted CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
+  }
+  return { diameterMm: measuredDiameter, lengthMm: bounds.z };
 }
 export async function loadAcceptedShaftSource(
   serviceDb: ServiceDb, revision: Row, projectId: string, modelIdentityId: string
