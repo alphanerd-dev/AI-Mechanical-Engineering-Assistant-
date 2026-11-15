@@ -296,11 +296,14 @@ begin
        and approval.project_id = p_project_id
        and approval.resource_type = 'AGENT_RUN'
        and approval.resource_id = p_run_id::text
+       and approval.run_id = p_run_id::text
        and approval.action = 'APPROVAL_GRANT'
        and approval.outcome = 'SUCCESS'
        and approval.actor_type = 'USER'
        and approval.actor_subject = p_approved_by::text
        and approval.metadata->>'decision' = 'APPROVED'
+       and approval.metadata->>'planHash' = v_run.plan_hash
+       and approval.metadata->>'actionIndex' = (v_run.next_action_index - 1)::text
   ) then
     raise exception 'APPROVAL_EVIDENCE_REQUIRED: a durable user approval audit event is required.';
   end if;
