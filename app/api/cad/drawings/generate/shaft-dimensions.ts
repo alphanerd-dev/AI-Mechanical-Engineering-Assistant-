@@ -40,6 +40,11 @@ function isValidDimensionCheck(value: unknown): value is Row {
   if (!finitePositive(value.expectedMm)) return false;
   return finitePositive(value.toleranceMm);
 }
+function requireCompleteAxisChecks(checks: Map<string, Row>): void {
+  if (!checks.has("x")) fail({ message: "Accepted geometry receipt must validate the X dimension.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  if (!checks.has("y")) fail({ message: "Accepted geometry receipt must validate the Y dimension.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  if (!checks.has("z")) fail({ message: "Accepted geometry receipt must validate the Z dimension.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+}
 function collectDimensionChecks(measurements: Row): Map<string, Row> {
   const values = measurements.dimensionChecks;
   if (!Array.isArray(values)) fail({ message: "Accepted geometry receipt has no axis dimension checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
@@ -51,9 +56,7 @@ function collectDimensionChecks(measurements: Row): Map<string, Row> {
     if (checks.has(axis)) fail({ message: "Accepted geometry receipt contains duplicate axis checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
     checks.set(axis, value);
   }
-  if (!checks.has("x")) fail({ message: "Accepted geometry receipt must validate the X dimension.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  if (!checks.has("y")) fail({ message: "Accepted geometry receipt must validate the Y dimension.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  if (!checks.has("z")) fail({ message: "Accepted geometry receipt must validate the Z dimension.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  requireCompleteAxisChecks(checks);
   return checks;
 }
 function validateAxisDimension(input: { axis: string; check: Row; measuredMm: number; expectedMm: number }): void {
