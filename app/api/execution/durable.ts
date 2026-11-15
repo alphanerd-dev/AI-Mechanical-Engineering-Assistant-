@@ -180,7 +180,7 @@ function timeoutForBackend(input: {
   if (input.backend !== "cfd-worker") return asExecutionTimeoutMs(2_000);
   const solver = isRecord(input.inputs.solver) ? input.inputs.solver : {};
   const seconds = typeof solver.timeoutSeconds === "number" ? solver.timeoutSeconds : 600;
-  return asExecutionTimeoutMs((seconds + 130) * 1000);
+  return asExecutionTimeoutMs((seconds + 120) * 1000);
 }
 function requestedOutputsForBackend(input: {
   backend: ExecutionBackend;
