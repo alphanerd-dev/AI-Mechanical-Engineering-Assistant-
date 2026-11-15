@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildValidatedAgentRunRow, toValidatedAgentRunRecord
 } from "../src/orchestration/agent-run-journal-validation.js";
+import { canonicalAgentRunDigest } from "../src/orchestration/agent-run-journal-codec.js";
 
 const validRun = {
   id: "8e3d4d91-ef70-4c5d-94f7-6b83c92d83d1",
@@ -54,4 +55,21 @@ describe("agent-run journal codec", () => {
     expect(() => buildValidatedAgentRunRow({ ...input, runId: "not-a-uuid" })).toThrow(/UUID/);
     expect(() => buildValidatedAgentRunRow({ ...input, plan: { ...input.plan, actions: Array(26).fill({ kind: "STOP" }) } })).toThrow(/1 to 25/);
   });
+
+  it("rejects malformed optional persisted fields without coercion", () => {
+    expect(() => toValidatedAgentRunRecord({ ...validRun, current_action: "invalid" })).toThrow(/in-flight action/);
+    expect(() => toValidatedAgentRunRecord({ ...validRun, cancel_requested_at: 42 })).toThrow(/cancellation timestamp/);
+    expect(() => toValidatedAgentRunRecord({ ...validRun, error: [] })).toThrow(/run error/);
+    expect(toValidatedAgentRunRecord({ ...validRun, current_action: null, cancel_requested_at: null, error: null }).status).toBe("PLANNED");
+  });
+
+  it("keeps canonical run digests stable and rejects non-JSON values", () => {
+    expect(canonicalAgentRunDigest({ b: 2, a: { y: 1, x: 0 } }))
+      .toBe(canonicalAgentRunDigest({ a: { x: 0, y: 1 }, b: 2 }));
+    expect(() => canonicalAgentRunDigest({ value: Number.NaN })).toThrow(/finite JSON/);
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(() => canonicalAgentRunDigest(circular)).toThrow(/circular/);
+  });
+
 });
