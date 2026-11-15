@@ -82,13 +82,14 @@ describe("agent-run journal codec", () => {
   it("enforces contiguous action history and validates the in-flight action identity", () => {
     expect(() => toValidatedAgentRunRecord({ ...validRun, next_action_index: 1 }))
       .toThrow(/history does not match/);
-    const actionHash = "c".repeat(64);
+    const action = { kind: "EXECUTE_TASK" };
+    const actionHash = canonicalAgentRunDigest(action);
     const actionKey = "agent:" + validRun.id + ":0:" + actionHash.slice(0, 32);
     const history = {
       actionIndex: 0,
       actionKey,
       actionHash,
-      action: { kind: "EXECUTE_TASK" },
+      action,
       outcome: { success: true },
       graphRevision: 4,
       completedAt: "2026-11-15T12:01:00.000Z"
@@ -100,13 +101,18 @@ describe("agent-run journal codec", () => {
       actionIndex: 0,
       actionKey,
       actionHash,
-      action: { kind: "EXECUTE_TASK" },
+      action,
       startedAt: "2026-11-15T12:00:30.000Z"
     };
     expect(toValidatedAgentRunRecord({ ...validRun, current_action: inFlight }).currentAction).toEqual(inFlight);
     expect(() => toValidatedAgentRunRecord({
       ...validRun, current_action: { ...inFlight, actionIndex: 1 }
     })).toThrow(/sequence/);
+    expect(() => toValidatedAgentRunRecord({
+      ...validRun,
+      action_history: [{ ...history, action: { kind: "ALTERED" } }],
+      next_action_index: 1
+    })).toThrow(/digest does not match/);
   });
 
 });
