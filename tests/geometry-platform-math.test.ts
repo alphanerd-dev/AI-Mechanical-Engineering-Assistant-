@@ -69,7 +69,7 @@ describe("Geometry Platform G3 mathematical foundation",()=>{
     expect(normalized[0]).toBeCloseTo(Math.SQRT1_2,12);
     expect(normalized[1]).toBeCloseTo(Math.SQRT1_2,12);
     expect(normalized[2]).toBe(0);
-    expect(()=>vectorMagnitude([1e308,1e308,0])).toThrow(/finite numeric range/);
+    expect(()=>vectorMagnitude([1.7e308,1.7e308,0])).toThrow(/finite numeric range/);
     expect(()=>scaleVector([1e308,0,0],2)).toThrow(/finite numeric range/);
     expect(()=>dotProduct([1e308,0,0],[1e308,0,0])).toThrow(/finite numeric range/);
     expect(()=>crossProduct([1e308,0,0],[0,1e308,0])).toThrow(/finite numeric range/);
