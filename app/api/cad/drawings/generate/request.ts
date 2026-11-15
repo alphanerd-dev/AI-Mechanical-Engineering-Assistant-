@@ -32,8 +32,30 @@ async function readJsonBody(request: Request): Promise<unknown> {
   if (Number.isFinite(declaredLength) && declaredLength > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
     fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
   }
-  const bytes = new Uint8Array(await request.arrayBuffer());
-  if (bytes.byteLength > MAX_DRAWING_GENERATION_REQUEST_BYTES) fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
+  if (!request.body) fail({ message: "Drawing generation request body is required.", status: 400, code: "INVALID_JSON" });
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      totalBytes += part.value.byteLength;
+      if (totalBytes > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
+        await reader.cancel();
+        fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
   catch { fail({ message: "Drawing generation request must be valid UTF-8 JSON.", status: 400, code: "INVALID_JSON" }); }
 }
