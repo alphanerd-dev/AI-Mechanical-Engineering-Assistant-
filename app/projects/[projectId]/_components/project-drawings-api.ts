@@ -23,12 +23,22 @@ async function readDrawingUploadId(response: Response): Promise<string> {
   throw new Error(drawingUploadError(body));
 }
 
-async function readGeneratedDrawingId(response: Response): Promise<string> {
-  const body: unknown = await response.json().catch(() => ({}));
+function generatedDrawingId(body: unknown): string | null {
   const record = asObjectRecord(body);
   const drawing = asObjectRecord(record?.drawing);
-  if (response.ok && typeof drawing?.id === "string") return drawing.id;
-  throw new Error(typeof record?.error === "string" ? record.error : "Preliminary shaft drawing generation failed.");
+  return typeof drawing?.id === "string" ? drawing.id : null;
+}
+
+function generatedDrawingError(body: unknown): string {
+  const error = asObjectRecord(body)?.error;
+  return typeof error === "string" ? error : "Preliminary shaft drawing generation failed.";
+}
+
+async function readGeneratedDrawingId(response: Response): Promise<string> {
+  const body: unknown = await response.json().catch(() => ({}));
+  const id = generatedDrawingId(body);
+  if (response.ok && id) return id;
+  throw new Error(generatedDrawingError(body));
 }
 
 export async function submitDrawingUpload(
