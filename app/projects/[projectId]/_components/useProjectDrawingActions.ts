@@ -5,6 +5,7 @@ export function useProjectDrawingActions(input: {
   projectId: string;
   modelIdentityId: string;
   file: File | null;
+  setFile: (file: File | null) => void;
   refresh: () => Promise<void>;
   setSelectedId: (drawingId: string) => void;
 }) {
@@ -39,6 +40,7 @@ export function useProjectDrawingActions(input: {
     setNotice(null);
     try {
       const drawingId = await submitDrawingUpload(input.projectId, input.modelIdentityId, input.file);
+      input.setFile(null);
       setNotice("Drawing uploaded to private project storage. Preview is read-only and does not validate dimensions.");
       await input.refresh();
       input.setSelectedId(drawingId);
