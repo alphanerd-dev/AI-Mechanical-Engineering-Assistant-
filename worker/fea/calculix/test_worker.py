@@ -2,7 +2,7 @@ import pathlib
 import tempfile
 import unittest
 
-from worker import confined_path, parse_dat, sha256_file, cantilever_box_reference
+from worker import confined_path, parse_dat, sha256_file, cantilever_box_reference, validate_benchmark_input
 
 class WorkerTests(unittest.TestCase):
     def test_confined_path_rejects_escape(self):
@@ -46,6 +46,44 @@ class WorkerTests(unittest.TestCase):
         self.assertFalse(reference["displacementPassed"])
         self.assertFalse(reference["reactionPassed"])
         self.assertFalse(reference["passed"])
+
+    def test_benchmark_request_validation_bounds_dimensions_and_mesh(self):
+        request = {
+            "analysis": "STATIC_STRUCTURAL",
+            "benchmark": "cantilever_box",
+            "dimensionsMm": {"length": 100.0, "width": 20.0, "height": 20.0},
+            "material": {"youngsModulusMpa": 210000.0, "poissonRatio": 0.3},
+            "totalForceN": 1000.0,
+            "elementSizeMm": 10.0,
+            "timeoutMs": 30000,
+        }
+        validated = validate_benchmark_input(request)
+        self.assertEqual(validated["timeoutMs"], 30000)
+        invalid = dict(request)
+        invalid["elementSizeMm"] = 0.1
+        with self.assertRaisesRegex(ValueError, "Element size"):
+            validate_benchmark_input(invalid)
+        invalid = dict(request)
+        invalid["totalForceN"] = True
+        with self.assertRaisesRegex(ValueError, "Total force"):
+            validate_benchmark_input(invalid)
+        invalid = dict(request)
+        invalid["dimensionsMm"] = {"length": 100.0, "width": 30.0, "height": 30.0}
+        with self.assertRaisesRegex(ValueError, "five times"):
+            validate_benchmark_input(invalid)
+
+    def test_benchmark_request_validation_limits_mesh_size(self):
+        request = {
+            "analysis": "STATIC_STRUCTURAL",
+            "benchmark": "cantilever_box",
+            "dimensionsMm": {"length": 2000.0, "width": 500.0, "height": 500.0},
+            "material": {"youngsModulusMpa": 210000.0, "poissonRatio": 0.3},
+            "totalForceN": 1000.0,
+            "elementSizeMm": 1.0,
+            "timeoutMs": 30000,
+        }
+        with self.assertRaisesRegex(ValueError, "200000-element"):
+            validate_benchmark_input(request)
 
     def test_parse_dat_extracts_normalized_values(self):
         sample="""displacements (vx,vy,vz) for set NALL and time 1.0
