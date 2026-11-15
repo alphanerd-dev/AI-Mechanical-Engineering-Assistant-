@@ -344,31 +344,52 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
     except Exception as exc:
         fail_job(job_id, exc)
 
+def restored_artifact_directory(metadata: Path, root: Path) -> Path | None:
+    if metadata.is_symlink() or metadata.parent.is_symlink():
+        return None
+    directory = metadata.parent.resolve()
+    if metadata.resolve().parent != directory:
+        return None
+    if directory.parent != root:
+        return None
+    if not re.fullmatch(r"[a-f0-9]{32}", directory.name):
+        return None
+    return directory
+
+
+def load_restored_job(metadata: Path) -> dict[str, Any] | None:
+    job = json.loads(metadata.read_text(encoding="utf-8"))
+    if not isinstance(job, dict) or not isinstance(job.get("jobId"), str):
+        return None
+    if not is_safe_artifact_job_id(job["jobId"]):
+        return None
+    return job
+
+
+def reconcile_restored_job(job: dict[str, Any]) -> None:
+    if job.get("status") not in {"QUEUED", "RUNNING"}:
+        return
+    job.update(
+        status="FAILED",
+        error="Worker restarted while this job was active; automatic replay is disabled.",
+        errorCode="RECONCILIATION_REQUIRED",
+        updatedAt=utc_now(),
+    )
+
+
 def restore_jobs() -> None:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     root = ARTIFACT_ROOT.resolve()
     for metadata in ARTIFACT_ROOT.glob("*/job.json"):
         try:
-            if metadata.is_symlink() or metadata.parent.is_symlink():
+            directory = restored_artifact_directory(metadata, root)
+            if directory is None:
                 continue
-            directory = metadata.parent.resolve()
-            if metadata.resolve().parent != directory:
-                continue
-            if directory.parent != root or not re.fullmatch(r"[a-f0-9]{32}", directory.name):
-                continue
-            job = json.loads(metadata.read_text(encoding="utf-8"))
-            if not isinstance(job, dict) or not isinstance(job.get("jobId"), str):
-                continue
-            if not is_safe_artifact_job_id(job["jobId"]):
+            job = load_restored_job(metadata)
+            if job is None:
                 continue
             job["artifactDirectory"] = directory
-            if job.get("status") in {"QUEUED", "RUNNING"}:
-                job.update(
-                    status="FAILED",
-                    error="Worker restarted while this job was active; automatic replay is disabled.",
-                    errorCode="RECONCILIATION_REQUIRED",
-                    updatedAt=utc_now(),
-                )
+            reconcile_restored_job(job)
             JOBS[job["jobId"]] = job
             persist_job(job)
         except (OSError, json.JSONDecodeError, RuntimeError):
