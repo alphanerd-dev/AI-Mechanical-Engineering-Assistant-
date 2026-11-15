@@ -63,10 +63,39 @@ def has_only_finite_numbers(value: Any) -> bool:
     return True
 
 
+def job_state_directory(job: dict[str, Any]) -> Path:
+    directory = job.get("stateDirectory")
+    if not isinstance(directory, Path):
+        raise RuntimeError("Job state directory is unavailable.")
+    root = JOB_STATE_ROOT.resolve()
+    resolved = directory.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError("Job state directory escaped the configured root.") from exc
+    return resolved
+
+
+def job_artifact_directory(job: dict[str, Any]) -> Path:
+    directory = job.get("artifactDirectory")
+    if not isinstance(directory, Path):
+        raise RuntimeError("Job artifact directory is unavailable.")
+    root = ARTIFACT_ROOT.resolve()
+    resolved = directory.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError("Job artifact directory escaped the configured root.") from exc
+    return resolved
+
+
 def persist_job(job: dict[str, Any]) -> None:
-    directory = JOB_STATE_ROOT / job["jobId"]
+    directory = job_state_directory(job)
     directory.mkdir(parents=True, exist_ok=True)
-    public = {key: value for key, value in job.items() if key != "process"}
+    public = {
+        key: value for key, value in job.items()
+        if key not in {"process", "stateDirectory", "artifactDirectory"}
+    }
     temporary = directory / "job.json.tmp"
     temporary.write_text(json.dumps(public, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     temporary.replace(directory / "job.json")
@@ -91,6 +120,14 @@ def require_job_id(request: dict[str, Any]) -> str:
     except ValueError as exc:
         raise ValueError("Execution request id must be a UUID.") from exc
     return job_id
+
+
+def is_valid_job_uuid(job_id: str) -> bool:
+    try:
+        uuid.UUID(job_id)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 def validate_worker_route(request: dict[str, Any]) -> None:
@@ -228,10 +265,10 @@ def mark_job_running(job_id: str) -> bool:
         return True
 
 
-def create_openfoam_worker_environment(job_id: str) -> dict[str, str]:
+def create_openfoam_worker_environment(artifact_directory: Path) -> dict[str, str]:
     environment = os.environ.copy()
-    environment["OPENFOAM_ARTIFACT_DIR"] = str(ARTIFACT_ROOT)
-    environment["OPENFOAM_JOB_ID"] = uuid.UUID(job_id).hex
+    environment["OPENFOAM_ARTIFACT_DIR"] = str(artifact_directory.parent)
+    environment["OPENFOAM_JOB_ID"] = artifact_directory.name
     return environment
 
 
@@ -319,9 +356,14 @@ def fail_job(job_id: str, error: Exception) -> None:
 def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
     if not mark_job_running(job_id):
         return
+    with LOCK:
+        job = JOBS.get(job_id)
+        artifact_directory = job_artifact_directory(job) if job else None
+    if artifact_directory is None:
+        return
     process: subprocess.Popen[str] | None = None
     try:
-        environment = create_openfoam_worker_environment(job_id)
+        environment = create_openfoam_worker_environment(artifact_directory)
         process = start_openfoam_worker_process(environment)
         if not register_worker_process(job_id, process):
             return
@@ -334,11 +376,24 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
 def restore_jobs() -> None:
     JOB_STATE_ROOT.mkdir(parents=True, exist_ok=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    state_root = JOB_STATE_ROOT.resolve()
+    artifact_root = ARTIFACT_ROOT.resolve()
     for metadata in JOB_STATE_ROOT.glob("*/job.json"):
         try:
+            state_directory = metadata.parent.resolve()
+            storage_id = state_directory.name
+            if state_directory.parent != state_root or not re.fullmatch(r"[a-f0-9]{32}", storage_id):
+                continue
+            artifact_directory = ARTIFACT_ROOT / storage_id
+            if artifact_directory.resolve().parent != artifact_root:
+                continue
             job = json.loads(metadata.read_text(encoding="utf-8"))
             if not isinstance(job, dict) or not isinstance(job.get("jobId"), str):
                 continue
+            if not is_valid_job_uuid(job["jobId"]):
+                continue
+            job["stateDirectory"] = state_directory
+            job["artifactDirectory"] = artifact_directory
             if job.get("status") in {"QUEUED", "RUNNING"}:
                 job.update(
                     status="FAILED",
@@ -346,16 +401,15 @@ def restore_jobs() -> None:
                     errorCode="RECONCILIATION_REQUIRED",
                     updatedAt=utc_now(),
                 )
-                metadata.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
             JOBS[job["jobId"]] = job
-        except (OSError, json.JSONDecodeError):
+            persist_job(job)
+        except (OSError, json.JSONDecodeError, RuntimeError):
             continue
 
 
 def submit_job(request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     job_id, timeout_ms = validate_request(request)
     request_hash = canonical_hash(request)
-    artifact_dir = ARTIFACT_ROOT / uuid.UUID(job_id).hex
     with LOCK:
         existing = JOBS.get(job_id)
         if existing:
@@ -364,10 +418,15 @@ def submit_job(request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
             if existing.get("errorCode") == "RECONCILIATION_REQUIRED":
                 return 409, {"accepted": False, "jobId": job_id, "status": "REJECTED", "error": existing.get("error")}
             return 202, {"accepted": True, "jobId": job_id, "status": existing["status"]}
-        if artifact_dir.exists():
-            return 409, {"accepted": False, "jobId": job_id, "status": "REJECTED", "error": "Artifact directory exists without a matching job record; manual reconciliation is required."}
+        storage_id = uuid.uuid4().hex
+        artifact_directory = ARTIFACT_ROOT / storage_id
+        state_directory = JOB_STATE_ROOT / storage_id
+        if artifact_directory.exists() or state_directory.exists():
+            return 409, {"accepted": False, "jobId": job_id, "status": "REJECTED", "error": "Generated worker storage identifier already exists; manual reconciliation is required."}
         job = {
             "jobId": job_id,
+            "artifactDirectory": artifact_directory,
+            "stateDirectory": state_directory,
             "status": "QUEUED",
             "requestHash": request_hash,
             "cancelRequested": False,
@@ -407,8 +466,10 @@ def normalize_artifact_path(relative_path: str) -> str | None:
     return None
 
 
-def confined_job_artifact(job_id: str, filename: str) -> Path | None:
-    root = (ARTIFACT_ROOT / job_id).resolve()
+def confined_job_artifact(artifact_directory: Path, filename: str) -> Path | None:
+    root = artifact_directory.resolve()
+    if root.parent != ARTIFACT_ROOT.resolve():
+        return None
     candidate = (root / filename).resolve()
     try:
         candidate.relative_to(root)
@@ -417,27 +478,18 @@ def confined_job_artifact(job_id: str, filename: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-def is_safe_artifact_relative_path(relative_path: str) -> bool:
-    if not relative_path:
-        return False
-    if relative_path.startswith("/"):
-        return False
-    if "\\" in relative_path:
-        return False
-    return True
-
-
 def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
-    try:
-        job_hex = uuid.UUID(job_id).hex
-    except ValueError:
-        return None
-    if not is_safe_artifact_relative_path(relative_path):
+    if not is_valid_job_uuid(job_id):
         return None
     filename = normalize_artifact_path(relative_path)
     if filename is None:
         return None
-    return confined_job_artifact(job_hex, filename)
+    with LOCK:
+        job = JOBS.get(job_id)
+        directory = job.get("artifactDirectory") if job else None
+    if not isinstance(directory, Path):
+        return None
+    return confined_job_artifact(directory, filename)
 
 
 
