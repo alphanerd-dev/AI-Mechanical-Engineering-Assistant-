@@ -4,6 +4,16 @@ A provider-backed Engineering Workspace and Engineering Core, starting with Mech
 
 **Product rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
 
+## Release snapshot — 15 November 2026
+
+The current main application is deployed to Vercel production and the deployment is **READY** at commit 9bfb57e86e70db84a682d162bba9253e0185c920 (PR #166 merge). The production alias is [ai-mechanical-engineering-assistant.vercel.app](https://ai-mechanical-engineering-assistant.vercel.app).
+
+- PR [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) merged as da81141e7e0a6138d8abdf4c3f39075a6c3ff0d5: trusted immutable geometry revision persistence/read API, server-side canonical BREP digest verification, host-controlled provider provenance, idempotency/concurrency handling and atomic audit.
+- PR [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) merged as 9bfb57e86e70db84a682d162bba9253e0185c920: durable manufacturing readiness snapshots and independent append-only human decisions with four-eyes authorization and atomic audit.
+- The eight additive geometry/manufacturing migrations for these increments have been applied to the production Supabase project and verified in its migration history. RLS, service-role grants, immutable triggers and restricted write RPC privileges were checked after application.
+- **Acceptance still open:** authenticated production-session POST/GET acceptance for the new geometry and manufacturing APIs. The production routes are deployed; an unauthenticated production geometry request returned the expected HTTP 401. Preview validation checks confirmed malformed manufacturing requests return HTTP 400 and an empty assessment lookup returns HTTP 404. These are route/validation checks, not proof of authenticated end-to-end business flows.
+- The product remains bounded: no native proprietary B-rep kernel, general-purpose CAD/CAE certification, CAM toolpath execution, MES dispatch or machine control is claimed.
+
 ## Current repository state
 
 The repository currently contains:
@@ -14,8 +24,9 @@ The repository currently contains:
 - Server-side Gemini chat integration through the official AI SDK Google provider. The default chat model is `gemini-3.5-flash-lite`; the server-side model name can be overridden. The browser cannot choose the provider, model, tools or system instructions.
 - Existing structured reasoning and intent-interpretation paths, with their own request and validation contracts.
 - Deterministic engineering calculations and bounded capability routing, including shaft/pump calculation paths and constraint/units foundations.
-- A narrowly scoped cylindrical CAD path using deterministic build123d generation, an isolated remote worker and independent OpenCascade BREP validation.
+- A bounded CAD/geometry workspace: deterministic build123d authoring, isolated OCCT BREP/STEP import, topology inspection and tessellation, independent BREP validation, strict GLB validation and a read-only CAD viewport; PDF/SVG/ASCII-DXF drawing ingestion and preview are also implemented. Trusted G2 geometry revision persistence is now available through project-authorized APIs. These paths remain format- and workflow-bounded; they do not constitute general-purpose CAD or a native proprietary kernel.
 - Reference/pilot FEA execution using Gmsh and CalculiX, a separate Python numerical worker and a durable execution-worker foundation.
+- Deterministic manufacturing readiness assessment with durable immutable snapshots and separate human APPROVED/REJECTED decisions. Inputs are marked user-supplied/unverified; the decision is auditable but does not perform production release, CAM execution, MES dispatch or machine control.
 - An isolated Open3D point-cloud inspection/registration prototype. It is not connected to a public scan-upload workflow or production perception path.
 
 This is an engineering platform foundation, not a claim of universal engineering autonomy or certification.
