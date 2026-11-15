@@ -39,33 +39,63 @@ const MAX_DIMENSION_MM = 100_000;
 const SHA256 = /^[a-f0-9]{64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 
+function validateFiniteDimension(input: { value: number; name: string }): void {
+  if (!Number.isFinite(input.value)) throw new Error(input.name + " must be finite.");
+}
+function validatePositiveDimension(input: { value: number; name: string }): void {
+  if (input.value <= 0) throw new Error(input.name + " must be positive.");
+}
+function validateMaximumDimension(input: { value: number; name: string }): void {
+  if (input.value > MAX_DIMENSION_MM) throw new Error(input.name + " must not exceed 100000 mm.");
+}
 function validateDimensions(input: ShaftOrthographicDrawingInput): void {
-  if (!Number.isFinite(input.diameterMm)) throw new Error("diameterMm must be finite.");
-  if (!Number.isFinite(input.lengthMm)) throw new Error("lengthMm must be finite.");
-  if (input.diameterMm <= 0) throw new Error("diameterMm must be positive.");
-  if (input.lengthMm <= 0) throw new Error("lengthMm must be positive.");
-  if (input.diameterMm > MAX_DIMENSION_MM) throw new Error("diameterMm must not exceed 100000 mm.");
-  if (input.lengthMm > MAX_DIMENSION_MM) throw new Error("lengthMm must not exceed 100000 mm.");
+  validateFiniteDimension({ value: input.diameterMm, name: "diameterMm" });
+  validateFiniteDimension({ value: input.lengthMm, name: "lengthMm" });
+  validatePositiveDimension({ value: input.diameterMm, name: "diameterMm" });
+  validatePositiveDimension({ value: input.lengthMm, name: "lengthMm" });
+  validateMaximumDimension({ value: input.diameterMm, name: "diameterMm" });
+  validateMaximumDimension({ value: input.lengthMm, name: "lengthMm" });
+}
+function validateSourceRevisionId(value: string): void {
+  if (!UUID.test(value)) throw new Error("A valid source geometry revision ID is required.");
+}
+function validateSourceArtifact(input: { id: string; sha256: string }): void {
+  if (!input.id.trim() || input.id.length > 160) throw new Error("A valid source artifact ID is required.");
+  if (!SHA256.test(input.sha256)) throw new Error("A valid source artifact SHA-256 digest is required.");
+}
+function validateSourceRevisionNumber(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error("A positive source revision number is required.");
 }
 function validateSourceIdentity(input: ShaftOrthographicDrawingInput): void {
-  if (!UUID.test(input.sourceGeometryRevisionId)) throw new Error("A valid source geometry revision ID is required.");
-  if (!input.sourceArtifactId.trim() || input.sourceArtifactId.length > 160) throw new Error("A valid source artifact ID is required.");
-  if (!SHA256.test(input.sourceArtifactSha256)) throw new Error("A valid source artifact SHA-256 digest is required.");
-  if (!Number.isSafeInteger(input.sourceRevisionNumber) || input.sourceRevisionNumber < 1) throw new Error("A positive source revision number is required.");
+  validateSourceRevisionId(input.sourceGeometryRevisionId);
+  validateSourceArtifact({ id: input.sourceArtifactId, sha256: input.sourceArtifactSha256 });
+  validateSourceRevisionNumber(input.sourceRevisionNumber);
 }
 function escapeXmlLabel(input: { value: string }): string {
   return input.value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
+function validateRequiredLabel(input: { value: string; name: string }): string {
+  const value = input.value.trim();
+  if (!value) throw new Error(input.name + " is required.");
+  return value;
+}
+function validateLabelLength(input: { value: string; name: string; maximum: number }): void {
+  if (input.value.length > input.maximum) throw new Error(input.name + " is too long.");
+}
+function validateDrawingNumberCharacters(value: string): void {
+  if (/[\\x00-\\x1f\\x7f\\\\/]/.test(value)) throw new Error("drawingNumber contains unsafe characters.");
+}
+function validateTitleCharacters(value: string): void {
+  if (/[\\x00-\\x1f\\x7f]/.test(value)) throw new Error("title contains control characters.");
+}
 function validateLabels(input: ShaftOrthographicDrawingInput): DrawingLabels {
-  const drawingNumber = input.drawingNumber.trim();
-  const title = input.title.trim();
-  if (!drawingNumber) throw new Error("drawingNumber is required.");
-  if (drawingNumber.length > 80) throw new Error("drawingNumber is too long.");
-  if (/[\x00-\x1f\x7f\\/]/.test(drawingNumber)) throw new Error("drawingNumber contains unsafe characters.");
-  if (!title) throw new Error("title is required.");
-  if (title.length > 120) throw new Error("title is too long.");
-  if (/[\x00-\x1f\x7f]/.test(title)) throw new Error("title contains control characters.");
+  const drawingNumber = validateRequiredLabel({ value: input.drawingNumber, name: "drawingNumber" });
+  const title = validateRequiredLabel({ value: input.title, name: "title" });
+  validateLabelLength({ value: drawingNumber, name: "drawingNumber", maximum: 80 });
+  validateLabelLength({ value: title, name: "title", maximum: 120 });
+  validateDrawingNumberCharacters(drawingNumber);
+  validateTitleCharacters(title);
   return { drawingNumber: escapeXmlLabel({ value: drawingNumber }), title: escapeXmlLabel({ value: title }) };
 }
 
