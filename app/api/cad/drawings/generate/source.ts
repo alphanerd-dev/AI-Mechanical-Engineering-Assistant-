@@ -4,7 +4,7 @@ import {
 import type { CanonicalSolid, Completion, GeometryRevisionDatabase, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
 import { fail } from "./request";
 import { extractCylinderDimensions } from "./shaft-dimensions";
-import { isRecord, validateRevisionArtifactBinding } from "./source-validation";
+import { validateRevisionArtifactBinding } from "./source-validation";
 export { loadCurrentGeometryRevision } from "./source-revision";
 
 type ServiceDb = ReturnType<typeof import("../../../../../lib/supabase/service").createServiceRoleClient>;
