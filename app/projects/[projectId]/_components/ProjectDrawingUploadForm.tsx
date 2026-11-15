@@ -20,7 +20,7 @@ export default function ProjectDrawingUploadForm({
           </select>
         </label>
         <label className={styles.field}><span>Drawing file · max 4 MiB</span>
-          <input type="file" accept=".pdf,.svg,.dxf,application/pdf,image/svg+xml,application/dxf" onChange={(event) => state.setFile(event.target.files?.[0] ?? null)} />
+          <input key={state.file ? state.file.name : "empty"} type="file" accept=".pdf,.svg,.dxf,application/pdf,image/svg+xml,application/dxf" onChange={(event) => state.setFile(event.target.files?.[0] ?? null)} />
         </label>
       </div>
       <div className={styles.actions}>
