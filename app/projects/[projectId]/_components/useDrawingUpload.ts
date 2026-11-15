@@ -17,7 +17,9 @@ export function useDrawingUpload(input: {
   const upload = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const selectedFile = input.file;
-    if (!selectedFile || input.uploading || input.generating) return;
+    if (!selectedFile) return;
+    if (input.uploading) return;
+    if (input.generating) return;
     input.setUploading(true);
     input.setError(null);
     input.setNotice(null);
