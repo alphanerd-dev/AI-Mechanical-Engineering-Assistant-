@@ -64,7 +64,7 @@ async function uploadDrawing(input: PersistGeneratedDrawingInput, prepared: Prep
   );
   if (result.error) {
     await input.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([prepared.storagePath]);
-    fail("Generated drawing could not be stored in private project storage.", 503, "DRAWING_STORAGE_FAILED");
+    fail({ message: "Generated drawing could not be stored in private project storage.", status: 503, code: "DRAWING_STORAGE_FAILED" });
   }
 }
 function isRecord(value: unknown): value is Row {
@@ -79,12 +79,12 @@ async function findExistingDrawing(input: PersistGeneratedDrawingInput, drawing:
     .eq("generator_version", drawing.drawing.generatorVersion)
     .eq("sha256", drawing.drawing.sha256)
     .maybeSingle();
-  if (error) fail("Generated drawing commit acknowledgement is ambiguous. Reload drawing history before retrying.", 503, "DRAWING_COMMIT_AMBIGUOUS");
+  if (error) fail({ message: "Generated drawing commit acknowledgement is ambiguous. Reload drawing history before retrying.", status: 503, code: "DRAWING_COMMIT_AMBIGUOUS" });
   return isRecord(data) ? data : undefined;
 }
 async function removeUploadedDrawing(input: PersistGeneratedDrawingInput, storagePath: string): Promise<void> {
   const result = await input.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
-  if (result.error) fail("Temporary generated drawing cleanup is unconfirmed.", 503, "DRAWING_CLEANUP_AMBIGUOUS");
+  if (result.error) fail({ message: "Temporary generated drawing cleanup is unconfirmed.", status: 503, code: "DRAWING_CLEANUP_AMBIGUOUS" });
 }
 async function insertOrResolveDrawing(input: PersistGeneratedDrawingInput, prepared: PreparedDrawing): Promise<{ row: Row; replay: boolean }> {
   const inserted = await input.serviceDb.from("engineering_cad_drawings").insert(prepared.row);
@@ -92,7 +92,7 @@ async function insertOrResolveDrawing(input: PersistGeneratedDrawingInput, prepa
   const existing = await findExistingDrawing(input, prepared);
   await removeUploadedDrawing(input, prepared.storagePath);
   if (existing) return { row: existing, replay: true };
-  fail("Generated drawing metadata could not be committed; the uploaded object was removed.", 503, "DRAWING_METADATA_FAILED");
+  fail({ message: "Generated drawing metadata could not be committed; the uploaded object was removed.", status: 503, code: "DRAWING_METADATA_FAILED" });
 }
 async function persistDrawingAudit(input: PersistGeneratedDrawingInput, prepared: PreparedDrawing): Promise<void> {
   try {
@@ -123,19 +123,19 @@ async function reconcileDrawingAuditFailure(input: PersistGeneratedDrawingInput,
   const audit = await input.serviceDb.from("engineering_audit_events").select("event_id")
     .eq("resource_type", "CAD_DRAWING").eq("resource_id", prepared.id).maybeSingle();
   if (audit.data || audit.error) {
-    fail("Generated drawing was committed but audit acknowledgement is ambiguous. Reload drawing history before retrying.", 503, "DRAWING_AUDIT_AMBIGUOUS");
+    fail({ message: "Generated drawing was committed but audit acknowledgement is ambiguous. Reload drawing history before retrying.", status: 503, code: "DRAWING_AUDIT_AMBIGUOUS" });
   }
   const removed = await input.serviceDb.from("engineering_cad_drawings").delete()
     .eq("id", prepared.id).eq("project_id", input.projectId);
-  if (removed.error) fail("Drawing audit failed and metadata cleanup is unconfirmed.", 503, "DRAWING_CLEANUP_AMBIGUOUS");
+  if (removed.error) fail({ message: "Drawing audit failed and metadata cleanup is unconfirmed.", status: 503, code: "DRAWING_CLEANUP_AMBIGUOUS" });
   await removeUploadedDrawing(input, prepared.storagePath);
-  fail("Generated drawing audit persistence failed; the drawing was removed.", 503, "DRAWING_AUDIT_FAILED");
+  fail({ message: "Generated drawing audit persistence failed; the drawing was removed.", status: 503, code: "DRAWING_AUDIT_FAILED" });
 }
 async function createDrawingUrl(input: PersistGeneratedDrawingInput, row: Row): Promise<string> {
   const result = await input.sessionDb.storage.from(CAD_ARTIFACT_BUCKET)
     .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
   if (result.error || !result.data?.signedUrl) {
-    fail("Drawing was saved, but a short-lived read URL could not be created. Reload project drawing history.", 503, "DRAWING_URL_UNAVAILABLE");
+    fail({ message: "Drawing was saved, but a short-lived read URL could not be created. Reload project drawing history.", status: 503, code: "DRAWING_URL_UNAVAILABLE" });
   }
   return result.data.signedUrl;
 }
