@@ -34,11 +34,15 @@ function generatedDrawingError(body: unknown): string {
   return typeof error === "string" ? error : "Preliminary shaft drawing generation failed.";
 }
 
+function resolveGeneratedDrawingId(responseOk: boolean, body: unknown): string {
+  const id = generatedDrawingId(body);
+  if (responseOk && id) return id;
+  throw new Error(generatedDrawingError(body));
+}
+
 async function readGeneratedDrawingId(response: Response): Promise<string> {
   const body: unknown = await response.json().catch(() => ({}));
-  const id = generatedDrawingId(body);
-  if (response.ok && id) return id;
-  throw new Error(generatedDrawingError(body));
+  return resolveGeneratedDrawingId(response.ok, body);
 }
 
 export async function submitDrawingUpload(
