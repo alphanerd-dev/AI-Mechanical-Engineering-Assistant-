@@ -72,9 +72,12 @@ function isValidGeometryReceipt(input: GeometryReceiptContext): boolean {
   if (receipt.projectId !== input.projectId) return false;
   if (receipt.artifactId !== input.solid.id) return false;
   if (receipt.modelIdentityId !== input.modelIdentityId) return false;
+  if (typeof receipt.checkedBy !== "string" || !receipt.checkedBy.trim()) return false;
+  if (typeof receipt.validatorProviderId !== "string" || !receipt.validatorProviderId.trim()) return false;
+  if (typeof receipt.validatorVersion !== "string" || !receipt.validatorVersion.trim()) return false;
+  if (typeof receipt.checkedAt !== "string" || Number.isNaN(Date.parse(receipt.checkedAt))) return false;
   if (!isRecord(receipt.validation)) return false;
-  if (receipt.validation.valid !== true) return false;
-  return receipt.validation.checkedBy === receipt.checkedBy;
+  return receipt.validation.valid === true;
 }
 function extractAcceptedCylinderDimensions(input: {
   completion: Row; revision: Row; projectId: string; modelIdentityId: string; solid: Row;
