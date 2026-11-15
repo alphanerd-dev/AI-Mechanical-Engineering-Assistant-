@@ -161,18 +161,21 @@ function validateSolverInputs(backend: ExecutionBackend, inputs: Record<string, 
   const name = backend === "fea-worker" ? "CalculiX" : "OpenFOAM";
   return failure("Invalid " + name + " benchmark request: " + errors.join("; "), 422, "INVALID_SOLVER_REQUEST");
 }
+function asExecutionTimeoutMs(value: number): ExecutionTimeoutMs {
+  return value as ExecutionTimeoutMs;
+}
 function timeoutForBackend(backend: ExecutionBackend, inputs: Record<string, unknown>): ExecutionTimeoutMs {
-  if (backend === "python-worker") return 30_000;
-  if (backend === "fea-worker") return 150_000;
-  if (backend !== "cfd-worker") return 2_000;
+  if (backend === "python-worker") return asExecutionTimeoutMs(30_000);
+  if (backend === "fea-worker") return asExecutionTimeoutMs(150_000);
+  if (backend !== "cfd-worker") return asExecutionTimeoutMs(2_000);
   const solver = isRecord(inputs.solver) ? inputs.solver : {};
   const seconds = typeof solver.timeoutSeconds === "number" ? solver.timeoutSeconds : 600;
-  return ((seconds + 130) * 1000) as ExecutionTimeoutMs;
+  return asExecutionTimeoutMs((seconds + 130) * 1000);
 }
-function requestedOutputsForBackend(backend: ExecutionBackend, outputs: string[]): string[] {
-  const normalized: Partial<Record<ExecutionBackend, string[]>> = {
-    "fea-worker": ["DISPLACEMENT", "STRESS", "REACTION_FORCE"],
-    "cfd-worker": ["VELOCITY_PROFILE", "MASS_FLOW", "RESIDUALS", "ARTIFACTS"]
+function requestedOutputsForBackend(backend: ExecutionBackend, outputs: string[]): RequestedOutput[] {
+  const normalized: Partial<Record<ExecutionBackend, RequestedOutput[]>> = {
+    "fea-worker": ["DISPLACEMENT", "STRESS", "REACTION_FORCE"] as RequestedOutput[],
+    "cfd-worker": ["VELOCITY_PROFILE", "MASS_FLOW", "RESIDUALS", "ARTIFACTS"] as RequestedOutput[]
   };
   return normalized[backend] ?? outputs;
 }
