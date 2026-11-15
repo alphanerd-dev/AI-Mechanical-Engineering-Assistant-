@@ -119,6 +119,13 @@ function parseRunStatus(value: unknown): AgentRunJournalStatus | undefined {
   if (typeof value !== "string") return undefined;
   return RUN_STATUSES.includes(value as AgentRunJournalStatus) ? value as AgentRunJournalStatus : undefined;
 }
+function optionalRunFields(row: Record<string, unknown>): Partial<AgentRunRecord> {
+  const fields: Partial<AgentRunRecord> = {};
+  if (isRecord(row.current_action)) fields.currentAction = row.current_action;
+  if (asString(row.cancel_requested_at)) fields.cancelRequestedAt = asString(row.cancel_requested_at);
+  if (asString(row.error)) fields.error = asString(row.error);
+  return fields;
+}
 export function toAgentRunRecord(value: unknown): AgentRunRecord {
   if (!isRecord(value)) throw new Error("Persisted agent run is not an object.");
   if (!hasRunIdentity(value)) throw new Error("Persisted agent run identity is invalid.");
@@ -133,9 +140,7 @@ export function toAgentRunRecord(value: unknown): AgentRunRecord {
     checkpoint: value.checkpoint as Record<string, unknown>,
     actionHistory: (value.action_history as unknown[]).filter(isRecord),
     nextActionIndex: asNumber(value.next_action_index) ?? 0,
-    ...(isRecord(value.current_action) ? { currentAction: value.current_action } : {}),
-    ...(asString(value.cancel_requested_at) ? { cancelRequestedAt: asString(value.cancel_requested_at) } : {}),
-    ...(asString(value.error) ? { error: asString(value.error) } : {}),
+    ...optionalRunFields(value),
     createdAt: asString(value.created_at) ?? new Date(0).toISOString(),
     updatedAt: asString(value.updated_at) ?? new Date(0).toISOString()
   };
