@@ -41,7 +41,7 @@ async function legacySynchronousPost(request:Request,body:Record<string,unknown>
     id:randomUUID(),
     capability,
     backend,
-    inputs:objectBody(body.inputs)??{},
+    inputs:isRecord(body.inputs)?body.inputs:{},
     requestedOutputs:Array.isArray(body.requestedOutputs)?body.requestedOutputs as string[]:[],
     timeoutMs:backend==="python-worker"?30_000:2_000,
     projectId,
