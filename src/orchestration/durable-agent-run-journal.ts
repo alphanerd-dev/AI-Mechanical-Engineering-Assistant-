@@ -4,8 +4,11 @@ import type {
   BeginAgentActionState, CreateAgentRunInput
 } from "./agent-run-journal-types.js";
 import {
-  buildAgentRunRow, isRecord, isUniqueViolation, rpcBoolean, rpcText, toAgentRunRecord
+  isRecord, isUniqueViolation, rpcBoolean, rpcText
 } from "./agent-run-journal-codec.js";
+import {
+  buildValidatedAgentRunRow, toValidatedAgentRunRecord
+} from "./agent-run-journal-validation.js";
 
 export * from "./agent-run-journal-types.js";
 export { canonicalAgentRunDigest, createAgentActionIdentity } from "./agent-run-journal-codec.js";
@@ -28,7 +31,7 @@ export class AgentRunJournalError extends Error {
   }
 }
 function readRun(input: { value: unknown; operation: string }): AgentRunRecord {
-  try { return toAgentRunRecord(input.value); }
+  try { return toValidatedAgentRunRecord(input.value); }
   catch { throw new AgentRunJournalError(input.operation); }
 }
 function beginState(value: unknown): BeginAgentActionState {
@@ -58,7 +61,7 @@ export class SupabaseAgentRunJournal {
   }
 
   async createOrGet(input: CreateAgentRunInput): Promise<{ run: AgentRunRecord; created: boolean }> {
-    const row = buildAgentRunRow(input);
+    const row = buildValidatedAgentRunRow(input);
     const insertedRun = await this.insertRunRow(row);
     if (insertedRun) return { run: insertedRun, created: true };
     return this.resolveIdempotentReplay(input, String(row.request_hash));
