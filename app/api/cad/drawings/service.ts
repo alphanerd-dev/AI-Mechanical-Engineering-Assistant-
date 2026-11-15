@@ -292,24 +292,29 @@ async function fetchDrawingRows(db: Database, projectId: string, modelIdentityId
   return data ?? [];
 }
 
-async function fetchCurrentGeometryHeads(db: Database, projectId: string, modelIdentityIds: string[]): Promise<Map<string, string>> {
+function isGeometryHead(value: unknown): value is Row {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Row;
+  return typeof row.model_identity_id === "string" && typeof row.id === "string";
+}
+function addGeometryHead(heads: Map<string, string>, value: unknown): void {
+  if (!isGeometryHead(value)) return;
+  if (heads.has(value.model_identity_id as string)) return;
+  heads.set(value.model_identity_id as string, value.id as string);
+}
+function buildGeometryHeads(values: unknown[]): Map<string, string> {
   const heads = new Map<string, string>();
-  if (!modelIdentityIds.length) return heads;
+  for (const value of values) addGeometryHead(heads, value);
+  return heads;
+}
+async function fetchCurrentGeometryHeads(db: Database, projectId: string, modelIdentityIds: string[]): Promise<Map<string, string>> {
+  if (!modelIdentityIds.length) return new Map<string, string>();
   const { data, error } = await db.from("engineering_geometry_revisions").select("id,model_identity_id")
     .eq("project_id", projectId).in("model_identity_id", modelIdentityIds)
     .order("revision_number", { ascending: false }).limit(500);
   if (error || !Array.isArray(data)) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
-  for (const value of data) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    const candidate = value as Row;
-    if (typeof candidate.model_identity_id === "string" && typeof candidate.id === "string" &&
-        !heads.has(candidate.model_identity_id)) {
-      heads.set(candidate.model_identity_id, candidate.id);
-    }
-  }
-  return heads;
+  return buildGeometryHeads(data);
 }
-
 async function serializeDrawingRow(db: Database, row: Row, currentGeometryRevisionId?: string) {
   const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
     .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
