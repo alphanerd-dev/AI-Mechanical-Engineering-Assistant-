@@ -12,7 +12,10 @@ describe("Geometry Platform G3 mathematical foundation",()=>{
     expect(dotProduct([1,2,3],[4,-2,1])).toBe(3);
     expect(crossProduct([1,0,0],[0,1,0])).toEqual([0,0,1]);
     expect(distanceBetweenPointsMm([0,0,0],[2,3,6])).toBe(7);
-    expect(normalizeVector([0,3,4])).toEqual([0,0.6,0.8]);
+    const normalized=normalizeVector([0,3,4]);
+    expect(normalized[0]).toBeCloseTo(0,12);
+    expect(normalized[1]).toBeCloseTo(0.6,12);
+    expect(normalized[2]).toBeCloseTo(0.8,12);
   });
   it("rejects degenerate directions, non-finite values and empty bounds",()=>{
     expect(()=>normalizeVector([0,0,0])).toThrow(/zero or near-zero/);
