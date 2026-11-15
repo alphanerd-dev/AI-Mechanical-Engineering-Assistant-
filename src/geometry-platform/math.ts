@@ -22,7 +22,7 @@ export interface RigidTransform3 { rotation: Matrix3; translationMm: Vector3; }
 
 const IDENTITY_MATRIX: Matrix3 = [[1,0,0],[0,1,0],[0,0,1]];
 export const IDENTITY_RIGID_TRANSFORM: RigidTransform3 = Object.freeze({
-  rotation: IDENTITY_MATRIX, translationMm: [0,0,0]
+  rotation: IDENTITY_MATRIX, translationMm: [0,0,0] as const
 });
 
 function finiteVector(value: readonly number[], name: string): void {
