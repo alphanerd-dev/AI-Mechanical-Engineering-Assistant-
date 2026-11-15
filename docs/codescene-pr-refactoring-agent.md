@@ -13,19 +13,29 @@ Add these repository Actions secrets under **Settings → Secrets and variables 
 
 The workflow uses `google/gemini-3.1-pro-preview` and the official action release `v1.1.9`. The model is deliberately selected for code-analysis/refactoring quality rather than reusing the application's lower-cost chat default. Model access and billing/quota must be enabled for the Google API key.
 
+The workflow passes the key to the action's `google_api_key` input and maps the same repository secret to `GOOGLE_GENERATIVE_AI_API_KEY`, which the OpenCode Google provider reads from its process environment. No separate secret is required for that environment variable.
+
 For CodeScene on-prem, add the `codescene_onprem_url` input to the action step and configure the appropriate trusted CA bundle if your instance requires one. Do not commit tokens, API keys or certificate private material.
 
 ## Trigger
 
-After the workflow is merged into `main`, an OWNER, MEMBER or COLLABORATOR can comment on a same-repository pull request:
+After the workflow is merged into `main`, an OWNER, MEMBER or COLLABORATOR can comment on a same-repository pull request using one of the supported skill selectors:
+
+For regressions introduced by the current PR:
 
 ```text
-/cs-agent
+/cs-agent skill:fix-code-health-degradations
 ```
 
-Include a narrow instruction after the command when useful, for example: fix only the Code Health degradations introduced by this PR; preserve public APIs, authorization boundaries, deterministic engineering contracts and existing tests.
+For an intentional uplift of existing debt in selected files:
 
-The agent supports the CodeScene skills `fix-code-health-degradations` and `uplift-code-health`. Use the first for PR-introduced regressions. Use the second only when the reviewer intentionally wants to improve existing debt in selected files.
+```text
+/cs-agent skill:uplift-code-health Improve only src/path/to/file.ts; preserve public APIs and behavior.
+```
+
+A skill selector is required by the agent CLI. A bare `/cs-agent` comment triggers the workflow but fails before refactoring with `Missing required token: skill:<name>`.
+
+Use `fix-code-health-degradations` for PR-introduced regressions. Use `uplift-code-health` only when the reviewer intentionally wants to improve existing debt in selected files. Keep additional instructions narrow and explicit about allowed files, behavior preservation and constraints.
 
 ## Security and operating constraints
 
@@ -40,6 +50,6 @@ The agent supports the CodeScene skills `fix-code-health-degradations` and `upli
 
 ## Troubleshooting
 
-A run fails before refactoring if either required secret is absent. If authentication or model preflight fails, verify the CodeScene PAT, Google API key, model availability/quota and the workflow run logs. The workflow file must first be present on the default branch for `issue_comment` events to trigger it.
+A run fails before refactoring if either required secret is absent. If Google reports that its API key is missing, verify the repository's `GOOGLE_API_KEY` secret and confirm the workflow maps it to `GOOGLE_GENERATIVE_AI_API_KEY`. If authentication or model preflight fails, verify the CodeScene PAT, Google API key, model availability/quota and workflow run logs. The workflow file must first be present on the default branch for `issue_comment` events to trigger it.
 
-See the [official setup and troubleshooting guide](https://community.codescene.com/help/articles/6216708-pr-refactoring-agent-setup-prerequisites-and-troubleshooting) for CodeScene account setup, PAT creation and provider-specific details.
+See the [official setup and troubleshooting guide](https://helpcenter.codescene.com/help/articles/6216708-pr-refactoring-agent-setup-prerequisites-and-troubleshooting) for CodeScene account setup, PAT creation and provider-specific details.
