@@ -255,18 +255,24 @@ function validateTransformTolerance(tolerance: number): string[] {
   }
   return [];
 }
+function validateRigidTransformInputs(transform: RigidTransform3, tolerance: number): string[] {
+  return [
+    ...validateRotationShape(transform.rotation),
+    ...validateTranslation(transform.translationMm),
+    ...validateTransformTolerance(tolerance)
+  ];
+}
+function validateRotationIntegrity(rotation: Matrix3, tolerance: number): string[] {
+  return [
+    ...validateRotationOrthonormality(rotation, tolerance),
+    ...validateRotationHandedness(rotation, tolerance)
+  ];
+}
 export function validateRigidTransform3(transform: RigidTransform3, tolerance = 1e-9): string[] {
   if (!transform) return ["Transform is required."];
-  const shapeErrors = validateRotationShape(transform.rotation);
-  if (shapeErrors.length) return shapeErrors;
-  const translationErrors = validateTranslation(transform.translationMm);
-  if (translationErrors.length) return translationErrors;
-  const toleranceErrors = validateTransformTolerance(tolerance);
-  if (toleranceErrors.length) return toleranceErrors;
-  return [
-    ...validateRotationOrthonormality(transform.rotation, tolerance),
-    ...validateRotationHandedness(transform.rotation, tolerance)
-  ];
+  const inputErrors = validateRigidTransformInputs(transform, tolerance);
+  if (inputErrors.length > 0) return inputErrors;
+  return validateRotationIntegrity(transform.rotation, tolerance);
 }
 function assertRigidTransform(transform: RigidTransform3): void {
   const errors = validateRigidTransform3(transform);
