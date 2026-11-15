@@ -28,7 +28,7 @@ ARTIFACT_ROOT = Path(os.getenv("OPENFOAM_ARTIFACT_DIR", "/artifacts")).resolve()
 JOB_STATE_ROOT = ARTIFACT_ROOT / ".jobs"
 WORKER_SCRIPT = Path(__file__).with_name("run_case.py")
 MAX_BODY_BYTES = 1_000_000
-MAX_TIMEOUT_MS = 720_000
+MAX_TIMEOUT_MS = 730_000
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.RLock()
 POOL = ThreadPoolExecutor(max_workers=max(1, min(8, int(os.getenv("WORKER_MAX_CONCURRENCY", "2")))))
@@ -248,7 +248,7 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
         try:
             stdout, stderr = process.communicate(
                 input=json.dumps(request["inputs"], separators=(",", ":"), allow_nan=False),
-                timeout=(timeout_ms + 5000) / 1000,
+                timeout=max(1, (timeout_ms - 5000) / 1000),
             )
         except subprocess.TimeoutExpired:
             terminate_process(process)
