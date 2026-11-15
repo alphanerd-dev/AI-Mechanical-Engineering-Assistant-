@@ -17,60 +17,47 @@ The image installs the OpenFOAM Foundation 14 package from its official Ubuntu r
 
 ## Run with bounded isolation
 
+The container starts an asynchronous job service on port 8091. It must remain on a private network and must be protected by a bearer token.
+
 ```sh
 TOKEN="$(openssl rand -hex 32)"
 mkdir -p ./openfoam-artifacts
 chmod 700 ./openfoam-artifacts
 
-docker network create --internal openfoam-private >/dev/null 2>&1 || true
-
 docker run --rm \
   --read-only \
-  --network openfoam-private \
   --cap-drop=ALL \
   --security-opt=no-new-privileges \
   --pids-limit 128 \
   --memory=2g \
   --cpus=2 \
   --tmpfs /tmp:rw,noexec,nosuid,size=1g \
-  --env "OPENFOAM_WORKER_TOKEN=$TOKEN" \
+  --env "WORKER_API_TOKEN=$TOKEN" \
+  --env WORKER_HOST=0.0.0.0 \
+  --env WORKER_PORT=8091 \
   --env OPENFOAM_ARTIFACT_DIR=/artifacts \
   --mount type=bind,src="$PWD/openfoam-artifacts",dst=/artifacts \
-  -p 127.0.0.1:8080:8080 \
+  --publish 127.0.0.1:8091:8091 \
   ai-mechanical-engineering-assistant-openfoam:14
 ```
 
-The example uses an internal Docker network so the host can reach the localhost-published port without giving the worker outbound internet access. For production, place the worker on a private network, store the bearer token in a secret manager, and enforce CPU, memory, disk, process and wall-clock limits at the orchestrator. Do not expose the worker directly to the public internet. CI uses `--network none` and runs its HTTP smoke client inside the same container.
+In production, place the container on a private network, store the bearer token in a secret manager, and apply CPU, memory, disk, process and wall-clock limits at the orchestrator. Do not expose the worker directly to the public internet. The service refuses a non-loopback bind without a token.
 
-## HTTP contract
+## Asynchronous HTTP job contract
 
-- `GET /health` — readiness and pinned solver version
-- `POST /v1/cfd/laminar-channel` — authenticated benchmark execution
-- `GET /v1/cfd/artifacts/{jobId}/{filename}` — authenticated retrieval of a generated artifact
+- `GET /health` — non-sensitive liveness check
+- `POST /v1/jobs` — submit a bounded `ExecutionRequest`
+- `GET /v1/jobs/{id}` — poll `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED` or `CANCELLED`
+- `DELETE /v1/jobs/{id}` — cancel a queued/running solver process
+- `GET /v1/jobs/{id}/artifacts/{relative-path}` — retrieve allowlisted solver artifacts
 
-The POST body uses the `OpenFOAMLaminarChannelRequest` contract in `src/cfd/types.ts`. The worker rejects unknown fields and enforces the same numerical and resource bounds as the TypeScript provider.
+All routes except health require `Authorization: Bearer WORKER_API_TOKEN`. Job ID is the idempotency identity: the same ID and canonical request returns the existing job; reuse with different inputs is rejected. The service persists job state atomically under the artifact volume. On restart, active jobs are marked `RECONCILIATION_REQUIRED` and are never automatically replayed.
 
-Every successful run returns a job ID, solver version, convergence flag, mesh cell count, integrated mass flow, velocity profile, final residuals and SHA-256 digests for the mesh, velocity field, pressure field and solver log.
+The OpenFOAM solver runs in a separate process group with `shell=False`. Timeout/cancellation terminates the process group; request size, solver duration, mesh cardinality and artifact paths are bounded. The API returns the full solver result and artifact manifest. Artifact retrieval verifies path confinement; the TypeScript adapter independently validates the Poiseuille profile, integrated mass flow, residuals, solver version, mesh count and artifact metadata.
 
-## Security and evidence
+## Application integration boundary
 
-- Non-root execution (UID 10001)
-- Bearer authentication for execution and artifact retrieval
-- No arbitrary shell commands or user-provided OpenFOAM dictionaries
-- Fixed utility allowlist: `blockMesh`, `checkMesh`, `foamRun`
-- Per-request wall-clock timeout
-- Temporary case workspace under `/tmp`
-- Artifact download path whitelist and path traversal protection
-- Mesh validation and independent analytical acceptance in the TypeScript provider
-- CI smoke test runs the container with `--network none`, read-only root filesystem, dropped capabilities and bounded CPU/memory
-
-The app-level provider remains unavailable until a durable execution adapter is configured. This worker image alone does not enable a production CFD route.
-
-### Explicit execution limitation
-
-This first worker version exposes a **synchronous, single-request-at-a-time** HTTP interface. It does not yet provide durable remote job status, queued execution, or a cancellation endpoint. If a client disconnects or aborts its HTTP request, the solver process is not guaranteed to stop immediately; its own wall-clock timeout remains the enforcement boundary.
-
-Do not connect this synchronous endpoint directly to the web request path or enable it as a durable `ExecutionEngine` backend. The next integration increment must add an asynchronous job lifecycle with persisted job state, cancellation that terminates the solver process group, lease/heartbeat handling, and artifact upload into the existing project evidence/storage boundary. Only then should the provider executor be wired into the durable worker runtime.
+The application exposes `cfd-worker` only through the durable execution queue. The route requires both `TASK.EXECUTE` and `EVIDENCE.WRITE`, and the worker uses an allowlisted capability, fixed OpenFOAM 14 runtime and typed laminar-channel manifest. The service API is not intended to be called directly by browser clients.
 
 ## Licensing
 
