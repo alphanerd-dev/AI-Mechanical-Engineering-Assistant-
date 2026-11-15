@@ -206,14 +206,25 @@ function optionalRunFields(row: Record<string, unknown>): Partial<AgentRunRecord
   if (asString(row.error)) fields.error = asString(row.error);
   return fields;
 }
-function validateRunRecord(value: unknown): { row: Record<string, unknown>; status: AgentRunJournalStatus } {
+function requireRunRow(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw new Error("Persisted agent run is not an object.");
-  if (!hasRunIdentity(value)) throw new Error("Persisted agent run identity is invalid.");
-  if (!hasRunPayload(value)) throw new Error("Persisted agent run payload is invalid.");
-  const status = parseRunStatus(value.status);
+  return value;
+}
+function validateRunIdentityAndPayload(row: Record<string, unknown>): void {
+  if (!hasRunIdentity(row)) throw new Error("Persisted agent run identity is invalid.");
+  if (!hasRunPayload(row)) throw new Error("Persisted agent run payload is invalid.");
+}
+function requireRunStatus(row: Record<string, unknown>): AgentRunJournalStatus {
+  const status = parseRunStatus(row.status);
   if (!status) throw new Error("Persisted agent run status is invalid.");
-  validateRunCounters(value);
-  return { row: value, status };
+  return status;
+}
+function validateRunRecord(value: unknown): { row: Record<string, unknown>; status: AgentRunJournalStatus } {
+  const row = requireRunRow(value);
+  validateRunIdentityAndPayload(row);
+  const status = requireRunStatus(row);
+  validateRunCounters(row);
+  return { row, status };
 }
 function buildRunRecord(row: Record<string, unknown>, status: AgentRunJournalStatus): AgentRunRecord {
   return {
