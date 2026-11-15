@@ -27,12 +27,19 @@ function hasReceiptArtifactBinding(input: {
   if (input.receipt.artifactId !== input.solidId) return false;
   return input.receipt.modelIdentityId === input.modelIdentityId;
 }
+function isNonBlank(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function isValidTimestamp(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return !Number.isNaN(Date.parse(value));
+}
 function hasTrustedReceiptValidator(receipt: Row): boolean {
-  if (typeof receipt.checkedBy !== "string" || !receipt.checkedBy.trim()) return false;
-  if (typeof receipt.validatorProviderId !== "string" || !receipt.validatorProviderId.trim()) return false;
-  if (typeof receipt.validatorVersion !== "string" || !receipt.validatorVersion.trim()) return false;
-  if (typeof receipt.checkedAt !== "string" || Number.isNaN(Date.parse(receipt.checkedAt))) return false;
-  return true;
+  const providerIdValid = isNonBlank(receipt.validatorProviderId);
+  const versionValid = isNonBlank(receipt.validatorVersion);
+  const checkedByValid = isNonBlank(receipt.checkedBy);
+  const timestampValid = isValidTimestamp(receipt.checkedAt);
+  return checkedByValid && providerIdValid && versionValid && timestampValid;
 }
 function hasPassedGeometryValidation(receipt: Row): boolean {
   if (!isRecord(receipt.validation)) return false;
