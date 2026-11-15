@@ -67,6 +67,12 @@ describe("agent-run journal codec", () => {
     expect(canonicalAgentRunDigest({ b: 2, a: { y: 1, x: 0 } }))
       .toBe(canonicalAgentRunDigest({ a: { x: 0, y: 1 }, b: 2 }));
     expect(() => canonicalAgentRunDigest({ value: Number.NaN })).toThrow(/finite JSON/);
+    const sparse = Array(1);
+    expect(() => canonicalAgentRunDigest({ sparse })).toThrow(/dense JSON arrays/);
+    const extended: number[] & { extra?: number } = [1];
+    extended.extra = 2;
+    expect(() => canonicalAgentRunDigest({ extended })).toThrow(/dense JSON arrays/);
+    expect(() => canonicalAgentRunDigest({ date: new Date(0) })).toThrow(/plain JSON objects/);
     const circular: Record<string, unknown> = {};
     circular.self = circular;
     expect(() => canonicalAgentRunDigest(circular)).toThrow(/circular/);
