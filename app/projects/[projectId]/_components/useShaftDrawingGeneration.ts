@@ -11,20 +11,27 @@ export function useShaftDrawingGeneration(input: {
   refresh: () => Promise<void>;
   setSelectedId: (drawingId: string) => void;
 }) {
+  const {
+    projectId, modelIdentityId, blocked, setGenerating,
+    setError, setNotice, refresh, setSelectedId
+  } = input;
   return useCallback(async () => {
-    if (input.blocked) return;
-    input.setGenerating(true);
-    input.setError(null);
-    input.setNotice(null);
+    if (blocked) return;
+    setGenerating(true);
+    setError(null);
+    setNotice(null);
     try {
-      const drawingId = await submitShaftDrawingGeneration(input.projectId, input.modelIdentityId);
-      input.setNotice("Preliminary shaft drawing generated from the current accepted geometry revision. Not for manufacture.");
-      await input.refresh();
-      input.setSelectedId(drawingId);
+      const drawingId = await submitShaftDrawingGeneration(projectId, modelIdentityId);
+      setNotice("Preliminary shaft drawing generated from the current accepted geometry revision. Not for manufacture.");
+      await refresh();
+      setSelectedId(drawingId);
     } catch (cause) {
-      input.setError(cause instanceof Error ? cause.message : "Preliminary shaft drawing generation failed.");
+      setError(cause instanceof Error ? cause.message : "Preliminary shaft drawing generation failed.");
     } finally {
-      input.setGenerating(false);
+      setGenerating(false);
     }
-  }, [input]);
+  }, [
+    blocked, projectId, modelIdentityId, setGenerating,
+    setError, setNotice, refresh, setSelectedId
+  ]);
 }
