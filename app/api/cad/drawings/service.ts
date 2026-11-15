@@ -295,7 +295,9 @@ async function fetchDrawingRows(db: Database, projectId: string, modelIdentityId
 function isGeometryHead(value: unknown): value is Row {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Row;
-  return typeof row.model_identity_id === "string" && typeof row.id === "string";
+  if (typeof row.model_identity_id !== "string") return false;
+  if (typeof row.id !== "string") return false;
+  return true;
 }
 function addGeometryHead(heads: Map<string, string>, value: unknown): void {
   if (!isGeometryHead(value)) return;
