@@ -1,46 +1,36 @@
 import { createHash } from "node:crypto";
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-function isJsonPrimitive(value: unknown): boolean {
-  if (value === null) return true;
-  if (typeof value === "string") return true;
-  if (typeof value === "boolean") return true;
-  return typeof value === "number" && Number.isFinite(value);
-}
-function assertJsonArray(value: unknown[], seen: Set<object>): void {
+function normalizeArray(value: unknown[], seen: Set<object>): unknown[] {
   if (Object.keys(value).length !== value.length) throw new Error("Agent journal arrays must be dense JSON arrays.");
   if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal arrays cannot contain symbol keys.");
-  for (const item of value) assertJsonCompatible(item, seen);
+  return value.map(item => normalizeJson(item, seen));
 }
-function assertJsonObject(value: object, seen: Set<object>): void {
+function normalizeObject(value: object, seen: Set<object>): Record<string, unknown> {
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
   if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal payload cannot contain symbol keys.");
-  for (const item of Object.values(value as Record<string, unknown>)) assertJsonCompatible(item, seen);
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return Object.fromEntries(entries.map(([key, item]) => [key, normalizeJson(item, seen)]));
 }
-function assertJsonCompatible(value: unknown, seen = new Set<object>()): void {
-  if (isJsonPrimitive(value)) return;
-  if (value === null || typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
+function normalizeJson(value: unknown, seen: Set<object>): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("Agent journal payload must contain finite JSON values only.");
+    return value;
+  }
+  if (typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
   if (seen.has(value)) throw new Error("Agent journal payload cannot contain circular references.");
   seen.add(value);
-  if (Array.isArray(value)) assertJsonArray(value, seen);
-  else assertJsonObject(value, seen);
-  seen.delete(value);
-}
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (isPlainRecord(value)) {
-    return Object.fromEntries(Object.entries(value)
-      .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
-      .map(([key, item]) => [key, canonical(item)]));
+  try {
+    if (Array.isArray(value)) return normalizeArray(value, seen);
+    return normalizeObject(value, seen);
+  } finally {
+    seen.delete(value);
   }
-  return value;
 }
 export function canonicalAgentRunDigest(value: unknown): string {
-  assertJsonCompatible(value);
-  const serialized = JSON.stringify(canonical(value));
+  const serialized = JSON.stringify(normalizeJson(value, new Set<object>()));
   if (typeof serialized !== "string") throw new Error("Agent journal payload could not be serialized.");
   return createHash("sha256").update(serialized).digest("hex");
 }
