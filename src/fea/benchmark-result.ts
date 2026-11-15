@@ -11,16 +11,38 @@ function check(name: string, pass: boolean, message: string): FEAValidationCheck
 }
 function isValidMeshShape(value: unknown): boolean {
   if (!isRecord(value)) return false;
-  return typeof value.nodeCount === "number" && typeof value.elementCount === "number" &&
-    typeof value.elementType === "string";
+  const meshFieldsAreValid = [
+    typeof value.nodeCount === "number",
+    typeof value.elementCount === "number",
+    typeof value.elementType === "string"
+  ];
+  return meshFieldsAreValid.every(Boolean);
+}
+function hasStaticAnalysisIdentity(value: Record<string, unknown>): boolean {
+  return value.analysis === "STATIC_STRUCTURAL" && typeof value.solver === "string";
+}
+function hasSolverVersionAndConvergence(value: Record<string, unknown>): boolean {
+  return typeof value.solverVersion === "string" && typeof value.converged === "boolean";
+}
+function hasExitAndSuccessState(value: Record<string, unknown>): boolean {
+  return typeof value.exitCode === "number" && typeof value.success === "boolean";
+}
+function hasManifestAndWarnings(value: Record<string, unknown>): boolean {
+  return isValidMeshShape(value.mesh) && Array.isArray(value.artifacts) && Array.isArray(value.warnings);
+}
+function hasStringWarnings(value: Record<string, unknown>): boolean {
+  return (value.warnings as unknown[]).every(warning => typeof warning === "string");
 }
 function isValidStaticResultShape(value: unknown): value is FEAStaticStructuralResult {
   if (!isRecord(value)) return false;
-  if (value.analysis !== "STATIC_STRUCTURAL" || typeof value.solver !== "string") return false;
-  if (typeof value.solverVersion !== "string" || typeof value.converged !== "boolean") return false;
-  if (typeof value.exitCode !== "number" || typeof value.success !== "boolean") return false;
-  if (!isValidMeshShape(value.mesh) || !Array.isArray(value.artifacts) || !Array.isArray(value.warnings)) return false;
-  return value.warnings.every(warning => typeof warning === "string");
+  const contractChecks = [
+    hasStaticAnalysisIdentity(value),
+    hasSolverVersionAndConvergence(value),
+    hasExitAndSuccessState(value),
+    hasManifestAndWarnings(value),
+    hasStringWarnings(value)
+  ];
+  return contractChecks.every(Boolean);
 }
 function validateSolverIdentity(result: FEAStaticStructuralResult): string[] {
   const valid = result.solver === "calculix" && result.solverVersion.length > 0 &&
