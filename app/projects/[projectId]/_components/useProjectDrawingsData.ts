@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DrawingRecord } from "./project-drawings-types";
 
+function parseProjectDrawingList(responseOk: boolean, body: unknown): DrawingRecord[] {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Project drawings could not be loaded.");
+  }
+  const record = body as Record<string, unknown>;
+  if (!responseOk || !Array.isArray(record.drawings)) {
+    throw new Error(typeof record.error === "string" ? record.error : "Project drawings could not be loaded.");
+  }
+  return record.drawings as DrawingRecord[];
+}
+
 async function fetchProjectDrawings(projectId: string, signal?: AbortSignal): Promise<DrawingRecord[]> {
   const response = await fetch(
     "/api/cad/drawings?projectId=" + encodeURIComponent(projectId),
     { cache: "no-store", signal }
   );
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !Array.isArray(body.drawings)) {
-    throw new Error(typeof body.error === "string" ? body.error : "Project drawings could not be loaded.");
-  }
-  return body.drawings as DrawingRecord[];
+  const body: unknown = await response.json().catch(() => null);
+  return parseProjectDrawingList(response.ok, body);
 }
 
 function selectedDrawingId(items: DrawingRecord[], currentId: string): string {
