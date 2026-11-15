@@ -76,9 +76,13 @@ def public_job(job: dict[str, Any]) -> dict[str, Any]:
     return {key: job[key] for key in ("jobId", "status", "result", "error", "errorCode", "cancelRequested") if key in job}
 
 
-def validate_request(request: Any) -> tuple[str, int]:
-    if not isinstance(request, dict):
+def require_request_object(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
         raise ValueError("Execution request must be a JSON object.")
+    return value
+
+
+def require_job_id(request: dict[str, Any]) -> str:
     job_id = request.get("id")
     if not isinstance(job_id, str):
         raise ValueError("Execution request id is required.")
@@ -86,29 +90,54 @@ def validate_request(request: Any) -> tuple[str, int]:
         uuid.UUID(job_id)
     except ValueError as exc:
         raise ValueError("Execution request id must be a UUID.") from exc
+    return job_id
+
+
+def validate_worker_route(request: dict[str, Any]) -> None:
     if request.get("backend") != "cfd-worker":
         raise ValueError("Only the cfd-worker backend is supported.")
     if request.get("capability") != "ANALYSIS.CFD_LAMINAR_CHANNEL":
         raise ValueError("Only ANALYSIS.CFD_LAMINAR_CHANNEL is supported.")
+
+
+def require_openfoam_inputs(request: dict[str, Any]) -> dict[str, Any]:
     inputs = request.get("inputs")
     if not isinstance(inputs, dict):
         raise ValueError("OpenFOAM inputs must be a JSON object.")
     errors = validate_openfoam_request(inputs)
     if errors:
         raise ValueError("; ".join(errors))
-    solver = inputs.get("solver")
-    solver_timeout = solver.get("timeoutSeconds") if isinstance(solver, dict) else None
-    timeout_ms = request.get("timeoutMs")
-    if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or not 10000 <= timeout_ms <= MAX_TIMEOUT_MS:
+    return inputs
+
+
+def require_execution_timeout(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("timeoutMs must be an integer between 10000 and 720000.")
+    if not 10000 <= value <= MAX_TIMEOUT_MS:
+        raise ValueError("timeoutMs must be an integer between 10000 and 720000.")
+    return value
+
+
+def validate_solver_timeout_budget(inputs: dict[str, Any], timeout_ms: int) -> None:
+    solver = inputs.get("solver")
+    solver_timeout = solver["timeoutSeconds"] if isinstance(solver, dict) else 0
     expected_minimum = (solver_timeout + 120) * 1000
     if timeout_ms < expected_minimum:
         raise ValueError("Execution timeout must reserve the solver timeout plus 120 seconds for meshing and artifact validation.")
+
+
+def validate_request(request: Any) -> tuple[str, int]:
+    body = require_request_object(request)
+    job_id = require_job_id(body)
+    validate_worker_route(body)
+    inputs = require_openfoam_inputs(body)
+    timeout_ms = require_execution_timeout(body.get("timeoutMs"))
+    validate_solver_timeout_budget(inputs, timeout_ms)
     return job_id, timeout_ms
 
 
-def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) -> dict[str, Any]:
-    raw_result: dict[str, Any] | None = None
+
+def extract_json_result(stdout: str) -> dict[str, Any]:
     for line in reversed(stdout.splitlines()):
         candidate = line.strip()
         if not candidate:
@@ -118,26 +147,50 @@ def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) 
         except json.JSONDecodeError:
             continue
         if isinstance(value, dict):
-            raw_result = value
-            break
-    if raw_result is None:
-        raise RuntimeError("OpenFOAM worker returned no valid JSON result.")
-    if not has_only_finite_numbers(raw_result):
+            return value
+    raise RuntimeError("OpenFOAM worker returned no valid JSON result.")
+
+
+def validate_worker_result_numbers(result: dict[str, Any]) -> None:
+    if not has_only_finite_numbers(result):
         raise RuntimeError("OpenFOAM worker returned non-finite numeric values.")
-    warnings = raw_result.get("warnings") if isinstance(raw_result.get("warnings"), list) else []
-    success = return_code == 0 and raw_result.get("status") == "COMPLETED"
-    if not success and not warnings:
-        warnings = [str(raw_result.get("error") or "OpenFOAM case execution failed.")]
+
+
+def is_successful_worker_result(result: dict[str, Any], return_code: int) -> bool:
+    return return_code == 0 and result.get("status") == "COMPLETED"
+
+
+def worker_result_warnings(result: dict[str, Any], success: bool) -> list[str]:
+    warnings = result.get("warnings")
+    normalized = [str(item) for item in warnings] if isinstance(warnings, list) else []
+    if not success and not normalized:
+        normalized.append(str(result.get("error") or "OpenFOAM case execution failed."))
+    return normalized
+
+
+def normalize_worker_result(
+    raw_result: dict[str, Any],
+    return_code: int,
+    request: dict[str, Any]
+) -> dict[str, Any]:
+    success = is_successful_worker_result(raw_result, return_code)
     return {
         "success": success,
         "outputs": {"cfdResult": raw_result},
-        "warnings": warnings,
+        "warnings": worker_result_warnings(raw_result, success),
         "artifactIds": [],
         "provider": "openfoam14",
         "providerVersion": str(raw_result.get("solverVersion") or "14"),
         "executionId": request["id"],
         "completedAt": utc_now(),
     }
+
+
+def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) -> dict[str, Any]:
+    raw_result = extract_json_result(stdout)
+    validate_worker_result_numbers(raw_result)
+    return normalize_worker_result(raw_result, return_code, request)
+
 
 
 def terminate_process(process: subprocess.Popen[str] | None) -> None:
@@ -299,6 +352,24 @@ def cancel_job(job_id: str) -> dict[str, Any] | None:
     return public_job(job)
 
 
+def normalize_artifact_path(relative_path: str) -> str | None:
+    if relative_path.startswith("artifacts/"):
+        relative_path = relative_path[len("artifacts/"):]
+    if relative_path in {"mesh.tar.gz", "velocity-field.tar.gz", "pressure-field", "solver.log"}:
+        return relative_path
+    return None
+
+
+def confined_job_artifact(job_id: str, filename: str) -> Path | None:
+    root = (ARTIFACT_ROOT / job_id).resolve()
+    candidate = (root / filename).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
 def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
     try:
         job_hex = uuid.UUID(job_id).hex
@@ -306,18 +377,10 @@ def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
         return None
     if not relative_path or relative_path.startswith("/") or "\\" in relative_path:
         return None
-    if relative_path.startswith("artifacts/"):
-        relative_path = relative_path[len("artifacts/"):]
-    if relative_path not in {"mesh.tar.gz", "velocity-field.tar.gz", "pressure-field", "solver.log"}:
+    filename = normalize_artifact_path(relative_path)
+    if filename is None:
         return None
-    candidate = (ARTIFACT_ROOT / job_hex / relative_path).resolve()
-    try:
-        candidate.relative_to((ARTIFACT_ROOT / job_hex).resolve())
-    except ValueError:
-        return None
-    if not candidate.is_file():
-        return None
-    return candidate
+    return confined_job_artifact(job_hex, filename)
 
 
 class WorkerHandler(BaseHTTPRequestHandler):
