@@ -11,7 +11,7 @@
 - Default tolerance is (10^{-6}) mm linear and (10^{-9}) rad angular; callers may supply a named policy.
 
 ## Implemented in this slice
-Finite-safe vector arithmetic, dot/cross products, normalization and point distance; lines, planes and circles; point projection onto lines/planes; axis-aligned bounds and tolerance-aware containment; rigid-transform validation, point/vector transforms, composition and inversion.
+Finite-safe vector arithmetic, dot/cross products, overflow-aware result checks, scale-stable normalization for very large finite vectors and point distance; lines, planes and circles; point projection onto lines/planes; axis-aligned bounds and tolerance-aware containment; rigid-transform validation, point/vector transforms, composition and inversion. The primitive test suite also covers unrepresentable arithmetic results and inclusive tolerance boundaries.
 
 ## Deliberate exclusions
 General curves/surfaces, robust predicates, topology, solid construction, intersections, Boolean operations, persistent topology references and a B-rep kernel are not implemented here. This does not replace OCCT or build123d. Arbitrary unit conversion and dimensional quantity algebra remain outside this module.
