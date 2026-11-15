@@ -79,27 +79,40 @@ function validateNextActionIndex(row: Record<string, unknown>): void {
   if (!Number.isInteger(index)) throw new Error("Persisted next action index is invalid.");
   if (index < 0 || index > 25) throw new Error("Persisted next action index is invalid.");
 }
-function validatePersistedHashes(row: Record<string, unknown>): void {
+function validatePersistedHashFormat(row: Record<string, unknown>): void {
   if (typeof row.plan_hash !== "string" || !SHA256_PATTERN.test(row.plan_hash)) {
     throw new Error("Persisted plan hash is invalid.");
   }
   if (typeof row.request_hash !== "string" || !SHA256_PATTERN.test(row.request_hash)) {
     throw new Error("Persisted request hash is invalid.");
   }
+}
+function validatePersistedPlanDigest(row: Record<string, unknown>): void {
   const plan = row.plan as Record<string, unknown>;
   if (canonicalAgentRunDigest(plan) !== row.plan_hash) {
     throw new Error("Persisted plan digest does not match its snapshot.");
   }
-  const requestDigest = canonicalAgentRunDigest({
+}
+function calculatePersistedRequestDigest(row: Record<string, unknown>, plan: Record<string, unknown>): string {
+  return canonicalAgentRunDigest({
     projectId: row.project_id,
     initialGraphRevision: row.initial_graph_revision,
     taskGraphSnapshot: plan.taskGraphSnapshot,
     limitsSnapshot: plan.limitsSnapshot,
     plan
   });
+}
+function validatePersistedRequestDigest(row: Record<string, unknown>): void {
+  const plan = row.plan as Record<string, unknown>;
+  const requestDigest = calculatePersistedRequestDigest(row, plan);
   if (requestDigest !== row.request_hash) {
     throw new Error("Persisted request digest does not match its snapshot.");
   }
+}
+function validatePersistedHashes(row: Record<string, unknown>): void {
+  validatePersistedHashFormat(row);
+  validatePersistedPlanDigest(row);
+  validatePersistedRequestDigest(row);
 }
 function isAbsent(value: unknown): boolean {
   return value === null || value === undefined;
