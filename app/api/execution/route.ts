@@ -150,7 +150,7 @@ export async function POST(request: Request) {
   }
 
   const jobId = randomUUID();
-  const executionRequest = buildDurableExecutionRequest(input, jobId);
+  const executionRequest = buildDurableExecutionRequest({ execution: input, jobId });
   try {
     const store = new SupabaseExecutionJobStore(createServiceRoleClient());
     const submitted = await store.submit({
