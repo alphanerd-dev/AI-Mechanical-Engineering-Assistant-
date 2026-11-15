@@ -209,80 +209,127 @@ def terminate_process(process: subprocess.Popen[str] | None) -> None:
             pass
 
 
-def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
-    job_hex = uuid.UUID(job_id).hex
-    environment = os.environ.copy()
-    environment["OPENFOAM_ARTIFACT_DIR"] = str(ARTIFACT_ROOT)
-    environment["OPENFOAM_JOB_ID"] = job_hex
+def mark_job_running(job_id: str) -> bool:
     with LOCK:
         job = JOBS.get(job_id)
-        if not job or job.get("cancelRequested"):
-            if job:
-                job.update(status="CANCELLED", error="Cancelled before solver process started.", updatedAt=utc_now())
-                persist_job(job)
-            return
+        if not job:
+            return False
+        if job.get("cancelRequested"):
+            job.update(
+                status="CANCELLED",
+                error="Cancelled before solver process started.",
+                errorCode="CANCELLED",
+                updatedAt=utc_now(),
+            )
+            persist_job(job)
+            return False
         job.update(status="RUNNING", startedAt=utc_now(), updatedAt=utc_now())
         persist_job(job)
+        return True
 
+
+def create_openfoam_worker_environment(job_id: str) -> dict[str, str]:
+    environment = os.environ.copy()
+    environment["OPENFOAM_ARTIFACT_DIR"] = str(ARTIFACT_ROOT)
+    environment["OPENFOAM_JOB_ID"] = uuid.UUID(job_id).hex
+    return environment
+
+
+def start_openfoam_worker_process(environment: dict[str, str]) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [sys.executable, str(WORKER_SCRIPT)],
+        cwd=str(WORKER_SCRIPT.parent),
+        env=environment,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+        shell=False,
+    )
+
+
+def register_worker_process(job_id: str, process: subprocess.Popen[str]) -> bool:
+    with LOCK:
+        job = JOBS.get(job_id)
+        if job:
+            job["process"] = process
+            cancelled = bool(job.get("cancelRequested"))
+        else:
+            cancelled = True
+    if cancelled:
+        terminate_process(process)
+        return False
+    return True
+
+
+def communicate_openfoam_worker(
+    process: subprocess.Popen[str],
+    inputs: dict[str, Any],
+    timeout_ms: int
+) -> tuple[str, str]:
+    try:
+        return process.communicate(
+            input=json.dumps(inputs, separators=(",", ":"), allow_nan=False),
+            timeout=max(1, (timeout_ms - 5000) / 1000),
+        )
+    except subprocess.TimeoutExpired:
+        terminate_process(process)
+        process.communicate()
+        raise TimeoutError("OpenFOAM worker exceeded its bounded execution timeout.")
+
+
+def finish_job(job_id: str, result: dict[str, Any], stderr: str) -> None:
+    if stderr:
+        result["warnings"] = list(result.get("warnings", [])) + ["Worker stderr: " + stderr[-4000:]]
+    with LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            return
+        if job.get("cancelRequested"):
+            job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
+        elif result["success"]:
+            job.update(status="SUCCEEDED", result=result, error=None, errorCode=None)
+        else:
+            job.update(
+                status="FAILED",
+                result=result,
+                error="OpenFOAM case did not complete successfully.",
+                errorCode="CFD_WORKER_FAILED",
+            )
+        job.update(updatedAt=utc_now())
+        job.pop("process", None)
+        persist_job(job)
+
+
+def fail_job(job_id: str, error: Exception) -> None:
+    with LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            return
+        if job.get("cancelRequested"):
+            job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
+        else:
+            job.update(status="FAILED", error=str(error)[:2000], errorCode="CFD_WORKER_FAILED")
+        job.update(updatedAt=utc_now())
+        job.pop("process", None)
+        persist_job(job)
+
+
+def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
+    if not mark_job_running(job_id):
+        return
     process: subprocess.Popen[str] | None = None
     try:
-        process = subprocess.Popen(
-            [sys.executable, str(WORKER_SCRIPT)],
-            cwd=str(WORKER_SCRIPT.parent),
-            env=environment,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=True,
-            shell=False,
-        )
-        with LOCK:
-            job = JOBS.get(job_id)
-            if not job:
-                terminate_process(process)
-                return
-            job["process"] = process
-            if job.get("cancelRequested"):
-                terminate_process(process)
-        try:
-            stdout, stderr = process.communicate(
-                input=json.dumps(request["inputs"], separators=(",", ":"), allow_nan=False),
-                timeout=max(1, (timeout_ms - 5000) / 1000),
-            )
-        except subprocess.TimeoutExpired:
-            terminate_process(process)
-            process.communicate()
-            raise TimeoutError("OpenFOAM worker exceeded its bounded execution timeout.")
+        environment = create_openfoam_worker_environment(job_id)
+        process = start_openfoam_worker_process(environment)
+        if not register_worker_process(job_id, process):
+            return
+        stdout, stderr = communicate_openfoam_worker(process, request["inputs"], timeout_ms)
         result = parse_worker_result(stdout, process.returncode or 0, request)
-        if stderr:
-            result["warnings"] = list(result.get("warnings", [])) + ["Worker stderr: " + stderr[-4000:]]
-        with LOCK:
-            job = JOBS.get(job_id)
-            if not job:
-                return
-            if job.get("cancelRequested"):
-                job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
-            elif result["success"]:
-                job.update(status="SUCCEEDED", result=result, error=None, errorCode=None)
-            else:
-                job.update(status="FAILED", result=result, error="OpenFOAM case did not complete successfully.", errorCode="CFD_WORKER_FAILED")
-            job.update(updatedAt=utc_now())
-            job.pop("process", None)
-            persist_job(job)
+        finish_job(job_id, result, stderr)
     except Exception as exc:
-        with LOCK:
-            job = JOBS.get(job_id)
-            if not job:
-                return
-            if job.get("cancelRequested"):
-                job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
-            else:
-                job.update(status="FAILED", error=str(exc)[:2000], errorCode="CFD_WORKER_FAILED")
-            job.update(updatedAt=utc_now())
-            job.pop("process", None)
-            persist_job(job)
-
+        fail_job(job_id, exc)
 
 def restore_jobs() -> None:
     JOB_STATE_ROOT.mkdir(parents=True, exist_ok=True)
