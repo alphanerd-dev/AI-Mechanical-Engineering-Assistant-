@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     if (model.error || !model.data) fail({ message: "CAD model identity does not belong to this project.", status: 404, code: "MODEL_NOT_FOUND" });
 
     const revision = await loadCurrentGeometryRevision(serviceDb, input);
-    const source = await loadAcceptedShaftSource(serviceDb, revision, input.projectId, input.modelIdentityId);
+    const source = await loadAcceptedShaftSource({ serviceDb, revision, projectId: input.projectId, modelIdentityId: input.modelIdentityId });
     const revisionNumber = Number(revision.revision_number);
     const drawingNumber = input.drawingNumber?.trim() || "SHAFT-" + revisionNumber + "-" + String(revision.id).slice(0, 8).toUpperCase();
     const title = input.title?.trim() || "Shaft — Geometry Revision " + revisionNumber;
