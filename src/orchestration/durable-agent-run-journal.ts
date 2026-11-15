@@ -120,6 +120,21 @@ export class SupabaseAgentRunJournal {
     return rpcBoolean(result.data);
   }
 
+  async resumeAfterApproval(input: {
+    runId: string; projectId: string; approvedBy: string;
+    approvalEvidenceId: string; graphRevision: number;
+  }): Promise<boolean> {
+    const result = await this.client.rpc("resume_engineering_agent_run_after_approval", {
+      p_run_id: input.runId,
+      p_project_id: input.projectId,
+      p_approved_by: input.approvedBy,
+      p_approval_evidence_id: input.approvalEvidenceId,
+      p_graph_revision: input.graphRevision
+    });
+    if (result.error) throw new AgentRunJournalError("resuming an approved run");
+    return rpcBoolean(result.data);
+  }
+
   async requestCancellation(input: { runId: string; projectId: string }): Promise<AgentRunRecord | undefined> {
     const result = await this.client.rpc("request_engineering_agent_run_cancellation", {
       p_run_id: input.runId, p_project_id: input.projectId
