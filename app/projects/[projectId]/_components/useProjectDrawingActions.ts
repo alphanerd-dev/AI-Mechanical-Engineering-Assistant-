@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useDrawingUpload } from "./useDrawingUpload";
 import { useShaftDrawingGeneration } from "./useShaftDrawingGeneration";
 
@@ -15,7 +15,7 @@ export function useProjectDrawingActions(input: {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const generationBlocked = !input.modelIdentityId || generating || uploading;
-  const clearError = () => setError(null);
+  const clearError = useCallback(() => setError(null), []);
   const upload = useDrawingUpload({
     ...input, uploading, generating, setUploading, setError, setNotice
   });
