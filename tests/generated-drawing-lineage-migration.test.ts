@@ -26,7 +26,10 @@ describe("M2 generated drawing lineage migration", () => {
   it("makes exact generated drawing replays idempotent without affecting uploaded drawings", () => {
     expect(sql).toContain("engineering_cad_drawings_generated_idempotency_idx");
     expect(sql).toContain("get_current_geometry_revision_heads");
-    expect(sql).toContain("security invoker");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("auth.uid()");
+    expect(sql).toContain("engineering_project_memberships");
+    expect(sql).toContain("membership.user_id = v_user_id");
     expect(sql).toContain("distinct on (revision.model_identity_id)");
     expect(sql).toContain("where source_geometry_revision_id is not null");
     expect(sql).toContain("generator_id is null");
