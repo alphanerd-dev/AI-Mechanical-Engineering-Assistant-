@@ -1,7 +1,7 @@
 # Implementation Plan and Milestones
 
 **Updated:** 14 November 2026  
-**Status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested scope. M2.2–M2.6 CAD/drawing implementation, OpenFOAM 14 bounded CFD worker/provider, deterministic manufacturing-readiness pilot and first-party password recovery are present on `main`. G2 immutable revision schema/contract was merged in PR #163 at `132436fd1cf4ca66ec122ca13d8313e2b4681b84`; its E2E schema rehearsal passed, but production migration and trusted revision persistence/API integration remain outstanding. The current main-branch production deployment for the G2 merge was QUEUED at the last check. Renderer selection, authenticated CAD/CAE acceptance, production CFD runtime readiness and durable manufacturing records remain open gates.
+**Status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested scope. M2.2–M2.6 CAD/drawing implementation, OpenFOAM 14 bounded CFD worker/provider, deterministic manufacturing-readiness pilot and first-party password recovery are present on `main`. G2 immutable revision schema/contract was merged in PR #163 at `132436fd1cf4ca66ec122ca13d8313e2b4681b84`; its production app deployment reached READY. Issue #145's production migration-ledger reconciliation is complete; the production ledger matches the 18 canonical migrations. PR #165 adds trusted revision persistence/API integration, but its additive schema remains E2E-only and authenticated API acceptance is pending. PR #166 adds durable manufacturing assessment/decision records; its schema is E2E-only and authenticated acceptance is pending. Renderer selection, authenticated CAD/CAE acceptance and production CFD runtime readiness remain open gates.
 
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
 
@@ -122,8 +122,9 @@ Physical perception remains a separately staged roadmap path: the current Open3D
 The following draft PRs advance separate domains without changing the M2 acceptance boundary:
 
 - **PR #144 — bounded LLM operational authority:** core-level action planning and backend policy enforcement are implemented and repository checks passed. Product-route exposure remains blocked on durable run journaling, per-action idempotency, lease recovery and authenticated route acceptance.
-- **PR #155 — manufacturing readiness:** deterministic DFM, process-plan, BOM, inspection and artifact-link checks are composed into a stateless readiness assessment. It can report `READY_FOR_HUMAN_APPROVAL`; it does not create durable release records, issue toolpaths or perform production release.
+- **PR #166 — manufacturing readiness evidence:** deterministic DFM, process-plan, BOM, inspection and artifact-link checks are persisted as immutable assessment snapshots. Independent APPROVED/REJECTED decisions use four-eyes authorization and an atomic audit write. E2E schema is applied; authenticated route acceptance remains pending. No CAM, MES or machine dispatch occurs.
 - **PR #156 — OpenFOAM 14 CFD:** a single laminar plane-Poiseuille benchmark worker and independent numerical acceptance contract are implemented. It is not a general CFD platform; exact-head solver/container acceptance remains under CI verification.
+- **PR #165 — G2 trusted geometry revisions:** adds authenticated project-scoped revision persistence/read APIs, server-side BREP digest verification, host-controlled provider-version provenance, idempotent retries and an atomic audit transaction. E2E schema is applied; authenticated API acceptance and production migration approval remain pending.
 
 These increments remain draft candidates until their stated integration, external environment and human-review gates pass.
 

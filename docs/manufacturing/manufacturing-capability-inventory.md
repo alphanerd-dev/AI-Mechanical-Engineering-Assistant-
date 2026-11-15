@@ -1,6 +1,6 @@
 # Manufacturing capability inventory and first workflow
 
-> **Execution update — 14 November 2026:** The deterministic machined-part readiness pilot is now present on `main` (commit `2a3f952ad3b7dd5a63b1ebf6ab762548ff95a901`). It composes DFM, process-plan, BOM, inspection and artifact-link checks into a stateless advisory result. It does not persist inspection/release records, perform production release, generate executable toolpaths, dispatch MES orders or control machines. Durable records remain a separate schema/API increment with E2E rehearsal and production approval gates.
+> **Execution update — 14 November 2026:** The deterministic machined-part readiness pilot is present on `main` (commit `2a3f952ad3b7dd5a63b1ebf6ab762548ff95a901`). PR #166 adds immutable, project-scoped assessment snapshots and independent APPROVED/REJECTED decision records, four-eyes authorization and atomic audit writes. Its additive schema is installed on the dedicated E2E Supabase project; authenticated API acceptance and merge remain pending. These records do not perform production release, generate executable toolpaths, dispatch MES orders or control machines.
 
 
 **Review date:** 13 November 2026  
@@ -43,12 +43,14 @@ The new capability is `MANUFACTURING.ASSESS_READINESS`, routed through `manufact
 - It never executes CAM toolpaths, machine instructions, additive slicing, MES dispatch or production release.
 - It never treats a readiness result as a signed quality certificate.
 - `productionReleasePerformed` is always `false`; a human approval is still required.
-- The current workflow is stateless. Durable inspection/release records and audit journaling are separate future work and require schema/authorization review.
+- Durable assessment snapshots and independent human APPROVED/REJECTED decisions are implemented in PR #166 with project authorization, four-eyes approval, idempotency and atomic audit writes. The additive schema is installed on the dedicated E2E Supabase project only; authenticated route acceptance and merge remain pending.
+- Readiness inputs (CAD metrics, DFM rules, BOM/process-plan fields, inspection measurements and artifact IDs) are currently caller-supplied. Every durable assessment is stamped `source_evidence_status=USER_SUPPLIED_UNVERIFIED`; it is a structured review package, not independent verification of CAD bytes, metrology records or manufacturing evidence.
+- An approved decision is an auditable human decision only. It does not dispatch CAM, MES, machine control or production release.
 
 ## Next increments
 
 1. Verify the new readiness workflow through exact-head CI and provider-router tests.
-2. Add durable inspection and release records only after migration-history reconciliation in issue #145 and an E2E rehearsal.
+2. Complete authenticated E2E acceptance for PR #166: readiness snapshot persistence, duplicate retry, audit-chain correlation, author self-approval denial and independent approval/rejection.
 3. Add a machine capability model (process, work envelope, material, tooling, tolerances, availability) before attempting scheduling.
 4. Add a nonconformance workflow with explicit disposition and corrective-action evidence.
 5. Integrate CAM only after a real, sandboxed toolpath provider is configured and independently validated.
