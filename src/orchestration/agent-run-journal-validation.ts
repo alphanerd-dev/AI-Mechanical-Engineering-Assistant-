@@ -103,14 +103,23 @@ function validatePersistedTimestamps(row: Record<string, unknown>): void {
     throw new Error("Persisted update timestamp is invalid.");
   }
 }
-function validatePersistedRun(row: Record<string, unknown>): void {
+function validatePersistedIdentityAndPayload(row: Record<string, unknown>): void {
   validateRunIdentity(row);
   validateRunPayload(row);
+}
+function validatePersistedProgress(row: Record<string, unknown>): void {
   validateGraphRevisions(row);
   validateNextActionIndex(row);
+}
+function validatePersistedIntegrity(row: Record<string, unknown>): void {
   validatePersistedHashes(row);
   validateOptionalFields(row);
   validatePersistedTimestamps(row);
+}
+function validatePersistedRun(row: Record<string, unknown>): void {
+  validatePersistedIdentityAndPayload(row);
+  validatePersistedProgress(row);
+  validatePersistedIntegrity(row);
 }
 export function toValidatedAgentRunRecord(value: unknown): AgentRunRecord {
   const row = requireRunRow(value);
