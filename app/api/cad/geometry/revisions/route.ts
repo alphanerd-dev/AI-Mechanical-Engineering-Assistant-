@@ -30,6 +30,13 @@ function parseCreateRequest(body: unknown) {
 function authorizationStatus(reason: string): number {
   return reason.includes("unavailable") ? 503 : 403;
 }
+async function hasAuthorizedSessionIdentity(subject: string): Promise<boolean> {
+  const sessionDb = await createClient();
+  const { data, error } = await sessionDb.auth.getUser();
+  if (error) return false;
+  if (!data.user) return false;
+  return data.user.id === subject;
+}
 
 export async function POST(request: Request) {
   const requestId = randomUUID();
@@ -60,9 +67,7 @@ export async function GET(request: Request) {
     if (!isUuid(modelIdentityId)) return fail("A valid modelIdentityId query parameter is required.", 400);
     const authorization = await authorizeSupabaseRequest("EVIDENCE.READ", projectId, { requestId: randomUUID(), taskId: modelIdentityId });
     if (!authorization.allowed) return fail(authorization.reason, authorizationStatus(authorization.reason));
-    const sessionDb = await createClient();
-    const { data: identity, error: identityError } = await sessionDb.auth.getUser();
-    if (identityError || !identity.user || identity.user.id !== authorization.subject) {
+    if (!await hasAuthorizedSessionIdentity(authorization.subject)) {
       return fail("Authenticated project identity could not be confirmed.", 401);
     }
     const db = createServiceRoleClient() as unknown as GeometryRevisionDatabase;
