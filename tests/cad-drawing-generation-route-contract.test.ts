@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 const route = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/route.ts"), "utf8");
 const request = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/request.ts"), "utf8");
 const source = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source.ts"), "utf8");
+const shaftDimensions = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/shaft-dimensions.ts"), "utf8");
+const sourceValidation = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source-validation.ts"), "utf8");
 const persistence = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/persistence.ts"), "utf8");
 const history = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/service.ts"), "utf8");
 
@@ -26,13 +28,14 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
 
   it("requires an accepted geometry receipt and source-matching canonical solid", () => {
     expect(source).toContain('data.status !== "ACCEPTED"');
-    expect(source).toContain('artifact.kind !== "SOLID"');
-    expect(source).toContain('artifact.validationStatus !== "PASS"');
-    expect(source).toContain("geometryMeasurements");
-    expect(source).toContain("boundingBoxMm");
-    expect(source).toContain('specification.kind !== "CYLINDER"');
-    expect(source).toContain('specification.name !== "shaft"');
+    expect(source).toContain("resolveCanonicalSolid");
     expect(source).toContain("verifyStoredBrep");
+    expect(shaftDimensions).toContain('specification.kind !== "CYLINDER"');
+    expect(shaftDimensions).toContain('specification.name !== "shaft"');
+    expect(shaftDimensions).toContain("geometryMeasurements");
+    expect(shaftDimensions).toContain("boundingBoxMm");
+    expect(shaftDimensions).toContain("dimensionChecks");
+    expect(sourceValidation).toContain("validateRevisionArtifactBinding");
   });
 
   it("persists a private drawing, immutable lineage and audit record with duplicate replay", () => {
