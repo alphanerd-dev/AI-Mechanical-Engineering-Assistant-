@@ -126,24 +126,31 @@ function optionalRunFields(row: Record<string, unknown>): Partial<AgentRunRecord
   if (asString(row.error)) fields.error = asString(row.error);
   return fields;
 }
-export function toAgentRunRecord(value: unknown): AgentRunRecord {
+function validateRunRecord(value: unknown): { row: Record<string, unknown>; status: AgentRunJournalStatus } {
   if (!isRecord(value)) throw new Error("Persisted agent run is not an object.");
   if (!hasRunIdentity(value)) throw new Error("Persisted agent run identity is invalid.");
   if (!hasRunPayload(value)) throw new Error("Persisted agent run payload is invalid.");
   const status = parseRunStatus(value.status);
   if (!status) throw new Error("Persisted agent run status is invalid.");
+  return { row: value, status };
+}
+function buildRunRecord(row: Record<string, unknown>, status: AgentRunJournalStatus): AgentRunRecord {
   return {
-    id: value.id as string, ownerId: value.owner_id as string, projectId: value.project_id as string,
-    status, initialGraphRevision: asNumber(value.initial_graph_revision) ?? 0,
-    currentGraphRevision: asNumber(value.current_graph_revision) ?? 0,
-    planHash: asString(value.plan_hash) ?? "", plan: value.plan as Record<string, unknown>,
-    checkpoint: value.checkpoint as Record<string, unknown>,
-    actionHistory: (value.action_history as unknown[]).filter(isRecord),
-    nextActionIndex: asNumber(value.next_action_index) ?? 0,
-    ...optionalRunFields(value),
-    createdAt: asString(value.created_at) ?? new Date(0).toISOString(),
-    updatedAt: asString(value.updated_at) ?? new Date(0).toISOString()
+    id: row.id as string, ownerId: row.owner_id as string, projectId: row.project_id as string,
+    status, initialGraphRevision: asNumber(row.initial_graph_revision) ?? 0,
+    currentGraphRevision: asNumber(row.current_graph_revision) ?? 0,
+    planHash: asString(row.plan_hash) ?? "", plan: row.plan as Record<string, unknown>,
+    checkpoint: row.checkpoint as Record<string, unknown>,
+    actionHistory: (row.action_history as unknown[]).filter(isRecord),
+    nextActionIndex: asNumber(row.next_action_index) ?? 0,
+    ...optionalRunFields(row),
+    createdAt: asString(row.created_at) ?? new Date(0).toISOString(),
+    updatedAt: asString(row.updated_at) ?? new Date(0).toISOString()
   };
+}
+export function toAgentRunRecord(value: unknown): AgentRunRecord {
+  const validated = validateRunRecord(value);
+  return buildRunRecord(validated.row, validated.status);
 }
 export function isUniqueViolation(error: unknown): boolean {
   if (!isRecord(error)) return false;
