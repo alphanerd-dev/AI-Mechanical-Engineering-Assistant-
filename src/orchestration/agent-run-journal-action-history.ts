@@ -1,3 +1,4 @@
+import { isRecord } from "./agent-run-journal-codec.js";
 import {
   validatePersistedActionIdentity, type AgentActionIdentityContext
 } from "./agent-run-journal-action-identity.js";
@@ -21,6 +22,7 @@ function requireActionGraphRevision(value: unknown): void {
   if (value < 1) throw new Error("Persisted agent action graph revision is invalid.");
 }
 function validateActionHistoryEntry(value: unknown, context: AgentActionIdentityContext): void {
+  if (!isRecord(value)) throw new Error("Persisted agent run payload history is invalid.");
   validatePersistedActionIdentity(value, context);
   requireActionGraphRevision(value.graphRevision);
   requireActionTimestamp(value.completedAt, { field: "completion" });
@@ -35,6 +37,7 @@ export function validatePersistedActionHistory(value: unknown, context: ActionRu
 }
 export function validatePersistedCurrentAction(value: unknown, context: CurrentActionContext): void {
   if (value === null || value === undefined) return;
+  if (!isRecord(value)) throw new Error("Persisted in-flight action is invalid.");
   validatePersistedActionIdentity(value, { runId: context.runId, expectedIndex: context.nextActionIndex });
   requireActionTimestamp(value.startedAt, { field: "start" });
 }
