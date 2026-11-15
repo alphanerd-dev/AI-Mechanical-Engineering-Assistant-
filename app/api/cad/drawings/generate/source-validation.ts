@@ -1,6 +1,6 @@
 import type { CanonicalSolid, Completion, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
 import { CAD_ARTIFACT_BUCKET } from "../../../../../src/cad/persistence";
-import { fail } from "./request";
+import { fail } from "./errors";
 
 export function isRecord(value: unknown): value is Row {
   return value !== null && typeof value === "object" && !Array.isArray(value);
