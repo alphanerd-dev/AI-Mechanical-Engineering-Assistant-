@@ -289,54 +289,81 @@ def cantilever_box_reference(length_mm: float, width_mm: float, height_mm: float
         "passed": displacement_passed and reaction_passed,
     }
 
-def validate_benchmark_input(request: object) -> dict:
-    if not isinstance(request, dict):
-        raise ValueError("Request must be a JSON object.")
+def require_object(value: object, name: str) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be a JSON object.")
+    return value
+
+
+def require_bounded_number(value: object, name: str, minimum: float, maximum: float) -> float:
+    if not finite_number(value) or not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum:g} and {maximum:g}.")
+    return float(value)
+
+
+def validate_benchmark_identity(request: dict) -> None:
     if request.get("analysis") != ALLOWED_ANALYSIS:
         raise ValueError("Only STATIC_STRUCTURAL analysis is supported.")
     if request.get("benchmark") != BENCHMARK:
         raise ValueError("The V1.18 reference runtime requires benchmark=cantilever_box.")
 
-    material = request.get("material") if isinstance(request.get("material"), dict) else {}
-    dimensions = request.get("dimensionsMm") if isinstance(request.get("dimensionsMm"), dict) else {}
-    youngs_modulus_mpa = material.get("youngsModulusMpa")
-    poisson_ratio = material.get("poissonRatio")
-    total_force_n = request.get("totalForceN")
-    element_size_mm = request.get("elementSizeMm")
-    if not finite_number(youngs_modulus_mpa) or not 0 < youngs_modulus_mpa <= 1e9:
-        raise ValueError("Material stiffness must be positive, finite and no greater than 1e9 MPa.")
-    if not finite_number(total_force_n) or not 0 < total_force_n <= 1e9:
-        raise ValueError("Total force must be positive, finite and no greater than 1e9 N.")
-    if not finite_number(element_size_mm) or not 1 <= element_size_mm <= 100:
-        raise ValueError("Element size must be between 1 and 100 mm.")
-    if not finite_number(poisson_ratio) or not -1 < poisson_ratio < 0.5:
-        raise ValueError("Poisson ratio is invalid.")
 
+def validate_material_input(material: dict) -> tuple[float, float]:
+    youngs_modulus = require_bounded_number(material.get("youngsModulusMpa"), "Young's modulus", 1, 1e9)
+    poisson = material.get("poissonRatio")
+    if not finite_number(poisson) or not -1 < poisson < 0.5:
+        raise ValueError("Poisson ratio must be finite and between -1 and 0.5.")
+    return youngs_modulus, float(poisson)
+
+
+def validate_dimensions_input(dimensions: dict) -> tuple[float, float, float]:
     for axis in ("length", "width", "height"):
         if not finite_number(dimensions.get(axis)):
             raise ValueError("All benchmark dimensions must be finite numbers.")
-    length_mm = float(dimensions["length"])
-    width_mm = float(dimensions["width"])
-    height_mm = float(dimensions["height"])
-    if not 10 <= length_mm <= 2000 or not 1 <= width_mm <= 500 or not 1 <= height_mm <= 500:
-        raise ValueError("Benchmark dimensions are outside the supported 10-2000 mm length and 1-500 mm cross-section bounds.")
-    if length_mm < 5 * max(width_mm, height_mm):
+    length = require_bounded_number(dimensions["length"], "length", 10, 2000)
+    width = require_bounded_number(dimensions["width"], "width", 1, 500)
+    height = require_bounded_number(dimensions["height"], "height", 1, 500)
+    if length < 5 * max(width, height):
         raise ValueError("Cantilever benchmark length must be at least five times its largest cross-section dimension.")
-    estimated_elements = math.ceil(length_mm / float(element_size_mm)) * math.ceil(width_mm / float(element_size_mm)) * math.ceil(height_mm / float(element_size_mm)) * 6
-    if estimated_elements > 200000:
+    return length, width, height
+
+
+def validate_mesh_resource_request(length: float, width: float, height: float, element_size: float) -> None:
+    estimated_elements = (
+        math.ceil(length / element_size)
+        * math.ceil(width / element_size)
+        * math.ceil(height / element_size)
+        * 6
+    )
+    if not math.isfinite(estimated_elements) or estimated_elements > 200000:
         raise ValueError("Estimated tetrahedral mesh exceeds the 200000-element worker limit.")
+
+
+def validate_solver_timeout(request: dict) -> int:
     timeout_ms = request.get("timeoutMs", 30000)
     if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or not 1000 <= timeout_ms <= 120000:
         raise ValueError("timeoutMs must be an integer between 1000 and 120000.")
-    return {
-        "dimensionsMm": {"length": length_mm, "width": width_mm, "height": height_mm},
-        "youngsModulusMpa": float(youngs_modulus_mpa),
-        "poissonRatio": float(poisson_ratio),
-        "totalForceN": float(total_force_n),
-        "elementSizeMm": float(element_size_mm),
-        "timeoutMs": timeout_ms,
-    }
+    return timeout_ms
 
+
+def validate_benchmark_input(request: object) -> dict:
+    body = require_object(request, "Request")
+    validate_benchmark_identity(body)
+    material = require_object(body.get("material", {}), "material")
+    dimensions = require_object(body.get("dimensionsMm"), "dimensionsMm")
+    youngs_modulus, poisson_ratio = validate_material_input(material)
+    length, width, height = validate_dimensions_input(dimensions)
+    total_force = require_bounded_number(body.get("totalForceN"), "Total force", 1e-12, 1e9)
+    element_size = require_bounded_number(body.get("elementSizeMm"), "Element size", 1, 100)
+    validate_mesh_resource_request(length, width, height, element_size)
+    return {
+        "dimensionsMm": {"length": length, "width": width, "height": height},
+        "youngsModulusMpa": youngs_modulus,
+        "poissonRatio": poisson_ratio,
+        "totalForceN": total_force,
+        "elementSizeMm": element_size,
+        "timeoutMs": validate_solver_timeout(body),
+    }
 
 def main():
     raw = sys.stdin.read()
