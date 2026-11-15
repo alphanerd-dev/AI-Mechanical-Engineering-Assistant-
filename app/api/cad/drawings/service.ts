@@ -292,15 +292,44 @@ async function fetchDrawingRows(db: Database, projectId: string, modelIdentityId
   return data ?? [];
 }
 
-async function serializeDrawingRow(db: Database, row: Row) {
+async function fetchCurrentGeometryHeads(db: Database, projectId: string, modelIdentityIds: string[]): Promise<Map<string, string>> {
+  const heads = new Map<string, string>();
+  if (!modelIdentityIds.length) return heads;
+  const { data, error } = await db.from("engineering_geometry_revisions").select("id,model_identity_id")
+    .eq("project_id", projectId).in("model_identity_id", modelIdentityIds)
+    .order("revision_number", { ascending: false }).limit(500);
+  if (error || !Array.isArray(data)) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
+  for (const value of data) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const candidate = value as Row;
+    if (typeof candidate.model_identity_id === "string" && typeof candidate.id === "string" &&
+        !heads.has(candidate.model_identity_id)) {
+      heads.set(candidate.model_identity_id, candidate.id);
+    }
+  }
+  return heads;
+}
+
+async function serializeDrawingRow(db: Database, row: Row, currentGeometryRevisionId?: string) {
   const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
     .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+  const sourceRevisionId = typeof row.source_geometry_revision_id === "string" ? row.source_geometry_revision_id : null;
+  const generated = sourceRevisionId !== null;
   return {
     id: row.id, projectId: row.project_id, modelIdentityId: row.model_identity_id,
     displayName: row.display_name, format: row.format, mediaType: row.media_type,
     byteSize: row.byte_size, sha256: row.sha256, parserVersion: row.parser_version,
     units: row.units, entityCount: row.entity_count, bounds: row.bounds, warnings: row.warnings,
-    createdAt: row.created_at, signedUrl: !error && data?.signedUrl ? data.signedUrl : null
+    createdAt: row.created_at,
+    sourceGeometryRevisionId: sourceRevisionId,
+    sourceArtifactId: row.source_artifact_id ?? null,
+    sourceArtifactSha256: row.source_artifact_sha256 ?? null,
+    sourceRevisionNumber: row.source_revision_number ?? null,
+    generatorId: row.generator_id ?? null,
+    generatorVersion: row.generator_version ?? null,
+    generationParameters: row.generation_parameters ?? null,
+    isStale: generated ? currentGeometryRevisionId !== sourceRevisionId : null,
+    signedUrl: !error && data?.signedUrl ? data.signedUrl : null
   };
 }
 
@@ -311,7 +340,11 @@ export async function listProjectDrawings(request: Request): Promise<NextRespons
     if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization));
     const db = await createClient();
     const rows = await fetchDrawingRows(db, projectId, modelIdentityId);
-    const drawings = await Promise.all(rows.map((row: Row) => serializeDrawingRow(db, row)));
+    const modelIds = [...new Set(rows.map((row: Row) => row.model_identity_id).filter((value): value is string => typeof value === "string"))];
+    const currentHeads = await fetchCurrentGeometryHeads(db, projectId, modelIds);
+    const drawings = await Promise.all(rows.map((row: Row) => serializeDrawingRow(
+      db, row, typeof row.model_identity_id === "string" ? currentHeads.get(row.model_identity_id) : undefined
+    )));
     return NextResponse.json({ projectId, drawings, signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS }, {
       headers: { "cache-control": "no-store" }
     });
