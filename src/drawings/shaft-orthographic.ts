@@ -37,7 +37,7 @@ const PAGE_WIDTH_MM = 297;
 const PAGE_HEIGHT_MM = 210;
 const MAX_DIMENSION_MM = 100_000;
 const SHA256 = /^[a-f0-9]{64}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function validateFiniteDimension(input: { value: number; name: string }): void {
   if (!Number.isFinite(input.value)) throw new Error(input.name + " must be finite.");
