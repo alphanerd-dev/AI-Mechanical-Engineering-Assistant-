@@ -86,9 +86,23 @@ async function removeUploadedDrawing(input: PersistGeneratedDrawingInput, storag
   const result = await input.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
   if (result.error) fail({ message: "Temporary generated drawing cleanup is unconfirmed.", status: 503, code: "DRAWING_CLEANUP_AMBIGUOUS" });
 }
+function isStaleDrawingSourceError(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  const message = typeof error.message === "string" ? error.message : "";
+  const details = typeof error.details === "string" ? error.details : "";
+  return message.includes("STALE_DRAWING_SOURCE") || details.includes("STALE_DRAWING_SOURCE");
+}
 async function insertOrResolveDrawing(input: PersistGeneratedDrawingInput, prepared: PreparedDrawing): Promise<{ row: Row; replay: boolean }> {
   const inserted = await input.serviceDb.from("engineering_cad_drawings").insert(prepared.row);
   if (!inserted.error) return { row: prepared.row, replay: false };
+  if (isStaleDrawingSourceError(inserted.error)) {
+    await removeUploadedDrawing(input, prepared.storagePath);
+    fail({
+      message: "The geometry model advanced while this drawing was being generated. Reload the model and regenerate from its latest accepted revision.",
+      status: 409,
+      code: "STALE_DRAWING_SOURCE"
+    });
+  }
   const existing = await findExistingDrawing(input, prepared);
   await removeUploadedDrawing(input, prepared.storagePath);
   if (existing) return { row: existing, replay: true };
