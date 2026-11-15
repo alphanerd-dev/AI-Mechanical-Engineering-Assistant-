@@ -7,6 +7,7 @@ const request = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/genera
 const source = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source.ts"), "utf8");
 const shaftDimensions = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/shaft-dimensions.ts"), "utf8");
 const sourceValidation = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source-validation.ts"), "utf8");
+const sourceRevision = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/source-revision.ts"), "utf8");
 const persistence = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/generate/persistence.ts"), "utf8");
 const history = readFileSync(resolve(process.cwd(), "app/api/cad/drawings/service.ts"), "utf8");
 
@@ -19,7 +20,9 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
   });
 
   it("rejects stale geometry and independently verifies canonical source bytes", () => {
-    expect(source).toContain("STALE_DRAWING_SOURCE");
+    expect(sourceRevision).toContain("STALE_DRAWING_SOURCE");
+    expect(sourceRevision).toContain('order("revision_number", { ascending: false })');
+    expect(route).toContain("loadCurrentGeometryRevision");
     expect(source).toContain('order("revision_number", { ascending: false })');
     expect(source).toContain("verifyStoredBrep");
     expect(sourceValidation).toContain("canonical_artifact_sha256");
