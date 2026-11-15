@@ -44,10 +44,10 @@ function validateRunPayload(row: Record<string, unknown>): void {
     throw new Error("Persisted agent run payload is invalid.");
   }
   if (!Array.isArray(row.action_history) || row.action_history.length > 25) {
-    throw new Error("Persisted agent run history is invalid.");
+    throw new Error("Persisted agent run payload history is invalid.");
   }
   if (!row.action_history.every(isRecord)) {
-    throw new Error("Persisted agent run history is invalid.");
+    throw new Error("Persisted agent run payload history is invalid.");
   }
 }
 function requireSafeRevision(value: unknown, label: string): number {
