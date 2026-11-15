@@ -13,6 +13,7 @@ export function useProjectDrawings(projectId: string) {
     projectId,
     modelIdentityId,
     file,
+    setFile,
     refresh: data.refresh,
     setSelectedId: data.setSelectedId
   });
