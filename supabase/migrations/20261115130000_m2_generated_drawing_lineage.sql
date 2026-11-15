@@ -131,7 +131,6 @@ begin
       from public.engineering_project_memberships as membership
      where membership.project_id = p_project_id
        and membership.user_id = v_user_id
-       and membership.role in ('ENGINEER', 'REVIEWER', 'ADMIN', 'AGENT')
   ) then return; end if;
 
   return query
