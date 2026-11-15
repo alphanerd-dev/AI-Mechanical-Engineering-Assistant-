@@ -16,6 +16,17 @@ function finitePositive(value: unknown): value is number {
 function finiteNonNegative(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
+function isStaticStructuralResult(value: unknown): value is FEAStaticStructuralResult {
+  if (!isRecord(value)) return false;
+  if (value.analysis !== "STATIC_STRUCTURAL" || typeof value.solver !== "string") return false;
+  if (typeof value.solverVersion !== "string" || typeof value.converged !== "boolean") return false;
+  if (typeof value.exitCode !== "number" || typeof value.success !== "boolean") return false;
+  if (!isRecord(value.mesh)) return false;
+  if (typeof value.mesh.nodeCount !== "number" || typeof value.mesh.elementCount !== "number") return false;
+  if (typeof value.mesh.elementType !== "string") return false;
+  if (!Array.isArray(value.artifacts) || !Array.isArray(value.warnings)) return false;
+  return value.warnings.every((warning) => typeof warning === "string");
+}
 function check(name: string, pass: boolean, message: string): FEAValidationCheck {
   return { name, pass, message };
 }
@@ -149,6 +160,10 @@ export function validateFEACantileverBoxResult(
   request: FEACantileverBoxBenchmarkRequest,
   result: FEAStaticStructuralResult
 ): FEAExecutionValidation {
+  if (!isStaticStructuralResult(result)) {
+    const message = "The CalculiX worker result does not match the normalized static-structural contract.";
+    return { status: "FAIL", checks: [check("normalized_result_shape", false, message)], blockingReasons: [message], warnings: [] };
+  }
   const base = validateFEAExecution(result, ["DISPLACEMENT", "STRESS", "REACTION_FORCE"]);
   const checks = [...base.checks];
   const blockingReasons = [...base.blockingReasons];
