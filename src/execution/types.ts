@@ -1,5 +1,5 @@
 export type JobStatus="QUEUED"|"RUNNING"|"SUCCEEDED"|"FAILED"|"CANCELLED";
-export type ExecutionBackend="typescript-safe"|"python-worker"|"cad-worker"|"fea-worker";
+export type ExecutionBackend="typescript-safe"|"python-worker"|"cad-worker"|"fea-worker"|"cfd-worker";
 export interface UnitValue{value:number;unit:string;}
 export interface ExecutionRequest{id:string;capability:string;backend:ExecutionBackend;inputs:Record<string,unknown>;requestedOutputs:string[];timeoutMs:number;projectId?:string;correlationId?:string;}
 export interface ExecutionAttemptHistoryRecord{attempt:number;startedAt:string;finishedAt:string;status:JobStatus;provider?:string;error?:string;}
