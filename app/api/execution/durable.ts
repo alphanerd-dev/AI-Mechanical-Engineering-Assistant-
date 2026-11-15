@@ -66,19 +66,22 @@ function parseBackend(value: unknown): ExecutionBackend | DurableExecutionParseF
   }
   return candidate as ExecutionBackend;
 }
-function parseInputs(value: unknown): Record<string, unknown> | DurableExecutionParseFailure {
-  if (value === undefined) return {};
-  if (!isRecord(value)) return failure("inputs must be a JSON object when provided.", 400, "INVALID_INPUTS");
+type ValueParseResult<T> = { valid: true; value: T } | { valid: false; failure: DurableExecutionParseFailure };
+function parseInputs(value: unknown): ValueParseResult<Record<string, unknown>> {
+  if (value === undefined) return { valid: true, value: {} };
+  if (!isRecord(value)) {
+    return { valid: false, failure: failure("inputs must be a JSON object when provided.", 400, "INVALID_INPUTS") };
+  }
   let serialized: string;
   try {
     serialized = JSON.stringify(value);
   } catch {
-    return failure("inputs must be JSON serializable.", 400, "INVALID_INPUTS");
+    return { valid: false, failure: failure("inputs must be JSON serializable.", 400, "INVALID_INPUTS") };
   }
   if (serialized.length > 64_000) {
-    return failure("inputs exceed the 64 KB request limit.", 413, "INPUT_TOO_LARGE");
+    return { valid: false, failure: failure("inputs exceed the 64 KB request limit.", 413, "INPUT_TOO_LARGE") };
   }
-  return value;
+  return { valid: true, value };
 }
 function parseRequestedOutputs(value: unknown): string[] | DurableExecutionParseFailure {
   if (value === undefined) return [];
@@ -157,8 +160,9 @@ export function parseDurableExecutionInput(input: {
   if (backendCapabilityError) return backendCapabilityError;
   const workerConfigurationError = validateWorkerConfiguration(backend);
   if (workerConfigurationError) return workerConfigurationError;
-  const inputs = parseInputs(input.body.inputs);
-  if (!isRecord(inputs)) return inputs;
+  const parsedInputs = parseInputs(input.body.inputs);
+  if (!parsedInputs.valid) return parsedInputs.failure;
+  const inputs = parsedInputs.value;
   const outputs = parseRequestedOutputs(input.body.requestedOutputs);
   if (!Array.isArray(outputs)) return outputs;
   const solverInputError = validateSolverInputs(backend, inputs);
