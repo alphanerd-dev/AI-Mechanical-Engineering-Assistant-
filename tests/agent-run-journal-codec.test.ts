@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentRunRow, toAgentRunRecord } from "../src/orchestration/agent-run-journal-codec.js";
+import {
+  buildValidatedAgentRunRow, toValidatedAgentRunRecord
+} from "../src/orchestration/agent-run-journal-validation.js";
 
 const validRun = {
   id: "8e3d4d91-ef70-4c5d-94f7-6b83c92d83d1",
@@ -23,7 +25,7 @@ const validRun = {
 
 describe("agent-run journal codec", () => {
   it("decodes a valid persisted run without discarding history", () => {
-    const run = toAgentRunRecord(validRun);
+    const run = toValidatedAgentRunRecord(validRun);
     expect(run.id).toBe(validRun.id);
     expect(run.initialGraphRevision).toBe(4);
     expect(run.actionHistory).toEqual([]);
@@ -31,10 +33,10 @@ describe("agent-run journal codec", () => {
   });
 
   it("fails closed on malformed history, hashes, revisions and counters", () => {
-    expect(() => toAgentRunRecord({ ...validRun, action_history: [null] })).toThrow(/payload/);
-    expect(() => toAgentRunRecord({ ...validRun, plan_hash: "bad" })).toThrow(/plan hash/);
-    expect(() => toAgentRunRecord({ ...validRun, current_graph_revision: 3 })).toThrow(/current graph revision/);
-    expect(() => toAgentRunRecord({ ...validRun, next_action_index: 26 })).toThrow(/next action index/);
+    expect(() => toValidatedAgentRunRecord({ ...validRun, action_history: [null] })).toThrow(/payload/);
+    expect(() => toValidatedAgentRunRecord({ ...validRun, plan_hash: "bad" })).toThrow(/plan hash/);
+    expect(() => toValidatedAgentRunRecord({ ...validRun, current_graph_revision: 3 })).toThrow(/current graph revision/);
+    expect(() => toValidatedAgentRunRecord({ ...validRun, next_action_index: 26 })).toThrow(/next action index/);
   });
 
   it("validates run UUIDs and bounded plan size before persistence", () => {
@@ -48,8 +50,8 @@ describe("agent-run journal codec", () => {
       limitsSnapshot: { maxActions: 25 },
       plan: { baseGraphRevision: 4, actions: [{ kind: "EXECUTE_TASK" }] }
     };
-    expect(buildAgentRunRow(input).status).toBe("PLANNED");
-    expect(() => buildAgentRunRow({ ...input, runId: "not-a-uuid" })).toThrow(/UUID/);
-    expect(() => buildAgentRunRow({ ...input, plan: { ...input.plan, actions: Array(26).fill({ kind: "STOP" }) } })).toThrow(/1 to 25/);
+    expect(buildValidatedAgentRunRow(input).status).toBe("PLANNED");
+    expect(() => buildValidatedAgentRunRow({ ...input, runId: "not-a-uuid" })).toThrow(/UUID/);
+    expect(() => buildValidatedAgentRunRow({ ...input, plan: { ...input.plan, actions: Array(26).fill({ kind: "STOP" }) } })).toThrow(/1 to 25/);
   });
 });
