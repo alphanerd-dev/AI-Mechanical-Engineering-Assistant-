@@ -165,46 +165,66 @@ def collect_case_results(
     }
 
 
-def execute_case(request: dict[str, Any], job_id: str | None = None, prune: bool = True) -> dict[str, Any]:
-    if prune:
-        prune_artifacts(ARTIFACT_ROOT)
-    job_id = job_id or uuid.uuid4().hex
-    if not re.fullmatch(r"[a-f0-9]{32}", job_id):
-        raise WorkerError("OpenFOAM job ID must be a 32-character lowercase hexadecimal identifier.")
-    artifact_dir = ARTIFACT_ROOT / job_id
-    artifact_dir.mkdir(parents=True, exist_ok=False)
-    timeout = int(request["solver"]["timeoutSeconds"])
-    started = time.monotonic()
+def run_case_in_temporary_directory(
+    request: dict[str, Any],
+    job_id: str,
+    artifact_dir: Path,
+    timeout: int,
+    started: float,
+) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="openfoam14-", dir="/tmp") as temporary:
+        case_dir = Path(temporary) / "case"
+        case_dir.mkdir()
+        y_samples = write_case(case_dir, request)
+        logs, actual_mesh_cells = run_case_tools(case_dir, request, started, timeout)
+        case_results = collect_case_results(case_dir, request, y_samples, logs[-1])
+        artifacts = persist_case_artifacts(artifact_dir, case_dir, case_results, logs)
+        converged = case_results["converged"]
+        return {
+            "jobId": job_id,
+            "status": "COMPLETED",
+            "solver": "OpenFOAM",
+            "solverVersion": FOAM_VERSION,
+            "converged": converged,
+            "meshCells": actual_mesh_cells,
+            "massFluxKgS": case_results["massFluxKgS"],
+            "residuals": case_results["residuals"],
+            "velocityProfile": case_results["profile"],
+            "artifacts": artifacts,
+            "warnings": [] if converged else ["Solver completed but final residuals exceed the requested tolerance."],
+        }
 
+
+def run_case_with_artifact_cleanup(
+    request: dict[str, Any],
+    job_id: str,
+    artifact_dir: Path,
+    timeout: int,
+    started: float,
+) -> dict[str, Any]:
     try:
-        with tempfile.TemporaryDirectory(prefix="openfoam14-", dir="/tmp") as temporary:
-            case_dir = Path(temporary) / "case"
-            case_dir.mkdir()
-            y_samples = write_case(case_dir, request)
-            logs, actual_mesh_cells = run_case_tools(case_dir, request, started, timeout)
-            case_results = collect_case_results(case_dir, request, y_samples, logs[-1])
-            artifacts = persist_case_artifacts(artifact_dir, case_dir, case_results, logs)
-            converged = case_results["converged"]
-            return {
-                "jobId": job_id,
-                "status": "COMPLETED",
-                "solver": "OpenFOAM",
-                "solverVersion": FOAM_VERSION,
-                "converged": converged,
-                "meshCells": actual_mesh_cells,
-                "massFluxKgS": case_results["massFluxKgS"],
-                "residuals": case_results["residuals"],
-                "velocityProfile": case_results["profile"],
-                "artifacts": artifacts,
-                "warnings": [] if converged else ["Solver completed but final residuals exceed the requested tolerance."],
-            }
-    except subprocess.TimeoutExpired as error:
-        shutil.rmtree(artifact_dir, ignore_errors=True)
-        raise WorkerTimeout("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
+        return run_case_in_temporary_directory(request, job_id, artifact_dir, timeout, started)
     except Exception:
         shutil.rmtree(artifact_dir, ignore_errors=True)
         raise
 
+
+def execute_case(request: dict[str, Any], job_id: str | None = None, prune: bool = True) -> dict[str, Any]:
+    if prune:
+        prune_artifacts(ARTIFACT_ROOT)
+    resolved_job_id = job_id or uuid.uuid4().hex
+    if not re.fullmatch(r"[a-f0-9]{32}", resolved_job_id):
+        raise WorkerError("OpenFOAM job ID must be a 32-character lowercase hexadecimal identifier.")
+    artifact_dir = ARTIFACT_ROOT / resolved_job_id
+    artifact_dir.mkdir(parents=True, exist_ok=False)
+    timeout = int(request["solver"]["timeoutSeconds"])
+    started = time.monotonic()
+    try:
+        return run_case_with_artifact_cleanup(
+            request, resolved_job_id, artifact_dir, timeout, started
+        )
+    except subprocess.TimeoutExpired as error:
+        raise WorkerTimeout("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
 
 def parse_artifact_request(path: str) -> tuple[str, str] | None:
     parts = [unquote(part) for part in urlsplit(path).path.split("/") if part]
