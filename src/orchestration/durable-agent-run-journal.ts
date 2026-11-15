@@ -47,13 +47,20 @@ function createClaim(input: { row: unknown; workerId: string }): AgentRunClaim |
 export class SupabaseAgentRunJournal {
   constructor(private readonly client: SupabaseClient) {}
 
+  private async insertRunRow(row: Record<string, unknown>): Promise<AgentRunRecord | undefined> {
+    const inserted = await this.client.from(TABLE).insert(row).select("*").single();
+    if (inserted.error) {
+      if (isUniqueViolation(inserted.error)) return undefined;
+      throw new AgentRunJournalError("creating a run");
+    }
+    if (!inserted.data) throw new AgentRunJournalError("validating a new run");
+    return readRun({ value: inserted.data, operation: "validating a new run" });
+  }
+
   async createOrGet(input: CreateAgentRunInput): Promise<{ run: AgentRunRecord; created: boolean }> {
     const row = buildAgentRunRow(input);
-    const inserted = await this.client.from(TABLE).insert(row).select("*").single();
-    if (!inserted.error && inserted.data) {
-      return { run: readRun({ value: inserted.data, operation: "validating a new run" }), created: true };
-    }
-    if (!isUniqueViolation(inserted.error)) throw new AgentRunJournalError("creating a run");
+    const insertedRun = await this.insertRunRow(row);
+    if (insertedRun) return { run: insertedRun, created: true };
     return this.resolveIdempotentReplay(input, String(row.request_hash));
   }
 
