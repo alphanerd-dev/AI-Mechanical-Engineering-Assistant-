@@ -110,3 +110,25 @@ comment on column public.engineering_cad_drawings.source_artifact_sha256 is
   'Digest of the exact canonical source BREP bytes, independently rechecked before drawing generation.';
 comment on column public.engineering_cad_drawings.generator_id is
   'Trusted deterministic drawing generator identity; does not imply drafting-standard compliance or manufacturing release.';
+
+-- Read-only, RLS-respecting current-head lookup used by drawing history staleness indicators.
+create or replace function public.get_current_geometry_revision_heads(
+  p_project_id uuid,
+  p_model_identity_ids uuid[]
+)
+returns table(model_identity_id uuid, revision_id uuid)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select distinct on (revision.model_identity_id)
+    revision.model_identity_id,
+    revision.id as revision_id
+  from public.engineering_geometry_revisions as revision
+  where revision.project_id = p_project_id
+    and revision.model_identity_id = any(coalesce(p_model_identity_ids, '{}'::uuid[]))
+  order by revision.model_identity_id, revision.revision_number desc;
+$$;
+revoke all on function public.get_current_geometry_revision_heads(uuid,uuid[]) from public, anon;
+grant execute on function public.get_current_geometry_revision_heads(uuid,uuid[]) to authenticated, service_role;
