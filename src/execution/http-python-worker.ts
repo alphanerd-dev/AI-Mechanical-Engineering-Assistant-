@@ -3,7 +3,7 @@ import { HttpExecutionWorkerService, type WorkerSubmitResponse, type WorkerStatu
 import type { PythonWorkerClient } from "./python-worker.js";
 
 export interface HttpExecutionWorkerOptions { pollIntervalMs?: number; maxPolls?: number; }
-export interface HttpPythonWorkerOptions extends HttpExecutionWorkerOptions {}
+export type HttpPythonWorkerOptions = HttpExecutionWorkerOptions;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(signal.reason ?? new Error("Execution cancelled."));
