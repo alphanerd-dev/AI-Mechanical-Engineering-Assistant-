@@ -34,6 +34,12 @@ class CalculixServiceTests(unittest.TestCase):
         job_id, timeout = service.validate_request(valid_request())
         self.assertEqual(job_id, valid_request()["id"])
         self.assertEqual(timeout, 60000)
+        high_budget = valid_request()
+        high_budget["timeoutMs"] = 150000
+        self.assertEqual(service.validate_request(high_budget)[1], 150000)
+        high_budget["timeoutMs"] = 150001
+        with self.assertRaisesRegex(ValueError, "timeoutMs"):
+            service.validate_request(high_budget)
         request = valid_request()
         request["inputs"]["benchmark"] = "arbitrary_mesh"
         with self.assertRaisesRegex(ValueError, "cantilever_box"):
