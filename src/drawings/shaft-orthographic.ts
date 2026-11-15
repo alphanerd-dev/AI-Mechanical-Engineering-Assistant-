@@ -61,7 +61,9 @@ function escapeXml(value: string): string {
 }
 function validateLabel(value: string, name: string, maximum: number): string {
   const normalized = value.trim();
-  if (!normalized || normalized.length > maximum || /[\x00-\x1f\x7f]/.test(normalized)) {
+  const invalidControl = /[\x00-\x1f\x7f]/.test(normalized);
+  const invalidDrawingNumber = name === "drawingNumber" && /[\\/]/.test(normalized);
+  if (!normalized || normalized.length > maximum || invalidControl || invalidDrawingNumber) {
     throw new Error(name + " is required and must be a safe short label.");
   }
   return escapeXml(normalized);
