@@ -76,7 +76,7 @@ class WorkerTests(unittest.TestCase):
         request = {
             "analysis": "STATIC_STRUCTURAL",
             "benchmark": "cantilever_box",
-            "dimensionsMm": {"length": 2000.0, "width": 500.0, "height": 500.0},
+            "dimensionsMm": {"length": 2000.0, "width": 200.0, "height": 200.0},
             "material": {"youngsModulusMpa": 210000.0, "poissonRatio": 0.3},
             "totalForceN": 1000.0,
             "elementSizeMm": 1.0,
