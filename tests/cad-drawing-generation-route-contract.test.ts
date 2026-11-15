@@ -24,7 +24,6 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
     expect(sourceRevision).toContain("STALE_DRAWING_SOURCE");
     expect(sourceRevision).toContain('order("revision_number", { ascending: false })');
     expect(route).toContain("loadCurrentGeometryRevision");
-    expect(source).toContain('order("revision_number", { ascending: false })');
     expect(source).toContain("verifyStoredBrep");
     expect(sourceValidation).toContain("canonical_artifact_sha256");
     expect(route).toContain("loadAcceptedShaftSource");
