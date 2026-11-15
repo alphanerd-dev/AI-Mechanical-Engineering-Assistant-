@@ -51,7 +51,7 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
     expect(sql).toContain("stale_agent_graph");
     expect(sql).toContain("where id = p_run_id and project_id = p_project_id for update");
     expect(sql.match(/create or replace function public\./g)?.length).toBe(6);
-    expect(sql.match(/security definer\\s+set search_path = ''/g)?.length).toBe(6);
+    expect(sql.match(/security definer\s+set search_path = ''/g)?.length).toBe(6);
     expect(sql).not.toContain("grant execute on function public.claim_engineering_agent_run(uuid,text,integer) to authenticated");
   });
 });
