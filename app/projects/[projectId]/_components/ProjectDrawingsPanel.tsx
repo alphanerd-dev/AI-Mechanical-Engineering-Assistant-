@@ -71,27 +71,11 @@ async function submitDrawingUpload(projectId: string, modelIdentityId: string, f
   return readDrawingUploadId(response);
 }
 
-async function currentGeometryRevisionId(projectId: string, modelIdentityId: string): Promise<string> {
-  const url = "/api/cad/geometry/revisions?projectId=" + encodeURIComponent(projectId) +
-    "&modelIdentityId=" + encodeURIComponent(modelIdentityId);
-  const response = await fetch(url, { cache: "no-store" });
-  const body: unknown = await response.json().catch(() => ({}));
-  const record = asObjectRecord(body);
-  const revisions = record?.revisions;
-  if (!response.ok || !Array.isArray(revisions) || revisions.length === 0) {
-    throw new Error(typeof record?.error === "string" ? record.error : "No saved geometry revision is available for this model.");
-  }
-  const latest = asObjectRecord(revisions[revisions.length - 1]);
-  if (!latest || typeof latest.id !== "string") throw new Error("The latest geometry revision could not be identified.");
-  return latest.id;
-}
-
 async function submitShaftDrawingGeneration(projectId: string, modelIdentityId: string): Promise<string> {
-  const geometryRevisionId = await currentGeometryRevisionId(projectId, modelIdentityId);
   const response = await fetch("/api/cad/drawings/generate", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ projectId, modelIdentityId, geometryRevisionId })
+    body: JSON.stringify({ projectId, modelIdentityId })
   });
   const body: unknown = await response.json().catch(() => ({}));
   const record = asObjectRecord(body);
