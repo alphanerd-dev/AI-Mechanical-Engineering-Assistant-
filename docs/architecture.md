@@ -1,6 +1,6 @@
 # Architecture and Trust Boundaries
 
-**Reviewed:** 8 November 2026  
+**Reviewed:** 15 November 2026  
 **Status:** Current repository architecture. Production readiness is a separate release and runtime decision.
 
 See the [Product Brief](product-brief.md) for product scope, the [Engineering Capabilities](engineering-capabilities.md) for maturity boundaries, the [Implementation Plan](implementation-plan.md) for milestones and the [architecture decision records](README.md#architecture-decision-records) for accepted architectural direction.
@@ -28,7 +28,7 @@ Supabase supplies identity/session integration, project/workspace persistence an
 
 ## Geometry and visualization architecture
 
-The product direction is an **OCCT-first hybrid geometry foundation**, a **renderer-neutral visualization layer**, and an **integrated engineering workspace**. These are architectural directions; they do not mean the corresponding viewer libraries or general CAD capabilities are already implemented.
+The product direction is an **OCCT-first hybrid geometry foundation**, a **renderer-neutral visualization layer**, and an **integrated engineering workspace**. The bounded CAD workspace now includes isolated OCCT BREP/STEP processing, source-bound display derivatives, strict GLB validation, a read-only viewport, drawing ingestion and G2 immutable geometry revision persistence. These delivered foundations do not imply a native proprietary kernel, complete multi-format coverage or general CAD/assembly support.
 
 ### Canonical geometry and display derivatives
 
@@ -144,7 +144,7 @@ Mutating operations require idempotency and explicit retry rules. A timeout afte
 
 Artifacts are typed, project-scoped objects—not loose model attachments. Where applicable, preserve artifact ID/type/format/schema, exact source revision, project/model/job lineage, provider/runtime, input assumptions, units and coordinate frame, storage reference, checksum, validation receipt, evidence links and known limitations.
 
-The shared artifact/viewer registry and full interactive CAD/FEA/P&ID viewers remain roadmap work. M2 is the next implementation milestone: reconcile the artifact contracts, define a trusted viewer registry, benchmark Babylon.js against Three.js, and deliver the first renderer-neutral CAD viewer path. No production renderer has been selected and none of Babylon.js, Three.js, OpenCascade.js or VTK.js is currently an approved production dependency by this architecture decision.
+The bounded CAD display-derivative/viewport path and drawing ingestion/preview are implemented. FEA mesh/result-field and P&ID/PFD viewers remain roadmap work. Babylon.js and Three.js remain renderer candidates; no production renderer has been selected. Keep the renderer adapter independent of canonical geometry, validation and evidence. Do not treat a rendered mesh as proof of geometry validity, solver correctness or approval.
 
 Canonical engineering bytes, display derivatives, simulation inputs and simulation outputs are different artifact roles. A derivative must identify its canonical source, revision, digest and conversion lineage. A validation receipt applies only to the exact bytes, inputs, checks and runtime that it identifies; validating a BREP does not automatically validate a STEP/STL/3MF export. A rendered mesh or contour does not constitute a successful solve, geometry validation, mesh convergence or engineering approval.
 
