@@ -146,3 +146,5 @@ end;
 $$;
 revoke all on function public.get_current_geometry_revision_heads(uuid,uuid[]) from public, anon;
 grant execute on function public.get_current_geometry_revision_heads(uuid,uuid[]) to authenticated;
+
+notify pgrst, 'reload schema';
