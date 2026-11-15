@@ -53,10 +53,26 @@ def canonical_hash(value: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def job_artifact_directory(job: dict[str, Any]) -> Path:
+    directory = job.get("artifactDirectory")
+    if not isinstance(directory, Path):
+        raise RuntimeError("Job artifact directory is unavailable.")
+    root = ARTIFACT_ROOT.resolve()
+    resolved = directory.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError("Job artifact directory escaped the configured root.") from exc
+    return resolved
+
+
 def persist_job(job: dict[str, Any]) -> None:
-    directory = ARTIFACT_ROOT / job["jobId"]
+    directory = job_artifact_directory(job)
     directory.mkdir(parents=True, exist_ok=True)
-    public = {key: value for key, value in job.items() if key != "process"}
+    public = {
+        key: value for key, value in job.items()
+        if key not in {"process", "artifactDirectory"}
+    }
     temporary = directory / "job.json.tmp"
     temporary.write_text(json.dumps(public, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     temporary.replace(directory / "job.json")
@@ -216,8 +232,7 @@ def mark_job_running(job_id: str) -> bool:
         return True
 
 
-def prepare_fea_worker_payload(job_id: str, request: dict[str, Any], timeout_ms: int) -> tuple[dict[str, Any], dict[str, str]]:
-    directory = ARTIFACT_ROOT / job_id
+def prepare_fea_worker_payload(directory: Path, request: dict[str, Any], timeout_ms: int) -> tuple[dict[str, Any], dict[str, str]]:
     directory.mkdir(parents=True, exist_ok=True)
     payload = dict(request["inputs"])
     payload["analysis"] = "STATIC_STRUCTURAL"
@@ -312,10 +327,14 @@ def fail_job(job_id: str, error: Exception) -> None:
 def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
     if not mark_job_running(job_id):
         return
-    directory = ARTIFACT_ROOT / job_id
+    with LOCK:
+        job = JOBS.get(job_id)
+        directory = job_artifact_directory(job) if job else None
+    if directory is None:
+        return
     process: subprocess.Popen[str] | None = None
     try:
-        payload, environment = prepare_fea_worker_payload(job_id, request, timeout_ms)
+        payload, environment = prepare_fea_worker_payload(directory, request, timeout_ms)
         process = start_fea_worker_process(directory, environment)
         if not register_worker_process(job_id, process):
             return
@@ -327,11 +346,18 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
 
 def restore_jobs() -> None:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    root = ARTIFACT_ROOT.resolve()
     for metadata in ARTIFACT_ROOT.glob("*/job.json"):
         try:
+            directory = metadata.parent.resolve()
+            if directory.parent != root or not re.fullmatch(r"[a-f0-9]{32}", directory.name):
+                continue
             job = json.loads(metadata.read_text(encoding="utf-8"))
             if not isinstance(job, dict) or not isinstance(job.get("jobId"), str):
                 continue
+            if not is_safe_artifact_job_id(job["jobId"]):
+                continue
+            job["artifactDirectory"] = directory
             if job.get("status") in {"QUEUED", "RUNNING"}:
                 job.update(
                     status="FAILED",
@@ -339,9 +365,9 @@ def restore_jobs() -> None:
                     errorCode="RECONCILIATION_REQUIRED",
                     updatedAt=utc_now(),
                 )
-                metadata.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
             JOBS[job["jobId"]] = job
-        except (OSError, json.JSONDecodeError):
+            persist_job(job)
+        except (OSError, json.JSONDecodeError, RuntimeError):
             continue
 
 
@@ -358,6 +384,7 @@ def submit_job(request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
             return 202, {"accepted": True, "jobId": job_id, "status": existing["status"]}
         job = {
             "jobId": job_id,
+            "artifactDirectory": ARTIFACT_ROOT / uuid.uuid4().hex,
             "status": "QUEUED",
             "requestHash": request_hash,
             "cancelRequested": False,
@@ -394,22 +421,32 @@ def is_safe_artifact_job_id(job_id: str) -> bool:
     return bool(re.fullmatch(pattern, job_id, re.IGNORECASE))
 
 
-def is_safe_artifact_relative_path(relative_path: str) -> bool:
-    if not relative_path:
-        return False
-    if relative_path.startswith("/") or "\\" in relative_path:
-        return False
-    return all(part not in {"", ".", ".."} for part in relative_path.split("/"))
+def normalize_artifact_path(relative_path: str) -> str | None:
+    if relative_path.startswith("artifacts/"):
+        relative_path = relative_path[len("artifacts/"):]
+    allowed = {
+        "v1_18_cantilever.inp",
+        "v1_18_cantilever.dat",
+        "v1_18_cantilever.frd",
+        "v1_18_cantilever.sta",
+    }
+    return relative_path if relative_path in allowed else None
 
 
 def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
     if not is_safe_artifact_job_id(job_id):
         return None
-    if not is_safe_artifact_relative_path(relative_path):
+    filename = normalize_artifact_path(relative_path)
+    if filename is None:
         return None
-    job_root = (ARTIFACT_ROOT / job_id).resolve()
+    with LOCK:
+        job = JOBS.get(job_id)
+        directory = job.get("artifactDirectory") if job else None
+    if not isinstance(directory, Path):
+        return None
+    job_root = directory.resolve()
     try:
-        candidate = (job_root / relative_path).resolve()
+        candidate = (job_root / filename).resolve()
         candidate.relative_to(job_root)
     except (OSError, ValueError):
         return None
