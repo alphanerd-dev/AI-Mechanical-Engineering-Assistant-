@@ -85,7 +85,7 @@ class CalculixServiceTests(unittest.TestCase):
     def test_recovery_marks_active_jobs_for_manual_reconciliation(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            directory = root / valid_request()["id"]
+            directory = root / ("a" * 32)
             directory.mkdir()
             (directory / "job.json").write_text(json.dumps({
                 "jobId": valid_request()["id"],
@@ -102,6 +102,7 @@ class CalculixServiceTests(unittest.TestCase):
                 restored = service.JOBS[valid_request()["id"]]
                 self.assertEqual(restored["status"], "FAILED")
                 self.assertEqual(restored["errorCode"], "RECONCILIATION_REQUIRED")
+                self.assertEqual(restored["artifactDirectory"], directory)
             finally:
                 service.ARTIFACT_ROOT = original_root
                 service.JOBS.clear()
@@ -111,14 +112,17 @@ class CalculixServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             job_id = valid_request()["id"]
-            job_dir = root / job_id
+            job_dir = root / ("b" * 32)
             job_dir.mkdir()
-            artifact = job_dir / "model.inp"
+            artifact = job_dir / "v1_18_cantilever.inp"
             artifact.write_text("*NODE", encoding="utf-8")
             original_root = service.ARTIFACT_ROOT
+            original_jobs = dict(service.JOBS)
             try:
                 service.ARTIFACT_ROOT = root
-                self.assertEqual(service.resolve_artifact(job_id, "model.inp"), artifact)
+                service.JOBS.clear()
+                service.JOBS[job_id] = {"jobId": job_id, "artifactDirectory": job_dir}
+                self.assertEqual(service.resolve_artifact(job_id, "v1_18_cantilever.inp"), artifact)
                 for unsafe_path in (
                     "../outside",
                     "nested/../outside",
@@ -127,14 +131,18 @@ class CalculixServiceTests(unittest.TestCase):
                     "nested\\outside.inp",
                     "nested//outside.inp",
                     "nested/./outside.inp",
+                    "unknown.inp",
                 ):
                     self.assertIsNone(service.resolve_artifact(job_id, unsafe_path), unsafe_path)
                 outside = root / "outside.inp"
                 outside.write_text("outside", encoding="utf-8")
-                (job_dir / "escape.inp").symlink_to(outside)
-                self.assertIsNone(service.resolve_artifact(job_id, "escape.inp"))
+                artifact.unlink()
+                artifact.symlink_to(outside)
+                self.assertIsNone(service.resolve_artifact(job_id, "v1_18_cantilever.inp"))
             finally:
                 service.ARTIFACT_ROOT = original_root
+                service.JOBS.clear()
+                service.JOBS.update(original_jobs)
 
     def test_external_bind_requires_api_token(self):
         with self.assertRaisesRegex(RuntimeError, "WORKER_API_TOKEN"):
