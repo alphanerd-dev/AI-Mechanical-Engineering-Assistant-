@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "../../../../../lib/supabase/service";
 import { fail, parseDrawingGenerationRequest, requireAuthorizedIdentity, drawingGenerationErrorResponse } from "./request";
-import { loadCurrentGeometryRevision, loadAcceptedShaftSource, verifyCanonicalSourceBytes } from "./source";
+import { loadCurrentGeometryRevision, loadAcceptedShaftSource } from "./source";
 import { persistGeneratedDrawing } from "./persistence";
 
 export const runtime = "nodejs";
@@ -17,7 +17,6 @@ export async function POST(request: Request) {
     if (model.error || !model.data) fail({ message: "CAD model identity does not belong to this project.", status: 404, code: "MODEL_NOT_FOUND" });
 
     const revision = await loadCurrentGeometryRevision(serviceDb, input);
-    await verifyCanonicalSourceBytes(serviceDb, revision);
     const source = await loadAcceptedShaftSource(serviceDb, revision, input.projectId, input.modelIdentityId);
     const revisionNumber = Number(revision.revision_number);
     const drawingNumber = input.drawingNumber?.trim() || "SHAFT-" + revisionNumber + "-" + String(revision.id).slice(0, 8).toUpperCase();
