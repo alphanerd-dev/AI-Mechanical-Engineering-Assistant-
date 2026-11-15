@@ -15,6 +15,7 @@ export function useProjectDrawingActions(input: {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const generationBlocked = !input.modelIdentityId || generating || uploading;
+  const clearError = () => setError(null);
   const upload = useDrawingUpload({
     ...input, uploading, generating, setUploading, setError, setNotice
   });
@@ -26,5 +27,5 @@ export function useProjectDrawingActions(input: {
     refresh: input.refresh,
     setSelectedId: input.setSelectedId
   });
-  return { uploading, generating, generationBlocked, error, notice, upload, generateShaftDrawing };
+  return { uploading, generating, generationBlocked, error, notice, clearError, upload, generateShaftDrawing };
 }
