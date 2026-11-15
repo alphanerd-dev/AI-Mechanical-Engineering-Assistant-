@@ -161,7 +161,7 @@ class OpenFOAMServiceTests(unittest.TestCase):
 
     def test_artifact_resolution_rejects_path_traversal_and_symlink_escape(self):
         job_id = valid_request()["id"]
-        job_dir = service.ARTIFACT_ROOT / Path(job_id).name
+        job_dir = service.ARTIFACT_ROOT / __import__("uuid").UUID(job_id).hex
         job_dir.mkdir(parents=True)
         artifact = job_dir / "solver.log"
         artifact.write_text("OpenFOAM log", encoding="utf-8")
