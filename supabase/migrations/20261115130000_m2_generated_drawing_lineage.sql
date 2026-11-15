@@ -117,18 +117,32 @@ create or replace function public.get_current_geometry_revision_heads(
   p_model_identity_ids uuid[]
 )
 returns table(model_identity_id uuid, revision_id uuid)
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select distinct on (revision.model_identity_id)
-    revision.model_identity_id,
-    revision.id as revision_id
-  from public.engineering_geometry_revisions as revision
-  where revision.project_id = p_project_id
-    and revision.model_identity_id = any(coalesce(p_model_identity_ids, '{}'::uuid[]))
-  order by revision.model_identity_id, revision.revision_number desc;
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if v_user_id is null then return; end if;
+  if not exists (
+    select 1
+      from public.engineering_project_memberships as membership
+     where membership.project_id = p_project_id
+       and membership.user_id = v_user_id
+       and membership.role in ('ENGINEER', 'REVIEWER', 'ADMIN', 'AGENT')
+  ) then return; end if;
+
+  return query
+    select distinct on (revision.model_identity_id)
+      revision.model_identity_id,
+      revision.id as revision_id
+    from public.engineering_geometry_revisions as revision
+    where revision.project_id = p_project_id
+      and revision.model_identity_id = any(coalesce(p_model_identity_ids, '{}'::uuid[]))
+    order by revision.model_identity_id, revision.revision_number desc;
+end;
 $$;
 revoke all on function public.get_current_geometry_revision_heads(uuid,uuid[]) from public, anon;
-grant execute on function public.get_current_geometry_revision_heads(uuid,uuid[]) to authenticated, service_role;
+grant execute on function public.get_current_geometry_revision_heads(uuid,uuid[]) to authenticated;
