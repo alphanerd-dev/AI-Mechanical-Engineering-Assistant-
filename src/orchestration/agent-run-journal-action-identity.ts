@@ -1,4 +1,5 @@
 import { isRecord } from "./agent-run-journal-codec.js";
+import { canonicalAgentRunDigest } from "./agent-run-journal-digest.js";
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -36,4 +37,7 @@ export function validatePersistedActionIdentity(value: unknown, context: AgentAc
   const hash = requireActionHash(value.actionHash);
   requireActionKey(value.actionKey, { runId: context.runId, index, hash });
   requireActionPayload(value.action);
+  if (canonicalAgentRunDigest(value.action) !== hash) {
+    throw new Error("Persisted agent action digest does not match its payload.");
+  }
 }
