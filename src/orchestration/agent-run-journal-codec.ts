@@ -139,9 +139,9 @@ function validateCurrentGraphRevision(row: Record<string, unknown>, initialRevis
 }
 function validateNextActionIndex(row: Record<string, unknown>): void {
   const index = asNumber(row.next_action_index);
-  if (!Number.isInteger(index) || (index as number) < 0 || (index as number) > 25) {
-    throw new Error("Persisted next action index is invalid.");
-  }
+  if (!Number.isInteger(index)) throw new Error("Persisted next action index must be an integer.");
+  if ((index as number) < 0) throw new Error("Persisted next action index cannot be negative.");
+  if ((index as number) > 25) throw new Error("Persisted next action index exceeds the plan limit.");
 }
 function validatePersistedHashes(row: Record<string, unknown>): void {
   if (typeof row.plan_hash !== "string" || !SHA256_PATTERN.test(row.plan_hash)) {
