@@ -149,7 +149,7 @@ function timeoutForBackend(backend: ExecutionBackend, inputs: Record<string, unk
   if (backend !== "cfd-worker") return 2_000;
   const solver = isRecord(inputs.solver) ? inputs.solver : {};
   const seconds = typeof solver.timeoutSeconds === "number" ? solver.timeoutSeconds : 600;
-  return (seconds + 120) * 1000;
+  return (seconds + 130) * 1000;
 }
 function requestedOutputsForBackend(backend: ExecutionBackend, outputs: string[]): string[] {
   const normalized: Partial<Record<ExecutionBackend, string[]>> = {
