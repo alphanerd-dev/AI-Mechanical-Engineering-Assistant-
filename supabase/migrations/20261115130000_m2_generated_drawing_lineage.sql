@@ -27,6 +27,7 @@ alter table public.engineering_cad_drawings
         and source_artifact_sha256 is not null
         and source_revision_number is not null
         and generation_parameters is not null and jsonb_typeof(generation_parameters) = 'object'
+        and pg_column_size(generation_parameters) <= 65536
         and model_identity_id is not null and format = 'SVG' and media_type = 'image/svg+xml')
     ),
   add constraint engineering_cad_drawings_geometry_revision_fkey
@@ -126,6 +127,7 @@ declare
   v_user_id uuid := auth.uid();
 begin
   if v_user_id is null then return; end if;
+  if p_model_identity_ids is null or cardinality(p_model_identity_ids) > 100 then return; end if;
   if not exists (
     select 1
       from public.engineering_project_memberships as membership
