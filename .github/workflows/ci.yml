@@ -201,3 +201,31 @@ jobs:
       - name: Build bounded execution worker container
         run: docker build --tag ai-mechanical-engineering-assistant-execution-worker:ci --file worker/execution/Dockerfile .
       - run: npm run build
+
+  supabase-local-migrations:
+    name: Replay Supabase migrations on an isolated local stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.98.2
+      - name: Initialize local Supabase configuration without touching remote projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f supabase/config.toml ]]; then
+            supabase init
+          fi
+          test -f supabase/config.toml
+      - name: Start isolated local Supabase services
+        run: supabase start
+      - name: Replay every migration against an empty local database
+        run: supabase db reset --local
+      - name: Stop local Supabase services
+        if: always()
+        run: supabase stop
