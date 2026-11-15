@@ -151,17 +151,33 @@ function validatePersistedHashes(row: Record<string, unknown>): void {
     throw new Error("Persisted request hash is invalid.");
   }
 }
-function validatePersistedOptionalFields(row: Record<string, unknown>): void {
-  if (row.current_action !== null && row.current_action !== undefined && !isRecord(row.current_action)) {
-    throw new Error("Persisted in-flight action is invalid.");
-  }
-  if (row.cancel_requested_at !== null && row.cancel_requested_at !== undefined && typeof row.cancel_requested_at !== "string") {
-    throw new Error("Persisted cancellation timestamp is invalid.");
-  }
-  if (row.error !== null && row.error !== undefined && typeof row.error !== "string") {
-    throw new Error("Persisted run error is invalid.");
-  }
+function isAbsent(value: unknown): boolean {
+  return value === null || value === undefined;
 }
+function isValidOptionalAction(value: unknown): boolean {
+  return isAbsent(value) || isRecord(value);
+}
+function isValidOptionalString(value: unknown): boolean {
+  return isAbsent(value) || typeof value === "string";
+}
+function assertOptionalField(input: { valid: boolean; message: string }): void {
+  if (!input.valid) throw new Error(input.message);
+}
+function validatePersistedOptionalFields(row: Record<string, unknown>): void {
+  assertOptionalField({
+    valid: isValidOptionalAction(row.current_action),
+    message: "Persisted in-flight action is invalid."
+  });
+  assertOptionalField({
+    valid: isValidOptionalString(row.cancel_requested_at),
+    message: "Persisted cancellation timestamp is invalid."
+  });
+  assertOptionalField({
+    valid: isValidOptionalString(row.error),
+    message: "Persisted run error is invalid."
+  });
+}
+
 function validatePersistedTimestamps(row: Record<string, unknown>): void {
   if (typeof row.created_at !== "string" || Number.isNaN(Date.parse(row.created_at))) {
     throw new Error("Persisted creation timestamp is invalid.");
