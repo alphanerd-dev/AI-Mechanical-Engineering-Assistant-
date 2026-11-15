@@ -29,6 +29,7 @@ export interface DurableExecutionInput {
   timeoutMs: ExecutionTimeoutMs;
 }
 export interface DurableExecutionParseFailure { ok: false; error: string; status: number; code: string; }
+interface FailureDetails { message: string; status: number; code: string; }
 export interface DurableExecutionParseSuccess { ok: true; value: DurableExecutionInput; }
 export type DurableExecutionParseResult = DurableExecutionParseSuccess | DurableExecutionParseFailure;
 interface ValueParseResult<T> {
@@ -51,8 +52,8 @@ interface ParsedPayload {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-function failure(message: string, status: number, code: string): DurableExecutionParseFailure {
-  return { ok: false, error: message, status, code };
+function failure(details: FailureDetails): DurableExecutionParseFailure {
+  return { ok: false, error: details.message, status: details.status, code: details.code };
 }
 function isFailure(value: unknown): value is DurableExecutionParseFailure {
   if (!isRecord(value)) return false;
@@ -63,64 +64,67 @@ function parsed<T>(value: T): ValueParseResult<T> { return { valid: true, value 
 function rejected<T>(value: DurableExecutionParseFailure): ValueParseResult<T> { return { valid: false, failure: value }; }
 
 function parseProjectId(value: unknown): ProjectId | DurableExecutionParseFailure {
-  if (typeof value !== "string") return failure("A valid projectId is required for durable execution.", 400, "PROJECT_ID_REQUIRED");
+  if (typeof value !== "string") return failure({ message: "A valid projectId is required for durable execution.", status: 400, code: "PROJECT_ID_REQUIRED" });
   const candidate = value.trim();
-  if (!UUID.test(candidate)) return failure("A valid projectId is required for durable execution.", 400, "PROJECT_ID_REQUIRED");
+  if (!UUID.test(candidate)) return failure({ message: "A valid projectId is required for durable execution.", status: 400, code: "PROJECT_ID_REQUIRED" });
   return candidate as ProjectId;
 }
 function parseIdempotencyKey(value: string): IdempotencyKey | DurableExecutionParseFailure {
   const key = value.trim();
   if (!IDEMPOTENCY.test(key)) {
-    return failure("Provide an Idempotency-Key header containing 8-128 safe characters.", 400, "IDEMPOTENCY_KEY_REQUIRED");
+    return failure({ message: "Provide an Idempotency-Key header containing 8-128 safe characters.", status: 400, code: "IDEMPOTENCY_KEY_REQUIRED" });
   }
   return key as IdempotencyKey;
 }
 function parseCapability(value: unknown): CapabilityName | DurableExecutionParseFailure {
-  if (typeof value !== "string") return failure("A supported capability name is required.", 400, "CAPABILITY_REQUIRED");
+  if (typeof value !== "string") return failure({ message: "A supported capability name is required.", status: 400, code: "CAPABILITY_REQUIRED" });
   const candidate = value.trim();
-  if (!candidate) return failure("A supported capability name is required.", 400, "CAPABILITY_REQUIRED");
-  if (candidate.length > 128) return failure("A supported capability name is required.", 400, "CAPABILITY_REQUIRED");
+  if (!candidate) return failure({ message: "A supported capability name is required.", status: 400, code: "CAPABILITY_REQUIRED" });
+  if (candidate.length > 128) return failure({ message: "A supported capability name is required.", status: 400, code: "CAPABILITY_REQUIRED" });
   return candidate as CapabilityName;
 }
 function parseBackend(value: unknown): ExecutionBackend | DurableExecutionParseFailure {
   const candidate = value === undefined ? "typescript-safe" : value;
-  if (typeof candidate !== "string") return failure("Backend must be typescript-safe, python-worker, fea-worker or cfd-worker.", 400, "UNSUPPORTED_BACKEND");
+  if (typeof candidate !== "string") return failure({ message: "Backend must be typescript-safe, python-worker, fea-worker or cfd-worker.", status: 400, code: "UNSUPPORTED_BACKEND" });
   if (!SUPPORTED_BACKENDS.has(candidate as ExecutionBackend)) {
-    return failure("Backend must be typescript-safe, python-worker, fea-worker or cfd-worker.", 400, "UNSUPPORTED_BACKEND");
+    return failure({ message: "Backend must be typescript-safe, python-worker, fea-worker or cfd-worker.", status: 400, code: "UNSUPPORTED_BACKEND" });
   }
   return candidate as ExecutionBackend;
 }
 function validatePythonCapability(capability: string): DurableExecutionParseFailure | undefined {
   return PYTHON_CAPABILITIES.has(capability)
     ? undefined
-    : failure("The Python worker capability is not allowlisted.", 422, "UNSUPPORTED_CAPABILITY");
+    : failure({ message: "The Python worker capability is not allowlisted.", status: 422, code: "UNSUPPORTED_CAPABILITY" });
 }
 function validateTypeScriptCapability(capability: string): DurableExecutionParseFailure | undefined {
   return capability === "ANALYSIS.SHAFT_TORQUE"
     ? undefined
-    : failure("The TypeScript backend does not support this capability.", 422, "UNSUPPORTED_CAPABILITY");
+    : failure({ message: "The TypeScript backend does not support this capability.", status: 422, code: "UNSUPPORTED_CAPABILITY" });
 }
 function validateFEACapability(capability: string): DurableExecutionParseFailure | undefined {
   return capability === "ANALYSIS.STATIC_STRUCTURAL"
     ? undefined
-    : failure("The CalculiX worker only supports ANALYSIS.STATIC_STRUCTURAL.", 422, "UNSUPPORTED_CAPABILITY");
+    : failure({ message: "The CalculiX worker only supports ANALYSIS.STATIC_STRUCTURAL.", status: 422, code: "UNSUPPORTED_CAPABILITY" });
 }
 function validateCFDCapability(capability: string): DurableExecutionParseFailure | undefined {
   return capability === "ANALYSIS.CFD_LAMINAR_CHANNEL"
     ? undefined
-    : failure("The OpenFOAM worker only supports ANALYSIS.CFD_LAMINAR_CHANNEL.", 422, "UNSUPPORTED_CAPABILITY");
+    : failure({ message: "The OpenFOAM worker only supports ANALYSIS.CFD_LAMINAR_CHANNEL.", status: 422, code: "UNSUPPORTED_CAPABILITY" });
 }
-function validateBackendCapability(backend: ExecutionBackend, capability: string): DurableExecutionParseFailure | undefined {
+function validateBackendCapability(input: {
+  backend: ExecutionBackend;
+  capability: string;
+}): DurableExecutionParseFailure | undefined {
   const validators: Partial<Record<ExecutionBackend, (value: string) => DurableExecutionParseFailure | undefined>> = {
     "typescript-safe": validateTypeScriptCapability,
     "python-worker": validatePythonCapability,
     "fea-worker": validateFEACapability,
     "cfd-worker": validateCFDCapability
   };
-  return validators[backend]?.(capability);
+  return validators[input.backend]?.(input.capability);
 }
-function hasWorkerConfiguration(url: string | undefined, token: string | undefined): boolean {
-  return Boolean(url?.trim() && token?.trim());
+function hasWorkerConfiguration(input: { url?: string; token?: string }): boolean {
+  return Boolean(input.url?.trim() && input.token?.trim());
 }
 function workerConfigurationError(backend: ExecutionBackend): DurableExecutionParseFailure | undefined {
   const settings: Partial<Record<ExecutionBackend, { url?: string; token?: string; name: string }>> = {
@@ -129,17 +133,17 @@ function workerConfigurationError(backend: ExecutionBackend): DurableExecutionPa
     "cfd-worker": { url: process.env.OPENFOAM_WORKER_URL, token: process.env.OPENFOAM_WORKER_API_TOKEN, name: "OpenFOAM" }
   };
   const setting = settings[backend];
-  if (!setting || hasWorkerConfiguration(setting.url, setting.token)) return undefined;
-  return failure("The " + setting.name + " worker URL and API token must both be configured.", 503, "WORKER_UNAVAILABLE");
+  if (!setting || hasWorkerConfiguration({ url: setting.url, token: setting.token })) return undefined;
+  return failure({ message: "The " + setting.name + " worker URL and API token must both be configured.", status: 503, code: "WORKER_UNAVAILABLE" });
 }
 function parseInputs(value: unknown): ValueParseResult<Record<string, unknown>> {
   if (value === undefined) return parsed({});
-  if (!isRecord(value)) return rejected(failure("inputs must be a JSON object when provided.", 400, "INVALID_INPUTS"));
+  if (!isRecord(value)) return rejected(failure({ message: "inputs must be a JSON object when provided.", status: 400, code: "INVALID_INPUTS" }));
   let serialized: string;
   try { serialized = JSON.stringify(value); }
-  catch { return rejected(failure("inputs must be JSON serializable.", 400, "INVALID_INPUTS")); }
+  catch { return rejected(failure({ message: "inputs must be JSON serializable.", status: 400, code: "INVALID_INPUTS" })); }
   if (serialized.length > 64_000) {
-    return rejected(failure("inputs exceed the 64 KB request limit.", 413, "INPUT_TOO_LARGE"));
+    return rejected(failure({ message: "inputs exceed the 64 KB request limit.", status: 413, code: "INPUT_TOO_LARGE" }));
   }
   return parsed(value);
 }
@@ -148,36 +152,45 @@ function hasValidOutputItems(value: unknown[]): boolean {
 }
 function parseRequestedOutputs(value: unknown): RequestedOutput[] | DurableExecutionParseFailure {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) return failure("requestedOutputs must be an array when provided.", 400, "INVALID_OUTPUTS");
-  if (value.length > 64) return failure("requestedOutputs must contain at most 64 non-empty short strings.", 400, "INVALID_OUTPUTS");
-  if (!hasValidOutputItems(value)) return failure("requestedOutputs must contain at most 64 non-empty short strings.", 400, "INVALID_OUTPUTS");
+  if (!Array.isArray(value)) return failure({ message: "requestedOutputs must be an array when provided.", status: 400, code: "INVALID_OUTPUTS" });
+  if (value.length > 64) return failure({ message: "requestedOutputs must contain at most 64 non-empty short strings.", status: 400, code: "INVALID_OUTPUTS" });
+  if (!hasValidOutputItems(value)) return failure({ message: "requestedOutputs must contain at most 64 non-empty short strings.", status: 400, code: "INVALID_OUTPUTS" });
   return value as RequestedOutput[];
 }
-function validateSolverInputs(backend: ExecutionBackend, inputs: Record<string, unknown>): DurableExecutionParseFailure | undefined {
+function validateSolverInputs(input: {
+  backend: ExecutionBackend;
+  inputs: Record<string, unknown>;
+}): DurableExecutionParseFailure | undefined {
   let errors: string[] = [];
-  if (backend === "fea-worker") errors = validateFEACantileverBoxRequest(inputs);
-  if (backend === "cfd-worker") errors = validateOpenFOAMLaminarChannelRequest(inputs);
+  if (input.backend === "fea-worker") errors = validateFEACantileverBoxRequest(input.inputs);
+  if (input.backend === "cfd-worker") errors = validateOpenFOAMLaminarChannelRequest(input.inputs);
   if (!errors.length) return undefined;
-  const name = backend === "fea-worker" ? "CalculiX" : "OpenFOAM";
-  return failure("Invalid " + name + " benchmark request: " + errors.join("; "), 422, "INVALID_SOLVER_REQUEST");
+  const name = input.backend === "fea-worker" ? "CalculiX" : "OpenFOAM";
+  return failure({ message: "Invalid " + name + " benchmark request: " + errors.join("; "), status: 422, code: "INVALID_SOLVER_REQUEST" });
 }
 function asExecutionTimeoutMs(value: number): ExecutionTimeoutMs {
   return value as ExecutionTimeoutMs;
 }
-function timeoutForBackend(backend: ExecutionBackend, inputs: Record<string, unknown>): ExecutionTimeoutMs {
-  if (backend === "python-worker") return asExecutionTimeoutMs(30_000);
-  if (backend === "fea-worker") return asExecutionTimeoutMs(150_000);
-  if (backend !== "cfd-worker") return asExecutionTimeoutMs(2_000);
-  const solver = isRecord(inputs.solver) ? inputs.solver : {};
+function timeoutForBackend(input: {
+  backend: ExecutionBackend;
+  inputs: Record<string, unknown>;
+}): ExecutionTimeoutMs {
+  if (input.backend === "python-worker") return asExecutionTimeoutMs(30_000);
+  if (input.backend === "fea-worker") return asExecutionTimeoutMs(150_000);
+  if (input.backend !== "cfd-worker") return asExecutionTimeoutMs(2_000);
+  const solver = isRecord(input.inputs.solver) ? input.inputs.solver : {};
   const seconds = typeof solver.timeoutSeconds === "number" ? solver.timeoutSeconds : 600;
   return asExecutionTimeoutMs((seconds + 130) * 1000);
 }
-function requestedOutputsForBackend(backend: ExecutionBackend, outputs: RequestedOutput[]): RequestedOutput[] {
+function requestedOutputsForBackend(input: {
+  backend: ExecutionBackend;
+  outputs: RequestedOutput[];
+}): RequestedOutput[] {
   const normalized: Partial<Record<ExecutionBackend, RequestedOutput[]>> = {
     "fea-worker": ["DISPLACEMENT", "STRESS", "REACTION_FORCE"] as RequestedOutput[],
     "cfd-worker": ["VELOCITY_PROFILE", "MASS_FLOW", "RESIDUALS", "ARTIFACTS"] as RequestedOutput[]
   };
-  return normalized[backend] ?? outputs;
+  return normalized[input.backend] ?? input.outputs;
 }
 function parseIdentity(input: {
   body: Record<string, unknown>; idempotencyKey: string; requestId: string;
@@ -190,7 +203,7 @@ function parseIdentity(input: {
   if (isFailure(capability)) return rejected(capability);
   const backend = parseBackend(input.body.backend);
   if (isFailure(backend)) return rejected(backend);
-  const capabilityError = validateBackendCapability(backend, capability);
+  const capabilityError = validateBackendCapability({ backend, capability });
   if (capabilityError) return rejected(capabilityError);
   const configError = workerConfigurationError(backend);
   if (configError) return rejected(configError);
@@ -203,12 +216,12 @@ function parsePayload(input: {
   if (!inputs.valid || !inputs.value) return rejected(inputs.failure as DurableExecutionParseFailure);
   const outputs = parseRequestedOutputs(input.body.requestedOutputs);
   if (isFailure(outputs)) return rejected(outputs);
-  const solverError = validateSolverInputs(input.backend, inputs.value);
+  const solverError = validateSolverInputs({ backend: input.backend, inputs: inputs.value });
   if (solverError) return rejected(solverError);
   return parsed({
     inputs: inputs.value,
-    requestedOutputs: requestedOutputsForBackend(input.backend, outputs),
-    timeoutMs: timeoutForBackend(input.backend, inputs.value)
+    requestedOutputs: requestedOutputsForBackend({ backend: input.backend, outputs }),
+    timeoutMs: timeoutForBackend({ backend: input.backend, inputs: inputs.value })
   });
 }
 export function parseDurableExecutionInput(input: {
@@ -223,10 +236,14 @@ export function parseDurableExecutionInput(input: {
     value: { ...identity.value!, ...payload.value! }
   };
 }
-export function buildDurableExecutionRequest(input: DurableExecutionInput, jobId: string): ExecutionRequest {
+export function buildDurableExecutionRequest(input: {
+  execution: DurableExecutionInput;
+  jobId: string;
+}): ExecutionRequest {
+  const { execution, jobId } = input;
   return {
-    id: jobId, capability: input.capability, backend: input.backend,
-    inputs: input.inputs, requestedOutputs: input.requestedOutputs,
-    timeoutMs: input.timeoutMs, projectId: input.projectId, correlationId: input.requestId
+    id: jobId, capability: execution.capability, backend: execution.backend,
+    inputs: execution.inputs, requestedOutputs: execution.requestedOutputs,
+    timeoutMs: execution.timeoutMs, projectId: execution.projectId, correlationId: execution.requestId
   };
 }
