@@ -38,7 +38,8 @@ function isValidDimensionCheck(value: unknown): value is Row {
   if (value.passed !== true) return false;
   if (!finitePositive(value.actualMm)) return false;
   if (!finitePositive(value.expectedMm)) return false;
-  return finitePositive(value.toleranceMm);
+  if (!finitePositive(value.toleranceMm)) return false;
+  return value.toleranceMm === 0.01;
 }
 function requireCompleteAxisChecks(checks: Map<string, Row>): void {
   if (!checks.has("x")) fail({ message: "Accepted geometry receipt must validate the X dimension.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
