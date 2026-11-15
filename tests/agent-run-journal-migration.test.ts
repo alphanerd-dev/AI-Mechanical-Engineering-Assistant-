@@ -38,7 +38,7 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
   it("requires project-scoped cancellation and service-role-only function execution", () => {
     expect(sql).toContain("request_engineering_agent_run_cancellation");
     expect(sql).toContain("resume_engineering_agent_run_after_approval");
-    expect(sql).toContain("approvalEvidenceId");
+    expect(sql).toContain("approvalevidenceid");
     expect(sql).toContain("stale_agent_graph");
     expect(sql).toContain("where id = p_run_id and project_id = p_project_id for update");
     expect(sql.match(/security definer set search_path = ''/g)?.length).toBe(6);
