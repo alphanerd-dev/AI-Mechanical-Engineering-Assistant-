@@ -74,7 +74,7 @@ function isValidGeometryReceipt(input: {
 function requireShaftSpecification(completion: Completion): Row {
   const specification = completion.specification;
   if (!isRecord(specification)) fail({ message: "Accepted CAD specification is missing.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
-  if (specification.kind !== "CYLINDER" || specification.name !== "shaft") {
+  if (specification.kind !== "CYLINDER") {\n    fail({ message: "Drawing generator currently supports cylindrical shaft geometry only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });\n  }\n  if (specification.name !== "shaft") {
     fail({ message: "Drawing generator currently supports accepted cylindrical shaft specifications only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });
   }
   if (!finitePositive(specification.diameterMm) || !finitePositive(specification.lengthMm)) {
@@ -95,7 +95,7 @@ function requireShaftBounds(receipt: Row): Row {
   return bounds;
 }
 function validateSpecificationDimensions(input: { specification: Row; bounds: Row }): void {
-  const measuredDiameter = (input.bounds.x as number + input.bounds.y as number) / 2;
+  const measuredDiameter = ((input.bounds.x as number) + (input.bounds.y as number)) / 2;
   if (Math.abs(measuredDiameter - (input.specification.diameterMm as number)) > 0.02) {
     fail({ message: "Measured shaft diameter does not match the accepted CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
   }
