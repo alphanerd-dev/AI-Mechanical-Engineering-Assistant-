@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import signal
@@ -89,6 +90,16 @@ def validate_request(request: Any) -> tuple[str, int]:
     return job_id, timeout_ms
 
 
+def has_only_finite_numbers(value: Any) -> bool:
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, list):
+        return all(has_only_finite_numbers(item) for item in value)
+    if isinstance(value, dict):
+        return all(has_only_finite_numbers(item) for item in value.values())
+    return True
+
+
 def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) -> dict[str, Any]:
     raw_result: dict[str, Any] | None = None
     for line in reversed(stdout.splitlines()):
@@ -104,6 +115,8 @@ def parse_worker_result(stdout: str, return_code: int, request: dict[str, Any]) 
             break
     if raw_result is None:
         raise RuntimeError("CalculiX worker returned no valid JSON result.")
+    if not has_only_finite_numbers(raw_result):
+        raise RuntimeError("CalculiX worker returned non-finite numeric values.")
     warnings = raw_result.get("warnings") if isinstance(raw_result.get("warnings"), list) else []
     success = return_code == 0 and raw_result.get("success") is True
     if not success and not warnings:
