@@ -165,9 +165,12 @@ def collect_case_results(
     }
 
 
-def execute_case(request: dict[str, Any]) -> dict[str, Any]:
-    prune_artifacts(ARTIFACT_ROOT)
-    job_id = uuid.uuid4().hex
+def execute_case(request: dict[str, Any], job_id: str | None = None, prune: bool = True) -> dict[str, Any]:
+    if prune:
+        prune_artifacts(ARTIFACT_ROOT)
+    job_id = job_id or uuid.uuid4().hex
+    if not re.fullmatch(r"[a-f0-9]{32}", job_id):
+        raise WorkerError("OpenFOAM job ID must be a 32-character lowercase hexadecimal identifier.")
     artifact_dir = ARTIFACT_ROOT / job_id
     artifact_dir.mkdir(parents=True, exist_ok=False)
     timeout = int(request["solver"]["timeoutSeconds"])
