@@ -44,6 +44,7 @@ export function useProjectDrawingsData(projectId: string) {
   );
 
   const loadDrawings = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
     try {
       const items = await fetchProjectDrawings(projectId, signal);
       setDrawings(items);
