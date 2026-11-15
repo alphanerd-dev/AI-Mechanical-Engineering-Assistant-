@@ -3,6 +3,7 @@ import type { AgentActionIdentity, AgentRunJournalStatus, CreateAgentRunInput, A
 
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RUN_STATUSES: readonly AgentRunJournalStatus[] = [
   "PLANNED", "RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED", "CANCELLED", "RECONCILIATION_REQUIRED"
 ];
@@ -107,13 +108,29 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 function hasRunIdentity(row: Record<string, unknown>): boolean {
-  if (typeof row.id !== "string") return false;
-  if (typeof row.owner_id !== "string") return false;
-  return typeof row.project_id === "string";
+  if (typeof row.id !== "string" || !UUID_PATTERN.test(row.id)) return false;
+  if (typeof row.owner_id !== "string" || !UUID_PATTERN.test(row.owner_id)) return false;
+  return typeof row.project_id === "string" && UUID_PATTERN.test(row.project_id);
 }
 function hasRunPayload(row: Record<string, unknown>): boolean {
   if (!isRecord(row.plan) || !isRecord(row.checkpoint)) return false;
-  return Array.isArray(row.action_history);
+  if (!Array.isArray(row.action_history) || row.action_history.length > 25) return false;
+  return row.action_history.every(isRecord);
+}
+function validateRunCounters(row: Record<string, unknown>): void {
+  const initial = asNumber(row.initial_graph_revision);
+  const current = asNumber(row.current_graph_revision);
+  const next = asNumber(row.next_action_index);
+  if (!Number.isSafeInteger(initial) || (initial as number) < 1) throw new Error("Persisted initial graph revision is invalid.");
+  if (!Number.isSafeInteger(current) || (current as number) < (initial as number)) throw new Error("Persisted current graph revision is invalid.");
+  if (!Number.isInteger(next) || (next as number) < 0 || (next as number) > 25) throw new Error("Persisted next action index is invalid.");
+  if (typeof row.plan_hash !== "string" || !SHA256_PATTERN.test(row.plan_hash)) throw new Error("Persisted plan hash is invalid.");
+  if (typeof row.request_hash !== "string" || !SHA256_PATTERN.test(row.request_hash)) throw new Error("Persisted request hash is invalid.");
+  if (row.current_action !== null && row.current_action !== undefined && !isRecord(row.current_action)) throw new Error("Persisted in-flight action is invalid.");
+  if (row.cancel_requested_at !== null && row.cancel_requested_at !== undefined && typeof row.cancel_requested_at !== "string") throw new Error("Persisted cancellation timestamp is invalid.");
+  if (row.error !== null && row.error !== undefined && typeof row.error !== "string") throw new Error("Persisted run error is invalid.");
+  if (typeof row.created_at !== "string" || Number.isNaN(Date.parse(row.created_at))) throw new Error("Persisted creation timestamp is invalid.");
+  if (typeof row.updated_at !== "string" || Number.isNaN(Date.parse(row.updated_at))) throw new Error("Persisted update timestamp is invalid.");
 }
 function parseRunStatus(value: unknown): AgentRunJournalStatus | undefined {
   if (typeof value !== "string") return undefined;
@@ -132,20 +149,21 @@ function validateRunRecord(value: unknown): { row: Record<string, unknown>; stat
   if (!hasRunPayload(value)) throw new Error("Persisted agent run payload is invalid.");
   const status = parseRunStatus(value.status);
   if (!status) throw new Error("Persisted agent run status is invalid.");
+  validateRunCounters(value);
   return { row: value, status };
 }
 function buildRunRecord(row: Record<string, unknown>, status: AgentRunJournalStatus): AgentRunRecord {
   return {
     id: row.id as string, ownerId: row.owner_id as string, projectId: row.project_id as string,
-    status, initialGraphRevision: asNumber(row.initial_graph_revision) ?? 0,
-    currentGraphRevision: asNumber(row.current_graph_revision) ?? 0,
+    status, initialGraphRevision: asNumber(row.initial_graph_revision) as number,
+    currentGraphRevision: asNumber(row.current_graph_revision) as number,
     planHash: asString(row.plan_hash) ?? "", plan: row.plan as Record<string, unknown>,
     checkpoint: row.checkpoint as Record<string, unknown>,
-    actionHistory: (row.action_history as unknown[]).filter(isRecord),
-    nextActionIndex: asNumber(row.next_action_index) ?? 0,
+    actionHistory: row.action_history as Record<string, unknown>[],
+    nextActionIndex: asNumber(row.next_action_index) as number,
     ...optionalRunFields(row),
-    createdAt: asString(row.created_at) ?? new Date(0).toISOString(),
-    updatedAt: asString(row.updated_at) ?? new Date(0).toISOString()
+    createdAt: asString(row.created_at) as string,
+    updatedAt: asString(row.updated_at) as string
   };
 }
 export function toAgentRunRecord(value: unknown): AgentRunRecord {
