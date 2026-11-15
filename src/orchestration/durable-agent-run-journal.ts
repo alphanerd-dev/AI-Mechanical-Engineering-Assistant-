@@ -94,7 +94,7 @@ function assertJsonCompatible(value: unknown, seen = new Set<object>()): void {
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (isRecord(value)) {
-    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
+    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
       .map(([key, item]) => [key, canonical(item)]));
   }
   return value;
