@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  composeRigidTransforms, createBoundingBox3, createLine3, createPlane3, crossProduct,
+  composeRigidTransforms, containsPointInBounds, createBoundingBox3, createLine3, createPlane3, crossProduct,
   distanceBetweenPointsMm, dotProduct, invertRigidTransform, normalizeVector,
   projectPointOntoLine, projectPointOntoPlane, transformPoint, validateRigidTransform3
 } from "../src/geometry-platform/math.js";
@@ -84,13 +84,9 @@ describe("G3 deterministic metamorphic and invariant tests", () => {
       values[index * 3], values[index * 3 + 1], values[index * 3 + 2]
     ] as const);
     const bounds = createBoundingBox3(points);
-    points.forEach(point => expect(
-      point.every((coordinate, axis) => coordinate >= bounds.min[axis] && coordinate <= bounds.max[axis])
-    ).toBe(true));
+    points.forEach(point => expect(containsPointInBounds(bounds, point)).toBe(true));
     expect(bounds.max[0]).toBeGreaterThanOrEqual(bounds.min[0]);
     const outside = [bounds.max[0] + 1, (bounds.min[1] + bounds.max[1]) / 2, (bounds.min[2] + bounds.max[2]) / 2] as const;
-    expect(
-      outside[0] <= bounds.max[0] + 1e-6
-    ).toBe(false);
+    expect(containsPointInBounds(bounds, outside)).toBe(false);
   });
 });
