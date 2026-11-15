@@ -1,6 +1,20 @@
 import {createHash} from "node:crypto";
 import {ExecutionJob,ExecutionRequest,ExecutionResult,JobStatus,ExecutionProvenance,ExecutionAttemptHistoryRecord} from "./types.js";
 function digest(value:unknown):string{return createHash("sha256").update(JSON.stringify(value)).digest("hex");}
+function isExternalWorkerBackend(backend:ExecutionRequest["backend"]):boolean{
+ return backend==="python-worker"||backend==="fea-worker"||backend==="cfd-worker";
+}
+function createWorkerAttemptId(executionId:string,attempt:number):string{
+ const hex=createHash("sha256").update(executionId+":worker-attempt:"+attempt).digest("hex").slice(0,32).split("");
+ hex[12]="4";
+ hex[16]=((parseInt(hex[16],16)&0x3)|0x8).toString(16);
+ const value=hex.join("");
+ return value.slice(0,8)+"-"+value.slice(8,12)+"-"+value.slice(12,16)+"-"+value.slice(16,20)+"-"+value.slice(20);
+}
+function requestForWorkerAttempt(request:ExecutionRequest,attempt:number):ExecutionRequest{
+ if(!isExternalWorkerBackend(request.backend))return request;
+ return {...request,id:createWorkerAttemptId(request.id,attempt)};
+}
 function abortReason(signal:AbortSignal):Error{return signal.reason instanceof Error?signal.reason:new Error("Execution was aborted.");}
 function errorName(error:unknown):string{return error!==null&&typeof error==="object"&&"name" in error&&typeof error.name==="string"?error.name:"Error";}
 function errorMessage(error:unknown):string{return (error instanceof Error?error.message:String(error)).slice(0,2000);}
@@ -26,7 +40,7 @@ export class ExecutionEngine{
   return attempt.job;
  }
  async executeClaimed(job:ExecutionJob,outerSignal?:AbortSignal):Promise<ExecutionAttempt>{
-  const request=job.request,adapter=this.adapters.find(candidate=>candidate.canExecute(request)),startedAt=job.startedAt??new Date().toISOString();
+  const request=job.request,dispatchRequest=requestForWorkerAttempt(request,job.attempts??1),adapter=this.adapters.find(candidate=>candidate.canExecute(request)),startedAt=job.startedAt??new Date().toISOString();
   if(!adapter){
    const finishedAt=new Date().toISOString(),message="No eligible execution backend is available for this request.";
    const history:ExecutionAttemptHistoryRecord={attempt:job.attempts??1,startedAt,finishedAt,status:"FAILED",error:message};
@@ -44,7 +58,7 @@ export class ExecutionEngine{
    controller.signal.addEventListener("abort",()=>reject(abortReason(controller.signal)),{once:true});
   });
   try{
-   const result=await Promise.race([adapter.execute(request,controller.signal),abortPromise]),finishedAt=result.completedAt??new Date().toISOString();
+   const result=await Promise.race([adapter.execute(dispatchRequest,controller.signal),abortPromise]),finishedAt=result.completedAt??new Date().toISOString();
    const status:JobStatus=result.success?"SUCCEEDED":"FAILED",error=result.success?undefined:(result.warnings.join("; ").slice(0,2000)||"Execution provider reported failure.");
    const history:ExecutionAttemptHistoryRecord={attempt:job.attempts??1,startedAt,finishedAt,status,provider:result.provider??adapter.id,error};
    const provenance:ExecutionProvenance={executionId:result.executionId??request.id,requestId:request.id,capability:request.capability,backend:request.backend,provider:result.provider??adapter.id,providerVersion:result.providerVersion,startedAt,completedAt:finishedAt,requestDigest:digest(request),inputDigest:digest(request.inputs),outputDigest:digest(result.outputs),evidenceIds:result.evidenceIds??[]};
