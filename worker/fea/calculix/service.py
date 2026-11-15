@@ -197,7 +197,26 @@ def terminate_process(process: subprocess.Popen[str] | None) -> None:
             pass
 
 
-def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
+def mark_job_running(job_id: str) -> bool:
+    with LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            return False
+        if job.get("cancelRequested"):
+            job.update(
+                status="CANCELLED",
+                error="Cancelled before solver process started.",
+                errorCode="CANCELLED",
+                updatedAt=utc_now(),
+            )
+            persist_job(job)
+            return False
+        job.update(status="RUNNING", startedAt=utc_now(), updatedAt=utc_now())
+        persist_job(job)
+        return True
+
+
+def prepare_fea_worker_payload(job_id: str, request: dict[str, Any], timeout_ms: int) -> tuple[dict[str, Any], dict[str, str]]:
     directory = ARTIFACT_ROOT / job_id
     directory.mkdir(parents=True, exist_ok=True)
     payload = dict(request["inputs"])
@@ -206,76 +225,105 @@ def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
     payload["timeoutMs"] = min(timeout_ms, MAX_SOLVER_TIMEOUT_MS)
     environment = os.environ.copy()
     environment["FEA_ARTIFACT_DIR"] = str(directory)
+    return payload, environment
 
+
+def start_fea_worker_process(directory: Path, environment: dict[str, str]) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [sys.executable, str(WORKER_SCRIPT)],
+        cwd=str(directory),
+        env=environment,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+        shell=False,
+    )
+
+
+def register_worker_process(job_id: str, process: subprocess.Popen[str]) -> bool:
     with LOCK:
         job = JOBS.get(job_id)
-        if not job or job.get("cancelRequested"):
-            if job:
-                job.update(status="CANCELLED", error="Cancelled before solver process started.", updatedAt=utc_now())
-                persist_job(job)
+        if job:
+            job["process"] = process
+            cancelled = bool(job.get("cancelRequested"))
+        else:
+            cancelled = True
+    if cancelled:
+        terminate_process(process)
+        return False
+    return True
+
+
+def communicate_fea_worker(
+    process: subprocess.Popen[str],
+    payload: dict[str, Any],
+    timeout_ms: int
+) -> tuple[str, str]:
+    try:
+        return process.communicate(
+            input=json.dumps(payload, separators=(",", ":"), allow_nan=False),
+            timeout=max(1, (timeout_ms - 5000) / 1000),
+        )
+    except subprocess.TimeoutExpired:
+        terminate_process(process)
+        process.communicate()
+        raise TimeoutError("CalculiX worker exceeded its bounded execution timeout.")
+
+
+def finish_job(job_id: str, result: dict[str, Any], stderr: str) -> None:
+    if stderr:
+        result["warnings"] = list(result.get("warnings", [])) + ["Worker stderr: " + stderr[-4000:]]
+    with LOCK:
+        job = JOBS.get(job_id)
+        if not job:
             return
-        job.update(status="RUNNING", startedAt=utc_now(), updatedAt=utc_now())
+        if job.get("cancelRequested"):
+            job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
+        elif result["success"]:
+            job.update(status="SUCCEEDED", result=result, error=None, errorCode=None)
+        else:
+            job.update(
+                status="FAILED",
+                result=result,
+                error="CalculiX reference benchmark did not pass solver and analytical checks.",
+                errorCode="FEA_VALIDATION_FAILED",
+            )
+        job.update(updatedAt=utc_now())
+        job.pop("process", None)
         persist_job(job)
 
+
+def fail_job(job_id: str, error: Exception) -> None:
+    with LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            return
+        if job.get("cancelRequested"):
+            job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
+        else:
+            job.update(status="FAILED", error=str(error)[:2000], errorCode="FEA_WORKER_FAILED")
+        job.update(updatedAt=utc_now())
+        job.pop("process", None)
+        persist_job(job)
+
+
+def run_job(job_id: str, request: dict[str, Any], timeout_ms: int) -> None:
+    if not mark_job_running(job_id):
+        return
+    directory = ARTIFACT_ROOT / job_id
     process: subprocess.Popen[str] | None = None
     try:
-        process = subprocess.Popen(
-            [sys.executable, str(WORKER_SCRIPT)],
-            cwd=str(directory),
-            env=environment,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=True,
-            shell=False,
-        )
-        with LOCK:
-            job = JOBS.get(job_id)
-            if not job:
-                terminate_process(process)
-                return
-            job["process"] = process
-            if job.get("cancelRequested"):
-                terminate_process(process)
-        try:
-            stdout, stderr = process.communicate(
-                input=json.dumps(payload, separators=(",", ":"), allow_nan=False),
-                timeout=max(1, (timeout_ms - 5000) / 1000),
-            )
-        except subprocess.TimeoutExpired:
-            terminate_process(process)
-            stdout, stderr = process.communicate()
-            raise TimeoutError("CalculiX worker exceeded its bounded execution timeout.")
+        payload, environment = prepare_fea_worker_payload(job_id, request, timeout_ms)
+        process = start_fea_worker_process(directory, environment)
+        if not register_worker_process(job_id, process):
+            return
+        stdout, stderr = communicate_fea_worker(process, payload, timeout_ms)
         result = parse_worker_result(stdout, process.returncode or 0, request)
-        if stderr:
-            result["warnings"] = list(result.get("warnings", [])) + ["Worker stderr: " + stderr[-4000:]]
-        with LOCK:
-            job = JOBS.get(job_id)
-            if not job:
-                return
-            if job.get("cancelRequested"):
-                job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
-            elif result["success"]:
-                job.update(status="SUCCEEDED", result=result, error=None, errorCode=None)
-            else:
-                job.update(status="FAILED", result=result, error="CalculiX reference benchmark did not pass solver and analytical checks.", errorCode="FEA_VALIDATION_FAILED")
-            job.update(updatedAt=utc_now())
-            job.pop("process", None)
-            persist_job(job)
+        finish_job(job_id, result, stderr)
     except Exception as exc:
-        with LOCK:
-            job = JOBS.get(job_id)
-            if not job:
-                return
-            if job.get("cancelRequested"):
-                job.update(status="CANCELLED", error="Execution cancellation was requested.", errorCode="CANCELLED")
-            else:
-                job.update(status="FAILED", error=str(exc)[:2000], errorCode="FEA_WORKER_FAILED")
-            job.update(updatedAt=utc_now())
-            job.pop("process", None)
-            persist_job(job)
-
+        fail_job(job_id, exc)
 
 def restore_jobs() -> None:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
