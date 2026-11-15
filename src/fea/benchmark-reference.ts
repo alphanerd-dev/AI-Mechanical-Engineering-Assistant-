@@ -75,24 +75,63 @@ function validateExpectedReaction(reference: FEABenchmarkReference, force: numbe
     Math.abs(reaction.z) <= 1e-9;
   return passed ? [] : ["Expected support reaction does not match the applied benchmark load."];
 }
-function validateSolverMeasurements(result: FEAStaticStructuralResult, reference: FEABenchmarkReference, expected: ReturnType<typeof calculateCantileverReference>): string[] {
-  const errors: string[] = [];
-  if (!finiteNonNegative(result.maxDisplacementMm) ||
-      !compareScalar(reference.measuredMaximumDisplacementMm, result.maxDisplacementMm, 1e-9)) {
-    errors.push("Benchmark displacement does not match the normalized solver result.");
-  }
+function validateDisplacementMeasurement(result: FEAStaticStructuralResult, reference: FEABenchmarkReference): string[] {
+  const isFinite = finiteNonNegative(result.maxDisplacementMm);
+  const matchesReference = compareScalar(reference.measuredMaximumDisplacementMm, result.maxDisplacementMm, 1e-9);
+  return isFinite && matchesReference
+    ? []
+    : ["Benchmark displacement does not match the normalized solver result."];
+}
+function validateReactionMeasurement(result: FEAStaticStructuralResult, reference: FEABenchmarkReference): string[] {
   const actual = result.reactionForcesN;
+  if (!actual) return ["Benchmark support reaction does not match the normalized solver result."];
+  const matchesReference = AXES.every(axis => compareScalar(actual[axis], reference.measuredSupportReactionN[axis], 0));
+  return matchesReference
+    ? []
+    : ["Benchmark support reaction does not match the normalized solver result."];
+}
+function calculateMeasuredRelativeErrors(reference: FEABenchmarkReference, expected: ReturnType<typeof calculateCantileverReference>) {
   const measured = reference.measuredSupportReactionN;
-  if (!actual || AXES.some(axis => !compareScalar(actual[axis], measured[axis], 0) )) {
-    errors.push("Benchmark support reaction does not match the normalized solver result.");
-  }
-  const displacementError = Math.abs(reference.measuredMaximumDisplacementMm - expected.total) / expected.total;
-  const reactionError = Math.hypot(measured.x, measured.y - expected.force, measured.z) / expected.force;
-  if (!compareScalar(reference.displacementRelativeError, displacementError, 1e-9)) errors.push("Displacement relative error is inconsistent.");
-  if (!compareScalar(reference.reactionRelativeError, reactionError, 1e-9)) errors.push("Reaction relative error is inconsistent.");
-  if (displacementError > reference.displacementRelativeTolerance) errors.push("Independent displacement acceptance failed.");
-  if (reactionError > reference.reactionRelativeTolerance) errors.push("Independent reaction equilibrium acceptance failed.");
-  return errors;
+  return {
+    displacement: Math.abs(reference.measuredMaximumDisplacementMm - expected.total) / expected.total,
+    reaction: Math.hypot(measured.x, measured.y - expected.force, measured.z) / expected.force
+  };
+}
+function validateRecordedDisplacementError(reference: FEABenchmarkReference, error: number): string[] {
+  return compareScalar(reference.displacementRelativeError, error, 1e-9)
+    ? []
+    : ["Displacement relative error is inconsistent."];
+}
+function validateRecordedReactionError(reference: FEABenchmarkReference, error: number): string[] {
+  return compareScalar(reference.reactionRelativeError, error, 1e-9)
+    ? []
+    : ["Reaction relative error is inconsistent."];
+}
+function validateDisplacementAcceptance(reference: FEABenchmarkReference, error: number): string[] {
+  return error <= reference.displacementRelativeTolerance
+    ? []
+    : ["Independent displacement acceptance failed."];
+}
+function validateReactionAcceptance(reference: FEABenchmarkReference, error: number): string[] {
+  return error <= reference.reactionRelativeTolerance
+    ? []
+    : ["Independent reaction equilibrium acceptance failed."];
+}
+function validateRelativeErrorMeasurements(reference: FEABenchmarkReference, expected: ReturnType<typeof calculateCantileverReference>): string[] {
+  const errors = calculateMeasuredRelativeErrors(reference, expected);
+  return [
+    ...validateRecordedDisplacementError(reference, errors.displacement),
+    ...validateRecordedReactionError(reference, errors.reaction),
+    ...validateDisplacementAcceptance(reference, errors.displacement),
+    ...validateReactionAcceptance(reference, errors.reaction)
+  ];
+}
+function validateSolverMeasurements(result: FEAStaticStructuralResult, reference: FEABenchmarkReference, expected: ReturnType<typeof calculateCantileverReference>): string[] {
+  return [
+    ...validateDisplacementMeasurement(result, reference),
+    ...validateReactionMeasurement(result, reference),
+    ...validateRelativeErrorMeasurements(reference, expected)
+  ];
 }
 export function validateFEABenchmarkReference(
   request: FEACantileverBoxBenchmarkRequest,
