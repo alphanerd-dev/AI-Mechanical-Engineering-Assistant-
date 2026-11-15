@@ -2,7 +2,7 @@
 
 **Product direction:** AI-native Engineering Workspace evolving toward an Engineering Operating System  
 **Initial domain:** Mechanical Engineering  
-**Reviewed:** 8 November 2026
+**Reviewed:** 15 November 2026
 
 ## 1. Vision and promise
 
@@ -58,9 +58,9 @@ A user should be able to:
 
 ## 5. Current capability boundary
 
-The repository currently includes the workspace/authentication/persistence foundation, project-scoped chat, structured intent/reasoning paths, deterministic calculation foundations, bounded cylindrical CAD generation and validation, reference/pilot FEA execution, a Python numerical worker and an Open3D one-shot prototype.
+The repository includes the workspace/authentication/persistence foundation, project-scoped streamed chat, structured intent/reasoning paths, deterministic calculation pilots, bounded CAD authoring and OCCT processing, strict GLB validation, a read-only CAD viewport, PDF/SVG/ASCII-DXF drawing ingestion/preview, immutable project-scoped geometry revisions and atomic audit lineage. The manufacturing readiness pilot now has durable assessment snapshots and independent append-only human decisions. Reference/pilot FEA execution and a bounded OpenFOAM 14 laminar benchmark worker/provider are present. An isolated Open3D inspection/registration prototype remains disconnected from public scan upload and production perception.
 
-The following remain planned or bounded: a shared artifact/viewer registry, interactive browser CAD viewing, VTK.js FEA visualization, structured P&ID/PFD authoring/viewing, authenticated point-cloud upload/persistence, general assembly/feature CAD, broad CAD-to-FEA workflows and chat-driven engineering tool execution.
+The following remain planned or bounded: production renderer selection, FEA mesh/result-field visualization, structured P&ID/PFD authoring/viewing, authenticated point-cloud upload/persistence, general assembly/feature CAD, broad CAD-to-CAE workflows, general-purpose CFD, durable app-level CFD execution and authenticated production-session acceptance of the new geometry/manufacturing transaction APIs. Chat-driven privileged engineering tool execution remains disabled.
 
 A catalog entry or adapter does not prove that a provider is installed, licensed, reachable, live-accepted or production-ready. Capability maturity is documented in [Engineering Capabilities](engineering-capabilities.md).
 
@@ -83,7 +83,7 @@ Use existing project-scoped authorization, private storage and evidence mechanis
 
 ### Renderer decision
 
-The production 3D renderer is **not selected yet**. Benchmark Babylon.js and Three.js against identical engineering workloads before choosing one. Use WebGL 2 as the initial browser compatibility baseline; evaluate WebGPU as a later backend/upgrade when device support, stability and measured benefit justify it. Keep a renderer adapter so CAD parsing, geometry processing, artifact identity, validation and evidence are independent of the selected renderer. Do not ship both engines permanently unless a measured requirement demands it.
+The production 3D renderer remains **unselected** pending paired desktop/Android workload benchmarks and authenticated acceptance. Benchmark Babylon.js and Three.js against identical engineering workloads before choosing one. Use WebGL 2 as the initial browser compatibility baseline; evaluate WebGPU as a later backend/upgrade when device support, stability and measured benefit justify it. Keep a renderer adapter so CAD parsing, geometry processing, artifact identity, validation and evidence are independent of the selected renderer. Do not ship both engines permanently unless a measured requirement demands it.
 
 The benchmark must cover single parts, dense meshes, assembly scale, picking/selection, measurements, section planes, exploded views, simulation-field overlays, browser/mobile stability, memory use, frame-time distribution, load time, context-loss recovery and maintainability. The scorecard and exit gates live in the [Implementation Plan](implementation-plan.md).
 
