@@ -68,11 +68,11 @@ def job_state_directory(job: dict[str, Any]) -> Path:
     if not isinstance(directory, Path):
         raise RuntimeError("Job state directory is unavailable.")
     root = JOB_STATE_ROOT.resolve()
+    if directory.is_symlink():
+        raise RuntimeError("Job state directory cannot be a symbolic link.")
     resolved = directory.resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise RuntimeError("Job state directory escaped the configured root.") from exc
+    if resolved.parent != root:
+        raise RuntimeError("Job state directory escaped the configured root.")
     return resolved
 
 
@@ -81,11 +81,11 @@ def job_artifact_directory(job: dict[str, Any]) -> Path:
     if not isinstance(directory, Path):
         raise RuntimeError("Job artifact directory is unavailable.")
     root = ARTIFACT_ROOT.resolve()
+    if directory.is_symlink():
+        raise RuntimeError("Job artifact directory cannot be a symbolic link.")
     resolved = directory.resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise RuntimeError("Job artifact directory escaped the configured root.") from exc
+    if resolved.parent != root:
+        raise RuntimeError("Job artifact directory escaped the configured root.")
     return resolved
 
 
@@ -380,12 +380,16 @@ def restore_jobs() -> None:
     artifact_root = ARTIFACT_ROOT.resolve()
     for metadata in JOB_STATE_ROOT.glob("*/job.json"):
         try:
+            if metadata.is_symlink() or metadata.parent.is_symlink():
+                continue
             state_directory = metadata.parent.resolve()
+            if metadata.resolve().parent != state_directory:
+                continue
             storage_id = state_directory.name
             if state_directory.parent != state_root or not re.fullmatch(r"[a-f0-9]{32}", storage_id):
                 continue
             artifact_directory = ARTIFACT_ROOT / storage_id
-            if artifact_directory.resolve().parent != artifact_root:
+            if artifact_directory.is_symlink() or artifact_directory.resolve().parent != artifact_root:
                 continue
             job = json.loads(metadata.read_text(encoding="utf-8"))
             if not isinstance(job, dict) or not isinstance(job.get("jobId"), str):
