@@ -7,6 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV FEA_ARTIFACT_DIR=/artifacts
+ENV WORKER_HOST=0.0.0.0
+ENV WORKER_PORT=8090
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -28,8 +30,9 @@ RUN useradd --create-home --uid 10002 feaworker
 
 WORKDIR /app
 COPY fea/calculix/ /app/
-RUN chown -R feaworker:feaworker /app
+RUN mkdir -p /artifacts && chown -R feaworker:feaworker /app /artifacts
+EXPOSE 8090
 
 USER feaworker
 
-ENTRYPOINT ["python","/app/worker.py"]
+ENTRYPOINT ["python","/app/service.py"]
