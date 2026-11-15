@@ -1,9 +1,32 @@
-import type { CanonicalSolid, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
+import type { CanonicalSolid, Completion, Row } from "../../../../../src/cad/geometry-revision-persistence-types";
 import { CAD_ARTIFACT_BUCKET } from "../../../../../src/cad/persistence";
 import { fail } from "./request";
 
 export function isRecord(value: unknown): value is Row {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function finitePositive(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+export function requireShaftSpecification(completion: Completion): Row {
+  const specification = completion.specification;
+  if (!isRecord(specification)) fail({ message: "Accepted CAD specification is missing.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
+  if (specification.kind !== "CYLINDER" || specification.name !== "shaft") {
+    fail({ message: "Drawing generator currently supports accepted cylindrical shaft specifications only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });
+  }
+  if (!finitePositive(specification.diameterMm) || !finitePositive(specification.lengthMm)) {
+    fail({ message: "Accepted shaft dimensions are invalid.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
+  }
+  return specification;
+}
+export function requireShaftBounds(receipt: Row): Row {
+  const measurements = receipt.geometryMeasurements;
+  const bounds = isRecord(measurements) ? measurements.boundingBoxMm : undefined;
+  if (!isRecord(bounds)) fail({ message: "Accepted geometry receipt has no bounding box measurements.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  if (!finitePositive(bounds.x) || !finitePositive(bounds.y) || !finitePositive(bounds.z)) {
+    fail({ message: "Accepted shaft bounding-box extents are invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  }
+  return bounds;
 }
 export function validateRevisionArtifactBinding(revision: Row, solid: CanonicalSolid): void {
   if (solid.id !== revision.canonical_artifact_id) {
