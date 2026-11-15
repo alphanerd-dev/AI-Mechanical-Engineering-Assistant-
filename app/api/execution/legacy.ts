@@ -6,12 +6,7 @@ import { HttpPythonWorkerClient } from "../../../src/execution/http-python-worke
 import { PythonWorkerAdapter } from "../../../src/execution/python-worker.js";
 import { SafeNumericalAdapter } from "../../../src/execution/safe-numerical.js";
 import { isRecord } from "./durable.js";
-
-function jsonError(error: string, status: number, code?: string) {
-  return NextResponse.json({ error, ...(code ? { code } : {}) }, {
-    status, headers: { "cache-control": "no-store" }
-  });
-}
+import { jsonError } from "./response.js";
 
 type LegacyAuthorizationResult =
   | { allowed: true; authorization: Awaited<ReturnType<typeof authorizeSupabaseRequest>> }
