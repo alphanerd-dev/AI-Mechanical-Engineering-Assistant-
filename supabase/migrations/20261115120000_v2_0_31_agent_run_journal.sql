@@ -170,7 +170,9 @@ begin
   end if;
   if p_action_key is null or length(trim(p_action_key)) < 8 or length(p_action_key) > 160 then raise exception 'Invalid agent action idempotency key.'; end if;
   if p_action_hash is null or p_action_hash !~ '^[0-9a-f]{64}$' then raise exception 'Invalid agent action digest.'; end if;
-  if p_action is null or jsonb_typeof(p_action) <> 'object' or pg_column_size(p_action) > 65536 then raise exception 'Invalid or oversized agent action.'; end if;
+  if p_action is null or jsonb_typeof(p_action) <> 'object' or pg_column_size(p_action) > 32768 then
+    raise exception 'Invalid or oversized agent action.';
+  end if;
   select * into v_run from public.engineering_agent_runs where id = p_run_id for update;
   if not found then return 'NOT_FOUND'; end if;
   if p_action_index < v_run.next_action_index then
@@ -232,7 +234,12 @@ begin
     raise exception 'Invalid agent action index.';
   end if;
   if p_action_hash is null or p_action_hash !~ '^[0-9a-f]{64}
-  if p_outcome is null or jsonb_typeof(p_outcome) <> 'object' or pg_column_size(p_outcome) > 131072 then raise exception 'Invalid or oversized agent action outcome.'; end if;
+  if p_outcome is null or jsonb_typeof(p_outcome) <> 'object' or pg_column_size(p_outcome) > 65536 then
+    raise exception 'Invalid or oversized agent action outcome.';
+  end if;
+  if p_error is not null and length(p_error) > 4000 then
+    raise exception 'Agent action error detail exceeds the 4000-character limit.';
+  end if;
   if p_graph_revision is null or p_graph_revision < 1 then raise exception 'Invalid task graph revision.'; end if;
   if p_next_status is null or p_next_status not in ('RUNNING','WAITING_APPROVAL','COMPLETED','FAILED','CANCELLED') then raise exception 'Invalid next agent run status.'; end if;
   select * into v_run from public.engineering_agent_runs where id = p_run_id for update;
