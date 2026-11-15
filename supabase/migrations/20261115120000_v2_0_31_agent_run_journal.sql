@@ -41,7 +41,7 @@ create index engineering_agent_runs_claim_idx
 
 alter table public.engineering_agent_runs enable row level security;
 revoke all on table public.engineering_agent_runs from public, anon, authenticated;
-grant select, insert, update on table public.engineering_agent_runs to service_role;
+grant select, insert on table public.engineering_agent_runs to service_role;
 comment on table public.engineering_agent_runs is
   'Server-only journal for bounded model-directed engineering runs. Model plans are untrusted; action checkpoints and recovery are host-controlled.';
 comment on column public.engineering_agent_runs.current_action is
@@ -216,14 +216,14 @@ declare
 begin
   if p_action_index is null or p_action_index < 0 then raise exception 'Invalid agent action index.'; end if;
   if p_action_hash is null or p_action_hash !~ '^[0-9a-f]{64}$' then raise exception 'Invalid agent action digest.'; end if;
-  if p_outcome is null or jsonb_typeof(p_outcome) <> 'object' or pg_column_size(p_outcome) > 262144 then raise exception 'Invalid or oversized agent action outcome.'; end if;
+  if p_outcome is null or jsonb_typeof(p_outcome) <> 'object' or pg_column_size(p_outcome) > 131072 then raise exception 'Invalid or oversized agent action outcome.'; end if;
   if p_graph_revision is null or p_graph_revision < 1 then raise exception 'Invalid task graph revision.'; end if;
   if p_next_status is null or p_next_status not in ('RUNNING','WAITING_APPROVAL','COMPLETED','FAILED','CANCELLED') then raise exception 'Invalid next agent run status.'; end if;
   select * into v_run from public.engineering_agent_runs where id = p_run_id for update;
   if not found then return false; end if;
   if p_action_index < v_run.next_action_index then
-    select item into v_existing from jsonb_array_elements(v_run.action_history) item
-     where (item->>'actionIndex')::integer = p_action_index limit 1;
+    select entry.value into v_existing from jsonb_array_elements(v_run.action_history) as entry(value)
+     where (entry.value->>'actionIndex')::integer = p_action_index limit 1;
     if v_existing is null or v_existing->>'actionHash' <> p_action_hash then
       raise exception 'Agent checkpoint replay conflicts with the persisted action digest.';
     end if;
@@ -234,6 +234,9 @@ begin
   if v_run.current_action is null or (v_run.current_action->>'actionIndex')::integer <> p_action_index
      or v_run.current_action->>'actionHash' <> p_action_hash then
     raise exception 'Agent checkpoint does not match the persisted in-flight action.';
+  end if;
+  if p_graph_revision < v_run.current_graph_revision then
+    raise exception 'STALE_AGENT_GRAPH: checkpoint revision cannot move the task graph backwards.';
   end if;
   v_status := case
     when v_run.cancel_requested_at is not null then 'CANCELLED'
@@ -266,6 +269,53 @@ end;
 $$;
 revoke all on function public.checkpoint_engineering_agent_action(uuid,text,uuid,integer,text,jsonb,bigint,text,text) from public, anon, authenticated;
 grant execute on function public.checkpoint_engineering_agent_action(uuid,text,uuid,integer,text,jsonb,bigint,text,text) to service_role;
+
+create or replace function public.resume_engineering_agent_run_after_approval(
+  p_run_id uuid,
+  p_project_id uuid,
+  p_approved_by uuid,
+  p_approval_evidence_id uuid,
+  p_graph_revision bigint
+)
+returns boolean
+language plpgsql security definer set search_path = ''
+as $
+declare
+  v_run public.engineering_agent_runs%rowtype;
+begin
+  if p_approved_by is null or p_approval_evidence_id is null then
+    raise exception 'Authenticated approver and approval evidence ID are required.';
+  end if;
+  if not exists (select 1 from auth.users where id = p_approved_by) then
+    raise exception 'Approver identity does not exist.';
+  end if;
+  select * into v_run from public.engineering_agent_runs
+   where id = p_run_id and project_id = p_project_id for update;
+  if not found then return false; end if;
+  if v_run.status <> 'WAITING_APPROVAL' or v_run.current_action is not null
+     or v_run.cancel_requested_at is not null then return false; end if;
+  if p_graph_revision is distinct from v_run.current_graph_revision then
+    raise exception 'STALE_AGENT_GRAPH: task graph changed while awaiting human approval.';
+  end if;
+  update public.engineering_agent_runs
+     set status = 'PLANNED',
+         checkpoint = checkpoint || jsonb_build_object(
+           'humanApproval', jsonb_build_object(
+             'approvedBy', p_approved_by,
+             'approvalEvidenceId', p_approval_evidence_id,
+             'graphRevision', p_graph_revision,
+             'approvedAt', clock_timestamp()
+           )
+         ),
+         error = null,
+         finished_at = null,
+         updated_at = clock_timestamp()
+   where id = p_run_id;
+  return true;
+end;
+$;
+revoke all on function public.resume_engineering_agent_run_after_approval(uuid,uuid,uuid,uuid,bigint) from public, anon, authenticated;
+grant execute on function public.resume_engineering_agent_run_after_approval(uuid,uuid,uuid,uuid,bigint) to service_role;
 
 create or replace function public.request_engineering_agent_run_cancellation(
   p_run_id uuid,
