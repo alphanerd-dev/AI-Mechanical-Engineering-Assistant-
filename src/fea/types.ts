@@ -104,6 +104,7 @@ export interface FEAResultArtifact{
 }
 
 export interface FEAStaticStructuralResult{
+  success?:boolean;
   analysis:FEAAnalysisKind;
   solver:string;
   solverVersion:string;
@@ -123,4 +124,5 @@ export interface FEAStaticStructuralResult{
   };
   artifacts:FEAResultArtifact[];
   warnings:string[];
+  benchmarkReference?:FEABenchmarkReference;
 }
