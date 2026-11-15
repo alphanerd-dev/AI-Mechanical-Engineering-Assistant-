@@ -1,0 +1,61 @@
+name: PR Refactoring Agent
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codescene-refactor-pr-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  refactor:
+    name: CodeScene-guided refactoring
+    if: >-
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/cs-agent') &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Verify required credentials are configured
+        env:
+          CODESCENE_ACCESS_TOKEN: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CODESCENE_ACCESS_TOKEN" || { echo "::error::Missing repository secret CODESCENE_ACCESS_TOKEN."; exit 1; }
+          test -n "$GOOGLE_API_KEY" || { echo "::error::Missing repository secret GOOGLE_API_KEY."; exit 1; }
+
+      - name: Require a same-repository pull request branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_repository="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.repo.full_name')"
+          if [[ "$head_repository" != "$REPOSITORY" ]]; then
+            echo "::error::The CodeScene refactoring agent is disabled for fork-based pull requests because it must write to the PR head branch."
+            exit 1
+          fi
+
+      - name: Run CodeScene PR Refactoring Agent
+        uses: codescene-oss/pr-refactoring-agent@v1.1.9
+        with:
+          pr_number: ${{ github.event.issue.number }}
+          command: ${{ github.event.comment.body }}
+          model: google/gemini-3.1-pro-preview
+          codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
+          google_api_key: ${{ secrets.GOOGLE_API_KEY }}
