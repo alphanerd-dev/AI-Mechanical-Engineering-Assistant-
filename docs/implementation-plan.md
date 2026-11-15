@@ -6,9 +6,22 @@
 
 **Acceptance still pending:** authenticated production-session end-to-end tests for geometry revision creation/history and manufacturing assessment/decision flows. Production unauthenticated geometry API probing returned HTTP 401 as expected. On the protected preview, malformed manufacturing assessment/decision requests returned HTTP 400 and an empty assessment lookup returned HTTP 404. Those checks establish route availability and validation behavior only; they do not prove a successful authenticated business transaction. Renderer selection, authenticated CAD/CAE artifact acceptance, production CFD worker integration and broader capability validation remain open.
 
-This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under docs/plans/; they preserve what was known at the time and do not override this current status.
-
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
+
+## Production database migration record — 15 November 2026
+
+The following eight additive migrations were applied to the production Supabase project and verified in migration history:
+
+1. `20261114201216_g2_geometry_revision_atomic_persistence`
+2. `20261114202036_manufacturing_durable_approval_records`
+3. `20261114203550_manufacturing_service_role_least_privilege`
+4. `20261114210018_manufacturing_assessment_project_fk`
+5. `20261114210117_manufacturing_source_evidence_trust_boundary`
+6. `20261114210554_manufacturing_decision_rpc_definer_lock`
+7. `20261114210901_manufacturing_decision_advisory_lock`
+8. `20261114211126_project_evidence_fk_indexes`
+
+Post-migration inspection confirmed RLS is enabled on the evidence tables; `authenticated` and `anon` have no direct table-read grants; `service_role` has SELECT/INSERT but no UPDATE/DELETE on immutable evidence records; immutable triggers are enabled; and the three write RPCs use `SECURITY INVOKER` with execution restricted to `service_role`. These are schema/privilege checks, not substitutes for authenticated user-level API acceptance.
 
 ## Product and engineering rule
 
