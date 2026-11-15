@@ -84,10 +84,10 @@ function validateLabelLength(input: { value: string; name: string; maximum: numb
   if (input.value.length > input.maximum) throw new Error(input.name + " is too long.");
 }
 function validateDrawingNumberCharacters(value: string): void {
-  if (/[\\x00-\\x1f\\x7f\\\\/]/.test(value)) throw new Error("drawingNumber contains unsafe characters.");
+  if (/[\x00-\x1f\x7f\\/]/.test(value)) throw new Error("drawingNumber contains unsafe characters.");
 }
 function validateTitleCharacters(value: string): void {
-  if (/[\\x00-\\x1f\\x7f]/.test(value)) throw new Error("title contains control characters.");
+  if (/[\x00-\x1f\x7f]/.test(value)) throw new Error("title contains control characters.");
 }
 function validateLabels(input: ShaftOrthographicDrawingInput): DrawingLabels {
   const drawingNumber = validateRequiredLabel({ value: input.drawingNumber, name: "drawingNumber" });
