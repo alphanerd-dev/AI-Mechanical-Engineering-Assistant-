@@ -11,11 +11,17 @@ function finitePositive(value: unknown): value is number {
 export function requireShaftSpecification(completion: Completion): Row {
   const specification = completion.specification;
   if (!isRecord(specification)) fail({ message: "Accepted CAD specification is missing.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
-  if (specification.kind !== "CYLINDER" || specification.name !== "shaft") {
-    fail({ message: "Drawing generator currently supports accepted cylindrical shaft specifications only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });
+  if (specification.kind !== "CYLINDER") {
+    fail({ message: "Drawing generator currently supports cylindrical shaft geometry only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });
   }
-  if (!finitePositive(specification.diameterMm) || !finitePositive(specification.lengthMm)) {
-    fail({ message: "Accepted shaft dimensions are invalid.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
+  if (specification.name !== "shaft") {
+    fail({ message: "Drawing generator currently supports accepted shaft specifications only.", status: 422, code: "UNSUPPORTED_SHAFT_SPECIFICATION" });
+  }
+  if (!finitePositive(specification.diameterMm)) {
+    fail({ message: "Accepted shaft diameter is invalid.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
+  }
+  if (!finitePositive(specification.lengthMm)) {
+    fail({ message: "Accepted shaft length is invalid.", status: 422, code: "INVALID_SHAFT_SPECIFICATION" });
   }
   return specification;
 }
