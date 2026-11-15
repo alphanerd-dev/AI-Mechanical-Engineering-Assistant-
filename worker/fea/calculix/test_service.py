@@ -119,7 +119,20 @@ class CalculixServiceTests(unittest.TestCase):
             try:
                 service.ARTIFACT_ROOT = root
                 self.assertEqual(service.resolve_artifact(job_id, "model.inp"), artifact)
-                self.assertIsNone(service.resolve_artifact(job_id, "../outside"))
+                for unsafe_path in (
+                    "../outside",
+                    "nested/../outside",
+                    "/etc/passwd",
+                    "C:\\outside.inp",
+                    "nested\\outside.inp",
+                    "nested//outside.inp",
+                    "nested/./outside.inp",
+                ):
+                    self.assertIsNone(service.resolve_artifact(job_id, unsafe_path), unsafe_path)
+                outside = root / "outside.inp"
+                outside.write_text("outside", encoding="utf-8")
+                (job_dir / "escape.inp").symlink_to(outside)
+                self.assertIsNone(service.resolve_artifact(job_id, "escape.inp"))
             finally:
                 service.ARTIFACT_ROOT = original_root
 
