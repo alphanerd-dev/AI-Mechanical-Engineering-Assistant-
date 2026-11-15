@@ -60,9 +60,9 @@ async function resolveProjectAuthorization(projectId: string) {
 async function confirmSessionIdentity(subject: string) {
   const sessionDb = await createClient();
   const user = await sessionDb.auth.getUser();
-  if (user.error || !user.data.user || user.data.user.id !== subject) {
-    fail("Authenticated project identity could not be confirmed.", 401, "SESSION_IDENTITY_MISMATCH");
-  }
+  if (user.error) fail("Authenticated project identity could not be confirmed.", 401, "SESSION_IDENTITY_MISMATCH");
+  if (!user.data.user) fail("Authenticated project identity could not be confirmed.", 401, "SESSION_IDENTITY_MISMATCH");
+  if (user.data.user.id !== subject) fail("Authenticated project identity could not be confirmed.", 401, "SESSION_IDENTITY_MISMATCH");
   return sessionDb;
 }
 export async function requireAuthorizedIdentity(projectId: string) {
