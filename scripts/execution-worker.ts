@@ -4,7 +4,8 @@ import {createExecutionWorkerAdminClient} from "../src/execution/admin-client.js
 import {DurableExecutionWorker} from "../src/execution/durable-worker.js";
 import {ExecutionBackendAdapter,ExecutionEngine} from "../src/execution/executor.js";
 import {PythonWorkerAdapter} from "../src/execution/python-worker.js";
-import {HttpPythonWorkerClient} from "../src/execution/http-python-worker.js";
+import {HttpExecutionWorkerClient,HttpPythonWorkerClient} from "../src/execution/http-python-worker.js";
+import {CalculixBenchmarkWorkerAdapter} from "../src/execution/calculix-benchmark-worker.js";
 import {SafeNumericalAdapter} from "../src/execution/safe-numerical.js";
 import {SupabaseExecutionJobStore} from "../src/execution/supabase-job-store.js";
 function boundedInteger(value:string|undefined,fallback:number,min:number,max:number):number{
@@ -25,6 +26,16 @@ if(process.env.PYTHON_WORKER_URL){
   fetch,
   token,
   {pollIntervalMs:boundedInteger(process.env.PYTHON_WORKER_POLL_INTERVAL_MS,250,25,5000),maxPolls:boundedInteger(process.env.PYTHON_WORKER_MAX_POLLS,120,1,1200)}
+ )));
+}
+if(process.env.CALCULIX_WORKER_URL){
+ const token=process.env.CALCULIX_WORKER_API_TOKEN?.trim();
+ if(!token)throw new Error("CALCULIX_WORKER_URL requires CALCULIX_WORKER_API_TOKEN.");
+ adapters.push(new CalculixBenchmarkWorkerAdapter(new HttpExecutionWorkerClient(
+  process.env.CALCULIX_WORKER_URL,
+  fetch,
+  token,
+  {pollIntervalMs:boundedInteger(process.env.CALCULIX_WORKER_POLL_INTERVAL_MS,500,100,5000),maxPolls:boundedInteger(process.env.CALCULIX_WORKER_MAX_POLLS,300,1,1200)}
  )));
 }
 const engine=new ExecutionEngine(adapters),workerId=(process.env.EXECUTION_WORKER_ID?.trim()||`${hostname()}-${process.pid}`).slice(0,128);
