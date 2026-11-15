@@ -68,7 +68,7 @@ function validReference(reference: unknown): reference is FEABenchmarkReference 
   if (!finitePositive(reference.reactionRelativeTolerance) || reference.reactionRelativeTolerance > 0.01) return false;
   if (!finiteNonNegative(reference.reactionRelativeError)) return false;
   if (!isRecord(reference.expectedSupportReactionN) || !isRecord(reference.measuredSupportReactionN)) return false;
-  for (const axis of ["x", "y", "z"]) {
+  for (const axis of ["x", "y", "z"] as const) {
     if (!finiteNonNegative(reference.expectedSupportReactionN[axis])) return false;
     if (typeof reference.measuredSupportReactionN[axis] !== "number" ||
         !Number.isFinite(reference.measuredSupportReactionN[axis])) return false;
