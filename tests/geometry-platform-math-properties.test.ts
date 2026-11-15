@@ -89,4 +89,37 @@ describe("G3 deterministic metamorphic and invariant tests", () => {
     const outside = [bounds.max[0] + 1, (bounds.min[1] + bounds.max[1]) / 2, (bounds.min[2] + bounds.max[2]) / 2] as const;
     expect(containsPointInBounds(bounds, outside)).toBe(false);
   });
+
+  it("preserves normalization across deterministic magnitude scales and subnormal inputs", () => {
+    const base = [1, -2, 2] as const;
+    const expected = [1 / 3, -2 / 3, 2 / 3] as const;
+    const exponents = [-300, -250, -100, -10, -1, 0, 1, 10, 100, 250, 300];
+    for (const exponent of exponents) {
+      const scale = 10 ** exponent;
+      closeVector(normalizeVector([base[0] * scale, base[1] * scale, base[2] * scale]), expected, 12);
+    }
+    expect(normalizeVector([Number.MIN_VALUE, 0, 0])).toEqual([1, 0, 0]);
+    expect(normalizeVector([1e-300, 1e-300, 1e-300])).toEqual([
+      1 / Math.sqrt(3), 1 / Math.sqrt(3), 1 / Math.sqrt(3)
+    ]);
+  });
+
+  it("fails closed for near-degenerate directions and transform tolerance boundaries", () => {
+    expect(() => normalizeVector([1e-12, 0, 0], 1e-12)).toThrow(/zero or near-zero/);
+    expect(normalizeVector([1.0001e-12, 0, 0], 1e-12)).toEqual([1, 0, 0]);
+
+    const withinTolerance = {
+      rotation: [[1, 0.9e-9, 0], [0, 1, 0], [0, 0, 1]] as const,
+      translationMm: [0, 0, 0] as const
+    };
+    const outsideTolerance = {
+      rotation: [[1, 1.1e-9, 0], [0, 1, 0], [0, 0, 1]] as const,
+      translationMm: [0, 0, 0] as const
+    };
+    expect(validateRigidTransform3(withinTolerance)).toEqual([]);
+    expect(validateRigidTransform3(outsideTolerance)).not.toEqual([]);
+    expect(validateRigidTransform3(null as unknown as Parameters<typeof validateRigidTransform3>[0]))
+      .toContain("Transform is required.");
+  });
+
 });
