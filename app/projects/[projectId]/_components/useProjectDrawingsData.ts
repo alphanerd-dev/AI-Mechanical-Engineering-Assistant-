@@ -51,34 +51,46 @@ export function useProjectDrawingsData(projectId: string) {
     [drawings, selectedId]
   );
 
-  const fetchAndUpdateDrawings = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const items = await fetchProjectDrawings(projectId, signal);
-      if (signal?.aborted) return;
-      setDrawings(items);
-      setSelectedId((current) => selectedDrawingId(items, current));
-      setError(null);
-    } catch (cause) {
-      recordLoadFailure(cause, signal, setError);
-    } finally {
-      if (!signal?.aborted) {
-        setLoadedProjectId(projectId);
-        setRefreshing(false);
-      }
-    }
+  const applyDrawings = useCallback((items: DrawingRecord[]) => {
+    setDrawings(items);
+    setSelectedId((current) => selectedDrawingId(items, current));
+    setError(null);
+  }, []);
+
+  const applyLoadFailure = useCallback((cause: unknown, signal?: AbortSignal) => {
+    recordLoadFailure(cause, signal, setError);
+  }, []);
+
+  const markProjectLoaded = useCallback(() => {
+    setLoadedProjectId(projectId);
   }, [projectId]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
-    await fetchAndUpdateDrawings();
-  }, [fetchAndUpdateDrawings]);
+    try {
+      const items = await fetchProjectDrawings(projectId);
+      applyDrawings(items);
+    } catch (cause) {
+      applyLoadFailure(cause);
+    } finally {
+      markProjectLoaded();
+      setRefreshing(false);
+    }
+  }, [projectId, applyDrawings, applyLoadFailure, markProjectLoaded]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetchAndUpdateDrawings(controller.signal);
+    void fetchProjectDrawings(projectId, controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) applyDrawings(items);
+      })
+      .catch((cause: unknown) => applyLoadFailure(cause, controller.signal))
+      .finally(() => {
+        if (!controller.signal.aborted) markProjectLoaded();
+      });
     return () => controller.abort();
-  }, [fetchAndUpdateDrawings]);
+  }, [projectId, applyDrawings, applyLoadFailure, markProjectLoaded]);
 
   return { drawings, selected, selectedId, setSelectedId, loading, error, refresh };
 }
