@@ -304,12 +304,27 @@ def main():
     total_force_n = request.get("totalForceN")
     dimensions = request.get("dimensionsMm") or {}
     element_size_mm = request.get("elementSizeMm")
-    if not all(isinstance(value, (int, float)) and math.isfinite(value) and value > 0 for value in (youngs_modulus_mpa, total_force_n, element_size_mm)):
-        fail("Material stiffness, total force and element size must be positive finite numbers.")
+    if not all(isinstance(value, (int, float)) and math.isfinite(value) and 0 < value <= 1e9 for value in (youngs_modulus_mpa, total_force_n)):
+        fail("Material stiffness and total force must be positive finite values no greater than 1e9.")
+    if not isinstance(element_size_mm, (int, float)) or not math.isfinite(element_size_mm) or not 1 <= element_size_mm <= 100:
+        fail("Element size must be between 1 and 100 mm.")
+    timeout_ms = request.get("timeoutMs", 30000)
+    if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or not 1000 <= timeout_ms <= 120000:
+        fail("timeoutMs must be an integer between 1000 and 120000.")
     if not isinstance(poisson_ratio, (int, float)) or not math.isfinite(poisson_ratio) or not -1 < poisson_ratio < 0.5:
         fail("Poisson ratio is invalid.")
-    if not all(isinstance(dimensions.get(key), (int, float)) and math.isfinite(dimensions[key]) and dimensions[key] > 0 for key in ("length","width","height")):
-        fail("All benchmark dimensions must be positive finite numbers.")
+    if not all(isinstance(dimensions.get(key), (int, float)) and math.isfinite(dimensions[key]) for key in ("length","width","height")):
+        fail("All benchmark dimensions must be finite numbers.")
+    length_mm = float(dimensions["length"])
+    width_mm = float(dimensions["width"])
+    height_mm = float(dimensions["height"])
+    if not 10 <= length_mm <= 2000 or not 1 <= width_mm <= 500 or not 1 <= height_mm <= 500:
+        fail("Benchmark dimensions are outside the supported 10-2000 mm length and 1-500 mm cross-section bounds.")
+    if length_mm < 5 * max(width_mm, height_mm):
+        fail("Cantilever benchmark length must be at least five times its largest cross-section dimension.")
+    estimated_elements = math.ceil(length_mm / float(element_size_mm)) * math.ceil(width_mm / float(element_size_mm)) * math.ceil(height_mm / float(element_size_mm)) * 6
+    if estimated_elements > 200000:
+        fail("Estimated tetrahedral mesh exceeds the 200000-element worker limit.")
 
     artifact_dir = pathlib.Path(os.environ.get("FEA_ARTIFACT_DIR", tempfile.mkdtemp(prefix="fea-artifacts-")))
     artifact_dir.mkdir(parents=True, exist_ok=True)
