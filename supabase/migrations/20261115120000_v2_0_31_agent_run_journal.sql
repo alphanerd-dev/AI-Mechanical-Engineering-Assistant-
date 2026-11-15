@@ -164,7 +164,7 @@ begin
   if p_action_hash is null or p_action_hash !~ '^[0-9a-f]{64}$' then raise exception 'Invalid agent action digest.'; end if;
   if p_action is null or jsonb_typeof(p_action) <> 'object' or pg_column_size(p_action) > 65536 then raise exception 'Invalid or oversized agent action.'; end if;
   select * into v_run from public.engineering_agent_runs where id = p_run_id for update;
-  if not found then return false; end if;
+  if not found then return 'NOT_FOUND'; end if;
   if p_action_index < v_run.next_action_index then
     select entry.value into v_existing from jsonb_array_elements(v_run.action_history) as entry(value)
      where (entry.value->>'actionIndex')::integer = p_action_index limit 1;
