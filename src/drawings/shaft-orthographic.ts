@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 export const SHAFT_ORTHOGRAPHIC_DRAWING_GENERATOR_ID = "alphanerd.shaft-orthographic-svg";
 export const SHAFT_ORTHOGRAPHIC_DRAWING_GENERATOR_VERSION = "1.0.0";
+
 export interface ShaftOrthographicDrawingInput {
   drawingNumber: string;
   title: string;
@@ -38,100 +39,146 @@ export interface GeneratedCADDrawing {
   sha256: string;
 }
 
+interface DrawingLine {
+  x1: number; y1: number; x2: number; y2: number;
+  stroke?: string; width?: number;
+}
+interface DrawingText {
+  x: number; y: number; value: string;
+  size?: number; anchor?: string; fill?: string;
+}
+interface DrawingLabel {
+  value: string; name: string; maximum: number;
+}
+
 const PAGE_WIDTH_MM = 297;
 const PAGE_HEIGHT_MM = 210;
 const MAX_DIMENSION_MM = 100_000;
 const SHA256 = /^[a-f0-9]{64}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 
 function validatePositiveDimension(value: number, name: string): void {
-  if (!Number.isFinite(value) || value <= 0 || value > MAX_DIMENSION_MM) {
-    throw new Error(name + " must be finite, positive and no greater than 100000 mm.");
-  }
+  if (!Number.isFinite(value)) throw new Error(name + " must be finite.");
+  if (value <= 0) throw new Error(name + " must be positive.");
+  if (value > MAX_DIMENSION_MM) throw new Error(name + " must not exceed 100000 mm.");
+}
+function validateSourceRevisionId(value: string): void {
+  if (!UUID.test(value)) throw new Error("A valid source geometry revision ID is required.");
+}
+function validateSourceArtifactId(value: string): void {
+  if (!value.trim() || value.length > 160) throw new Error("A valid source artifact ID is required.");
+}
+function validateSourceArtifactDigest(value: string): void {
+  if (!SHA256.test(value)) throw new Error("A valid source artifact SHA-256 digest is required.");
+}
+function validateSourceRevisionNumber(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error("A positive source revision number is required.");
 }
 function validateSourceIdentity(input: ShaftOrthographicDrawingInput): void {
-  if (!UUID.test(input.sourceGeometryRevisionId)) throw new Error("A valid source geometry revision ID is required.");
-  if (!input.sourceArtifactId.trim() || input.sourceArtifactId.length > 160) throw new Error("A valid source artifact ID is required.");
-  if (!SHA256.test(input.sourceArtifactSha256)) throw new Error("A valid source artifact SHA-256 digest is required.");
-  if (!Number.isSafeInteger(input.sourceRevisionNumber) || input.sourceRevisionNumber < 1) throw new Error("A positive source revision number is required.");
+  validateSourceRevisionId(input.sourceGeometryRevisionId);
+  validateSourceArtifactId(input.sourceArtifactId);
+  validateSourceArtifactDigest(input.sourceArtifactSha256);
+  validateSourceRevisionNumber(input.sourceRevisionNumber);
 }
 function escapeXml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
-function validateLabel(value: string, name: string, maximum: number): string {
-  const normalized = value.trim();
-  const invalidControl = /[\x00-\x1f\x7f]/.test(normalized);
-  const invalidDrawingNumber = name === "drawingNumber" && /[\\/]/.test(normalized);
-  if (!normalized || normalized.length > maximum || invalidControl || invalidDrawingNumber) {
-    throw new Error(name + " is required and must be a safe short label.");
+function hasUnsafeControlCharacters(value: string): boolean {
+  return /[\x00-\x1f\x7f]/.test(value);
+}
+function validateDrawingNumber(value: string): void {
+  if (/[\\/]/.test(value)) throw new Error("drawingNumber cannot contain path separators.");
+}
+function validateLabel(input: DrawingLabel): string {
+  const normalized = input.value.trim();
+  if (!normalized || normalized.length > input.maximum) {
+    throw new Error(input.name + " is required and must be a safe short label.");
   }
+  if (hasUnsafeControlCharacters(normalized)) throw new Error(input.name + " contains control characters.");
+  if (input.name === "drawingNumber") validateDrawingNumber(normalized);
   return escapeXml(normalized);
 }
-function line(x1: number, y1: number, x2: number, y2: number, stroke = "#172b3a", width = 0.35): string {
-  return '<line x1="' + x1.toFixed(2) + '" y1="' + y1.toFixed(2) + '" x2="' + x2.toFixed(2) +
-    '" y2="' + y2.toFixed(2) + '" stroke="' + stroke + '" stroke-width="' + width + '"/>';
+function line(input: DrawingLine): string {
+  const stroke = input.stroke ?? "#172b3a";
+  const width = input.width ?? 0.35;
+  return '<line x1="' + input.x1.toFixed(2) + '" y1="' + input.y1.toFixed(2) +
+    '" x2="' + input.x2.toFixed(2) + '" y2="' + input.y2.toFixed(2) +
+    '" stroke="' + stroke + '" stroke-width="' + width + '"/>';
 }
-function text(x: number, y: number, value: string, size = 3.4, anchor = "middle", fill = "#172b3a"): string {
-  return '<text x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" font-size="' + size.toFixed(2) +
-    '" text-anchor="' + anchor + '" fill="' + fill + '">' + value + '</text>';
+function text(input: DrawingText): string {
+  const size = input.size ?? 3.4;
+  const anchor = input.anchor ?? "middle";
+  const fill = input.fill ?? "#172b3a";
+  return '<text x="' + input.x.toFixed(2) + '" y="' + input.y.toFixed(2) +
+    '" font-size="' + size.toFixed(2) + '" text-anchor="' + anchor +
+    '" fill="' + fill + '">' + input.value + '</text>';
+}
+function buildSideView(input: ShaftOrthographicDrawingInput, scale: number): string {
+  const sideX = 48;
+  const sideY = 76;
+  const viewLength = input.lengthMm * scale;
+  const viewDiameter = input.diameterMm * scale;
+  const sideRight = sideX + viewLength;
+  const sideBottom = sideY + viewDiameter;
+  const radius = viewDiameter / 2;
+  const dimensionY = sideBottom + 20;
+  return [
+    '<rect x="' + sideX.toFixed(2) + '" y="' + sideY.toFixed(2) + '" width="' + viewLength.toFixed(2) +
+      '" height="' + viewDiameter.toFixed(2) + '" fill="none" stroke="#172b3a" stroke-width="0.55"/>',
+    line({ x1: sideX - 3, y1: sideY + radius, x2: sideRight + 3, y2: sideY + radius, stroke: "#42a99b", width: 0.25 }),
+    text({ x: sideX + viewLength / 2, y: sideY - 7, value: "SIDE VIEW", size: 3.2 }),
+    line({ x1: sideX, y1: sideBottom + 2, x2: sideX, y2: dimensionY + 3, stroke: "#64748b", width: 0.22 }),
+    line({ x1: sideRight, y1: sideBottom + 2, x2: sideRight, y2: dimensionY + 3, stroke: "#64748b", width: 0.22 }),
+    line({ x1: sideX, y1: dimensionY, x2: sideRight, y2: dimensionY, width: 0.28 }),
+    line({ x1: sideX, y1: dimensionY - 2, x2: sideX, y2: dimensionY + 2, width: 0.28 }),
+    line({ x1: sideRight, y1: dimensionY - 2, x2: sideRight, y2: dimensionY + 2, width: 0.28 }),
+    text({ x: sideX + viewLength / 2, y: dimensionY - 2.5, value: "L = " + input.lengthMm.toFixed(2) + " mm", size: 3.4 })
+  ].join("");
+}
+function buildEndView(input: ShaftOrthographicDrawingInput, scale: number): string {
+  const centerX = 246;
+  const centerY = 76 + input.diameterMm * scale / 2;
+  const radius = input.diameterMm * scale / 2;
+  return [
+    '<circle cx="' + centerX.toFixed(2) + '" cy="' + centerY.toFixed(2) + '" r="' + radius.toFixed(2) +
+      '" fill="none" stroke="#172b3a" stroke-width="0.55"/>',
+    line({ x1: centerX - radius - 3, y1: centerY, x2: centerX + radius + 3, y2: centerY, stroke: "#42a99b", width: 0.25 }),
+    line({ x1: centerX, y1: centerY - radius - 3, x2: centerX, y2: centerY + radius + 3, stroke: "#42a99b", width: 0.25 }),
+    text({ x: centerX, y: 69, value: "END VIEW", size: 3.2 }),
+    line({ x1: centerX - radius - 5, y1: centerY - radius, x2: centerX - radius - 5, y2: centerY + radius, width: 0.28 }),
+    line({ x1: centerX - radius - 7, y1: centerY - radius, x2: centerX - radius - 3, y2: centerY - radius, width: 0.28 }),
+    line({ x1: centerX - radius - 7, y1: centerY + radius, x2: centerX - radius - 3, y2: centerY + radius, width: 0.28 }),
+    text({ x: centerX - radius - 9, y: centerY, value: "Ø " + input.diameterMm.toFixed(2) + " mm", size: 3.2, anchor: "end" })
+  ].join("");
+}
+function buildDrawingFrame(): string {
+  return [
+    '<rect x="8" y="8" width="281" height="194" fill="none" stroke="#64748b" stroke-width="0.25"/>',
+    line({ x1: 8, y1: 24, x2: 289, y2: 24, stroke: "#64748b", width: 0.25 }),
+    line({ x1: 8, y1: 158, x2: 289, y2: 158, stroke: "#64748b", width: 0.25 }),
+    line({ x1: 8, y1: 186, x2: 289, y2: 186, stroke: "#64748b", width: 0.25 })
+  ].join("");
+}
+function buildDrawingNotes(input: ShaftOrthographicDrawingInput): string {
+  return [
+    text({ x: 18, y: 166, value: "UNITS: mm", size: 3.2, anchor: "start" }),
+    text({ x: 18, y: 174, value: "NOMINAL DIMENSIONS FROM ACCEPTED GEOMETRY REVISION " + input.sourceRevisionNumber, size: 3, anchor: "start" }),
+    text({ x: 18, y: 182, value: "PRELIMINARY — NOT FOR MANUFACTURE", size: 4, anchor: "start", fill: "#b45309" }),
+    text({ x: 18, y: 190, value: "Verify dimensions, tolerances, datums, finish and applicable drafting standards before release.", size: 2.6, anchor: "start" }),
+    text({ x: 279, y: 190, value: "SOURCE: " + escapeXml(input.sourceArtifactId), size: 2.4, anchor: "end" })
+  ].join("");
 }
 function buildDrawingMarkup(input: ShaftOrthographicDrawingInput, drawingNumber: string, title: string): string {
   const scale = Math.min(170 / input.lengthMm, 42 / input.diameterMm);
-  const viewLength = input.lengthMm * scale;
-  const viewDiameter = input.diameterMm * scale;
-  const sideX = 48;
-  const sideY = 76;
-  const sideRight = sideX + viewLength;
-  const sideBottom = sideY + viewDiameter;
-  const endCenterX = 246;
-  const endCenterY = sideY + viewDiameter / 2;
-  const radius = viewDiameter / 2;
-  const lengthDimensionY = sideBottom + 20;
-  const diameterDimensionX = sideX - 16;
-  const titleText = text(18, 16, title, 5, "start");
-  const drawingNoText = text(279, 16, drawingNumber, 3.5, "end");
-  const sideView = [
-    '<rect x="' + sideX.toFixed(2) + '" y="' + sideY.toFixed(2) + '" width="' + viewLength.toFixed(2) +
-      '" height="' + viewDiameter.toFixed(2) + '" fill="none" stroke="#172b3a" stroke-width="0.55"/>',
-    line(sideX - 3, sideY + radius, sideRight + 3, sideY + radius, "#42a99b", 0.25),
-    text(sideX + viewLength / 2, sideY - 7, "SIDE VIEW", 3.2),
-    line(sideX, sideBottom + 2, sideX, lengthDimensionY + 3, "#64748b", 0.22),
-    line(sideRight, sideBottom + 2, sideRight, lengthDimensionY + 3, "#64748b", 0.22),
-    line(sideX, lengthDimensionY, sideRight, lengthDimensionY, "#172b3a", 0.28),
-    line(sideX, lengthDimensionY - 2, sideX, lengthDimensionY + 2, "#172b3a", 0.28),
-    line(sideRight, lengthDimensionY - 2, sideRight, lengthDimensionY + 2, "#172b3a", 0.28),
-    text(sideX + viewLength / 2, lengthDimensionY - 2.5, "L = " + input.lengthMm.toFixed(2) + " mm", 3.4)
-  ].join("");
-  const endView = [
-    '<circle cx="' + endCenterX.toFixed(2) + '" cy="' + endCenterY.toFixed(2) + '" r="' + radius.toFixed(2) +
-      '" fill="none" stroke="#172b3a" stroke-width="0.55"/>',
-    line(endCenterX - radius - 3, endCenterY, endCenterX + radius + 3, endCenterY, "#42a99b", 0.25),
-    line(endCenterX, endCenterY - radius - 3, endCenterX, endCenterY + radius + 3, "#42a99b", 0.25),
-    text(endCenterX, sideY - 7, "END VIEW", 3.2),
-    line(endCenterX - radius - 5, endCenterY - radius, endCenterX - radius - 5, endCenterY + radius, "#172b3a", 0.28),
-    line(endCenterX - radius - 7, endCenterY - radius, endCenterX - radius - 3, endCenterY - radius, "#172b3a", 0.28),
-    line(endCenterX - radius - 7, endCenterY + radius, endCenterX - radius - 3, endCenterY + radius, "#172b3a", 0.28),
-    text(endCenterX - radius - 9, endCenterY, "Ø " + input.diameterMm.toFixed(2) + " mm", 3.2, "end")
-  ].join("");
-  const notes = [
-    text(18, 166, "UNITS: mm", 3.2, "start"),
-    text(18, 174, "NOMINAL DIMENSIONS FROM ACCEPTED GEOMETRY REVISION " + input.sourceRevisionNumber, 3.0, "start"),
-    text(18, 182, "PRELIMINARY — NOT FOR MANUFACTURE", 4.0, "start", "#b45309"),
-    text(18, 190, "Verify dimensions, tolerances, datums, finish and applicable drafting standards before release.", 2.6, "start"),
-    text(279, 190, "SOURCE: " + escapeXml(input.sourceArtifactId), 2.4, "end")
-  ].join("");
-  const frame = [
-    '<rect x="8" y="8" width="281" height="194" fill="none" stroke="#64748b" stroke-width="0.25"/>',
-    line(8, 24, 289, 24, "#64748b", 0.25),
-    line(8, 158, 289, 158, "#64748b", 0.25),
-    line(8, 186, 289, 186, "#64748b", 0.25)
-  ].join("");
+  const header = text({ x: 18, y: 16, value: title, size: 5, anchor: "start" });
+  const drawingId = text({ x: 279, y: 16, value: drawingNumber, size: 3.5, anchor: "end" });
   return [
     '<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 297 210">',
     "<title>" + title + "</title>",
     "<desc>Preliminary orthographic side and end views of a cylindrical shaft. Not for manufacture.</desc>",
-    frame, titleText, drawingNoText, sideView, endView, notes, "</svg>"
+    buildDrawingFrame(), header, drawingId,
+    buildSideView(input, scale), buildEndView(input, scale), buildDrawingNotes(input), "</svg>"
   ].join("");
 }
 
@@ -139,8 +186,8 @@ export function generateShaftOrthographicSvgDrawing(input: ShaftOrthographicDraw
   validatePositiveDimension(input.diameterMm, "diameterMm");
   validatePositiveDimension(input.lengthMm, "lengthMm");
   validateSourceIdentity(input);
-  const drawingNumber = validateLabel(input.drawingNumber, "drawingNumber", 80);
-  const title = validateLabel(input.title, "title", 120);
+  const drawingNumber = validateLabel({ value: input.drawingNumber, name: "drawingNumber", maximum: 80 });
+  const title = validateLabel({ value: input.title, name: "title", maximum: 120 });
   const svg = buildDrawingMarkup(input, drawingNumber, title);
   const bytes = new TextEncoder().encode(svg);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
