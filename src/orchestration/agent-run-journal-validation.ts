@@ -1,5 +1,7 @@
 import type { AgentRunRecord, CreateAgentRunInput } from "./agent-run-journal-types.js";
-import { buildAgentRunRow, isRecord, toAgentRunRecord } from "./agent-run-journal-codec.js";
+import {
+  buildAgentRunRow, canonicalAgentRunDigest, isRecord, toAgentRunRecord
+} from "./agent-run-journal-codec.js";
 import {
   validatePersistedActionHistory, validatePersistedCurrentAction
 } from "./agent-run-journal-action-history.js";
@@ -46,6 +48,9 @@ function validateRunPlanAndCheckpoint(row: Record<string, unknown>): void {
   const validPlan = isRecord(row.plan);
   const validCheckpoint = isRecord(row.checkpoint);
   if (!validPlan || !validCheckpoint) throw new Error("Persisted agent run payload is invalid.");
+  const hasSnapshots = isRecord(row.plan.taskGraphSnapshot) && isRecord(row.plan.limitsSnapshot);
+  const hasProposal = isRecord(row.plan.proposal);
+  if (!hasSnapshots || !hasProposal) throw new Error("Persisted agent run payload is invalid.");
 }
 function validateRunPayload(row: Record<string, unknown>): void {
   validateRunPlanAndCheckpoint(row);
@@ -80,6 +85,20 @@ function validatePersistedHashes(row: Record<string, unknown>): void {
   }
   if (typeof row.request_hash !== "string" || !SHA256_PATTERN.test(row.request_hash)) {
     throw new Error("Persisted request hash is invalid.");
+  }
+  const plan = row.plan as Record<string, unknown>;
+  if (canonicalAgentRunDigest(plan) !== row.plan_hash) {
+    throw new Error("Persisted plan digest does not match its snapshot.");
+  }
+  const requestDigest = canonicalAgentRunDigest({
+    projectId: row.project_id,
+    initialGraphRevision: row.initial_graph_revision,
+    taskGraphSnapshot: plan.taskGraphSnapshot,
+    limitsSnapshot: plan.limitsSnapshot,
+    plan
+  });
+  if (requestDigest !== row.request_hash) {
+    throw new Error("Persisted request digest does not match its snapshot.");
   }
 }
 function isAbsent(value: unknown): boolean {
