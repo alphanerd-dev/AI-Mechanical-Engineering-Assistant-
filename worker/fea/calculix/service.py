@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -296,10 +297,11 @@ def resolve_artifact(job_id: str, relative_path: str) -> Path | None:
 
 class WorkerHandler(BaseHTTPRequestHandler):
     server_version = "CalculixWorker/1.0"
+    sys_version = ""
 
     def authorized(self) -> bool:
         if not API_TOKEN:
-            return False
+            return HOST.strip().lower() in {"127.0.0.1", "::1", "localhost"}
         supplied = self.headers.get("authorization", "")
         return hmac.compare_digest(supplied, "Bearer " + API_TOKEN)
 
