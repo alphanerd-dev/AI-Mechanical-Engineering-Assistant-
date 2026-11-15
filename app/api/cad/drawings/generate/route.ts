@@ -9,6 +9,7 @@ import { inspectCADDrawingUpload } from "../../../../../src/drawings/ingestion";
 import { generateShaftOrthographicSvgDrawing } from "../../../../../src/drawings/shaft-orthographic";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 16 * 1024;
 type Row = Record<string, unknown>;
@@ -114,7 +115,9 @@ async function loadAcceptedCompletion(serviceDb: ReturnType<typeof createService
   if (!bounds || !finitePositive(bounds.x) || !finitePositive(bounds.y) || !finitePositive(bounds.z) ||
       Math.abs((bounds.x as number) - (bounds.y as number)) > 0.02 ||
       !isRecord(receipt) || receipt.artifactSha256 !== revision.canonical_artifact_sha256 ||
-      !isRecord(receipt.validation) || receipt.validation.valid !== true) {
+      !isRecord(receipt.validation) || receipt.validation.valid !== true ||
+      receipt.projectId !== projectId || receipt.artifactId !== solid.id ||
+      receipt.modelIdentityId !== modelIdentityId || receipt.validation.checkedBy !== receipt.checkedBy) {
     fail("Accepted geometry receipt does not contain source-bound cylinder dimensions suitable for this drawing generator.", 422, "GEOMETRY_MEASUREMENTS_UNAVAILABLE");
   }
   return { completion: data, solid, diameterMm: ((bounds.x as number) + (bounds.y as number)) / 2, lengthMm: bounds.z as number };
@@ -190,7 +193,39 @@ async function persistGeneratedDrawing(input: {
   };
   const inserted = await input.serviceDb.from("engineering_cad_drawings").insert(row);
   if (inserted.error) {
+    const existing = await input.serviceDb.from("engineering_cad_drawings").select("*")
+      .eq("project_id", input.projectId)
+      .eq("model_identity_id", input.modelIdentityId)
+      .eq("source_geometry_revision_id", input.revision.id)
+      .eq("generator_id", drawing.generatorId)
+      .eq("generator_version", drawing.generatorVersion)
+      .eq("sha256", drawing.sha256)
+      .maybeSingle();
+    if (existing.error) {
+      fail("Generated drawing commit acknowledgement is ambiguous. Reload drawing history before retrying.", 503, "DRAWING_COMMIT_AMBIGUOUS");
+    }
     await input.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([storagePath]);
+    if (isRecord(existing.data)) {
+      const prior = existing.data;
+      const priorUrl = await input.sessionDb.storage.from(CAD_ARTIFACT_BUCKET)
+        .createSignedUrl(String(prior.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+      if (priorUrl.error || !priorUrl.data?.signedUrl) {
+        fail("The existing generated drawing was found but its read URL could not be created.", 503, "DRAWING_URL_UNAVAILABLE");
+      }
+      return {
+        id: prior.id, projectId: prior.project_id, modelIdentityId: prior.model_identity_id,
+        displayName: prior.display_name, format: prior.format, mediaType: prior.media_type,
+        byteSize: prior.byte_size, sha256: prior.sha256, parserVersion: prior.parser_version,
+        units: prior.units, entityCount: prior.entity_count, bounds: prior.bounds,
+        warnings: prior.warnings, createdAt: prior.created_at,
+        sourceGeometryRevisionId: prior.source_geometry_revision_id,
+        sourceArtifactId: prior.source_artifact_id, sourceArtifactSha256: prior.source_artifact_sha256,
+        sourceRevisionNumber: prior.source_revision_number, generatorId: prior.generator_id,
+        generatorVersion: prior.generator_version, generationParameters: prior.generation_parameters,
+        isStale: false, signedUrl: priorUrl.data.signedUrl,
+        signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS, idempotentReplay: true
+      };
+    }
     fail("Generated drawing metadata could not be committed; the uploaded object was removed.", 503, "DRAWING_METADATA_FAILED");
   }
   try {
@@ -253,7 +288,8 @@ async function persistGeneratedDrawing(input: {
     generationParameters: row.generation_parameters,
     isStale: false,
     signedUrl: signed.data.signedUrl,
-    signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS
+    signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS,
+    idempotentReplay: false
   };
 }
 export async function POST(request: Request) {
