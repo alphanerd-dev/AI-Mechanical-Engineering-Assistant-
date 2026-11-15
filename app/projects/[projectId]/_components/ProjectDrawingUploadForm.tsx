@@ -1,4 +1,4 @@
-import { FilePlus2, Upload } from "lucide-react";
+import { AlertCircle, FilePlus2, Upload } from "lucide-react";
 import type { useProjectDrawings } from "./useProjectDrawings";
 import styles from "./ProjectDrawingsPanel.module.css";
 
@@ -33,7 +33,7 @@ export default function ProjectDrawingUploadForm({
         {state.file && <span className={styles.meta}>{state.file.name} · {(state.file.size / 1024).toFixed(1)} KiB</span>}
       </div>
     </form>
-    {state.error && <p className={styles.error} role="alert">{state.error}</p>}
+    {state.error && <p className={styles.error} role="alert"><AlertCircle size={13} />{state.error}</p>}
     {state.notice && <p className={styles.notice} role="status">{state.notice}</p>}
   </>;
 }
