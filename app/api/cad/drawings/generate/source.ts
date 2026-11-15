@@ -22,9 +22,10 @@ export async function loadCurrentGeometryRevision(serviceDb: ServiceDb, input: {
   const { data, error } = await serviceDb.from("engineering_geometry_revisions").select("*")
     .eq("project_id", input.projectId).eq("model_identity_id", input.modelIdentityId)
     .order("revision_number", { ascending: false }).limit(1);
-  if (error || !Array.isArray(data) || data.length === 0 || !isRecord(data[0])) {
-    fail("Current accepted geometry revision could not be loaded.", 503, "GEOMETRY_REVISION_UNAVAILABLE");
-  }
+  if (error) fail("Current accepted geometry revision could not be loaded.", 503, "GEOMETRY_REVISION_UNAVAILABLE");
+  if (!Array.isArray(data)) fail("Current accepted geometry revision could not be loaded.", 503, "GEOMETRY_REVISION_UNAVAILABLE");
+  if (data.length === 0) fail("Current accepted geometry revision could not be loaded.", 503, "GEOMETRY_REVISION_UNAVAILABLE");
+  if (!isRecord(data[0])) fail("Current accepted geometry revision could not be loaded.", 503, "GEOMETRY_REVISION_UNAVAILABLE");
   const revision = data[0];
   if (revision.id !== input.geometryRevisionId) {
     fail("The requested drawing source is stale. Reload the current geometry revision before generating a drawing.", 409, "STALE_DRAWING_SOURCE");
@@ -41,7 +42,8 @@ function findCanonicalSolid(completion: Row, revision: Row): Row {
   return artifact;
 }
 function validateCanonicalSolidLineage(solid: Row, revision: Row): void {
-  if (!isRecord(solid.provenance) || solid.provenance.artifactSha256 !== revision.canonical_artifact_sha256) {
+  if (!isRecord(solid.provenance)) fail("Canonical source artifact provenance is missing.", 422, "SOURCE_DIGEST_MISMATCH");
+  if (solid.provenance.artifactSha256 !== revision.canonical_artifact_sha256) {
     fail("Canonical source artifact digest does not match the immutable geometry revision.", 422, "SOURCE_DIGEST_MISMATCH");
   }
   const expectedUri = "storage://" + String(revision.storage_bucket) + "/" + String(revision.storage_object_name);
@@ -88,13 +90,15 @@ function validateSourceStorageIdentity(revision: Row): { bucket: string; path: s
   const bucket = String(revision.storage_bucket);
   const path = String(revision.storage_object_name);
   const validPath = path.startsWith(String(revision.project_id) + "/") && !path.includes("..");
-  if (bucket !== CAD_ARTIFACT_BUCKET || !validPath) fail("Canonical source storage identity is invalid.", 422, "SOURCE_STORAGE_INVALID");
+  if (bucket !== CAD_ARTIFACT_BUCKET) fail("Canonical source storage bucket is invalid.", 422, "SOURCE_STORAGE_INVALID");
+  if (!validPath) fail("Canonical source storage path is invalid.", 422, "SOURCE_STORAGE_INVALID");
   return { bucket, path };
 }
 export async function verifyCanonicalSourceBytes(serviceDb: ServiceDb, revision: Row): Promise<void> {
   const { bucket, path } = validateSourceStorageIdentity(revision);
   const downloaded = await serviceDb.storage.from(bucket).download(path);
-  if (downloaded.error || !downloaded.data) fail("Canonical source geometry bytes could not be retrieved.", 503, "SOURCE_STORAGE_UNAVAILABLE");
+  if (downloaded.error) fail("Canonical source geometry bytes could not be retrieved.", 503, "SOURCE_STORAGE_UNAVAILABLE");
+  if (!downloaded.data) fail("Canonical source geometry bytes could not be retrieved.", 503, "SOURCE_STORAGE_UNAVAILABLE");
   const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== revision.canonical_artifact_sha256) {
