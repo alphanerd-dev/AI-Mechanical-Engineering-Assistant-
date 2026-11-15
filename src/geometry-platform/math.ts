@@ -35,6 +35,14 @@ function finiteVector(value: readonly number[], name: string): void {
 function positiveFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) throw new Error(name + " must be finite and positive.");
 }
+function finiteResultVector(value: Vector3, name: string): Vector3 {
+  finiteVector(value, name + " must remain finite.");
+  return value;
+}
+function finiteResult(value: number, name: string): number {
+  if (!Number.isFinite(value)) throw new Error(name + " exceeds the finite numeric range.");
+  return value;
+}
 function validateToleranceId(policy: GeometryTolerancePolicy): string[] {
   return typeof policy?.id === "string" && policy.id.trim()
     ? [] : ["Tolerance policy id is required."];
@@ -56,34 +64,39 @@ export function validateTolerancePolicy(policy: GeometryTolerancePolicy): string
 }
 export function addVectors(a: Vector3, b: Vector3): Vector3 {
   finiteVector(a,"a"); finiteVector(b,"b");
-  return [a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+  return finiteResultVector([a[0]+b[0],a[1]+b[1],a[2]+b[2]], "vector sum");
 }
 export function subtractPoints(a: Point3, b: Point3): Vector3 {
   finiteVector(a,"a"); finiteVector(b,"b");
-  return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+  return finiteResultVector([a[0]-b[0],a[1]-b[1],a[2]-b[2]], "point difference");
 }
 export function scaleVector(vector: Vector3, scale: number): Vector3 {
   finiteVector(vector,"vector");
   if (!Number.isFinite(scale)) throw new Error("scale must be finite.");
-  return [vector[0]*scale,vector[1]*scale,vector[2]*scale];
+  return finiteResultVector([vector[0]*scale,vector[1]*scale,vector[2]*scale], "scaled vector");
 }
 export function dotProduct(a: Vector3, b: Vector3): number {
   finiteVector(a,"a"); finiteVector(b,"b");
-  return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  return finiteResult(a[0]*b[0]+a[1]*b[1]+a[2]*b[2], "dot product");
 }
 export function crossProduct(a: Vector3, b: Vector3): Vector3 {
   finiteVector(a,"a"); finiteVector(b,"b");
-  return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  return finiteResultVector([a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], "cross product");
 }
 export function vectorMagnitude(vector: Vector3): number {
   finiteVector(vector,"vector");
-  return Math.hypot(vector[0],vector[1],vector[2]);
+  return finiteResult(Math.hypot(vector[0],vector[1],vector[2]), "vector magnitude");
 }
 export function normalizeVector(vector: Vector3, minimumMagnitude = 1e-12): Vector3 {
   finiteVector(vector,"vector"); positiveFinite(minimumMagnitude,"minimumMagnitude");
-  const magnitude=vectorMagnitude(vector);
-  if (magnitude<=minimumMagnitude) throw new Error("Cannot normalize a zero or near-zero vector.");
-  return scaleVector(vector,1/magnitude);
+  const maximum = Math.max(Math.abs(vector[0]), Math.abs(vector[1]), Math.abs(vector[2]));
+  if (maximum === 0) throw new Error("Cannot normalize a zero or near-zero vector.");
+  const scaled: Vector3 = [vector[0]/maximum, vector[1]/maximum, vector[2]/maximum];
+  const scaledMagnitude = Math.hypot(scaled[0], scaled[1], scaled[2]);
+  if (maximum <= minimumMagnitude / scaledMagnitude) {
+    throw new Error("Cannot normalize a zero or near-zero vector.");
+  }
+  return scaleVector(scaled, 1/scaledMagnitude);
 }
 export function distanceBetweenPointsMm(a: Point3,b: Point3): number {
   return vectorMagnitude(subtractPoints(a,b));
