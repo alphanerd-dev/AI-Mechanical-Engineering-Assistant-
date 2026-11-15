@@ -289,6 +289,21 @@ begin
   if not exists (select 1 from auth.users where id = p_approved_by) then
     raise exception 'Approver identity does not exist.';
   end if;
+  if not exists (
+    select 1
+      from public.engineering_audit_events as approval
+     where approval.event_id = p_approval_evidence_id
+       and approval.project_id = p_project_id
+       and approval.resource_type = 'AGENT_RUN'
+       and approval.resource_id = p_run_id::text
+       and approval.action = 'APPROVAL_GRANT'
+       and approval.outcome = 'SUCCESS'
+       and approval.actor_type = 'USER'
+       and approval.actor_subject = p_approved_by::text
+       and approval.metadata->>'decision' = 'APPROVED'
+  ) then
+    raise exception 'APPROVAL_EVIDENCE_REQUIRED: a durable user approval audit event is required.';
+  end if;
   select * into v_run from public.engineering_agent_runs
    where id = p_run_id and project_id = p_project_id for update;
   if not found then return false; end if;
