@@ -23,8 +23,10 @@ export function requireShaftBounds(receipt: Row): Row {
   const measurements = receipt.geometryMeasurements;
   const bounds = isRecord(measurements) ? measurements.boundingBoxMm : undefined;
   if (!isRecord(bounds)) fail({ message: "Accepted geometry receipt has no bounding box measurements.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  if (!finitePositive(bounds.x) || !finitePositive(bounds.y) || !finitePositive(bounds.z)) {
-    fail({ message: "Accepted shaft bounding-box extents are invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  for (const axis of ["x", "y", "z"] as const) {
+    if (!finitePositive(bounds[axis])) {
+      fail({ message: "Accepted shaft " + axis.toUpperCase() + " extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+    }
   }
   return bounds;
 }
