@@ -8,15 +8,17 @@ import {PythonWorkerAdapter} from "../../../src/execution/python-worker.js";
 import {SafeNumericalAdapter} from "../../../src/execution/safe-numerical.js";
 import {ExecutionJobStoreError,IdempotencyConflictError,SupabaseExecutionJobStore} from "../../../src/execution/supabase-job-store.js";
 import {ExecutionBackend} from "../../../src/execution/types.js";
+import {validateFEACantileverBoxRequest} from "../../../src/fea/benchmark.js";
 export const runtime="nodejs";
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY=/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 const PYTHON_CAPABILITIES=new Set(["UNITS.CONVERT","UNITS.CHECK_DIMENSIONS","MATH.SYMBOLIC_SOLVE","MATH.NUMERICAL_SOLVE","MATH.OPTIMIZE"]);
 function objectBody(value:unknown):Record<string,unknown>|undefined{return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:undefined;}
 function jsonError(error:string,status:number,code?:string){return NextResponse.json({error,...(code?{code}:{})},{status,headers:{"cache-control":"no-store"}});}
-function isBackend(value:unknown):value is Extract<ExecutionBackend,"typescript-safe"|"python-worker">{return value==="typescript-safe"||value==="python-worker";}
+function isBackend(value:unknown):value is Extract<ExecutionBackend,"typescript-safe"|"python-worker"|"fea-worker">{return value==="typescript-safe"||value==="python-worker"||value==="fea-worker";}
 
 async function legacySynchronousPost(request:Request,body:Record<string,unknown>){
+  if(body.backend==="fea-worker")return jsonError("CalculiX execution requires the durable worker runtime.",503,"DURABLE_WORKER_REQUIRED");
   let projectId:string|undefined;
   if(body.projectId!==undefined){
     if(typeof body.projectId!=="string"||!body.projectId.trim())return jsonError("projectId must be a non-empty string when provided.",400);
@@ -62,11 +64,13 @@ export async function POST(request:Request){
  const capability=typeof body.capability==="string"?body.capability.trim():"";
  if(!capability||capability.length>128)return jsonError("A supported capability name is required.",400,"CAPABILITY_REQUIRED");
  const backendCandidate=body.backend===undefined?"typescript-safe":body.backend;
- if(!isBackend(backendCandidate))return jsonError("Backend must be typescript-safe or python-worker.",400,"UNSUPPORTED_BACKEND");
+ if(!isBackend(backendCandidate))return jsonError("Backend must be typescript-safe, python-worker or fea-worker.",400,"UNSUPPORTED_BACKEND");
  const backend=backendCandidate;
  if(backend==="typescript-safe"&&capability!=="ANALYSIS.SHAFT_TORQUE")return jsonError("The TypeScript backend does not support this capability.",422,"UNSUPPORTED_CAPABILITY");
  if(backend==="python-worker"&&!PYTHON_CAPABILITIES.has(capability))return jsonError("The Python worker capability is not allowlisted.",422,"UNSUPPORTED_CAPABILITY");
  if(backend==="python-worker"&&(!process.env.PYTHON_WORKER_URL||!process.env.PYTHON_WORKER_API_TOKEN?.trim()))return jsonError("The Python worker URL and API token must both be configured.",503,"WORKER_UNAVAILABLE");
+ if(backend==="fea-worker"&&capability!=="ANALYSIS.STATIC_STRUCTURAL")return jsonError("The CalculiX worker only supports ANALYSIS.STATIC_STRUCTURAL.",422,"UNSUPPORTED_CAPABILITY");
+ if(backend==="fea-worker"&&(!process.env.CALCULIX_WORKER_URL||!process.env.CALCULIX_WORKER_API_TOKEN?.trim()))return jsonError("The CalculiX worker URL and API token must both be configured.",503,"WORKER_UNAVAILABLE");
  if(body.inputs!==undefined&&!objectBody(body.inputs))return jsonError("inputs must be a JSON object when provided.",400,"INVALID_INPUTS");
  const inputs=objectBody(body.inputs)??{};
  let inputSize:number;
@@ -75,13 +79,26 @@ export async function POST(request:Request){
  if(body.requestedOutputs!==undefined&&!Array.isArray(body.requestedOutputs))return jsonError("requestedOutputs must be an array when provided.",400,"INVALID_OUTPUTS");
  const requestedOutputs=Array.isArray(body.requestedOutputs)?body.requestedOutputs:[];
  if(requestedOutputs.length>64||requestedOutputs.some(item=>typeof item!=="string"||!item.trim()||item.length>128))return jsonError("requestedOutputs must be an array of at most 64 non-empty short strings.",400,"INVALID_OUTPUTS");
- let authorization;
- try{authorization=await authorizeSupabaseRequest("TASK.EXECUTE",projectId,{requestId:request.headers.get("x-request-id")??randomUUID()});}
- catch{return jsonError("Engineering authorization is unavailable.",503,"AUTHORIZATION_UNAVAILABLE");}
+ let authorization:Awaited<ReturnType<typeof authorizeSupabaseRequest>>;
+ let evidenceAuthorization:Awaited<ReturnType<typeof authorizeSupabaseRequest>>|undefined;
+ const requestId=request.headers.get("x-request-id")??randomUUID();
+ try{
+  authorization=await authorizeSupabaseRequest("TASK.EXECUTE",projectId,{requestId});
+  if(backend==="fea-worker")evidenceAuthorization=await authorizeSupabaseRequest("EVIDENCE.WRITE",projectId,{requestId});
+ }catch{return jsonError("Engineering authorization is unavailable.",503,"AUTHORIZATION_UNAVAILABLE");}
  if(!authorization.allowed){const status=authorizationFailureStatus(authorization);return jsonError(authorization.reason,status,status===503?"AUDIT_STORE_UNAVAILABLE":"ENGINEERING_ROLE_REQUIRED");}
+ if(evidenceAuthorization&&!evidenceAuthorization.allowed){const status=authorizationFailureStatus(evidenceAuthorization);return jsonError(evidenceAuthorization.reason,status,status===503?"AUDIT_STORE_UNAVAILABLE":"EVIDENCE_WRITE_DENIED");}
+ if(evidenceAuthorization&&evidenceAuthorization.subject!==authorization.subject)return jsonError("Execution and evidence-write identities do not match.",401,"SESSION_IDENTITY_MISMATCH");
  if(!authorization.subject)return jsonError("Authenticated owner identity is unavailable.",503,"IDENTITY_UNAVAILABLE");
+ if(backend==="fea-worker"){
+  const benchmarkErrors=validateFEACantileverBoxRequest(inputs);
+  if(benchmarkErrors.length)return NextResponse.json({error:"Invalid CalculiX benchmark request.",details:benchmarkErrors},{status:422,headers:{"cache-control":"no-store"}});
+ }
  const jobId=randomUUID();
- const executionRequest={id:jobId,capability,backend,inputs,requestedOutputs:requestedOutputs as string[],timeoutMs:backend==="python-worker"?30_000:2_000,projectId,correlationId:request.headers.get("x-request-id")??jobId};
+ const normalizedRequestedOutputs=backend==="fea-worker"
+  ?["DISPLACEMENT","STRESS","REACTION_FORCE"]
+  :requestedOutputs as string[];
+ const executionRequest={id:jobId,capability,backend,inputs,requestedOutputs:normalizedRequestedOutputs,timeoutMs:backend==="python-worker"?30_000:backend==="fea-worker"?120_000:2_000,projectId,correlationId:requestId};
  try{
   const store=new SupabaseExecutionJobStore(createServiceRoleClient());
   const submitted=await store.submit({request:executionRequest,ownerId:authorization.subject,idempotencyKey:key});
