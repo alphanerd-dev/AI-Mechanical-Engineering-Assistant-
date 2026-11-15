@@ -1,5 +1,5 @@
 import DrawingViewer from "../../../../src/drawings/DrawingViewer";
-import type { DrawingRecord } from "./useProjectDrawings";
+import type { DrawingRecord } from "./project-drawings-types";
 import styles from "./ProjectDrawingsPanel.module.css";
 
 export default function ProjectDrawingPreview({ selected }: { selected: DrawingRecord | null }) {
