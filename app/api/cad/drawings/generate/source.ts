@@ -89,19 +89,50 @@ function requireShaftBounds(receipt: Row): Row {
   if (!finitePositive(bounds.x)) fail({ message: "Accepted shaft X extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   if (!finitePositive(bounds.y)) fail({ message: "Accepted shaft Y extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   if (!finitePositive(bounds.z)) fail({ message: "Accepted shaft Z extent is invalid.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
-  if (Math.abs(bounds.x - bounds.y) > 0.02) {
-    fail({ message: "Source geometry is not a world-Z cylindrical shaft within 0.02 mm cross-section tolerance.", status: 422, code: "UNSUPPORTED_SHAFT_GEOMETRY" });
-  }
   return bounds;
 }
-function validateSpecificationDimensions(input: { specification: Row; bounds: Row }): void {
-  const measuredDiameter = ((input.bounds.x as number) + (input.bounds.y as number)) / 2;
-  if (Math.abs(measuredDiameter - (input.specification.diameterMm as number)) > 0.02) {
-    fail({ message: "Measured shaft diameter does not match the accepted CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
+function isValidDimensionCheck(value: unknown): value is Row {
+  if (!isRecord(value)) return false;
+  if (value.axis !== "x" && value.axis !== "y" && value.axis !== "z") return false;
+  if (value.passed !== true) return false;
+  if (!finitePositive(value.actualMm)) return false;
+  if (!finitePositive(value.expectedMm)) return false;
+  return finitePositive(value.toleranceMm);
+}
+function collectDimensionChecks(measurements: Row): Map<string, Row> {
+  const values = measurements.dimensionChecks;
+  if (!Array.isArray(values) || values.length !== 3) {
+    fail({ message: "Accepted geometry receipt must contain exactly three axis dimension checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   }
-  if (Math.abs((input.bounds.z as number) - (input.specification.lengthMm as number)) > 0.02) {
-    fail({ message: "Measured shaft length does not match the accepted CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
+  const checks = new Map<string, Row>();
+  for (const value of values) {
+    if (!isValidDimensionCheck(value)) fail({ message: "Accepted geometry receipt contains an invalid dimension check.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+    if (checks.has(value.axis as string)) fail({ message: "Accepted geometry receipt contains duplicate axis checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+    checks.set(value.axis as string, value);
   }
+  if (!checks.has("x") || !checks.has("y") || !checks.has("z")) {
+    fail({ message: "Accepted geometry receipt must validate X, Y and Z dimensions.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  }
+  return checks;
+}
+function validateAxisDimension(input: { axis: string; check: Row; measuredMm: number; expectedMm: number }): void {
+  const tolerance = input.check.toleranceMm as number;
+  if (Math.abs((input.check.expectedMm as number) - input.expectedMm) > tolerance) {
+    fail({ message: "Accepted " + input.axis.toUpperCase() + " dimension check does not match the CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
+  }
+  if (Math.abs((input.check.actualMm as number) - input.measuredMm) > tolerance) {
+    fail({ message: "Accepted " + input.axis.toUpperCase() + " dimension check does not match measured geometry.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  }
+  if (Math.abs(input.measuredMm - input.expectedMm) > tolerance) {
+    fail({ message: "Measured " + input.axis.toUpperCase() + " dimension does not match the accepted CAD specification.", status: 422, code: "SHAFT_DIMENSION_MISMATCH" });
+  }
+}
+function validateSpecificationDimensions(input: { specification: Row; bounds: Row; checks: Map<string, Row> }): void {
+  const diameterMm = input.specification.diameterMm as number;
+  const lengthMm = input.specification.lengthMm as number;
+  validateAxisDimension({ axis: "x", check: input.checks.get("x") as Row, measuredMm: input.bounds.x as number, expectedMm: diameterMm });
+  validateAxisDimension({ axis: "y", check: input.checks.get("y") as Row, measuredMm: input.bounds.y as number, expectedMm: diameterMm });
+  validateAxisDimension({ axis: "z", check: input.checks.get("z") as Row, measuredMm: input.bounds.z as number, expectedMm: lengthMm });
 }
 function extractCylinderDimensions(input: {
   completion: Completion; revision: Row; projectId: string; modelIdentityId: string; solidId: string;
@@ -115,8 +146,11 @@ function extractCylinderDimensions(input: {
   }
   const receiptRecord = receipt as Row;
   const specification = requireShaftSpecification(input.completion);
+  const measurements = receiptRecord.geometryMeasurements;
+  if (!isRecord(measurements)) fail({ message: "Accepted geometry measurements are missing.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   const bounds = requireShaftBounds(receiptRecord);
-  validateSpecificationDimensions({ specification, bounds });
+  const checks = collectDimensionChecks(measurements);
+  validateSpecificationDimensions({ specification, bounds, checks });
   return { diameterMm: ((bounds.x as number) + (bounds.y as number)) / 2, lengthMm: bounds.z as number };
 }
 export async function loadAcceptedShaftSource(input: {
