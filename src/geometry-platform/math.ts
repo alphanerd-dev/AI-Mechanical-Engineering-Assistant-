@@ -219,15 +219,19 @@ function validateTranslation(translation: Vector3): string[] {
   catch (error) { return [error instanceof Error ? error.message : "Translation contains invalid values."]; }
 }
 function validateRotationOrthonormality(rotation: Matrix3, tolerance: number): string[] {
-  for (let row = 0; row < 3; row++) {
-    for (let column = row; column < 3; column++) {
-      const expected = row === column ? 1 : 0;
-      if (Math.abs(dotProduct(rotation[row], rotation[column]) - expected) > tolerance) {
-        return ["rotation matrix must be orthonormal."];
+  try {
+    for (let row = 0; row < 3; row++) {
+      for (let column = row; column < 3; column++) {
+        const expected = row === column ? 1 : 0;
+        if (Math.abs(dotProduct(rotation[row], rotation[column]) - expected) > tolerance) {
+          return ["rotation matrix must be orthonormal."];
+        }
       }
     }
+    return [];
+  } catch {
+    return ["rotation matrix exceeds the finite numeric range."];
   }
-  return [];
 }
 function validateRotationHandedness(rotation: Matrix3, tolerance: number): string[] {
   return Math.abs(determinant3(rotation) - 1) <= tolerance * 4
