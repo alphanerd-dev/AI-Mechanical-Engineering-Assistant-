@@ -76,19 +76,29 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+function isJsonPrimitive(value: unknown): boolean {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  return typeof value === "number" && Number.isFinite(value);
+}
+function assertJsonArray(value: unknown[], seen: Set<object>): void {
+  if (Object.keys(value).length !== value.length || Object.getOwnPropertySymbols(value).length > 0) {
+    throw new Error("Agent journal arrays must be dense JSON arrays without symbol keys.");
+  }
+  for (const item of value) assertJsonCompatible(item, seen);
+}
+function assertJsonObject(value: object, seen: Set<object>): void {
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
+  if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal payload cannot contain symbol keys.");
+  for (const item of Object.values(value as Record<string, unknown>)) assertJsonCompatible(item, seen);
+}
 function assertJsonCompatible(value: unknown, seen = new Set<object>()): void {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return;
-  if (typeof value === "number" && Number.isFinite(value)) return;
-  if (typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
+  if (isJsonPrimitive(value)) return;
+  if (value === null || typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
   if (seen.has(value)) throw new Error("Agent journal payload cannot contain circular references.");
   seen.add(value);
-  if (Array.isArray(value)) value.forEach(item => assertJsonCompatible(item, seen));
-  else {
-    const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
-    if (Object.getOwnPropertySymbols(value).length) throw new Error("Agent journal payload cannot contain symbol keys.");
-    Object.values(value as Record<string, unknown>).forEach(item => assertJsonCompatible(item, seen));
-  }
+  if (Array.isArray(value)) assertJsonArray(value, seen);
+  else assertJsonObject(value, seen);
   seen.delete(value);
 }
 function canonical(value: unknown): unknown {
@@ -102,17 +112,19 @@ function canonical(value: unknown): unknown {
 export function canonicalAgentRunDigest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
 }
-export function createAgentActionIdentity(runId: string, actionIndex: number, action: Record<string, unknown>): AgentActionIdentity {
-  if (!runId.trim() || !Number.isInteger(actionIndex) || actionIndex < 0 || actionIndex >= 25) {
-    throw new Error("Agent action identity requires a run ID and an index from 0 to 24.");
+function validateActionIndex(actionIndex: number): void {
+  if (!Number.isInteger(actionIndex) || actionIndex < 0 || actionIndex >= 25) {
+    throw new Error("Agent action index must be an integer from 0 to 24.");
   }
+}
+function validateRunId(runId: string): void {
+  if (!runId.trim()) throw new Error("Agent action identity requires a run ID.");
+}
+export function createAgentActionIdentity(runId: string, actionIndex: number, action: Record<string, unknown>): AgentActionIdentity {
+  validateRunId(runId);
+  validateActionIndex(actionIndex);
   const actionHash = canonicalAgentRunDigest(action);
-  return {
-    actionIndex,
-    actionHash,
-    actionKey: "agent:" + runId + ":" + actionIndex + ":" + actionHash.slice(0, 32),
-    action
-  };
+  return { actionIndex, actionHash, actionKey: "agent:" + runId + ":" + actionIndex + ":" + actionHash.slice(0, 32), action };
 }
 function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -120,32 +132,64 @@ function asString(value: unknown): string | undefined {
 function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
+const RUN_STATUSES: readonly AgentRunJournalStatus[] = [
+  "PLANNED", "RUNNING", "WAITING_APPROVAL", "COMPLETED", "FAILED", "CANCELLED", "RECONCILIATION_REQUIRED"
+];
+function hasPersistedRunIdentity(row: Record<string, unknown>): boolean {
+  return typeof row.id === "string" && typeof row.owner_id === "string" && typeof row.project_id === "string";
+}
+function hasPersistedRunPayload(row: Record<string, unknown>): boolean {
+  return isRecord(row.plan) && isRecord(row.checkpoint) && Array.isArray(row.action_history);
+}
+function hasPersistedRunStatus(row: Record<string, unknown>): boolean {
+  return typeof row.status === "string" && RUN_STATUSES.includes(row.status as AgentRunJournalStatus);
+}
 function toRun(value: unknown): AgentRunRecord {
-  const row = isRecord(value) ? value : undefined;
-  const status = row?.status;
-  const statuses: readonly string[] = ["PLANNED","RUNNING","WAITING_APPROVAL","COMPLETED","FAILED","CANCELLED","RECONCILIATION_REQUIRED"];
-  if (!row || typeof row.id !== "string" || typeof row.owner_id !== "string" ||
-      typeof row.project_id !== "string" || typeof status !== "string" || !statuses.includes(status) ||
-      !isRecord(row.plan) || !isRecord(row.checkpoint) || !Array.isArray(row.action_history)) {
+  if (!isRecord(value) || !hasPersistedRunIdentity(value) ||
+      !hasPersistedRunPayload(value) || !hasPersistedRunStatus(value)) {
     throw new AgentRunJournalError("validating a persisted run");
   }
+  const row = value;
   return {
-    id: row.id,
-    ownerId: row.owner_id,
-    projectId: row.project_id,
-    status: status as AgentRunJournalStatus,
+    id: row.id as string,
+    ownerId: row.owner_id as string,
+    projectId: row.project_id as string,
+    status: row.status as AgentRunJournalStatus,
     initialGraphRevision: asNumber(row.initial_graph_revision) ?? 0,
     currentGraphRevision: asNumber(row.current_graph_revision) ?? 0,
     planHash: asString(row.plan_hash) ?? "",
-    plan: row.plan,
-    checkpoint: row.checkpoint,
-    actionHistory: row.action_history.filter(isRecord),
+    plan: row.plan as Record<string, unknown>,
+    checkpoint: row.checkpoint as Record<string, unknown>,
+    actionHistory: (row.action_history as unknown[]).filter(isRecord),
     nextActionIndex: asNumber(row.next_action_index) ?? 0,
     ...(isRecord(row.current_action) ? { currentAction: row.current_action } : {}),
     ...(asString(row.cancel_requested_at) ? { cancelRequestedAt: asString(row.cancel_requested_at) } : {}),
     ...(asString(row.error) ? { error: asString(row.error) } : {}),
     createdAt: asString(row.created_at) ?? new Date(0).toISOString(),
     updatedAt: asString(row.updated_at) ?? new Date(0).toISOString()
+  };
+}
+function isUniqueViolation(error: unknown): boolean {
+  return isRecord(error) && error.code === "23505";
+}
+function buildAgentRunRow(input: CreateAgentRunInput): Record<string, unknown> {
+  if (!IDEMPOTENCY_PATTERN.test(input.idempotencyKey)) throw new Error("Agent run idempotency key is invalid.");
+  if (!Number.isInteger(input.initialGraphRevision) || input.initialGraphRevision < 1) throw new Error("Initial graph revision is invalid.");
+  if (input.plan.baseGraphRevision !== input.initialGraphRevision || input.plan.actions.length < 1 || input.plan.actions.length > 25) {
+    throw new Error("Agent plan revision or bounded action count is invalid.");
+  }
+  const plan = { taskGraphSnapshot: input.taskGraphSnapshot, limitsSnapshot: input.limitsSnapshot, proposal: input.plan };
+  const requestHash = canonicalAgentRunDigest({
+    projectId: input.projectId, initialGraphRevision: input.initialGraphRevision,
+    taskGraphSnapshot: input.taskGraphSnapshot, limitsSnapshot: input.limitsSnapshot, plan
+  });
+  const planHash = canonicalAgentRunDigest(plan);
+  if (!SHA256_PATTERN.test(requestHash) || !SHA256_PATTERN.test(planHash)) throw new AgentRunJournalError("hashing a run request");
+  return {
+    id: input.runId, owner_id: input.ownerId, project_id: input.projectId,
+    idempotency_key: input.idempotencyKey, request_hash: requestHash, plan_hash: planHash,
+    initial_graph_revision: input.initialGraphRevision, current_graph_revision: input.initialGraphRevision,
+    status: "PLANNED", plan, checkpoint: {}, action_history: [], next_action_index: 0
   };
 }
 function rpcBoolean(data: unknown): boolean {
@@ -158,51 +202,23 @@ export class SupabaseAgentRunJournal {
   constructor(private readonly client: SupabaseClient) {}
 
   async createOrGet(input: CreateAgentRunInput): Promise<{ run: AgentRunRecord; created: boolean }> {
-    if (!IDEMPOTENCY_PATTERN.test(input.idempotencyKey)) throw new Error("Agent run idempotency key is invalid.");
-    if (!Number.isInteger(input.initialGraphRevision) || input.initialGraphRevision < 1) throw new Error("Initial graph revision is invalid.");
-    if (input.plan.baseGraphRevision !== input.initialGraphRevision || input.plan.actions.length < 1 || input.plan.actions.length > 25) {
-      throw new Error("Agent plan revision or bounded action count is invalid.");
-    }
-    const plan = {
-      taskGraphSnapshot: input.taskGraphSnapshot,
-      limitsSnapshot: input.limitsSnapshot,
-      proposal: input.plan
-    };
-    const requestHash = canonicalAgentRunDigest({
-      projectId: input.projectId,
-      initialGraphRevision: input.initialGraphRevision,
-      taskGraphSnapshot: input.taskGraphSnapshot,
-      limitsSnapshot: input.limitsSnapshot,
-      plan
-    });
-    const planHash = canonicalAgentRunDigest(plan);
-    if (!SHA256_PATTERN.test(requestHash) || !SHA256_PATTERN.test(planHash)) throw new AgentRunJournalError("hashing a run request");
-    const row = {
-      id: input.runId,
-      owner_id: input.ownerId,
-      project_id: input.projectId,
-      idempotency_key: input.idempotencyKey,
-      request_hash: requestHash,
-      plan_hash: planHash,
-      initial_graph_revision: input.initialGraphRevision,
-      current_graph_revision: input.initialGraphRevision,
-      status: "PLANNED",
-      plan,
-      checkpoint: {},
-      action_history: [],
-      next_action_index: 0
-    };
+    const row = buildAgentRunRow(input);
     const inserted = await this.client.from(TABLE).insert(row).select("*").single();
     if (!inserted.error && inserted.data) return { run: toRun(inserted.data), created: true };
-    if (isRecord(inserted.error) && inserted.error.code === "23505") {
-      const existing = await this.client.from(TABLE).select("*")
-        .eq("owner_id", input.ownerId).eq("project_id", input.projectId)
-        .eq("idempotency_key", input.idempotencyKey).maybeSingle();
-      if (existing.error || !existing.data) throw new AgentRunJournalError("resolving an idempotent run submission");
-      if (existing.data.request_hash !== requestHash) throw new AgentRunIdempotencyConflictError();
-      return { run: toRun(existing.data), created: false };
-    }
-    throw new AgentRunJournalError("creating a run");
+    if (!isUniqueViolation(inserted.error)) throw new AgentRunJournalError("creating a run");
+    return this.resolveIdempotentReplay(input, row.request_hash as string);
+  }
+
+  private async resolveIdempotentReplay(
+    input: CreateAgentRunInput,
+    requestHash: string
+  ): Promise<{ run: AgentRunRecord; created: false }> {
+    const existing = await this.client.from(TABLE).select("*")
+      .eq("owner_id", input.ownerId).eq("project_id", input.projectId)
+      .eq("idempotency_key", input.idempotencyKey).maybeSingle();
+    if (existing.error || !existing.data) throw new AgentRunJournalError("resolving an idempotent run submission");
+    if (existing.data.request_hash !== requestHash) throw new AgentRunIdempotencyConflictError();
+    return { run: toRun(existing.data), created: false };
   }
 
   async getForProject(runId: string, projectId: string): Promise<AgentRunRecord | undefined> {
