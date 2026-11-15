@@ -166,8 +166,8 @@ begin
   select * into v_run from public.engineering_agent_runs where id = p_run_id for update;
   if not found then return false; end if;
   if p_action_index < v_run.next_action_index then
-    select item into v_existing from jsonb_array_elements(v_run.action_history) item
-     where (item->>'actionIndex')::integer = p_action_index limit 1;
+    select entry.value into v_existing from jsonb_array_elements(v_run.action_history) as entry(value)
+     where (entry.value->>'actionIndex')::integer = p_action_index limit 1;
     if v_existing is null or v_existing->>'actionHash' <> p_action_hash or v_existing->>'actionKey' <> p_action_key then
       raise exception 'Agent action replay conflicts with the persisted action digest.';
     end if;
@@ -255,7 +255,7 @@ begin
      next_action_index = next_action_index + 1,
      status = v_status,
      error = p_error,
-     finished_at = case when v_status in ('WAITING_APPROVAL','COMPLETED','FAILED','CANCELLED') then clock_timestamp() else null end,
+     finished_at = case when v_status in ('COMPLETED','FAILED','CANCELLED') then clock_timestamp() else null end,
      lease_owner = case when v_status = 'RUNNING' then lease_owner else null end,
      lease_token = case when v_status = 'RUNNING' then lease_token else null end,
      lease_expires_at = case when v_status = 'RUNNING' then lease_expires_at else null end,
@@ -265,7 +265,7 @@ begin
 end;
 $$;
 revoke all on function public.checkpoint_engineering_agent_action(uuid,text,uuid,integer,text,jsonb,bigint,text,text) from public, anon, authenticated;
-grant execute on function public.checkpoint_engineering_agent_action(uuid,text,uuid,integer,text,text,jsonb,bigint,text,text) to service_role;
+grant execute on function public.checkpoint_engineering_agent_action(uuid,text,uuid,integer,text,jsonb,bigint,text,text) to service_role;
 
 create or replace function public.request_engineering_agent_run_cancellation(
   p_run_id uuid,
@@ -280,7 +280,7 @@ begin
   select * into v_run from public.engineering_agent_runs
    where id = p_run_id and project_id = p_project_id for update;
   if not found then return; end if;
-  if v_run.status in ('PLANNED','RUNNING') and v_run.current_action is null then
+  if v_run.status in ('PLANNED','WAITING_APPROVAL','RUNNING') and v_run.current_action is null then
     update public.engineering_agent_runs
        set status = 'CANCELLED', cancel_requested_at = coalesce(cancel_requested_at, clock_timestamp()),
            finished_at = clock_timestamp(), lease_owner = null, lease_token = null,
