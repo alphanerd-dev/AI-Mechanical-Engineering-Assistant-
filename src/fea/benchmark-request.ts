@@ -30,8 +30,11 @@ function validateHeight(value: unknown): string[] {
 }
 function validateSlenderness(dimensions: Record<string, unknown>): string[] {
   const { length, width, height } = dimensions;
-  if (!finitePositive(length) || !finitePositive(width) || !finitePositive(height)) return [];
-  return length >= 5 * Math.max(width, height)
+  const dimensionsAreValid = [length, width, height].every(finitePositive);
+  if (!dimensionsAreValid) return [];
+  const maximumCrossSection = Math.max(width as number, height as number);
+  const slendernessIsValid = (length as number) >= 5 * maximumCrossSection;
+  return slendernessIsValid
     ? []
     : ["Cantilever benchmark length must be at least five times its largest cross-section dimension."];
 }
