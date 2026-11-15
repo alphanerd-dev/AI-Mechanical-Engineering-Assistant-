@@ -63,7 +63,7 @@ async function uploadDrawing(input: PersistGeneratedDrawingInput, prepared: Prep
     { upsert: false, contentType: prepared.drawing.mediaType, cacheControl: "3600" }
   );
   if (result.error) {
-    await input.serviceDb.storage.from(CAD_ARTIFACT_BUCKET).remove([prepared.storagePath]);
+    await removeUploadedDrawing(input, prepared.storagePath);
     fail({ message: "Generated drawing could not be stored in private project storage.", status: 503, code: "DRAWING_STORAGE_FAILED" });
   }
 }
