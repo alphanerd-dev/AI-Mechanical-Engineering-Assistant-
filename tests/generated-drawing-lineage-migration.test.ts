@@ -30,6 +30,7 @@ describe("M2 generated drawing lineage migration", () => {
     expect(sql).toContain("auth.uid()");
     expect(sql).toContain("engineering_project_memberships");
     expect(sql).toContain("membership.user_id = v_user_id");
+    expect(sql).not.toContain("membership.role in");
     expect(sql).toContain("distinct on (revision.model_identity_id)");
     expect(sql).toContain("where source_geometry_revision_id is not null");
     expect(sql).toContain("generator_id is null");
