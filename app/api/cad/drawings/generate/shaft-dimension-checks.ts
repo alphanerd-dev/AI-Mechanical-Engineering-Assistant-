@@ -13,7 +13,9 @@ function isSupportedAxis(axis: unknown): axis is "x" | "y" | "z" {
 function isValidDimensionCheck(value: unknown): value is Row {
   if (!isRecord(value) || !isSupportedAxis(value.axis)) return false;
   if (value.passed !== true) return false;
-  if (!finitePositive(value.actualMm) || !finitePositive(value.expectedMm)) return false;
+  if (!finitePositive(value.actualMm)) return false;
+  if (!finitePositive(value.expectedMm)) return false;
+  if (!finitePositive(value.toleranceMm)) return false;
   return value.toleranceMm === 0.01;
 }
 function requireCompleteAxisChecks(checks: Map<string, Row>): void {
@@ -25,7 +27,10 @@ function requireCompleteAxisChecks(checks: Map<string, Row>): void {
 }
 export function collectDimensionChecks(measurements: Row): Map<string, Row> {
   const values = measurements.dimensionChecks;
-  if (!Array.isArray(values) || values.length !== 3) {
+  if (!Array.isArray(values)) {
+    fail({ message: "Accepted geometry receipt has no axis dimension checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
+  }
+  if (values.length !== 3) {
     fail({ message: "Accepted geometry receipt must contain exactly three axis dimension checks.", status: 422, code: "GEOMETRY_MEASUREMENTS_UNAVAILABLE" });
   }
   const checks = new Map<string, Row>();
