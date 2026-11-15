@@ -14,12 +14,68 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 SERVICE = Path(__file__).with_name("service.py")
 ARTIFACT_ROOT = Path(os.environ.get("OPENFOAM_ARTIFACT_DIR", "/artifacts"))
 SOLVER_TIMEOUT_SECONDS = 300
-EXECUTION_TIMEOUT_MS = (SOLVER_TIMEOUT_SECONDS + 120) * 1000
+EXECUTION_TIMEOUT_MS = (SOLVER_TIMEOUT_SECONDS + 130) * 1000
+
+
+@dataclass(frozen=True)
+class RequestOptions:
+    method: str = "GET"
+    timeout: float = 10
+
+
+class SmokeHttpClient:
+    def __init__(self, base_url: str, token: str) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+
+    def _request(self, path: str, payload: dict[str, Any] | None, options: RequestOptions, authenticated: bool) -> bytes:
+        headers: dict[str, str] = {}
+        if authenticated:
+            headers["Authorization"] = "Bearer " + self.token
+        data = None
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+            data = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        request = urllib.request.Request(
+            self.base_url + path, data=data, headers=headers, method=options.method
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=options.timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            body = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"HTTP {error.code} from {path}: {body}") from error
+
+    def request_json(
+        self,
+        path: str,
+        payload: dict[str, Any] | None = None,
+        options: RequestOptions | None = None
+    ) -> dict[str, Any]:
+        raw = self._request(path, payload, options or RequestOptions(), True)
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise RuntimeError("OpenFOAM service returned a non-object JSON response.")
+        return value
+
+    def request_bytes(self, path: str, timeout: float = 45) -> bytes:
+        return self._request(path, None, RequestOptions(timeout=timeout), True)
+
+    def assert_unauthenticated_post_rejected(self, path: str, payload: dict[str, Any]) -> None:
+        try:
+            self._request(path, payload, RequestOptions(method="POST", timeout=5), False)
+        except urllib.error.HTTPError as error:
+            if error.code == 401:
+                return
+            raise AssertionError(f"Expected HTTP 401, received HTTP {error.code}.") from error
+        raise AssertionError("Unauthenticated OpenFOAM job submission was accepted.")
 
 
 def reserve_port() -> int:
@@ -28,24 +84,7 @@ def reserve_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def request_json(url: str, token: str | None = None, payload: dict | None = None, method: str = "GET", timeout: float = 10) -> dict:
-    headers = {}
-    data = None
-    if token:
-        headers["Authorization"] = "Bearer " + token
-    if payload is not None:
-        headers["Content-Type"] = "application/json"
-        data = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read())
-    except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"HTTP {error.code} from {url}: {body}") from error
-
-
-def benchmark_request() -> dict:
+def benchmark_request() -> dict[str, Any]:
     return {
         "id": str(uuid.uuid4()),
         "backend": "cfd-worker",
@@ -69,14 +108,14 @@ def benchmark_request() -> dict:
     }
 
 
-def wait_for_service(base_url: str, process: subprocess.Popen) -> None:
+def wait_for_service(client: SmokeHttpClient, process: subprocess.Popen[str]) -> None:
     deadline = time.monotonic() + 30
-    last_error = None
+    last_error: Exception | None = None
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(f"OpenFOAM service exited during startup with code {process.returncode}.")
         try:
-            health = request_json(base_url + "/health")
+            health = client.request_json("/health")
             if health.get("status") == "ok" and health.get("provider") == "openfoam14":
                 return
         except Exception as error:
@@ -85,59 +124,66 @@ def wait_for_service(base_url: str, process: subprocess.Popen) -> None:
     raise RuntimeError(f"OpenFOAM service did not become healthy: {last_error}")
 
 
-def assert_authentication(base_url: str, request_payload: dict) -> None:
-    body = json.dumps(request_payload).encode("utf-8")
-    request = urllib.request.Request(
-        base_url + "/v1/jobs",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        urllib.request.urlopen(request, timeout=5)
-    except urllib.error.HTTPError as error:
-        if error.code != 401:
-            raise AssertionError(f"Expected HTTP 401, received HTTP {error.code}.") from error
-        return
-    raise AssertionError("Unauthenticated OpenFOAM job submission was accepted.")
-
-
-def wait_for_job(base_url: str, token: str, job_id: str) -> dict:
+def wait_for_job(client: SmokeHttpClient, job_id: str) -> dict[str, Any]:
     deadline = time.monotonic() + (EXECUTION_TIMEOUT_MS / 1000) + 60
+    path = "/v1/jobs/" + urllib.parse.quote(job_id)
     while time.monotonic() < deadline:
-        job = request_json(base_url + "/v1/jobs/" + urllib.parse.quote(job_id), token=token, timeout=10)
-        status = job.get("status")
-        if status in {"SUCCEEDED", "FAILED", "CANCELLED"}:
+        job = client.request_json(path, options=RequestOptions(timeout=10))
+        if job.get("status") in {"SUCCEEDED", "FAILED", "CANCELLED"}:
             return job
         time.sleep(1)
     raise TimeoutError("OpenFOAM durable job did not reach a terminal state within its execution budget.")
 
 
-def download_and_verify_artifacts(base_url: str, token: str, job_id: str, result: dict) -> int:
+def require_successful_cfd_result(job: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
+    if job.get("status") != "SUCCEEDED":
+        raise RuntimeError(f"OpenFOAM service job failed: {job.get('error') or job}")
+    execution = job.get("result")
+    if not isinstance(execution, dict) or execution.get("success") is not True:
+        raise AssertionError("OpenFOAM service did not return a successful execution result.")
+    outputs = execution.get("outputs")
+    result = outputs.get("cfdResult") if isinstance(outputs, dict) else None
+    if not isinstance(result, dict):
+        raise AssertionError("OpenFOAM service did not return a typed CFD result.")
+    if result.get("status") != "COMPLETED" or result.get("solverVersion") != "14":
+        raise AssertionError("OpenFOAM solver completion or version identity is invalid.")
+    expected_cells = request["inputs"]["mesh"]["cellsVertical"]
+    if result.get("meshCells") != expected_cells:
+        raise AssertionError("OpenFOAM mesh cardinality does not match the request.")
+    if len(result.get("velocityProfile", [])) < 20:
+        raise AssertionError("OpenFOAM velocity profile is incomplete.")
+    return result
+
+
+def download_artifact(client: SmokeHttpClient, job_id: str, artifact: dict[str, Any]) -> Path:
+    path = artifact.get("path")
+    expected = artifact.get("sha256")
+    if not isinstance(path, str) or not isinstance(expected, str):
+        raise AssertionError("OpenFOAM artifact metadata is malformed.")
+    encoded_path = urllib.parse.quote(path, safe="/")
+    url = "/v1/jobs/" + urllib.parse.quote(job_id) + "/artifacts/" + encoded_path
+    contents = client.request_bytes(url)
+    digest = hashlib.sha256(contents).hexdigest()
+    if digest != expected:
+        raise AssertionError(f"SHA-256 mismatch for OpenFOAM artifact {path}.")
+    target = ARTIFACT_ROOT / "smoke-downloads" / job_id / Path(path).name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(contents)
+    return target
+
+
+def download_and_verify_artifacts(client: SmokeHttpClient, job_id: str, result: dict[str, Any]) -> int:
     artifacts = result.get("artifacts")
     if not isinstance(artifacts, list) or len(artifacts) != 4:
         raise AssertionError("OpenFOAM did not return the complete four-artifact manifest.")
-    downloaded = ARTIFACT_ROOT / "smoke-downloads" / job_id
-    downloaded.mkdir(parents=True, exist_ok=True)
     for artifact in artifacts:
-        path = artifact.get("path")
-        expected = artifact.get("sha256")
-        if not isinstance(path, str) or not isinstance(expected, str):
+        if not isinstance(artifact, dict):
             raise AssertionError("OpenFOAM artifact metadata is malformed.")
-        encoded_path = urllib.parse.quote(path, safe="/")
-        url = base_url + "/v1/jobs/" + urllib.parse.quote(job_id) + "/artifacts/" + encoded_path
-        request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
-        with urllib.request.urlopen(request, timeout=45) as response:
-            contents = response.read()
-        digest = hashlib.sha256(contents).hexdigest()
-        if digest != expected:
-            raise AssertionError(f"SHA-256 mismatch for OpenFOAM artifact {path}.")
-        name = Path(path).name
-        (downloaded / name).write_bytes(contents)
+        download_artifact(client, job_id, artifact)
     return len(artifacts)
 
 
-def run_smoke() -> None:
+def start_service() -> tuple[subprocess.Popen[str], SmokeHttpClient]:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     port = reserve_port()
     token = secrets.token_urlsafe(32)
@@ -156,51 +202,57 @@ def run_smoke() -> None:
         stderr=subprocess.PIPE,
         text=True,
     )
-    base_url = f"http://127.0.0.1:{port}"
+    client = SmokeHttpClient(f"http://127.0.0.1:{port}", token)
+    return process, client
+
+
+def submit_benchmark(client: SmokeHttpClient, request: dict[str, Any]) -> None:
+    client.assert_unauthenticated_post_rejected("/v1/jobs", request)
+    accepted = client.request_json(
+        "/v1/jobs", request, RequestOptions(method="POST", timeout=10)
+    )
+    if not accepted.get("accepted") or accepted.get("jobId") != request["id"]:
+        raise AssertionError(f"OpenFOAM job was not accepted: {accepted}")
+
+
+def persist_smoke_receipts(request: dict[str, Any], result: dict[str, Any]) -> None:
+    (ARTIFACT_ROOT / "request.json").write_text(
+        json.dumps(request["inputs"], separators=(",", ":")), encoding="utf-8"
+    )
+    (ARTIFACT_ROOT / "response.json").write_text(
+        json.dumps(result, separators=(",", ":"), allow_nan=False), encoding="utf-8"
+    )
+
+
+def stop_service(process: subprocess.Popen[str]) -> None:
+    process.terminate()
     try:
-        wait_for_service(base_url, process)
-        request_payload = benchmark_request()
-        assert_authentication(base_url, request_payload)
-        accepted = request_json(base_url + "/v1/jobs", token, request_payload, method="POST", timeout=10)
-        if not accepted.get("accepted") or accepted.get("jobId") != request_payload["id"]:
-            raise AssertionError(f"OpenFOAM job was not accepted: {accepted}")
-        job = wait_for_job(base_url, token, request_payload["id"])
-        if job.get("status") != "SUCCEEDED":
-            raise RuntimeError(f"OpenFOAM service job failed: {job.get('error') or job}")
-        execution = job.get("result")
-        if not isinstance(execution, dict) or execution.get("success") is not True:
-            raise AssertionError("OpenFOAM service did not return a successful execution result.")
-        result = execution.get("outputs", {}).get("cfdResult")
-        if not isinstance(result, dict):
-            raise AssertionError("OpenFOAM service did not return a typed CFD result.")
-        if result.get("status") != "COMPLETED" or result.get("solverVersion") != "14":
-            raise AssertionError("OpenFOAM solver completion or version identity is invalid.")
-        if result.get("meshCells") != request_payload["inputs"]["mesh"]["cellsVertical"]:
-            raise AssertionError("OpenFOAM mesh cardinality does not match the request.")
-        if len(result.get("velocityProfile", [])) < 20:
-            raise AssertionError("OpenFOAM velocity profile is incomplete.")
-        artifact_count = download_and_verify_artifacts(base_url, token, request_payload["id"], result)
-        (ARTIFACT_ROOT / "request.json").write_text(
-            json.dumps(request_payload["inputs"], separators=(",", ":")), encoding="utf-8"
-        )
-        (ARTIFACT_ROOT / "response.json").write_text(
-            json.dumps(result, separators=(",", ":"), allow_nan=False), encoding="utf-8"
-        )
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def run_smoke() -> None:
+    process, client = start_service()
+    try:
+        wait_for_service(client, process)
+        request = benchmark_request()
+        submit_benchmark(client, request)
+        job = wait_for_job(client, request["id"])
+        result = require_successful_cfd_result(job, request)
+        artifact_count = download_and_verify_artifacts(client, request["id"], result)
+        persist_smoke_receipts(request, result)
         print(json.dumps({
             "event": "openfoam_async_service_smoke_passed",
-            "jobId": request_payload["id"],
+            "jobId": request["id"],
             "status": job["status"],
             "solverVersion": result["solverVersion"],
             "meshCells": result["meshCells"],
             "artifactCount": artifact_count,
         }), flush=True)
     finally:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
+        stop_service(process)
 
 
 if __name__ == "__main__":
