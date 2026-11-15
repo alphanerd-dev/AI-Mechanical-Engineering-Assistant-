@@ -47,6 +47,8 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
     expect(persistence).toContain("persistEngineeringAuditEvent");
     expect(persistence).toContain("idempotentReplay");
     expect(persistence).toContain("DRAWING_AUDIT_AMBIGUOUS");
+    expect(persistence).toContain("STALE_DRAWING_SOURCE");
+    expect(persistence).toContain("status: 409");
   });
 
   it("exposes stale status for generated drawings without mutating source validation state", () => {
