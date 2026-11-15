@@ -111,7 +111,7 @@ comment on column public.engineering_cad_drawings.source_artifact_sha256 is
 comment on column public.engineering_cad_drawings.generator_id is
   'Trusted deterministic drawing generator identity; does not imply drafting-standard compliance or manufacturing release.';
 
--- Read-only, RLS-respecting current-head lookup used by drawing history staleness indicators.
+-- Read-only, membership-guarded current-head lookup used by drawing history staleness indicators.
 create or replace function public.get_current_geometry_revision_heads(
   p_project_id uuid,
   p_model_identity_ids uuid[]
