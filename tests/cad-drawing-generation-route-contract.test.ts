@@ -19,9 +19,9 @@ describe("authenticated source-bound CAD drawing workflow contract", () => {
   it("rejects stale geometry and independently verifies canonical source bytes", () => {
     expect(source).toContain("STALE_DRAWING_SOURCE");
     expect(source).toContain('order("revision_number", { ascending: false })');
-    expect(source).toContain('createHash("sha256")');
+    expect(source).toContain("verifyStoredBrep");
     expect(source).toContain("canonical_artifact_sha256");
-    expect(route).toContain("verifyCanonicalSourceBytes");
+    expect(route).toContain("loadAcceptedShaftSource");
   });
 
   it("requires an accepted geometry receipt and source-matching canonical solid", () => {
