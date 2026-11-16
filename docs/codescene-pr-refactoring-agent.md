@@ -17,7 +17,7 @@ Before invoking CodeScene, the workflow:
 
 1. Normalizes accidental leading/trailing whitespace and line breaks from `GOOGLE_API_KEY`.
 2. Masks the normalized value and passes it as a step output; neither the key nor API response body is written to logs.
-3. Calls the Google Generative Language API model-list endpoint to confirm that the key is accepted and the API is reachable.
+3. Calls the Google Generative Language API model-list endpoint with the key in the `x-goog-api-key` HTTP header (not the URL) to confirm that the key is accepted and the API is reachable.
 4. Passes the same normalized key through the action's `google_api_key` input and the `GOOGLE_API_KEY` and `GOOGLE_GENERATIVE_AI_API_KEY` process environment variables.
 
 The API validation is a credential/configuration check, not proof that the configured Gemini model is enabled for the project. The CodeScene agent's provider preflight remains authoritative for model availability. Diagnostic OpenCode logging is enabled while this integration is being verified; disable `print_logs` after stable operation if quieter workflow logs are preferred.
