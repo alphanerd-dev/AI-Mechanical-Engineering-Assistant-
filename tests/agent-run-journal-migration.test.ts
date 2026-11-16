@@ -28,7 +28,9 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
     expect(sql).toContain("pg_column_size(p_action) > 32768");
     expect(sql).toContain("pg_column_size(p_outcome) > 65536");
     expect(sql).toContain("length(p_error) > 4000");
-    expect(sql).not.toContain("return null;");
+    const cancellationRpc = sql.slice(sql.indexOf("create or replace function public.request_engineering_agent_run_cancellation"));
+    expect(cancellationRpc).toContain("returns public.engineering_agent_runs");
+    expect(cancellationRpc).toContain("if not found then return null; end if;");
     expect(sql).not.toContain("create policy");
   });
 
