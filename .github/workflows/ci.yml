@@ -194,7 +194,7 @@ jobs:
             echo "::error::OpenFOAM smoke worker exited with status $worker_exit."
             exit "$worker_exit"
           fi
-          OPENFOAM_JOB_ID="$(python3 -c 'import json; print(json.load(open(".openfoam-smoke/response.json", encoding="utf-8"))["jobId"])')"
+          OPENFOAM_JOB_ID="$(cat .openfoam-smoke/job-id.txt)"
           test -s ".openfoam-smoke/smoke-downloads/${OPENFOAM_JOB_ID}/mesh.tar.gz"
           test -s ".openfoam-smoke/smoke-downloads/${OPENFOAM_JOB_ID}/velocity-field.tar.gz"
           test -s ".openfoam-smoke/smoke-downloads/${OPENFOAM_JOB_ID}/pressure-field"

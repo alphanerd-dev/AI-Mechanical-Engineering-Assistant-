@@ -236,6 +236,7 @@ def submit_benchmark(client: SmokeHttpClient, request: dict[str, Any]) -> None:
 
 
 def persist_smoke_receipts(request: dict[str, Any], result: dict[str, Any]) -> None:
+    (ARTIFACT_ROOT / "job-id.txt").write_text(request["id"], encoding="utf-8")
     (ARTIFACT_ROOT / "request.json").write_text(
         json.dumps(request["inputs"], separators=(",", ":")), encoding="utf-8"
     )
