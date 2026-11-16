@@ -220,18 +220,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CODESCENE_ACCESS_TOKEN" || { echo "::error::Missing CODESCENE_ACCESS_TOKEN."; exit 1; }
-          google_key="$(printf '%s' "$RAW_GOOGLE_API_KEY" | tr -d '\r\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-          test -n "$google_key" || { echo "::error::Missing GOOGLE_API_KEY."; exit 1; }
-          echo "::add-mask::$google_key"
-          echo "Gemini key present; value withheld (length: ${#google_key})."
-          GOOGLE_API_KEY="$google_key" python3 - <<'PY'
+          python3 - <<'PY'
           import os
           import sys
           from urllib.error import HTTPError, URLError
           from urllib.request import Request, urlopen
 
-          key = os.environ["GOOGLE_API_KEY"]
+          if not os.environ.get("CODESCENE_ACCESS_TOKEN", "").strip():
+              print("::error::Missing CODESCENE_ACCESS_TOKEN.")
+              sys.exit(1)
+
+          key = os.environ.get("RAW_GOOGLE_API_KEY", "").replace("\\r", "").replace("\\n", "").strip()
+          if not key:
+              print("::error::Missing GOOGLE_API_KEY.")
+              sys.exit(1)
+
           request = Request(
               "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
               headers={"Accept": "application/json", "x-goog-api-key": key},
@@ -247,7 +250,7 @@ jobs:
           except URLError as error:
               print(f"::error::Google API preflight network error ({type(error.reason).__name__}).")
               sys.exit(1)
-          print("Google API accepted the Gemini key (HTTP 200).")
+          print("Google API accepted the configured Gemini key (HTTP 200).")
           PY
       - name: Run CodeScene agent v1.1.18 on isolated smoke PR
         uses: codescene-oss/pr-refactoring-agent@9984f4529551b4ca6de2b3da4b1571d176d2d472 # v1.1.11
