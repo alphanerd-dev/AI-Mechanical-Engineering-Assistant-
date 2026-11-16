@@ -124,7 +124,7 @@ jobs:
           pr_number: ${{ github.event.issue.number }}
           command: ${{ github.event.comment.body }}
           model: google/gemini-3.1-pro-preview
-          version: v1.1.17
+          version: v1.1.18
           print_logs: true
           codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
           google_api_key: ${{ steps.google-credentials.outputs.api_key }}
