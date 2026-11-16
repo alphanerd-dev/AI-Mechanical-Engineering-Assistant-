@@ -11,9 +11,16 @@ Add these repository Actions secrets under **Settings → Secrets and variables 
 | `CODESCENE_ACCESS_TOKEN` | CodeScene Personal Access Token (Cloud or on-prem) |
 | `GOOGLE_API_KEY` | Google AI Studio API key for the configured Gemini model |
 
-The workflow uses `google/gemini-3.1-pro-preview` and the official action release `v1.1.9`. The model is deliberately selected for code-analysis/refactoring quality rather than reusing the application's lower-cost chat default. Model access and billing/quota must be enabled for the Google API key.
+The workflow pins the CodeScene composite action to release **v1.1.11** (immutable commit SHA) and the separate refactoring-agent binary to **v1.1.17**. It uses `google/gemini-3.1-pro-preview`. Model access and billing/quota must be enabled for the Google API key.
 
-The workflow passes the key to the action's `google_api_key` input and maps the same repository secret to `GOOGLE_GENERATIVE_AI_API_KEY`, which the OpenCode Google provider reads from its process environment. No separate secret is required for that environment variable.
+Before invoking CodeScene, the workflow:
+
+1. Normalizes accidental leading/trailing whitespace and line breaks from `GOOGLE_API_KEY`.
+2. Masks the normalized value and passes it as a step output; neither the key nor API response body is written to logs.
+3. Calls the Google Generative Language API model-list endpoint with the key in the `x-goog-api-key` HTTP header (not the URL) to confirm that the key is accepted and the API is reachable.
+4. Passes the same normalized key through the action's `google_api_key` input and the `GOOGLE_API_KEY` and `GOOGLE_GENERATIVE_AI_API_KEY` process environment variables.
+
+The API validation is a credential/configuration check, not proof that the configured Gemini model is enabled for the project. The CodeScene agent's provider preflight remains authoritative for model availability. Diagnostic OpenCode logging is enabled while this integration is being verified; disable `print_logs` after stable operation if quieter workflow logs are preferred.
 
 For CodeScene on-prem, add the `codescene_onprem_url` input to the action step and configure the appropriate trusted CA bundle if your instance requires one. Do not commit tokens, API keys or certificate private material.
 
@@ -50,6 +57,14 @@ Use `fix-code-health-degradations` for PR-introduced regressions. Use `uplift-co
 
 ## Troubleshooting
 
-A run fails before refactoring if either required secret is absent. If Google reports that its API key is missing, verify the repository's `GOOGLE_API_KEY` secret and confirm the workflow maps it to `GOOGLE_GENERATIVE_AI_API_KEY`. If authentication or model preflight fails, verify the CodeScene PAT, Google API key, model availability/quota and workflow run logs. The workflow file must first be present on the default branch for `issue_comment` events to trigger it.
+The workflow separates credential failures from agent-runtime failures:
+
+- **Missing repository secret:** the first credential check fails before the agent starts.
+- **Whitespace-only key:** normalization fails without displaying the configured value.
+- **Google API rejects the key:** the Google API validation step reports the HTTP status and general corrective action, never the response body or key.
+- **Google API validation passes but the agent still reports a missing key:** the secret itself has been accepted by Google's API, so inspect the CodeScene agent's provider configuration/runtime handling. Do not rotate a valid key solely because the agent reports it missing.
+- **Model unavailable:** check model access, project restrictions and quota. A successful model-list request does not establish access to the configured preview model.
+
+The workflow file must first be present on the default branch for `issue_comment` events to trigger it.
 
 See the [official setup and troubleshooting guide](https://helpcenter.codescene.com/help/articles/6216708-pr-refactoring-agent-setup-prerequisites-and-troubleshooting) for CodeScene account setup, PAT creation and provider-specific details.
