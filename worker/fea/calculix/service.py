@@ -120,9 +120,9 @@ def require_fea_inputs(request: dict[str, Any]) -> dict[str, Any]:
 def require_worker_timeout(request: dict[str, Any]) -> int:
     timeout_ms = request.get("timeoutMs")
     if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int):
-        raise ValueError("timeoutMs must be an integer between 1000 and 120000.")
+        raise ValueError("timeoutMs must be an integer between 1000 and 150000.")
     if not 1000 <= timeout_ms <= MAX_TIMEOUT_MS:
-        raise ValueError("timeoutMs must be an integer between 1000 and 120000.")
+        raise ValueError("timeoutMs must be an integer between 1000 and 150000.")
     return timeout_ms
 
 

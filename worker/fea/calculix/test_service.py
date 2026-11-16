@@ -56,6 +56,8 @@ class CalculixServiceTests(unittest.TestCase):
             service.validate_request(request)
         request = valid_request()
         request["timeoutMs"] = 120001
+        self.assertEqual(service.validate_request(request)[1], 120001)
+        request["timeoutMs"] = 150001
         with self.assertRaisesRegex(ValueError, "timeoutMs"):
             service.validate_request(request)
 

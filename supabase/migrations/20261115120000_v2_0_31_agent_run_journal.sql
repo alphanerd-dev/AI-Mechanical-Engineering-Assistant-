@@ -371,7 +371,7 @@ declare
 begin
   select * into v_run from public.engineering_agent_runs
    where id = p_run_id and project_id = p_project_id for update;
-  if not found then return; end if;
+  if not found then return null; end if;
   if v_run.status in ('PLANNED','WAITING_APPROVAL','RUNNING') and v_run.current_action is null then
     update public.engineering_agent_runs
        set status = 'CANCELLED', cancel_requested_at = coalesce(cancel_requested_at, clock_timestamp()),
