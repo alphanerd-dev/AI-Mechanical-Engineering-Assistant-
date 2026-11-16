@@ -215,16 +215,16 @@ jobs:
     steps:
       - name: Verify Gemini credential before agent invocation
         env:
-          CODESCENE_ACCESS_TOKEN: \${{ secrets.CODESCENE_ACCESS_TOKEN }}
-          RAW_GOOGLE_API_KEY: \${{ secrets.GOOGLE_API_KEY }}
+          CODESCENE_ACCESS_TOKEN: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
+          RAW_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CODESCENE_ACCESS_TOKEN" || { echo "::error::Missing CODESCENE_ACCESS_TOKEN."; exit 1; }
-          google_key="$(printf '%s' "$RAW_GOOGLE_API_KEY" | tr -d '\\r\\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+          google_key="$(printf '%s' "$RAW_GOOGLE_API_KEY" | tr -d '\r\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
           test -n "$google_key" || { echo "::error::Missing GOOGLE_API_KEY."; exit 1; }
           echo "::add-mask::$google_key"
-          echo "Gemini key present; value withheld (length: \${#google_key})."
+          echo "Gemini key present; value withheld (length: ${#google_key})."
           GOOGLE_API_KEY="$google_key" python3 - <<'PY'
           import os
           import sys
@@ -252,8 +252,8 @@ jobs:
       - name: Run CodeScene agent v1.1.18 on isolated smoke PR
         uses: codescene-oss/pr-refactoring-agent@9984f4529551b4ca6de2b3da4b1571d176d2d472 # v1.1.11
         env:
-          GOOGLE_API_KEY: \${{ secrets.GOOGLE_API_KEY }}
-          GOOGLE_GENERATIVE_AI_API_KEY: \${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         with:
           pr_number: 171
           command: >-
@@ -263,4 +263,4 @@ jobs:
           model: google/gemini-3.1-pro-preview
           version: v1.1.18
           print_logs: true
-          codescene_token: \${{ secrets.CODESCENE_ACCESS_TOKEN }}
+          codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
