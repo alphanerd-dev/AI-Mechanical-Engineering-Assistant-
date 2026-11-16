@@ -252,26 +252,13 @@ jobs:
               sys.exit(1)
           print("Google API accepted the configured Gemini key (HTTP 200).")
           PY
-      - name: Inject explicit OpenCode Google provider config (diagnostic)
+      - name: Inject explicit OpenCode Google provider config content (diagnostic)
         shell: bash
         run: |
           set -euo pipefail
-          config_path="$RUNNER_TEMP/cs-agent-opencode.json"
-          cat > "$config_path" <<'JSON'
-          {
-            "$schema": "https://opencode.ai/config.json",
-            "provider": {
-              "google": {
-                "options": {
-                  "apiKey": "{env:GOOGLE_GENERATIVE_AI_API_KEY}"
-                }
-              }
-            }
-          }
-          JSON
-          chmod 600 "$config_path"
-          echo "OPENCODE_CONFIG=$config_path" >> "$GITHUB_ENV"
-          echo "Explicit provider configuration installed with environment-variable indirection; key value not written to file."
+          config='{"$schema":"https://opencode.ai/config.json","provider":{"google":{"options":{"apiKey":"{env:GOOGLE_GENERATIVE_AI_API_KEY}"}}}}'
+          echo "OPENCODE_CONFIG_CONTENT=$config" >> "$GITHUB_ENV"
+          echo "Explicit OpenCode provider config content installed with environment-variable indirection; key value not written to config."
       - name: Run CodeScene agent v1.1.18 on isolated smoke PR
         uses: codescene-oss/pr-refactoring-agent@9984f4529551b4ca6de2b3da4b1571d176d2d472 # v1.1.11
         env:
