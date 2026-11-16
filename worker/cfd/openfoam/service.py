@@ -7,6 +7,7 @@ import hmac
 import json
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
