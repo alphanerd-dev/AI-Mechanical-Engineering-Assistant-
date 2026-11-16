@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-from worker import WorkerError, execute_case, validate_request
+from worker import WorkerError, execute_case, initialize_runtime, validate_request
 
 MAX_REQUEST_BYTES = 1_000_000
 
@@ -27,6 +27,7 @@ def main() -> int:
         return 1
     job_id = os.environ.get("OPENFOAM_JOB_ID")
     try:
+        initialize_runtime()
         result = execute_case(request, job_id=job_id, prune=False)
         print(json.dumps(result, separators=(",", ":"), allow_nan=False))
         return 0 if result.get("status") == "COMPLETED" else 1

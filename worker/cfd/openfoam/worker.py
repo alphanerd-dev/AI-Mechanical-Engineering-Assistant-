@@ -51,6 +51,13 @@ def detect_openfoam_version() -> str:
     return detect_runtime_version(FOAM_ENV)
 
 
+def initialize_runtime() -> str:
+    """Verify the installed OpenFOAM runtime and publish its version to results."""
+    global FOAM_VERSION
+    FOAM_VERSION = detect_openfoam_version()
+    return FOAM_VERSION
+
+
 def run_tool(
     case_dir: Path,
     tool: str,
@@ -380,12 +387,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    global FOAM_VERSION
     if not WORKER_TOKEN:
         raise RuntimeError("OPENFOAM_WORKER_TOKEN must be configured before the worker starts.")
     Path.home().mkdir(parents=True, exist_ok=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
-    FOAM_VERSION = detect_openfoam_version()
+    initialize_runtime()
     server = HTTPServer((HOST, PORT), Handler)
     print(f"OpenFOAM 14 worker listening on {HOST}:{PORT}", flush=True)
     server.serve_forever()
