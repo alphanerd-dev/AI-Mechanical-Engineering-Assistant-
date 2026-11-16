@@ -66,7 +66,6 @@ jobs:
           import os
           import sys
           from urllib.error import HTTPError, URLError
-          from urllib.parse import urlencode
           from urllib.request import Request, urlopen
 
           api_key = os.environ.get("GOOGLE_API_KEY", "").strip()
@@ -74,10 +73,12 @@ jobs:
               print("::error::Normalized Google API key was not passed to the validation step.")
               sys.exit(1)
 
-          query = urlencode({"key": api_key, "pageSize": "1"})
           request = Request(
-              f"https://generativelanguage.googleapis.com/v1beta/models?{query}",
-              headers={"Accept": "application/json"},
+              "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+              headers={
+                  "Accept": "application/json",
+                  "x-goog-api-key": api_key,
+              },
           )
 
           try:
