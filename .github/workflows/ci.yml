@@ -230,7 +230,7 @@ jobs:
               print("::error::Missing CODESCENE_ACCESS_TOKEN.")
               sys.exit(1)
 
-          key = os.environ.get("RAW_GOOGLE_API_KEY", "").replace("\\r", "").replace("\\n", "").strip()
+          key = os.environ.get("RAW_GOOGLE_API_KEY", "").strip()
           if not key:
               print("::error::Missing GOOGLE_API_KEY.")
               sys.exit(1)
