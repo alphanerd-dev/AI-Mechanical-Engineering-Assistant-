@@ -22,6 +22,10 @@ jobs:
        github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The CodeScene action also receives google_api_key. OpenCode's Google
+    # provider reads GOOGLE_GENERATIVE_AI_API_KEY from the process environment.
+    env:
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
     permissions:
       contents: write
       pull-requests: write
