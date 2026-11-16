@@ -13,6 +13,8 @@ Add these repository Actions secrets under **Settings → Secrets and variables 
 
 The workflow pins the CodeScene composite action to release **v1.1.11** (immutable commit SHA) and the separate refactoring-agent binary to **v1.1.18**. It uses `google/gemini-3.1-pro-preview`. Model access and billing/quota must be enabled for the Google API key.
 
+**Credential distinction:** `GOOGLE_API_KEY` is the Google AI Studio/Gemini API key. CodeScene's action accepts it through `google_api_key` for `google/*` models. `OPENCODE_AUTH_JSON` is a different authentication mechanism documented for `github-copilot/*` models; it is not required for Gemini. The `GOOGLE_GENERATIVE_AI_API_KEY` text in the observed runtime error is an environment-variable name expected by the Google Generative AI SDK, not a request for an OpenCode-issued key. In this workflow it is only an alias carrying the same Gemini key value.
+
 Before invoking CodeScene, the workflow:
 
 1. Normalizes accidental leading/trailing whitespace and line breaks from `GOOGLE_API_KEY`.
