@@ -71,10 +71,10 @@ class SmokeHttpClient:
     def assert_unauthenticated_post_rejected(self, path: str, payload: dict[str, Any]) -> None:
         try:
             self._request(path, payload, RequestOptions(method="POST", timeout=5), False)
-        except urllib.error.HTTPError as error:
-            if error.code == 401:
+        except RuntimeError as error:
+            if str(error).startswith(f"HTTP 401 from {path}:"):
                 return
-            raise AssertionError(f"Expected HTTP 401, received HTTP {error.code}.") from error
+            raise AssertionError(f"Expected HTTP 401 from {path}; received {error}.") from error
         raise AssertionError("Unauthenticated OpenFOAM job submission was accepted.")
 
 
