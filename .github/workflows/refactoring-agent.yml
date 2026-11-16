@@ -22,10 +22,6 @@ jobs:
        github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # The CodeScene action also receives google_api_key. OpenCode's Google
-    # provider reads GOOGLE_GENERATIVE_AI_API_KEY from the process environment.
-    env:
-      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
     permissions:
       contents: write
       pull-requests: write
@@ -40,6 +36,69 @@ jobs:
           set -euo pipefail
           test -n "$CODESCENE_ACCESS_TOKEN" || { echo "::error::Missing repository secret CODESCENE_ACCESS_TOKEN."; exit 1; }
           test -n "$GOOGLE_API_KEY" || { echo "::error::Missing repository secret GOOGLE_API_KEY."; exit 1; }
+
+      - name: Normalize Google API key
+        id: google-credentials
+        env:
+          RAW_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Remove accidental copy/paste whitespace without ever printing the key.
+          google_key="$(printf '%s' "$RAW_GOOGLE_API_KEY" | tr -d '\r\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+          if [[ -z "$google_key" ]]; then
+            echo "::error::GOOGLE_API_KEY is empty after whitespace normalization."
+            exit 1
+          fi
+
+          echo "::add-mask::$google_key"
+          echo "api_key=$google_key" >> "$GITHUB_OUTPUT"
+          echo "Google API key normalized; value withheld (length: ${#google_key})."
+
+      - name: Verify Google Generative Language API access
+        env:
+          GOOGLE_API_KEY: ${{ steps.google-credentials.outputs.api_key }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import sys
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          api_key = os.environ.get("GOOGLE_API_KEY", "").strip()
+          if not api_key:
+              print("::error::Normalized Google API key was not passed to the validation step.")
+              sys.exit(1)
+
+          query = urlencode({"key": api_key, "pageSize": "1"})
+          request = Request(
+              f"https://generativelanguage.googleapis.com/v1beta/models?{query}",
+              headers={"Accept": "application/json"},
+          )
+
+          try:
+              with urlopen(request, timeout=20) as response:
+                  if response.status != 200:
+                      print(f"::error::Google Generative Language API returned HTTP {response.status}.")
+                      sys.exit(1)
+          except HTTPError as error:
+              guidance = {
+                  400: "Google rejected the API key or request. Check the key value and API configuration.",
+                  403: "Google denied access. Check API enablement, key restrictions and project permissions.",
+                  429: "Google rate-limited the validation request. Check quota and retry later.",
+              }.get(error.code, "Check Google API configuration and key restrictions.")
+              print(f"::error::Google Generative Language API validation failed (HTTP {error.code}). {guidance}")
+              sys.exit(1)
+          except URLError as error:
+              print(f"::error::Could not reach Google Generative Language API ({type(error.reason).__name__}).")
+              sys.exit(1)
+
+          print("Google Generative Language API accepted the configured key (HTTP 200).")
+          PY
 
       - name: Require a same-repository pull request branch
         env:
@@ -56,10 +115,15 @@ jobs:
           fi
 
       - name: Run CodeScene PR Refactoring Agent
-        uses: codescene-oss/pr-refactoring-agent@v1.1.9
+        uses: codescene-oss/pr-refactoring-agent@9984f4529551b4ca6de2b3da4b1571d176d2d472 # v1.1.11
+        env:
+          GOOGLE_API_KEY: ${{ steps.google-credentials.outputs.api_key }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ steps.google-credentials.outputs.api_key }}
         with:
           pr_number: ${{ github.event.issue.number }}
           command: ${{ github.event.comment.body }}
           model: google/gemini-3.1-pro-preview
+          version: v1.1.17
+          print_logs: true
           codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
-          google_api_key: ${{ secrets.GOOGLE_API_KEY }}
+          google_api_key: ${{ steps.google-credentials.outputs.api_key }}
