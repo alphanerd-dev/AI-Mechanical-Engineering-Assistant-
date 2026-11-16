@@ -11,7 +11,7 @@ Add these repository Actions secrets under **Settings → Secrets and variables 
 | `CODESCENE_ACCESS_TOKEN` | CodeScene Personal Access Token (Cloud or on-prem) |
 | `GOOGLE_API_KEY` | Google AI Studio API key for the configured Gemini model |
 
-The workflow pins the CodeScene composite action to release **v1.1.11** (immutable commit SHA) and the separate refactoring-agent binary to **v1.1.17**. It uses `google/gemini-3.1-pro-preview`. Model access and billing/quota must be enabled for the Google API key.
+The workflow pins the CodeScene composite action to release **v1.1.11** (immutable commit SHA) and the separate refactoring-agent binary to **v1.1.18**. It uses `google/gemini-3.1-pro-preview`. Model access and billing/quota must be enabled for the Google API key.
 
 Before invoking CodeScene, the workflow:
 
