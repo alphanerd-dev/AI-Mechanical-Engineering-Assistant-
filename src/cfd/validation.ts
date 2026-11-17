@@ -255,8 +255,11 @@ export function expectedPoiseuilleMassFluxKgS(
 }
 
 function isSafeArtifactPath(path: string): boolean {
-  const segments = path.split(/[\\/]/);
-  return Boolean(path.trim()) && !path.startsWith("/") && !segments.includes("..");
+  if (!path.trim() || path !== path.trim()) return false;
+  if (path.includes("\\") || path.includes("\0") || path.startsWith("/")) return false;
+  if (/^[a-z]:/i.test(path)) return false;
+  const segments = path.split("/");
+  return segments.every(segment => segment.length > 0 && segment !== "." && segment !== "..");
 }
 
 function isValidArtifactDigest(digest: string): boolean {

@@ -142,6 +142,28 @@ describe("V1.25 independent CFD result validation", () => {
     expect(validation.blockingReasons.some(reason => reason.includes("artifact"))).toBe(true);
   });
 
+  it("rejects Windows, absolute and malformed artifact paths", () => {
+    const unsafePaths = [
+      "../outside/mesh.foam",
+      "/etc/passwd",
+      "C:\\outside\\mesh.foam",
+      "\\\\server\\share\\mesh.foam",
+      "\\root\\mesh.foam",
+      "nested/./mesh.foam",
+      "nested//mesh.foam",
+      "nested/",
+      "invalid" + String.fromCharCode(0) + "path.foam"
+    ];
+    for (const path of unsafePaths) {
+      const result = validResult({
+        artifacts: validResult().artifacts.map((artifact, index) => index === 0 ? { ...artifact, path } : artifact)
+      });
+      const validation = validateOpenFOAMLaminarChannelResult(request, result);
+      expect(validation.status, path).toBe("FAIL");
+      expect(validation.blockingReasons.join(" "), path).toContain("artifact");
+    }
+  });
+
   it("returns incomplete when required solver artifacts are absent", () => {
     const result = validResult({ artifacts: [] });
     const validation = validateOpenFOAMLaminarChannelResult(request, result);
