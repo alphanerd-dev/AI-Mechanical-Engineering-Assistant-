@@ -20,6 +20,9 @@ export interface Circle3 { center: Point3; normal: Vector3; radiusMm: number; }
 export interface BoundingBox3 { min: Point3; max: Point3; }
 export interface RigidTransform3 { rotation: Matrix3; translationMm: Vector3; }
 
+/** Maximum dimensionless matrix tolerance; larger values can conceal scale or reflection. */
+export const MAX_RIGID_TRANSFORM_TOLERANCE = 1e-3;
+
 const IDENTITY_MATRIX: Matrix3 = [[1,0,0],[0,1,0],[0,0,1]];
 export const IDENTITY_RIGID_TRANSFORM: RigidTransform3 = Object.freeze({
   rotation: IDENTITY_MATRIX, translationMm: [0,0,0] as const
@@ -197,7 +200,9 @@ export function validateRigidTransform3(transform:RigidTransform3,tolerance=1e-9
   if (shapeErrors.length) return shapeErrors;
   const translationErrors = validateTranslation(transform.translationMm);
   if (translationErrors.length) return translationErrors;
-  if (!Number.isFinite(tolerance) || tolerance <= 0) return ["Transform tolerance must be finite and positive."];
+  if (!Number.isFinite(tolerance) || tolerance <= 0 || tolerance > MAX_RIGID_TRANSFORM_TOLERANCE) {
+    return ["Transform tolerance must be finite, positive and no greater than 1e-3."];
+  }
   return [
     ...validateRotationOrthonormality(transform.rotation, tolerance),
     ...validateRotationHandedness(transform.rotation, tolerance)

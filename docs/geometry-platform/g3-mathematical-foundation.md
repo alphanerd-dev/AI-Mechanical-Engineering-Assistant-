@@ -7,6 +7,7 @@
 - Direction vectors are dimensionless and normalized at line/plane/circle construction boundaries.
 - Angles are radians.
 - Rotation matrices are row-major, orthonormal and right-handed.
+- The dimensionless rigid-transform matrix tolerance must be finite, positive and no greater than `1e-3`; larger values are rejected because they can mask scale or reflection.
 - Rigid-transform composition (A \circ B) applies (B) first, then (A).
 - Default tolerance is (10^{-6}) mm linear and (10^{-9}) rad angular; callers may supply a named policy.
 
@@ -17,4 +18,4 @@ Finite-safe vector arithmetic, dot/cross products, overflow-aware result checks,
 General curves/surfaces, robust predicates, topology, solid construction, intersections, Boolean operations, persistent topology references and a B-rep kernel are not implemented here. This does not replace OCCT or build123d. Arbitrary unit conversion and dimensional quantity algebra remain outside this module.
 
 ## Promotion gates
-G3 completion still requires property-based/metamorphic and differential fixtures against an independent reference, large/small magnitude and tolerance-boundary coverage, and exact-head CI. Passing primitive tests is not engineering verification or design approval.
+G3 completion still requires property-based/metamorphic and differential fixtures against an independent analytic reference, large/small magnitude and tolerance-boundary coverage, and exact-head CI. Passing primitive tests is not engineering verification or design approval.
