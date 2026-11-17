@@ -254,12 +254,32 @@ export function expectedPoiseuilleMassFluxKgS(
     request.depthM;
 }
 
+function isTrimmedArtifactPath(path: string): boolean {
+  if (path.length === 0) return false;
+  return path === path.trim();
+}
+
+function isRelativePosixArtifactPath(path: string): boolean {
+  if (path.includes("\\")) return false;
+  if (path.includes("\0")) return false;
+  if (path.startsWith("/")) return false;
+  return !/^[a-z]:/i.test(path);
+}
+
+function isSafeArtifactPathSegment(segment: string): boolean {
+  if (segment.length === 0) return false;
+  if (segment === "." || segment === "..") return false;
+  return true;
+}
+
+function hasSafeArtifactPathSegments(path: string): boolean {
+  return path.split("/").every(isSafeArtifactPathSegment);
+}
+
 function isSafeArtifactPath(path: string): boolean {
-  if (!path.trim() || path !== path.trim()) return false;
-  if (path.includes("\\") || path.includes("\0") || path.startsWith("/")) return false;
-  if (/^[a-z]:/i.test(path)) return false;
-  const segments = path.split("/");
-  return segments.every(segment => segment.length > 0 && segment !== "." && segment !== "..");
+  if (!isTrimmedArtifactPath(path)) return false;
+  if (!isRelativePosixArtifactPath(path)) return false;
+  return hasSafeArtifactPathSegments(path);
 }
 
 function isValidArtifactDigest(digest: string): boolean {
