@@ -61,7 +61,7 @@ function validateMaterial(value: Record<string, unknown>): string[] {
   return [...validateYoungsModulus(material), ...validatePoissonRatio(material)];
 }
 function validateForce(value: unknown): string[] {
-  return inRange(value, Number.MIN_VALUE, 1e9) ? [] : ["totalForceN must be between 0 and 1e9 N."];
+  return inRange(value, 1e-12, 1e9) ? [] : ["totalForceN must be between 1e-12 and 1e9 N."];
 }
 function validateElementSize(value: unknown): string[] {
   return inRange(value, 1, 100) ? [] : ["elementSizeMm must be between 1 and 100 mm."];

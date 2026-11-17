@@ -73,6 +73,9 @@ describe("CalculiX cantilever-box benchmark contract", () => {
   });
 
   it("rejects unsupported benchmarks and excessive mesh requests", () => {
+    expect(validateFEACantileverBoxRequest({ ...request, totalForceN: 1e-13 })).toContain(
+      "totalForceN must be between 1e-12 and 1e9 N."
+    );
     expect(validateFEACantileverBoxRequest({ ...request, benchmark: "arbitrary_mesh" })).toContain(
       "Only the cantilever_box reference benchmark is supported."
     );
