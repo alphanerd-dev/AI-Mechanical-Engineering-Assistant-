@@ -17,7 +17,7 @@ const validInput = {
   limitsSnapshot: { maxActions: 25 },
   plan: { baseGraphRevision: 4, actions: [{ kind: "EXECUTE_TASK" }] }
 };
-const validRun = {
+const validRun: Record<string, unknown> = {
   ...buildValidatedAgentRunRow(validInput),
   created_at: "2026-11-15T12:00:00.000Z",
   updated_at: "2026-11-15T12:00:00.000Z"
