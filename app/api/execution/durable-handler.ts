@@ -16,8 +16,8 @@ type DurableAuthorizationResult =
   | { allowed: false; response: NextResponse };
 
 type SupabaseAuthorization = Awaited<ReturnType<typeof authorizeSupabaseRequest>>;
-type AllowedAuthorization = Extract<SupabaseAuthorization, { allowed: true }>;
-type DeniedAuthorization = Extract<SupabaseAuthorization, { allowed: false }>;
+type AllowedAuthorization = SupabaseAuthorization & { allowed: true; subject: string };
+type DeniedAuthorization = SupabaseAuthorization & { allowed: false; reason: string };
 
 function authorizationDenied(authorization: DeniedAuthorization): NextResponse {
   const status = authorizationFailureStatus(authorization);
@@ -36,7 +36,8 @@ async function requestTaskAuthorization(input: {
     const authorization = await authorizeSupabaseRequest(
       "TASK.EXECUTE", input.projectId, { requestId: input.requestId }
     );
-    return authorization.allowed ? authorization : authorizationDenied(authorization);
+    if (authorization.allowed) return authorization as AllowedAuthorization;
+    return authorizationDenied(authorization as DeniedAuthorization);
   } catch {
     return jsonError("Engineering authorization is unavailable.", 503, "AUTHORIZATION_UNAVAILABLE");
   }
@@ -53,13 +54,14 @@ async function requestEvidenceAuthorization(input: {
     const authorization = await authorizeSupabaseRequest(
       "EVIDENCE.WRITE", input.projectId, { requestId: input.requestId }
     );
-    return authorization.allowed
-      ? authorization
-      : jsonError(
-        authorization.reason,
-        authorizationFailureStatus(authorization),
-        authorizationFailureStatus(authorization) === 503 ? "AUDIT_STORE_UNAVAILABLE" : "EVIDENCE_WRITE_DENIED"
-      );
+    if (authorization.allowed) return authorization as AllowedAuthorization;
+    const denied = authorization as DeniedAuthorization;
+    const status = authorizationFailureStatus(denied);
+    return jsonError(
+      denied.reason,
+      status,
+      status === 503 ? "AUDIT_STORE_UNAVAILABLE" : "EVIDENCE_WRITE_DENIED"
+    );
   } catch {
     return jsonError("Engineering authorization is unavailable.", 503, "AUTHORIZATION_UNAVAILABLE");
   }
