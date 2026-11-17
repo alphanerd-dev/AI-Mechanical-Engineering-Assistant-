@@ -24,6 +24,7 @@ function normalizeContainer(value: object, seen: Set<object>): unknown {
 function normalizeJson(value: unknown, seen: Set<object>): unknown {
   if (isJsonScalar(value)) return value;
   if (typeof value === "number") return normalizeNumber(value);
+  if (value === null) return null;
   if (typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
   return normalizeContainer(value, seen);
 }
