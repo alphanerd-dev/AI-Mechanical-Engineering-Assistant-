@@ -23,11 +23,13 @@ function hasDisplacementMetrics(value: Record<string, unknown>): boolean {
     value.displacementRelativeTolerance <= 0.3;
 }
 function hasReactionVectors(value: Record<string, unknown>): boolean {
-  if (!isRecord(value.expectedSupportReactionN) || !isRecord(value.measuredSupportReactionN)) return false;
+  const expected = value.expectedSupportReactionN;
+  const measured = value.measuredSupportReactionN;
+  if (!isRecord(expected) || !isRecord(measured)) return false;
   return AXES.every(axis =>
-    finiteNonNegative(value.expectedSupportReactionN[axis]) &&
-    typeof value.measuredSupportReactionN[axis] === "number" &&
-    Number.isFinite(value.measuredSupportReactionN[axis])
+    finiteNonNegative(expected[axis]) &&
+    typeof measured[axis] === "number" &&
+    Number.isFinite(measured[axis])
   );
 }
 function hasReactionMetrics(value: Record<string, unknown>): boolean {
@@ -76,9 +78,11 @@ function validateExpectedReaction(reference: FEABenchmarkReference, force: numbe
   return passed ? [] : ["Expected support reaction does not match the applied benchmark load."];
 }
 function validateDisplacementMeasurement(result: FEAStaticStructuralResult, reference: FEABenchmarkReference): string[] {
-  const isFinite = finiteNonNegative(result.maxDisplacementMm);
-  const matchesReference = compareScalar(reference.measuredMaximumDisplacementMm, result.maxDisplacementMm, 1e-9);
-  return isFinite && matchesReference
+  const measuredDisplacement = result.maxDisplacementMm;
+  if (!finiteNonNegative(measuredDisplacement)) {
+    return ["Benchmark displacement does not match the normalized solver result."];
+  }
+  return compareScalar(reference.measuredMaximumDisplacementMm, measuredDisplacement, 1e-9)
     ? []
     : ["Benchmark displacement does not match the normalized solver result."];
 }
