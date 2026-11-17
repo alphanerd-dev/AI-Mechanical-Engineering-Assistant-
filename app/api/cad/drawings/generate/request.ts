@@ -55,7 +55,7 @@ function optionalLabel(input: { body: Record<string, unknown>; field: string; ma
   const value = input.body[input.field];
   if (value === undefined) return undefined;
   if (typeof value !== "string") fail({ message: input.field + " must be a string.", status: 400, code: "INVALID_LABEL" });
-  if (value.length > maximum) fail({ message: input.field + " exceeds its maximum length.", status: 400, code: "INVALID_LABEL" });
+  if (value.length > input.maximum) fail({ message: input.field + " exceeds its maximum length.", status: 400, code: "INVALID_LABEL" });
   return value;
 }
 export async function parseDrawingGenerationRequest(request: Request): Promise<DrawingGenerationInput> {
