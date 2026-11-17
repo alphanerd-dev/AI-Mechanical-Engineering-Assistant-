@@ -177,7 +177,7 @@ function validateResidualTolerance(value: unknown): string[] {
 }
 
 function validateSolverSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
-  const solver = isRecord(candidate.solver) ? candidate.solver : {};
+  const solver: Record<string, unknown> = isRecord(candidate.solver) ? candidate.solver : {};
   const missingSolver = isRecord(candidate.solver) ? [] : ["solver must be an object."];
   return [
     ...missingSolver,
