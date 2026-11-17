@@ -231,6 +231,9 @@ begin
   end if;
   if p_action_hash is null or p_action_hash !~ '^[0-9a-f]{64}$' then raise exception 'Invalid agent action digest.'; end if;
   if p_outcome is null or jsonb_typeof(p_outcome) <> 'object' or pg_column_size(p_outcome) > 65536 then raise exception 'Invalid or oversized agent action outcome.'; end if;
+  if p_outcome ? 'checkpoint' and jsonb_typeof(p_outcome->'checkpoint') is distinct from 'object' then
+    raise exception 'Agent action checkpoint must be an object when provided.';
+  end if;
   if p_error is not null and length(p_error) > 4000 then
     raise exception 'Agent action error detail exceeds the 4000-character limit.';
   end if;
@@ -269,7 +272,10 @@ begin
        'graphRevision', p_graph_revision,
        'completedAt', clock_timestamp()
      )),
-     checkpoint = coalesce(p_outcome->'checkpoint', checkpoint),
+     checkpoint = case
+       when p_outcome ? 'checkpoint' then p_outcome->'checkpoint'
+       else checkpoint
+     end,
      current_graph_revision = p_graph_revision,
      current_action = null,
      next_action_index = next_action_index + 1,

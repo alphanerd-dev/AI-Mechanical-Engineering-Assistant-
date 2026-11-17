@@ -27,6 +27,10 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
     expect(sql).toContain("if p_worker_id is null or length(trim(p_worker_id)) < 1");
     expect(sql).toContain("pg_column_size(p_action) > 32768");
     expect(sql).toContain("pg_column_size(p_outcome) > 65536");
+    expect(sql).toContain("p_outcome ? 'checkpoint'");
+    expect(sql).toContain("jsonb_typeof(p_outcome->'checkpoint') is distinct from 'object'");
+    expect(sql).toContain("when p_outcome ? 'checkpoint' then p_outcome->'checkpoint'");
+    expect(sql).not.toContain("checkpoint = coalesce(p_outcome->'checkpoint', checkpoint)");
     expect(sql).toContain("length(p_error) > 4000");
     const cancellationRpc = sql.slice(sql.indexOf("create or replace function public.request_engineering_agent_run_cancellation"));
     expect(cancellationRpc).toContain("returns public.engineering_agent_runs");
