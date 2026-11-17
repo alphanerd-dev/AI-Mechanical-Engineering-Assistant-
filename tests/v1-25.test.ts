@@ -70,6 +70,15 @@ describe("V1.25 OpenFOAM request contract", () => {
     }).some(error => error.includes("Reynolds number"))).toBe(true);
   });
 
+  it("rejects unknown request and nested manifest fields before worker dispatch", () => {
+    expect(validateOpenFOAMLaminarChannelRequest({ ...request, arbitraryScript: "not-allowed" }))
+      .toContain("Request contains unsupported fields.");
+    expect(validateOpenFOAMLaminarChannelRequest({ ...request, mesh: { ...request.mesh, elementType: "arbitrary" } }))
+      .toContain("mesh contains unsupported fields.");
+    expect(validateOpenFOAMLaminarChannelRequest({ ...request, solver: { ...request.solver, solverName: "arbitrary" } }))
+      .toContain("solver contains unsupported fields.");
+  });
+
   it("rejects excessive mesh size and unbounded solver settings", () => {
     const errors = validateOpenFOAMLaminarChannelRequest({
       ...request,
