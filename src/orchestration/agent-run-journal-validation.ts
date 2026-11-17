@@ -45,11 +45,11 @@ function validateRunIdentity(row: Record<string, unknown>): void {
   if (!isUuid(row.project_id)) throw new Error("Persisted agent run project is invalid.");
 }
 function validateRunPlanAndCheckpoint(row: Record<string, unknown>): void {
-  const validPlan = isRecord(row.plan);
-  const validCheckpoint = isRecord(row.checkpoint);
-  if (!validPlan || !validCheckpoint) throw new Error("Persisted agent run payload is invalid.");
-  const hasSnapshots = isRecord(row.plan.taskGraphSnapshot) && isRecord(row.plan.limitsSnapshot);
-  const hasProposal = isRecord(row.plan.proposal);
+  const plan = row.plan;
+  const checkpoint = row.checkpoint;
+  if (!isRecord(plan) || !isRecord(checkpoint)) throw new Error("Persisted agent run payload is invalid.");
+  const hasSnapshots = isRecord(plan.taskGraphSnapshot) && isRecord(plan.limitsSnapshot);
+  const hasProposal = isRecord(plan.proposal);
   if (!hasSnapshots || !hasProposal) throw new Error("Persisted agent run payload is invalid.");
 }
 function validateRunPayload(row: Record<string, unknown>): void {
