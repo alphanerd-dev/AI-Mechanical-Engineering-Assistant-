@@ -64,8 +64,15 @@ jobs:
               url.pathname !== "/" || url.username || url.password || url.search || url.hash) {
             throw new Error("E2E Supabase URL must be the exact dedicated isolated project URL.");
           }
-          if (!process.env.E2E_SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_")) {
-            throw new Error("E2E Supabase publishable key has an unsupported format.");
+          const publicKey = process.env.E2E_SUPABASE_PUBLISHABLE_KEY;
+          if (!publicKey.startsWith("sb_publishable_")) {
+            if (!publicKey.startsWith("eyJ")) {
+              throw new Error("E2E public credential must be a publishable key or legacy anon JWT.");
+            }
+            let publicPayload;
+            try { publicPayload = JSON.parse(Buffer.from(publicKey.split(".")[1] ?? "", "base64url").toString("utf8")); }
+            catch { throw new Error("E2E legacy public anon JWT is malformed."); }
+            if (publicPayload.role !== "anon") throw new Error("E2E legacy public JWT must carry the anon role.");
           }
           const key = process.env.E2E_SUPABASE_SERVICE_ROLE_KEY;
           if (key.startsWith("sb_secret_")) process.exit(0);
