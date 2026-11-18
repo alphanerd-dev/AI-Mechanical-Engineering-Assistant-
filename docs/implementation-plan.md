@@ -1,6 +1,6 @@
 # Implementation Plan and Milestones
 
-**Updated:** 15 November 2026
+**Updated:** 18 November 2026
 
 **Current release status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested chat scope. M2.2–M2.6 CAD/drawing implementation is merged. PR [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) (G2 trusted geometry revision persistence) and PR [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) (durable manufacturing assessments and human decisions) are merged to main. Production Vercel deployment dpl_GWprsLfzpeboh45REeM1gwwhNN5c is **READY** at 9bfb57e86e70db84a682d162bba9253e0185c920; the production alias points to that deployment. The eight additive migrations for geometry revision persistence and manufacturing evidence/decisions have been applied to production and verified in migration history. RLS, service-role privileges, immutable triggers and write-RPC security were checked after migration.
 
@@ -44,6 +44,22 @@ Preserve the existing Next.js/React/TypeScript control plane, Supabase project/w
 | Physical perception | Isolated Open3D inspection/ICP registration prototype. | No public scan upload, persistent artifact registry integration or production perception claim. |
 | CI and browser evidence | Core CI includes tests, worker checks, security analysis and production build. The isolated Playwright public UI suite includes the authenticated chat-rendering test. | Each run proves only the assertions that ran on its exact SHA and environment. |
 | Outcome economics | Collection methodology exists. | Engineering time saved, cost per accepted outcome and ROI remain NOT MEASURED until real matched trials exist. |
+
+## Azure execution worker and acceptance status — 18 November 2026
+
+**Existing production worker:** Azure Container Apps Job `engineering-execution-manual` in resource group `rg-engineering-execution`, environment `env-engineering-execution-italynorth` (Italy North). It is a Manual job with 0.25 vCPU, 512 MiB memory, 240-second replica timeout, one retry and parallelism one. The deployed image is still pinned to `c1eee555cd1e6afcc6396d0c0b8aac8b116eb102`. Three historical executions succeeded; the latest log reported one processed queue item. This is evidence of a worker drain, not proof of the current PR's exact image, full authenticated API acceptance, all capabilities, or engineering correctness.
+
+The job's existing Supabase target is production and its privileged credential is referenced by Azure secret name `supabase-service-role-key`; the secret value is not recorded here. **Production `DURABLE_EXECUTION_ENABLED=false` remains unchanged.** The production job was not started, rescheduled, or reconfigured during the 18 November infrastructure review.
+
+**Isolated acceptance implementation:** PR #168 adds a separate manual GitHub Actions workflow, `.github/workflows/azure-execution-queue-e2e.yml`, which creates or updates only the dedicated Manual Azure job `engineering-execution-e2e`. It builds the worker from the exact workflow commit, runs the authenticated Next.js API locally on loopback against the dedicated E2E Supabase project, and tests one deterministic shaft-torque job. The probe checks duplicate idempotency replay, authenticated status readback, the known-answer torque, provenance, lease release, empty queue and scoped cleanup. The script rejects any Supabase target except `mpbrlegwrrrfpeumtqhi` and rejects non-loopback API endpoints.
+
+The workflow is **implemented but not yet executed**. It runs only from `main`, with explicit manual dispatch and the protected `azure-execution-worker` environment. It requires these separate E2E settings in that GitHub Environment:
+- Variables: `AZURE_E2E_SUPABASE_URL` (exact E2E project URL) and `AZURE_E2E_SUPABASE_PUBLISHABLE_KEY`.
+- Secret: `AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY`.
+
+Do not reuse the production Supabase credential for E2E. Do not run the legacy `verify_queue_e2e` path in the production deployment workflow. The three unused Log Analytics workspaces were soft-deleted after no-data checks; `workspace-rgengineeringexecutionOa13` remains because it is attached to the Container Apps environment and receives current worker logs. The unrelated Hello World ACI `execution-worker` is stopped; it is not the engineering worker.
+
+**Next release sequence:** obtain independent human approval for PR #168; merge only through the normal reviewed release path; configure the dedicated E2E GitHub Environment values; run and inspect the isolated Azure acceptance workflow; then update the production worker image to the reviewed main SHA without starting it or enabling a schedule. Keep durable execution disabled until a separate production activation decision and approval. Azure cost/budget status remains unverified; do not assume these resources are free.
 
 ## M0 — Trustworthy decisions, recovery and evidence
 
