@@ -46,15 +46,24 @@ function concatenateBodyChunks(chunks: Uint8Array[], totalBytes: number): Uint8A
   return bytes;
 }
 
-async function readBodyBytes(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
+async function collectBodyChunksSafely(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  chunks: Uint8Array[]
+): Promise<number> {
   try {
-    const totalBytes = await collectBodyChunks(reader, chunks);
-    return concatenateBodyChunks(chunks, totalBytes);
+    return await collectBodyChunks(reader, chunks);
   } catch (error) {
     if (error instanceof DrawingGenerationError) throw error;
     fail({ message: "Drawing generation request body could not be read.", status: 400, code: "INVALID_JSON" });
+  }
+}
+
+async function readBodyBytes(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = body.getReader();
+  try {
+    const chunks: Uint8Array[] = [];
+    const totalBytes = await collectBodyChunksSafely(reader, chunks);
+    return concatenateBodyChunks(chunks, totalBytes);
   } finally {
     reader.releaseLock();
   }
