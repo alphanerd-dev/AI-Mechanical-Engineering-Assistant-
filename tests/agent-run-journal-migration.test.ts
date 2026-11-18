@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261115120000_v2_0_31_agent_run_journal.sql"), "utf8").toLowerCase();
 const leastPrivilegeSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261118162500_v2_0_32_agent_run_journal_least_privilege.sql"), "utf8").toLowerCase();
+const approvalFixSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261118163000_v2_0_33_agent_run_approval_project_id_type_fix.sql"), "utf8").toLowerCase();
 
 describe("V2.0.31 durable agent-run journal migration contract", () => {
   it("creates a separate project-scoped journal with bounded snapshots and append-only action history", () => {
@@ -49,6 +50,14 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
     expect(leastPrivilegeSql).not.toContain("grant update");
     expect(leastPrivilegeSql).not.toContain("grant delete");
     expect(leastPrivilegeSql).not.toContain("grant truncate");
+  });
+
+  it("matches the audit event's text project scope in the approval gate", () => {
+    expect(approvalFixSql).toContain("approval.project_id = p_project_id::text");
+    expect(approvalFixSql).toContain("approval.event_id = p_approval_evidence_id");
+    expect(approvalFixSql).toContain("approval.metadata->>'planhash' = v_run.plan_hash");
+    expect(approvalFixSql).toContain("approval.action = 'approval_grant'");
+    expect(approvalFixSql).toContain("approval_evidence_required");
   });
 
   it("persists action intent before side effects and never auto-replays an ambiguous action", () => {
