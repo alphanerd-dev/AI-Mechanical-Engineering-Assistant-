@@ -67,6 +67,19 @@ function assertServiceRoleCredential(key) {
     fail("Azure queue acceptance requires a valid service_role JWT or current sb_secret_ key.");
   }
 }
+function assertPublishableCredential(key) {
+  if (key.startsWith("sb_publishable_")) return;
+  if (!key.startsWith("eyJ")) {
+    fail("Supabase public credential must be a publishable key or a legacy anon JWT.");
+  }
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(key.split(".")[1] ?? "", "base64url").toString("utf8"));
+  } catch {
+    fail("Legacy Supabase public anon JWT is malformed.");
+  }
+  if (payload.role !== "anon") fail("Legacy Supabase public JWT must carry the anon role.");
+}
 function getSupabaseConfig() {
   assertIsolatedE2ETarget();
   const url = requiredEnv("SUPABASE_URL");
@@ -74,7 +87,7 @@ function getSupabaseConfig() {
   const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
   assertServiceRoleCredential(serviceKey);
   if (!url.startsWith("https://")) fail("Supabase URL must use HTTPS.");
-  if (!publishableKey.startsWith("sb_publishable_")) fail("Supabase publishable-key format is invalid.");
+  assertPublishableCredential(publishableKey);
   return { url, serviceKey, publishableKey };
 }
 function createServiceClient() {
