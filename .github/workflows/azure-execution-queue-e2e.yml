@@ -27,7 +27,6 @@ jobs:
     env:
       IMAGE_TAG: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
-      AZURE_LOCATION: italynorth
       AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT || 'env-engineering-execution-italynorth' }}
       AZURE_JOB_NAME: engineering-execution-e2e
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -166,7 +165,6 @@ jobs:
           IMAGE_DIGEST: ${{ steps.worker_image.outputs.digest }}
           E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          set -euo pipefail
           set -euo pipefail
           if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::Container build did not return a valid immutable SHA-256 digest."
