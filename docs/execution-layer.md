@@ -19,7 +19,9 @@ Supported API capabilities are intentionally narrow: ANALYSIS.SHAFT_TORQUE on th
 
 Execution SUCCEEDED means the backend completed; it does not mean engineering correctness or physical safety is verified. Capability-specific validators and evidence contracts remain authoritative.
 
-V2.0.29 (durable jobs) and V2.0.30 (database-clock lease renewal) are applied and contract-tested in the dedicated E2E Supabase project only. They have not been applied to production. Reconcile existing production Supabase migration-ledger drift before applying either migration to a shared/production project. Production is not durably operational until the schema is applied and a persistent worker service is deployed and verified.
+V2.0.29 and V2.0.30, together with the G2/M2 schema migrations, are applied to both the production and dedicated E2E Supabase projects. As of 18 November 2026, all 32 repository migration versions match both remote ledgers. V2.0.31–V2.0.33 add the server-only agent-run journal, its least-privilege ACL correction and the approval-evidence project-ID type fix.
+
+The production `engineering_execution_jobs` table contains one historical `SUCCEEDED` record and no queued or running jobs. The agent-run journal table is empty. Production `DURABLE_EXECUTION_ENABLED` is deliberately `false`, and no persistent durable execution worker service is deployed. Do not enable the flag until the persistent worker, authenticated orchestration, approval evidence and recovery acceptance gates have passed.
 
 
 ## Bounded solver workers and evidence acceptance (PR #168)
@@ -48,6 +50,18 @@ AI may select an allowlisted capability and prepare a typed request. It does not
 
 The preliminary shaft drawing generator is similarly source-bound: it accepts only a current accepted geometry revision, verifies canonical artifact identity/digest/storage binding, checks the trusted geometry receipt and axis dimension evidence, and labels the SVG as preliminary/not for manufacture. Drawing generation does not validate drafting standards or approve a design.
 
-### PR #168 verification state
+### PR #168 verification state — 18 November 2026
 
-Implementation and focused test cases have been added for G3 numerical extremes, FEA benchmark contracts, artifact path confinement, worker restart/cancellation and CAD drawing source lineage. **Those tests have not yet been executed against the current PR head in a repository runner.** The current branch has no GitHub Actions run for its latest commit; the CodeScene review is tracked separately. Supabase Preview is skipped because the branch is not associated with a Supabase preview branch, and Vercel preview checks are rate-limited. Do not infer production readiness from source changes or a CodeScene result.
+Current branch: `implementation/next-engineering-cycle-2026-11-15`; current verified head at the last recorded check: `21c9474eb87c680e043eb40aa724da5bea7262ca`.
+
+- ESLint and CodeQL Advanced passed on the current head.
+- The isolated local Supabase stack replayed all 32 migrations successfully.
+- The M0 Preview deployment is READY. The application preview build is being monitored separately.
+- The full Engineering Core CI is still in progress; do not mark the PR fully verified until the exact-head workflow concludes.
+- The Codacy workflow completed, but its analysis and SARIF steps were skipped because Codacy is not configured.
+- CodeScene automated approvals are recorded; no independent human review is recorded. A previous Codex review attempt was blocked by its usage limit.
+- Production Supabase schema and ledger migrations are applied. Production's durable-execution feature flag is disabled and the persistent worker is not deployed.
+
+A Vercel production redeployment of the unchanged `main` commit `e1cbac7bcdc9ce9cebeace7a056e2ed414c37a23` was created after setting `DURABLE_EXECUTION_ENABLED=false`; it reached READY. This is a safety redeployment of the existing mainline code, not a merge or deployment of PR #168.
+
+Do not infer production readiness of durable execution from the existence of the journal table or from solver benchmark CI. The authenticated worker lifecycle remains a separate acceptance gate.
