@@ -9,6 +9,7 @@ import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { CAD_ARTIFACT_BUCKET } from "../../../../src/cad/persistence";
 import { getRemoteCADWorkerConfig, probeRemoteCADWorker } from "../../../../src/execution/remote-cad-worker";
+import { GENERATED_DRAWING_LINEAGE_COLUMNS, inspectGeneratedDrawingLineageSchema, type GeneratedDrawingSchemaStatus } from "../drawings/generate/schema";
 
 export const runtime = "nodejs";
 
@@ -181,6 +182,12 @@ export async function GET(request: Request) {
   }
 
   let serviceDb: ReturnType<typeof createServiceRoleClient> | undefined;
+  let generatedDrawingCapability: GeneratedDrawingSchemaStatus = {
+    ready: false,
+    status: "BLOCKED",
+    code: "DRAWING_SCHEMA_UNAVAILABLE",
+    detail: "The generated-drawing lineage schema could not be checked because the trusted database writer is unavailable."
+  };
   try {
     serviceDb = createServiceRoleClient();
     addCheck(checks, "trusted_database_writer", "PASS", "The server-only Supabase privileged client is configured.");
@@ -189,11 +196,13 @@ export async function GET(request: Request) {
   }
 
   if (serviceDb) {
-    const [modelsTable, completionsTable, bucket] = await Promise.all([
+    const [modelsTable, completionsTable, drawingLineageSchema, bucket] = await Promise.all([
       serviceDb.from("engineering_cad_models").select("id").limit(1),
       serviceDb.from("engineering_cad_completions").select("id").limit(1),
+      serviceDb.from("engineering_cad_drawings").select(GENERATED_DRAWING_LINEAGE_COLUMNS).limit(0),
       serviceDb.storage.getBucket(CAD_ARTIFACT_BUCKET)
     ]);
+    generatedDrawingCapability = await inspectGeneratedDrawingLineageSchema(() => Promise.resolve({ error: drawingLineageSchema.error }));
     addCheck(
       checks,
       "cad_models_table",
@@ -258,7 +267,8 @@ export async function GET(request: Request) {
       ready,
       status: ready ? "READY" : "NOT_READY",
       checkedAt: new Date().toISOString(),
-      checks
+      checks,
+      capabilities: { generatedDrawings: generatedDrawingCapability }
     },
     { status: ready ? 200 : 503, headers: { "cache-control": "no-store" } }
   );

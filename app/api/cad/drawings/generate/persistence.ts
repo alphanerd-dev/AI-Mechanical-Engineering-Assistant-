@@ -5,6 +5,7 @@ import { CAD_ARTIFACT_BUCKET, CAD_SIGNED_URL_TTL_SECONDS } from "../../../../../
 import { inspectCADDrawingUpload } from "../../../../../src/drawings/ingestion";
 import { generateShaftOrthographicSvgDrawing } from "../../../../../src/drawings/shaft-orthographic";
 import { fail } from "./request";
+import { GENERATED_DRAWING_LINEAGE_COLUMNS, requireGeneratedDrawingLineageSchema } from "./schema";
 
 type ServiceDb = ReturnType<typeof createServiceRoleClient>;
 type SessionDb = Awaited<ReturnType<typeof import("../../../../../lib/supabase/server").createClient>>;
@@ -169,6 +170,7 @@ function serializeDrawing(row: Row, signedUrl: string, replay: boolean) {
   };
 }
 export async function persistGeneratedDrawing(input: PersistGeneratedDrawingInput) {
+  await requireGeneratedDrawingLineageSchema(() => input.serviceDb.from("engineering_cad_drawings").select(GENERATED_DRAWING_LINEAGE_COLUMNS).limit(0));
   const prepared = prepareDrawing(input, randomUUID());
   await uploadDrawing(input, prepared);
   const persisted = await insertOrResolveDrawing(input, prepared);
