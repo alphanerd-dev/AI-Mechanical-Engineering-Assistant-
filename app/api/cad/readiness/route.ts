@@ -196,13 +196,14 @@ export async function GET(request: Request) {
   }
 
   if (serviceDb) {
-    const [modelsTable, completionsTable, drawingLineageSchema, bucket] = await Promise.all([
+    const [modelsTable, completionsTable, bucket] = await Promise.all([
       serviceDb.from("engineering_cad_models").select("id").limit(1),
       serviceDb.from("engineering_cad_completions").select("id").limit(1),
-      serviceDb.from("engineering_cad_drawings").select(GENERATED_DRAWING_LINEAGE_COLUMNS).limit(0),
       serviceDb.storage.getBucket(CAD_ARTIFACT_BUCKET)
     ]);
-    generatedDrawingCapability = await inspectGeneratedDrawingLineageSchema(() => Promise.resolve({ error: drawingLineageSchema.error }));
+    generatedDrawingCapability = await inspectGeneratedDrawingLineageSchema(() =>
+      serviceDb.from("engineering_cad_drawings").select(GENERATED_DRAWING_LINEAGE_COLUMNS).limit(0)
+    );
     addCheck(
       checks,
       "cad_models_table",
