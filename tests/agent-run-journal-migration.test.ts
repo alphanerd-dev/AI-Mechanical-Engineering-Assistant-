@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261115120000_v2_0_31_agent_run_journal.sql"), "utf8").toLowerCase();
+const leastPrivilegeSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261118162500_v2_0_32_agent_run_journal_least_privilege.sql"), "utf8").toLowerCase();
 
 describe("V2.0.31 durable agent-run journal migration contract", () => {
   it("creates a separate project-scoped journal with bounded snapshots and append-only action history", () => {
@@ -36,6 +37,18 @@ describe("V2.0.31 durable agent-run journal migration contract", () => {
     expect(cancellationRpc).toContain("returns public.engineering_agent_runs");
     expect(cancellationRpc).toContain("if not found then return null; end if;");
     expect(sql).not.toContain("create policy");
+  });
+
+  it("removes default service-role write and DDL grants from the journal table", () => {
+    expect(leastPrivilegeSql).toContain(
+      "revoke all on table public.engineering_agent_runs from public, anon, authenticated, service_role"
+    );
+    expect(leastPrivilegeSql).toContain(
+      "grant select, insert on table public.engineering_agent_runs to service_role"
+    );
+    expect(leastPrivilegeSql).not.toContain("grant update");
+    expect(leastPrivilegeSql).not.toContain("grant delete");
+    expect(leastPrivilegeSql).not.toContain("grant truncate");
   });
 
   it("persists action intent before side effects and never auto-replays an ambiguous action", () => {
