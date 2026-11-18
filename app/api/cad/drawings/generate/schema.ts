@@ -15,7 +15,7 @@ type SchemaProbe = () => PromiseLike<{ error: unknown | null }>;
 const MISSING_SCHEMA_CODES = new Set(["PGRST204", "PGRST205", "42703", "42P01"]);
 
 const NOT_READY_DETAIL =
-  "Source-bound drawing generation is unavailable because the database is missing its generated-drawing lineage schema. Ensure supabase/migrations/20261113210000_m2_display_derivatives_and_drawings.sql and supabase/migrations/20261115130000_m2_generated_drawing_lineage.sql are applied to this environment before enabling this capability.";
+  "Source-bound drawing generation is unavailable because the database is missing its generated-drawing lineage schema. Apply supabase/migrations/20261115130000_m2_generated_drawing_lineage.sql to this environment before enabling this capability.";
 
 export async function inspectGeneratedDrawingLineageSchema(
   probe: SchemaProbe
