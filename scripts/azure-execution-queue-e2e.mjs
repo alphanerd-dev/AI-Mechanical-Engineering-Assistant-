@@ -31,17 +31,21 @@ function assertIsolatedE2ETarget() {
   const rawUrl = requiredEnv("SUPABASE_URL");
   let supabaseUrl;
   try { supabaseUrl = new URL(rawUrl); } catch { fail("SUPABASE_URL is not a valid URL."); }
-  if (supabaseUrl.protocol !== "https:" ||
-      supabaseUrl.hostname !== E2E_SUPABASE_PROJECT_REF + ".supabase.co" ||
-      supabaseUrl.pathname !== "/" || supabaseUrl.username || supabaseUrl.password ||
-      supabaseUrl.search || supabaseUrl.hash) {
-    fail("Azure queue acceptance is restricted to the exact dedicated E2E Supabase project URL; refusing any other database target.");
+  if (supabaseUrl.protocol !== "https:") fail("The isolated E2E Supabase URL must use HTTPS.");
+  if (supabaseUrl.hostname !== E2E_SUPABASE_PROJECT_REF + ".supabase.co") {
+    fail("Azure queue acceptance is restricted to the dedicated E2E Supabase project; refusing any other database target.");
   }
+  if (supabaseUrl.pathname !== "/") fail("The isolated E2E Supabase URL must be the project root.");
+  if (supabaseUrl.username || supabaseUrl.password) fail("Credentials are not allowed in the isolated E2E Supabase URL.");
+  if (supabaseUrl.search || supabaseUrl.hash) fail("Query strings and fragments are not allowed in the isolated E2E Supabase URL.");
+
   const api = new URL(requiredEnv("EXECUTION_API_BASE_URL"));
-  if (api.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(api.hostname) ||
-      api.username || api.password || api.search || api.hash) {
+  if (api.protocol !== "http:") fail("The isolated E2E API must use local HTTP.");
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(api.hostname)) {
     fail("Azure queue acceptance must use the local E2E API bound to loopback; remote and production API targets are rejected.");
   }
+  if (api.username || api.password) fail("Credentials are not allowed in the local E2E API URL.");
+  if (api.search || api.hash) fail("Query strings and fragments are not allowed in the local E2E API URL.");
 }
 function assertServiceRoleCredential(key) {
   if (key.startsWith("sb_secret_")) return;
