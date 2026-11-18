@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 40
     environment: azure-execution-worker
     env:
-      IMAGE: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
+      IMAGE_TAG: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
       AZURE_LOCATION: italynorth
       AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT || 'env-engineering-execution-italynorth' }}
@@ -130,19 +130,28 @@ jobs:
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Build and publish isolated acceptance worker image
+        id: worker_image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: worker/execution/Dockerfile
           push: true
-          tags: ${{ env.IMAGE }}
+          tags: ${{ env.IMAGE_TAG }}
 
-      - name: Require a publicly pullable image
+      - name: Require a publicly pullable immutable image digest
         shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.worker_image.outputs.digest }}
         run: |
           set -euo pipefail
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Container build did not return a valid immutable SHA-256 digest."
+            exit 1
+          fi
+          IMAGE_REF="ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker@$IMAGE_DIGEST"
           docker logout ghcr.io >/dev/null 2>&1 || true
-          docker pull "$IMAGE"
+          docker pull "$IMAGE_REF"
+          echo "Isolated worker image: $IMAGE_REF" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Sign in to Azure using workload identity federation
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
@@ -154,9 +163,16 @@ jobs:
       - name: Verify the existing Azure environment and deploy isolated manual job
         shell: bash
         env:
+          IMAGE_DIGEST: ${{ steps.worker_image.outputs.digest }}
           E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
+          set -euo pipefail
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Container build did not return a valid immutable SHA-256 digest."
+            exit 1
+          fi
+          IMAGE_REF="ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker@$IMAGE_DIGEST"
           az extension add --name containerapp --upgrade --only-show-errors
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           ACTIVE_SUBSCRIPTION="$(az account show --query id --output tsv)"
@@ -202,7 +218,7 @@ jobs:
           )
           EXISTING_JOB="$(az containerapp job show --name "$AZURE_JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output json 2>/dev/null || true)"
           if [[ -z "$EXISTING_JOB" ]]; then
-            az containerapp job create               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --environment "$ENV_ID"               --trigger-type Manual               --replica-timeout 240               --replica-retry-limit 1               --parallelism 1               --replica-completion-count 1               --image "$IMAGE"               --cpu 0.25               --memory 0.5Gi               --secrets "${WORKER_SECRETS[@]}"               --env-vars "${WORKER_ENV_VARS[@]}"               --only-show-errors
+            az containerapp job create               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --environment "$ENV_ID"               --trigger-type Manual               --replica-timeout 240               --replica-retry-limit 1               --parallelism 1               --replica-completion-count 1               --image "$IMAGE_REF"               --cpu 0.25               --memory 0.5Gi               --secrets "${WORKER_SECRETS[@]}"               --env-vars "${WORKER_ENV_VARS[@]}"               --only-show-errors
           else
             EXISTING_TRIGGER="$(jq -r '.properties.configuration.triggerType // ""' <<<"$EXISTING_JOB")"
             EXISTING_ENV_ID="$(jq -r '.properties.environmentId // ""' <<<"$EXISTING_JOB")"
@@ -211,14 +227,15 @@ jobs:
               exit 1
             fi
             az containerapp job secret set               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --secrets "${WORKER_SECRETS[@]}"               --only-show-errors
-            az containerapp job update               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --image "$IMAGE"               --cpu 0.25               --memory 0.5Gi               --replace-env-vars "${WORKER_ENV_VARS[@]}"               --only-show-errors
+            az containerapp job update               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --image "$IMAGE_REF"               --cpu 0.25               --memory 0.5Gi               --replace-env-vars "${WORKER_ENV_VARS[@]}"               --only-show-errors
           fi
 
           DEPLOYED_IMAGE="$(az containerapp job show --name "$AZURE_JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --query 'properties.template.containers[0].image' --output tsv)"
-          if [[ "$DEPLOYED_IMAGE" != "$IMAGE" ]]; then
-            echo "::error::Azure E2E worker image does not match the workflow commit."
+          if [[ "$DEPLOYED_IMAGE" != "$IMAGE_REF" ]]; then
+            echo "::error::Azure E2E worker image does not match the immutable image digest built by this workflow."
             exit 1
           fi
+          echo "Dedicated manual E2E job image: $IMAGE_REF" >> "$GITHUB_STEP_SUMMARY"
           echo "Dedicated manual E2E job is configured with the isolated Supabase project. Production worker settings were not changed."
 
       - name: Create authenticated test identity, project and one durable queue item
