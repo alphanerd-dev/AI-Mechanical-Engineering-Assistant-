@@ -15,32 +15,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-async function readBodyBytes(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
+async function collectBodyChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  chunks: Uint8Array[]
+): Promise<number> {
   let totalBytes = 0;
-  try {
-    while (true) {
-      const part = await reader.read();
-      if (part.done) break;
-      totalBytes += part.value.byteLength;
-      if (totalBytes > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
-        await reader.cancel().catch(() => undefined);
-        throw new DrawingGenerationError({
-          message: "Drawing generation request exceeds 16 KiB.",
-          status: 413,
-          code: "REQUEST_TOO_LARGE"
-        });
-      }
-      chunks.push(new Uint8Array(part.value));
+  while (true) {
+    const part = await reader.read();
+    if (part.done) return totalBytes;
+    totalBytes += part.value.byteLength;
+    if (totalBytes > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new DrawingGenerationError({
+        message: "Drawing generation request exceeds 16 KiB.",
+        status: 413,
+        code: "REQUEST_TOO_LARGE"
+      });
     }
-  } catch (error) {
-    if (error instanceof DrawingGenerationError) throw error;
-    fail({ message: "Drawing generation request body could not be read.", status: 400, code: "INVALID_JSON" });
-  } finally {
-    reader.releaseLock();
+    chunks.push(new Uint8Array(part.value));
   }
+}
 
+function concatenateBodyChunks(chunks: Uint8Array[], totalBytes: number): Uint8Array {
   const bytes = new Uint8Array(totalBytes);
   let offset = 0;
   for (const chunk of chunks) {
@@ -50,6 +46,19 @@ async function readBodyBytes(body: ReadableStream<Uint8Array>): Promise<Uint8Arr
   return bytes;
 }
 
+async function readBodyBytes(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  try {
+    const totalBytes = await collectBodyChunks(reader, chunks);
+    return concatenateBodyChunks(chunks, totalBytes);
+  } catch (error) {
+    if (error instanceof DrawingGenerationError) throw error;
+    fail({ message: "Drawing generation request body could not be read.", status: 400, code: "INVALID_JSON" });
+  } finally {
+    reader.releaseLock();
+  }
+}
 function parseJsonBytes(bytes: Uint8Array): unknown {
   try {
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
