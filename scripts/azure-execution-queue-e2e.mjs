@@ -6,7 +6,7 @@ import { createServerClient } from "@supabase/ssr";
 
 const TABLE = "engineering_execution_jobs";
 const EXPECTED_TORQUE_NM = (9550 * 5) / 1500;
-const DEFAULT_API_BASE = "https://ai-mechanical-engineering-assistant.vercel.app";
+const E2E_SUPABASE_PROJECT_REF = "mpbrlegwrrrfpeumtqhi";
 
 function fail(message) { throw new Error(message); }
 function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
@@ -27,7 +27,21 @@ function idempotencyKey() {
   return "azure-worker-e2e-" + requiredEnv("GITHUB_RUN_ID") + "-" +
     (process.env.GITHUB_RUN_ATTEMPT?.trim() || "1");
 }
+function assertIsolatedE2ETarget() {
+  const rawUrl = requiredEnv("SUPABASE_URL");
+  let supabaseUrl;
+  try { supabaseUrl = new URL(rawUrl); } catch { fail("SUPABASE_URL is not a valid URL."); }
+  if (supabaseUrl.protocol !== "https:" ||
+      supabaseUrl.hostname !== E2E_SUPABASE_PROJECT_REF + ".supabase.co") {
+    fail("Azure queue acceptance is restricted to the dedicated E2E Supabase project; refusing any other database target.");
+  }
+  const api = new URL(requiredEnv("EXECUTION_API_BASE_URL"));
+  if (api.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(api.hostname)) {
+    fail("Azure queue acceptance must use the local E2E API bound to loopback; remote and production API targets are rejected.");
+  }
+}
 function getSupabaseConfig() {
+  assertIsolatedE2ETarget();
   const url = requiredEnv("SUPABASE_URL");
   const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
@@ -37,6 +51,7 @@ function getSupabaseConfig() {
   return { url, serviceKey, publishableKey };
 }
 function createServiceClient() {
+  assertIsolatedE2ETarget();
   const url = requiredEnv("SUPABASE_URL");
   const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   if (!url.startsWith("https://")) fail("SUPABASE_URL must use HTTPS.");
@@ -45,11 +60,8 @@ function createServiceClient() {
   });
 }
 function apiBase() {
-  const base = new URL(process.env.EXECUTION_API_BASE_URL?.trim() || DEFAULT_API_BASE);
-  if (base.protocol !== "https:" && !["localhost", "127.0.0.1", "::1"].includes(base.hostname)) {
-    fail("EXECUTION_API_BASE_URL must use HTTPS except for local development.");
-  }
-  return base.origin;
+  assertIsolatedE2ETarget();
+  return new URL(requiredEnv("EXECUTION_API_BASE_URL")).origin;
 }
 async function restRead(params) {
   const { url, serviceKey } = getSupabaseConfig();
@@ -129,6 +141,7 @@ async function createCookie(session, url, publishableKey) {
   return cookie;
 }
 async function setup() {
+  assertIsolatedE2ETarget();
   const { url, publishableKey } = getSupabaseConfig();
   const service = createServiceClient();
   const runId = requiredEnv("GITHUB_RUN_ID");
@@ -140,7 +153,7 @@ async function setup() {
     limit: "10"
   });
   if (active.length !== 0) {
-    fail("Production execution queue is not idle. No temporary identity or project was created; refusing to interfere with queued/running engineering work.");
+    fail("Isolated E2E execution queue is not idle. No temporary identity or project was created; refusing to interfere with existing test work.");
   }
 
   const email = "azure-execution-e2e+" + runId + "." + attempt + "@example.com";
@@ -213,6 +226,7 @@ async function setup() {
   }
 }
 async function preflight() {
+  assertIsolatedE2ETarget();
   const jobId = requiredEnv("AZURE_E2E_JOB_ID");
   const projectId = requiredEnv("AZURE_E2E_PROJECT_ID");
   const row = await readJob(jobId, projectId);
@@ -225,11 +239,12 @@ async function preflight() {
     limit: "10"
   });
   if (active.length !== 1 || active[0]?.id !== jobId || active[0]?.status !== "QUEUED") {
-    fail("Production execution queue is not exclusively occupied by the acceptance job; refusing to run a worker that might consume unrelated work.");
+    fail("Isolated E2E execution queue is not exclusively occupied by this acceptance job; refusing to run the test worker.");
   }
   console.log("Azure queue E2E preflight passed: the acceptance job is the only active queue item.");
 }
 async function verify() {
+  assertIsolatedE2ETarget();
   const jobId = requiredEnv("AZURE_E2E_JOB_ID");
   const projectId = requiredEnv("AZURE_E2E_PROJECT_ID");
   const row = await readJob(jobId, projectId);
@@ -262,6 +277,7 @@ async function cleanup() {
     console.log("Azure queue E2E cleanup: no temporary test identity was created.");
     return;
   }
+  assertIsolatedE2ETarget();
   if (!isUuid(userId)) fail("Temporary test user ID is invalid; refusing cleanup.");
   let projectId = process.env.AZURE_E2E_PROJECT_ID?.trim();
   const projectName = process.env.AZURE_E2E_PROJECT_NAME?.trim();
