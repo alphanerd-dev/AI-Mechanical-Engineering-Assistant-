@@ -111,7 +111,7 @@ Configure these additional values in the protected GitHub Environment named `azu
 | Type | Name | Required value |
 | --- | --- | --- |
 | Variable | `AZURE_E2E_SUPABASE_URL` | Exact URL `https://mpbrlegwrrrfpeumtqhi.supabase.co` |
-| Variable | `AZURE_E2E_SUPABASE_PUBLISHABLE_KEY` | Publishable key for the dedicated E2E Supabase project |
+| Variable | `AZURE_E2E_SUPABASE_PUBLISHABLE_KEY` | Publishable key or legacy anon JWT for the dedicated E2E Supabase project |
 | Secret | `AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY` | Service-role JWT or current `sb_secret_...` key for the dedicated E2E project |
 
 The workflow reuses the existing Azure OIDC variables (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) and the resource-group/environment settings. It rejects any Supabase URL other than the exact E2E project URL and rejects non-service-role credentials. Never paste keys into workflow YAML, source, build arguments, or chat.
