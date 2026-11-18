@@ -16,11 +16,14 @@ describe("generated drawing lineage schema readiness", () => {
   it.each(["PGRST204", "PGRST205", "42703", "42P01"])(
     "reports migration not ready for missing schema error %s",
     async (code) => {
-      await expect(inspectGeneratedDrawingLineageSchema(async () => ({ error: { code } }))).resolves.toMatchObject({
+      const result = await inspectGeneratedDrawingLineageSchema(async () => ({ error: { code } }));
+      expect(result).toMatchObject({
         ready: false,
         status: "FAIL",
         code: "DRAWING_SCHEMA_NOT_READY"
       });
+      expect(result.detail).toContain("20261115130000_m2_generated_drawing_lineage.sql");
+      expect(result.detail).not.toContain("20261113210000_m2_display_derivatives_and_drawings.sql");
     }
   );
 
