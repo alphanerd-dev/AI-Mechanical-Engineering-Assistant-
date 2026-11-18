@@ -27,21 +27,23 @@ function idempotencyKey() {
   return "azure-worker-e2e-" + requiredEnv("GITHUB_RUN_ID") + "-" +
     (process.env.GITHUB_RUN_ATTEMPT?.trim() || "1");
 }
-function assertIsolatedE2ETarget() {
-  const rawUrl = requiredEnv("SUPABASE_URL");
-  let supabaseUrl;
-  try { supabaseUrl = new URL(rawUrl); } catch { fail("SUPABASE_URL is not a valid URL."); }
-  if (supabaseUrl.protocol !== "https:") fail("The isolated E2E Supabase URL must use HTTPS.");
-  if (supabaseUrl.hostname !== E2E_SUPABASE_PROJECT_REF + ".supabase.co") {
+function parseTargetUrl(raw, name) {
+  try { return new URL(raw); } catch { fail(name + " is not a valid URL."); }
+}
+function assertE2ESupabaseUrl() {
+  const url = parseTargetUrl(requiredEnv("SUPABASE_URL"), "SUPABASE_URL");
+  if (url.protocol !== "https:") fail("The isolated E2E Supabase URL must use HTTPS.");
+  if (url.hostname !== E2E_SUPABASE_PROJECT_REF + ".supabase.co") {
     fail("Azure queue acceptance is restricted to the dedicated E2E Supabase project; refusing any other database target.");
   }
-  if (supabaseUrl.pathname !== "/") fail("The isolated E2E Supabase URL must be the project root.");
-  if (supabaseUrl.username) fail("Credentials are not allowed in the isolated E2E Supabase URL.");
-  if (supabaseUrl.password) fail("Credentials are not allowed in the isolated E2E Supabase URL.");
-  if (supabaseUrl.search) fail("Query strings are not allowed in the isolated E2E Supabase URL.");
-  if (supabaseUrl.hash) fail("Fragments are not allowed in the isolated E2E Supabase URL.");
-
-  const api = new URL(requiredEnv("EXECUTION_API_BASE_URL"));
+  if (url.pathname !== "/") fail("The isolated E2E Supabase URL must be the project root.");
+  if (url.username) fail("Credentials are not allowed in the isolated E2E Supabase URL.");
+  if (url.password) fail("Credentials are not allowed in the isolated E2E Supabase URL.");
+  if (url.search) fail("Query strings are not allowed in the isolated E2E Supabase URL.");
+  if (url.hash) fail("Fragments are not allowed in the isolated E2E Supabase URL.");
+}
+function assertLoopbackExecutionApiUrl() {
+  const api = parseTargetUrl(requiredEnv("EXECUTION_API_BASE_URL"), "EXECUTION_API_BASE_URL");
   if (api.protocol !== "http:") fail("The isolated E2E API must use local HTTP.");
   if (!["127.0.0.1", "localhost", "[::1]"].includes(api.hostname)) {
     fail("Azure queue acceptance must use the local E2E API bound to loopback; remote and production API targets are rejected.");
@@ -50,6 +52,10 @@ function assertIsolatedE2ETarget() {
   if (api.password) fail("Credentials are not allowed in the local E2E API URL.");
   if (api.search) fail("Query strings are not allowed in the local E2E API URL.");
   if (api.hash) fail("Fragments are not allowed in the local E2E API URL.");
+}
+function assertIsolatedE2ETarget() {
+  assertE2ESupabaseUrl();
+  assertLoopbackExecutionApiUrl();
 }
 function assertServiceRoleCredential(key) {
   if (key.startsWith("sb_secret_")) return;
@@ -228,13 +234,12 @@ function buildExecutionPayload(projectId) {
     requestedOutputs: ["torque"]
   };
 }
-async function submitAndVerifyExecution(cookie, userId, projectId) {
-  const idempotency = idempotencyKey();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(idempotency)) {
+function assertValidIdempotencyKey(value) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(value)) {
     fail("Generated idempotency key is invalid.");
   }
-  const payload = buildExecutionPayload(projectId);
-  const headers = { "Idempotency-Key": idempotency, "X-Request-ID": correlationId() };
+}
+async function submitQueueItem(cookie, payload, headers) {
   const queued = await authorizedApi("POST", "/api/execution", cookie, payload, headers);
   if (queued.response.status !== 202) {
     const code = isRecord(queued.body) && typeof queued.body.code === "string" ? queued.body.code : "unknown";
@@ -243,20 +248,31 @@ async function submitAndVerifyExecution(cookie, userId, projectId) {
   if (!isRecord(queued.body)) fail("Authenticated durable execution API did not return a job object.");
   if (queued.body.status !== "QUEUED") fail("Authenticated durable execution API did not return QUEUED status.");
   if (!isUuid(queued.body.id)) fail("Authenticated durable execution API returned an invalid job ID.");
-
-  const jobId = queued.body.id;
+  return queued.body.id;
+}
+async function assertIdempotentReplay(cookie, payload, headers, jobId) {
   const replay = await authorizedApi("POST", "/api/execution", cookie, payload, headers);
   if (replay.response.status !== 200) fail("Idempotent replay did not return HTTP 200.");
   if (!isRecord(replay.body)) fail("Idempotent replay did not return a job object.");
   if (replay.body.id !== jobId) fail("Idempotent replay returned a different job ID.");
   if (replay.body.idempotentReplay !== true) fail("Idempotent replay did not report an existing job.");
-
+}
+async function assertStoredQueuedJob(jobId, projectId, userId, idempotency) {
   const row = await readJob(jobId, projectId);
   if (!row) fail("The durable API response could not be reconciled to a stored queue row.");
   if (row.owner_id !== userId) fail("Stored queue row owner does not match the temporary identity.");
   if (row.idempotency_key !== idempotency) fail("Stored queue row idempotency key does not match this run.");
   if (row.status !== "QUEUED") fail("Stored queue row was not in QUEUED state before worker execution.");
   assertTestRequest(row, jobId, projectId);
+}
+async function submitAndVerifyExecution(cookie, userId, projectId) {
+  const idempotency = idempotencyKey();
+  assertValidIdempotencyKey(idempotency);
+  const payload = buildExecutionPayload(projectId);
+  const headers = { "Idempotency-Key": idempotency, "X-Request-ID": correlationId() };
+  const jobId = await submitQueueItem(cookie, payload, headers);
+  await assertIdempotentReplay(cookie, payload, headers, jobId);
+  await assertStoredQueuedJob(jobId, projectId, userId, idempotency);
   setGithubEnv("AZURE_E2E_JOB_ID", jobId);
   return jobId;
 }
