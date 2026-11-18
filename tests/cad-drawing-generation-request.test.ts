@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_DRAWING_GENERATION_REQUEST_BYTES,
   parseDrawingGenerationRequest
-} from "../app/api/cad/drawings/generate/request";
+} from "../app/api/cad/drawings/generate/request-parser";
 import { DrawingGenerationError } from "../app/api/cad/drawings/generate/errors";
 
 const validInput = {
