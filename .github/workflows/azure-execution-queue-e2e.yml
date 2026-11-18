@@ -35,12 +35,13 @@ jobs:
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       E2E_SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
       E2E_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
-      E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
       EXECUTION_API_BASE_URL: http://127.0.0.1:3000
 
     steps:
       - name: Validate isolated target and required configuration
         shell: bash
+        env:
+          E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           for key in AZURE_RESOURCE_GROUP AZURE_CONTAINERAPPS_ENVIRONMENT AZURE_SUBSCRIPTION_ID AZURE_CLIENT_ID AZURE_TENANT_ID E2E_SUPABASE_URL E2E_SUPABASE_PUBLISHABLE_KEY E2E_SUPABASE_SERVICE_ROLE_KEY; do
@@ -77,6 +78,8 @@ jobs:
           NODE
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -91,9 +94,6 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
-          DURABLE_EXECUTION_ENABLED: "true"
         run: npm run build
 
       - name: Start loopback-only local API
