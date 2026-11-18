@@ -60,6 +60,26 @@ describe("CAD drawing generation request parsing", () => {
     });
   });
 
+  it("normalizes stream read failures and releases the request reader", async () => {
+    const failedBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error("simulated stream failure"));
+      }
+    });
+    const failedRequest = new Request("https://engineering.test/api/cad/drawings/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: failedBody,
+      // A streaming body requires Node's duplex extension.
+      duplex: "half"
+    } as RequestInit);
+    await expect(parseDrawingGenerationRequest(failedRequest)).rejects.toMatchObject({
+      name: "DrawingGenerationError",
+      status: 400,
+      code: "INVALID_JSON"
+    });
+  });
+
   it("rejects malformed UTF-8 JSON and non-object JSON", async () => {
     const invalidJson = new Request("https://engineering.test/api/cad/drawings/generate", {
       method: "POST",
