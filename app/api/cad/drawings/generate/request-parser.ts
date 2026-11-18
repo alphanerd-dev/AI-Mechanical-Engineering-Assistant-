@@ -1,4 +1,4 @@
-import { fail } from "./errors";
+import { DrawingGenerationError, fail } from "./errors";
 
 export const MAX_DRAWING_GENERATION_REQUEST_BYTES = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -15,16 +15,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-async function readJsonBody(request: Request): Promise<unknown> {
-  const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
-    fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
-  }
-  if (!request.body) {
-    fail({ message: "Drawing generation request body is required.", status: 400, code: "INVALID_JSON" });
-  }
-
-  const reader = request.body.getReader();
+async function readBodyBytes(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
   try {
@@ -33,13 +25,17 @@ async function readJsonBody(request: Request): Promise<unknown> {
       if (part.done) break;
       totalBytes += part.value.byteLength;
       if (totalBytes > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
-        await reader.cancel();
-        fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
+        await reader.cancel().catch(() => undefined);
+        throw new DrawingGenerationError({
+          message: "Drawing generation request exceeds 16 KiB.",
+          status: 413,
+          code: "REQUEST_TOO_LARGE"
+        });
       }
       chunks.push(new Uint8Array(part.value));
     }
   } catch (error) {
-    if (error instanceof Error && error.name === "DrawingGenerationError") throw error;
+    if (error instanceof DrawingGenerationError) throw error;
     fail({ message: "Drawing generation request body could not be read.", status: 400, code: "INVALID_JSON" });
   } finally {
     reader.releaseLock();
@@ -51,6 +47,10 @@ async function readJsonBody(request: Request): Promise<unknown> {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return bytes;
+}
+
+function parseJsonBytes(bytes: Uint8Array): unknown {
   try {
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
   } catch {
@@ -58,6 +58,16 @@ async function readJsonBody(request: Request): Promise<unknown> {
   }
 }
 
+async function readJsonBody(request: Request): Promise<unknown> {
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (declaredLength > MAX_DRAWING_GENERATION_REQUEST_BYTES) {
+    fail({ message: "Drawing generation request exceeds 16 KiB.", status: 413, code: "REQUEST_TOO_LARGE" });
+  }
+  if (!request.body) {
+    fail({ message: "Drawing generation request body is required.", status: 400, code: "INVALID_JSON" });
+  }
+  return parseJsonBytes(await readBodyBytes(request.body));
+}
 function requiredUuid(input: { body: Record<string, unknown>; field: string }): string {
   const value = input.body[input.field];
   if (typeof value !== "string" || !UUID.test(value)) {
