@@ -155,13 +155,7 @@ async function createCookie(session, url, publishableKey) {
   if (!cookie || !cookie.includes("auth-token")) fail("Supabase SSR did not persist the temporary session cookie.");
   return cookie;
 }
-async function setup() {
-  assertIsolatedE2ETarget();
-  const { url, publishableKey } = getSupabaseConfig();
-  const service = createServiceClient();
-  const runId = requiredEnv("GITHUB_RUN_ID");
-  const attempt = process.env.GITHUB_RUN_ATTEMPT?.trim() || "1";
-
+async function assertQueueIdle() {
   const active = await restRead({
     select: "id,status",
     or: "(status.eq.QUEUED,status.eq.RUNNING)",
@@ -170,82 +164,115 @@ async function setup() {
   if (active.length !== 0) {
     fail("Isolated E2E execution queue is not idle. No temporary identity or project was created; refusing to interfere with existing test work.");
   }
+}
+async function createTemporaryIdentity(service, email, password, runId, attempt) {
+  const created = await service.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    app_metadata: { engineering_roles: ["ENGINEER"] },
+    user_metadata: {
+      purpose: "temporary Azure execution queue acceptance test",
+      run_id: runId,
+      run_attempt: attempt
+    }
+  });
+  if (created.error || !created.data.user) {
+    fail("Could not create the temporary test identity in Supabase Auth.");
+  }
+  const userId = created.data.user.id;
+  setGithubEnv("AZURE_E2E_USER_ID", userId);
+  return userId;
+}
+async function createAuthenticatedCookie(url, publishableKey, email, password) {
+  const loginClient = createClient(url, publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  const login = await loginClient.auth.signInWithPassword({ email, password });
+  if (login.error || !login.data.session) {
+    fail("Temporary test identity could not obtain an authenticated session.");
+  }
+  const cookie = await createCookie(login.data.session, url, publishableKey);
+  setGithubEnv("AZURE_E2E_COOKIE", cookie);
+  return cookie;
+}
+async function createTemporaryProject(cookie, runId, attempt) {
+  const projectName = "Azure execution E2E " + runId + "." + attempt;
+  setGithubEnv("AZURE_E2E_PROJECT_NAME", projectName);
+  const response = await authorizedApi("POST", "/api/projects", cookie, {
+    name: projectName,
+    problemStatement: "Temporary bounded acceptance test; deterministic shaft-torque execution only."
+  }, { "X-Request-ID": correlationId() });
+  const project = isRecord(response.body) && isRecord(response.body.project)
+    ? response.body.project
+    : undefined;
+  if (response.response.status !== 201 || !project || !isUuid(project.id)) {
+    fail("Authenticated project setup failed (HTTP " + response.response.status + ").");
+  }
+  setGithubEnv("AZURE_E2E_PROJECT_ID", project.id);
+  return project.id;
+}
+function buildExecutionPayload(projectId) {
+  return {
+    projectId,
+    capability: "ANALYSIS.SHAFT_TORQUE",
+    backend: "typescript-safe",
+    inputs: { powerKw: 5, speedRpm: 1500 },
+    requestedOutputs: ["torque"]
+  };
+}
+async function submitAndVerifyExecution(cookie, userId, projectId) {
+  const idempotency = idempotencyKey();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(idempotency)) {
+    fail("Generated idempotency key is invalid.");
+  }
+  const payload = buildExecutionPayload(projectId);
+  const headers = { "Idempotency-Key": idempotency, "X-Request-ID": correlationId() };
+  const queued = await authorizedApi("POST", "/api/execution", cookie, payload, headers);
+  if (queued.response.status !== 202 || !isRecord(queued.body) ||
+      queued.body.status !== "QUEUED" || !isUuid(queued.body.id)) {
+    const code = isRecord(queued.body) && typeof queued.body.code === "string"
+      ? queued.body.code
+      : "unknown";
+    fail("Authenticated durable execution API did not queue the test (HTTP " +
+      queued.response.status + ", code=" + code + ").");
+  }
+  const jobId = queued.body.id;
+  const replay = await authorizedApi("POST", "/api/execution", cookie, payload, headers);
+  if (replay.response.status !== 200 || !isRecord(replay.body) ||
+      replay.body.id !== jobId || replay.body.idempotentReplay !== true) {
+    fail("Idempotent replay did not return the original durable job without creating a duplicate.");
+  }
+  const row = await readJob(jobId, projectId);
+  if (!row || row.owner_id !== userId || row.idempotency_key !== idempotency || row.status !== "QUEUED") {
+    fail("The durable API response could not be reconciled to its stored queue row.");
+  }
+  assertTestRequest(row, jobId, projectId);
+  setGithubEnv("AZURE_E2E_JOB_ID", jobId);
+  return jobId;
+}
+async function setup() {
+  const { url, publishableKey } = getSupabaseConfig();
+  const service = createServiceClient();
+  const runId = requiredEnv("GITHUB_RUN_ID");
+  const attempt = process.env.GITHUB_RUN_ATTEMPT?.trim() || "1";
+  await assertQueueIdle();
 
   const email = "azure-execution-e2e+" + runId + "." + attempt + "@example.com";
   const password = randomBytes(32).toString("base64url") + "aA1!";
-  let userId;
-  let projectId;
-  let cookie;
-  let jobId;
-  try {
-    const created = await service.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      app_metadata: { engineering_roles: ["ENGINEER"] },
-      user_metadata: { purpose: "temporary Azure execution queue acceptance test", run_id: runId, run_attempt: attempt }
-    });
-    if (created.error || !created.data.user) {
-      fail("Could not create the temporary test identity in Supabase Auth.");
-    }
-    userId = created.data.user.id;
-    setGithubEnv("AZURE_E2E_USER_ID", userId);
-    const loginClient = createClient(url, publishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-    });
-    const login = await loginClient.auth.signInWithPassword({ email, password });
-    if (login.error || !login.data.session) fail("Temporary test identity could not obtain an authenticated session.");
-    cookie = await createCookie(login.data.session, url, publishableKey);
-    setGithubEnv("AZURE_E2E_COOKIE", cookie);
+  const userId = await createTemporaryIdentity(service, email, password, runId, attempt);
+  const cookie = await createAuthenticatedCookie(url, publishableKey, email, password);
+  const projectId = await createTemporaryProject(cookie, runId, attempt);
+  const jobId = await submitAndVerifyExecution(cookie, userId, projectId);
 
-    const projectName = "Azure execution E2E " + runId + "." + attempt;
-    setGithubEnv("AZURE_E2E_PROJECT_NAME", projectName);
-    const projectResponse = await authorizedApi("POST", "/api/projects", cookie, {
-      name: projectName,
-      problemStatement: "Temporary bounded acceptance test; deterministic shaft-torque execution only."
-    }, { "X-Request-ID": correlationId() });
-    if (projectResponse.response.status !== 201 || !isRecord(projectResponse.body) ||
-        !isRecord(projectResponse.body.project) || !isUuid(projectResponse.body.project.id)) {
-      fail("Authenticated project setup failed (HTTP " + projectResponse.response.status + ").");
-    }
-    projectId = projectResponse.body.project.id;
-    setGithubEnv("AZURE_E2E_PROJECT_ID", projectId);
-
-    const idempotency = idempotencyKey();
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(idempotency)) fail("Generated idempotency key is invalid.");
-    const executionPayload = {
-      projectId,
-      capability: "ANALYSIS.SHAFT_TORQUE",
-      backend: "typescript-safe",
-      inputs: { powerKw: 5, speedRpm: 1500 },
-      requestedOutputs: ["torque"]
-    };
-    const executionHeaders = { "Idempotency-Key": idempotency, "X-Request-ID": correlationId() };
-    const queued = await authorizedApi("POST", "/api/execution", cookie, executionPayload, executionHeaders);
-    if (queued.response.status !== 202 || !isRecord(queued.body) ||
-        queued.body.status !== "QUEUED" || !isUuid(queued.body.id)) {
-      const code = isRecord(queued.body) && typeof queued.body.code === "string" ? queued.body.code : "unknown";
-      fail("Authenticated durable execution API did not queue the test (HTTP " + queued.response.status + ", code=" + code + ").");
-    }
-    jobId = queued.body.id;
-    const replay = await authorizedApi("POST", "/api/execution", cookie, executionPayload, executionHeaders);
-    if (replay.response.status !== 200 || !isRecord(replay.body) ||
-        replay.body.id !== jobId || replay.body.idempotentReplay !== true) {
-      fail("Idempotent replay did not return the original durable job without creating a duplicate.");
-    }
-    const row = await readJob(jobId, projectId);
-    if (!row || row.owner_id !== userId || row.idempotency_key !== idempotency || row.status !== "QUEUED") {
-      fail("The durable API response could not be reconciled to its stored queue row.");
-    }
-    assertTestRequest(row, jobId, projectId);
-
-    setGithubEnv("AZURE_E2E_JOB_ID", jobId);
-    console.log(JSON.stringify({ jobId, projectId, status: "QUEUED", request: "ANALYSIS.SHAFT_TORQUE", backend: "typescript-safe" }));
-  } catch (error) {
-    // The same workflow job runs cleanup under if: always(), using the identifiers
-    // already written to GITHUB_ENV. Do not race the cleanup step here.
-    throw error;
-  }
+  console.log(JSON.stringify({
+    jobId,
+    projectId,
+    status: "QUEUED",
+    request: "ANALYSIS.SHAFT_TORQUE",
+    backend: "typescript-safe",
+    idempotentReplay: true
+  }));
 }
 async function preflight() {
   assertIsolatedE2ETarget();
