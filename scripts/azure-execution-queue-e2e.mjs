@@ -32,12 +32,25 @@ function assertIsolatedE2ETarget() {
   let supabaseUrl;
   try { supabaseUrl = new URL(rawUrl); } catch { fail("SUPABASE_URL is not a valid URL."); }
   if (supabaseUrl.protocol !== "https:" ||
-      supabaseUrl.hostname !== E2E_SUPABASE_PROJECT_REF + ".supabase.co") {
-    fail("Azure queue acceptance is restricted to the dedicated E2E Supabase project; refusing any other database target.");
+      supabaseUrl.hostname !== E2E_SUPABASE_PROJECT_REF + ".supabase.co" ||
+      supabaseUrl.pathname !== "/" || supabaseUrl.username || supabaseUrl.password ||
+      supabaseUrl.search || supabaseUrl.hash) {
+    fail("Azure queue acceptance is restricted to the exact dedicated E2E Supabase project URL; refusing any other database target.");
   }
   const api = new URL(requiredEnv("EXECUTION_API_BASE_URL"));
-  if (api.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(api.hostname)) {
+  if (api.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(api.hostname) ||
+      api.username || api.password || api.search || api.hash) {
     fail("Azure queue acceptance must use the local E2E API bound to loopback; remote and production API targets are rejected.");
+  }
+}
+function assertServiceRoleCredential(key) {
+  if (key.startsWith("sb_secret_")) return;
+  if (!key.startsWith("eyJ")) fail("Azure queue acceptance requires a service_role credential, not a public key.");
+  try {
+    const payload = JSON.parse(Buffer.from(key.split(".")[1] ?? "", "base64url").toString("utf8"));
+    if (payload.role !== "service_role") fail("Azure queue acceptance requires a service_role credential.");
+  } catch {
+    fail("Azure queue acceptance requires a valid service_role JWT or current sb_secret_ key.");
   }
 }
 function getSupabaseConfig() {
@@ -45,6 +58,7 @@ function getSupabaseConfig() {
   const url = requiredEnv("SUPABASE_URL");
   const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
+  assertServiceRoleCredential(serviceKey);
   if (!url.startsWith("https://") || !publishableKey.startsWith("sb_publishable_")) {
     fail("Supabase URL or publishable-key format is invalid.");
   }
@@ -54,6 +68,7 @@ function createServiceClient() {
   assertIsolatedE2ETarget();
   const url = requiredEnv("SUPABASE_URL");
   const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  assertServiceRoleCredential(serviceKey);
   if (!url.startsWith("https://")) fail("SUPABASE_URL must use HTTPS.");
   return createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -198,19 +213,26 @@ async function setup() {
 
     const idempotency = idempotencyKey();
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(idempotency)) fail("Generated idempotency key is invalid.");
-    const queued = await authorizedApi("POST", "/api/execution", cookie, {
+    const executionPayload = {
       projectId,
       capability: "ANALYSIS.SHAFT_TORQUE",
       backend: "typescript-safe",
       inputs: { powerKw: 5, speedRpm: 1500 },
       requestedOutputs: ["torque"]
-    }, { "Idempotency-Key": idempotency, "X-Request-ID": correlationId() });
+    };
+    const executionHeaders = { "Idempotency-Key": idempotency, "X-Request-ID": correlationId() };
+    const queued = await authorizedApi("POST", "/api/execution", cookie, executionPayload, executionHeaders);
     if (queued.response.status !== 202 || !isRecord(queued.body) ||
         queued.body.status !== "QUEUED" || !isUuid(queued.body.id)) {
       const code = isRecord(queued.body) && typeof queued.body.code === "string" ? queued.body.code : "unknown";
       fail("Authenticated durable execution API did not queue the test (HTTP " + queued.response.status + ", code=" + code + ").");
     }
     jobId = queued.body.id;
+    const replay = await authorizedApi("POST", "/api/execution", cookie, executionPayload, executionHeaders);
+    if (replay.response.status !== 200 || !isRecord(replay.body) ||
+        replay.body.id !== jobId || replay.body.idempotentReplay !== true) {
+      fail("Idempotent replay did not return the original durable job without creating a duplicate.");
+    }
     const row = await readJob(jobId, projectId);
     if (!row || row.owner_id !== userId || row.idempotency_key !== idempotency || row.status !== "QUEUED") {
       fail("The durable API response could not be reconciled to its stored queue row.");
@@ -268,8 +290,25 @@ async function verify() {
   if (row.lease_owner !== null || row.lease_token !== null || row.lease_expires_at !== null) {
     fail("Azure queue E2E job finished without clearing its worker lease.");
   }
+  const cookie = requiredEnv("AZURE_E2E_COOKIE");
+  const apiStatus = await authorizedApi(
+    "GET",
+    "/api/execution/" + encodeURIComponent(jobId) + "?projectId=" + encodeURIComponent(projectId),
+    cookie
+  );
+  if (apiStatus.response.status !== 200 || !isRecord(apiStatus.body) ||
+      apiStatus.body.id !== jobId || apiStatus.body.status !== "SUCCEEDED") {
+    fail("Authenticated durable job-status API did not read back the completed job for its owning project.");
+  }
+  const active = await restRead({
+    select: "id,status",
+    or: "(status.eq.QUEUED,status.eq.RUNNING)",
+    limit: "10"
+  });
+  if (active.length !== 0) fail("The isolated E2E queue is not empty after the one-job acceptance run.");
   console.log("Azure queue-to-result acceptance passed: status=SUCCEEDED, attempts=" +
-    row.attempts + ", torqueNm=" + torque.toFixed(9) + ", provenance=verified, lease=cleared.");
+    row.attempts + ", torqueNm=" + torque.toFixed(9) +
+    ", idempotentReplay=verified, authenticatedReadback=verified, provenance=verified, lease=cleared.");
 }
 async function cleanup() {
   const userId = process.env.AZURE_E2E_USER_ID?.trim();
