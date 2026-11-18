@@ -1,7 +1,15 @@
 # Durable agent-run journal (V2.0.31)
 
-## Status
-Infrastructure implementation is present on the engineering-cycle branch. It is not yet exposed as a public model-directed execution endpoint, and its migration has not been applied to a shared database.
+## Status — 18 November 2026
+The journal schema is applied to both the production Supabase project and the dedicated E2E project. The repository migrations V2.0.31, V2.0.32 and V2.0.33 are present in both migration ledgers at their canonical file versions.
+
+- V2.0.31 creates the project-scoped journal and six narrowly scoped RPCs.
+- V2.0.32 removes broad default service-role table rights; `service_role` has only `SELECT` and `INSERT` on the journal table.
+- V2.0.33 corrects the approval-evidence comparison between the audit table's text project ID and the RPC's UUID project ID.
+- The table has RLS enabled and no client policies. The six RPCs are `SECURITY DEFINER`, use an empty `search_path`, and are executable only by `service_role`.
+- Production and E2E currently contain zero agent-run rows.
+
+The journal remains a persistence primitive. It is not an enabled public model-directed execution endpoint. Production `DURABLE_EXECUTION_ENABLED` is set to `false`; the synchronous execution path remains in use. No persistent durable-execution worker service is deployed.
 
 ## Trust boundary
 - Model output is an untrusted proposal, not an execution instruction.
@@ -26,10 +34,22 @@ A worker that loses its lease before beginning an action can be replaced. An exp
 - Action history: 4 MiB.
 
 ## Release gates still outstanding
-1. Apply the additive migration to a disposable Supabase environment and verify RPC signatures, RLS, grants and lease race behavior.
-2. Add server orchestration that creates a plan, obtains a claim, calls beginAction, dispatches only allowlisted host capabilities, checkpoints outcomes and renews leases.
-3. Add authenticated approval/reconciliation endpoints that persist audit evidence before invoking the corresponding RPC.
-4. Add concurrent-worker, cancellation-race, expired-lease and duplicate-idempotency integration tests.
-5. Run exact-head CI and authenticated E2E before enabling any user-facing route.
+1. Provision a dedicated persistent worker and securely configure `SUPABASE_SERVICE_ROLE_KEY`. The prepared Render Blueprint requires a paid Starter worker; no paid resource has been created.
+2. Implement server orchestration that creates a bounded plan, obtains a claim, calls beginAction, dispatches only allowlisted host capabilities, checkpoints outcomes and renews leases.
+3. Add authenticated approval/reconciliation endpoints that persist the approval audit event before invoking the resume RPC.
+4. Promote the E2E database checks into automated integration tests covering concurrent claims, lease fencing, cancellation races, expired-lease reconciliation and duplicate idempotency.
+5. Run an authenticated product workflow through the deployed worker, then perform independent human review and exact-head release verification.
+6. Only after those gates pass may the production feature flag be enabled.
+
+### E2E database acceptance completed
+A rollback-only SQL acceptance test on the dedicated E2E database passed:
+- claim and lease renewal;
+- begin-action intent persistence and duplicate in-flight response;
+- checkpoint and cancellation;
+- expired lease with in-flight action transitioning to `RECONCILIATION_REQUIRED` rather than replay;
+- rejection when approval evidence is missing;
+- acceptance of a correctly correlated, audited user approval event.
+
+Synthetic run rows and the synthetic audit-chain append were rolled back. The E2E and production journal tables remain empty. These database-level checks do not replace the missing persistent worker or authenticated application workflow.
 
 This journal is a persistence primitive, not permission to let the model execute arbitrary code or call arbitrary providers.
