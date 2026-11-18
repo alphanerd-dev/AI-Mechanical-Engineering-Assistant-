@@ -292,47 +292,75 @@ async function preflight() {
   }
   console.log("Azure queue E2E preflight passed: the acceptance job is the only active queue item.");
 }
+function assertJobSucceeded(row) {
+  if (row.status !== "SUCCEEDED") {
+    const detail = row.error_code ? " (" + row.error_code + ")" : "";
+    fail("Azure queue E2E job status is " + row.status + detail + ".");
+  }
+}
+function readExpectedTorque(row) {
+  const torque = Number(row.result?.torqueNm ?? row.result?.torque?.value);
+  if (!Number.isFinite(torque) || Math.abs(torque - EXPECTED_TORQUE_NM) > 1e-9) {
+    fail("Azure queue E2E result failed the deterministic torque assertion.");
+  }
+  if (row.result?.status !== "CALCULATED") {
+    fail("Azure queue E2E result status is not CALCULATED.");
+  }
+  return torque;
+}
+function assertCompletedAttempt(row) {
+  if (!(Number(row.attempts) >= 1) || !row.started_at || !row.finished_at) {
+    fail("Azure queue E2E record lacks claim/attempt/completion timestamps.");
+  }
+}
+function assertTrustedProvenance(row, jobId) {
+  if (row.provenance?.provider !== "execution.typescript-safe" ||
+      row.provenance?.executionId !== jobId) {
+    fail("Azure queue E2E provenance does not identify the expected deterministic provider and execution.");
+  }
+}
+function assertLeaseReleased(row) {
+  if (row.lease_owner !== null || row.lease_token !== null || row.lease_expires_at !== null) {
+    fail("Azure queue E2E job finished without clearing its worker lease.");
+  }
+}
+async function assertAuthenticatedStatusReadback(jobId, projectId) {
+  const cookie = requiredEnv("AZURE_E2E_COOKIE");
+  const path = "/api/execution/" + encodeURIComponent(jobId) +
+    "?projectId=" + encodeURIComponent(projectId);
+  const status = await authorizedApi("GET", path, cookie);
+  const matchesJob = isRecord(status.body) &&
+    status.body.id === jobId && status.body.status === "SUCCEEDED";
+  if (status.response.status !== 200 || !matchesJob) {
+    fail("Authenticated durable job-status API did not read back the completed job for its owning project.");
+  }
+}
+async function assertQueueDrained() {
+  const active = await restRead({
+    select: "id,status",
+    or: "(status.eq.QUEUED,status.eq.RUNNING)",
+    limit: "10"
+  });
+  if (active.length !== 0) {
+    fail("The isolated E2E queue is not empty after the one-job acceptance run.");
+  }
+}
 async function verify() {
   assertIsolatedE2ETarget();
   const jobId = requiredEnv("AZURE_E2E_JOB_ID");
   const projectId = requiredEnv("AZURE_E2E_PROJECT_ID");
   const row = await readJob(jobId, projectId);
   if (!row) fail("Azure queue E2E job was not found after worker execution.");
+
   assertTestRequest(row, jobId, projectId);
-  if (row.status !== "SUCCEEDED") {
-    fail("Azure queue E2E job status is " + row.status + (row.error_code ? " (" + row.error_code + ")" : "") + ".");
-  }
-  const torque = Number(row.result?.torqueNm ?? row.result?.torque?.value);
-  if (!Number.isFinite(torque) || Math.abs(torque - EXPECTED_TORQUE_NM) > 1e-9 ||
-      row.result?.status !== "CALCULATED") {
-    fail("Azure queue E2E result failed the deterministic torque and result-status assertions.");
-  }
-  if (!(Number(row.attempts) >= 1) || !row.started_at || !row.finished_at) {
-    fail("Azure queue E2E record lacks claim/attempt/completion timestamps.");
-  }
-  if (row.provenance?.provider !== "execution.typescript-safe" ||
-      row.provenance?.executionId !== jobId) {
-    fail("Azure queue E2E provenance does not identify the expected deterministic provider and execution.");
-  }
-  if (row.lease_owner !== null || row.lease_token !== null || row.lease_expires_at !== null) {
-    fail("Azure queue E2E job finished without clearing its worker lease.");
-  }
-  const cookie = requiredEnv("AZURE_E2E_COOKIE");
-  const apiStatus = await authorizedApi(
-    "GET",
-    "/api/execution/" + encodeURIComponent(jobId) + "?projectId=" + encodeURIComponent(projectId),
-    cookie
-  );
-  if (apiStatus.response.status !== 200 || !isRecord(apiStatus.body) ||
-      apiStatus.body.id !== jobId || apiStatus.body.status !== "SUCCEEDED") {
-    fail("Authenticated durable job-status API did not read back the completed job for its owning project.");
-  }
-  const active = await restRead({
-    select: "id,status",
-    or: "(status.eq.QUEUED,status.eq.RUNNING)",
-    limit: "10"
-  });
-  if (active.length !== 0) fail("The isolated E2E queue is not empty after the one-job acceptance run.");
+  assertJobSucceeded(row);
+  const torque = readExpectedTorque(row);
+  assertCompletedAttempt(row);
+  assertTrustedProvenance(row, jobId);
+  assertLeaseReleased(row);
+  await assertAuthenticatedStatusReadback(jobId, projectId);
+  await assertQueueDrained();
+
   console.log("Azure queue-to-result acceptance passed: status=SUCCEEDED, attempts=" +
     row.attempts + ", torqueNm=" + torque.toFixed(9) +
     ", idempotentReplay=verified, authenticatedReadback=verified, provenance=verified, lease=cleared.");
