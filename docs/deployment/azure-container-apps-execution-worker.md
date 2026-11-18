@@ -6,7 +6,9 @@ This is the first Azure hosting path for the durable execution worker. The Azure
 
 - The deployment workflow only runs by manual dispatch from `main`.
 - Its default is a **Manual** Container Apps Job, not a scheduled job.
-- The workflow does not change `DURABLE_EXECUTION_ENABLED` and does not start the worker automatically.
+- The workflow does not change `DURABLE_EXECUTION_ENABLED`.
+- Deployment does not start a worker by default. Production queue consumption requires the explicit `run_manual_worker=true` input.
+- The legacy queue E2E input is intentionally blocked until a separate E2E worker and local API are configured; it must never target production.
 - Keep the production API feature flag off until authenticated API-to-worker E2E checks pass.
 - The service-role key is a GitHub Environment secret and is stored as an Azure Container Apps Job secret. Never put it in source, workflow literals, build arguments, image layers, or logs.
 - The image is deliberately published to public GHCR so Azure can pull it anonymously. The project repository is already public; the image contains code only, not runtime secrets.
@@ -80,7 +82,7 @@ Add this Environment secret:
 - `SUPABASE_SERVICE_ROLE_KEY`: the server-side service-role JWT or current `sb_secret_...` key for the intended Supabase project. Enter it directly in GitHub's secret editor; do not paste it into chat or commit it.
 - `PYTHON_WORKER_API_TOKEN`: optional matching bearer token for `PYTHON_WORKER_URL`. Set both Python-worker values or neither. The workflow stores this token as an Azure Container Apps Job secret and exposes it through a `secretref`; never put it in the image or ordinary environment variables.
 
-The default Supabase URL points at the current production project. If preparing a staging run, override `SUPABASE_URL` with the isolated E2E project's URL and set the matching staging key as the environment secret. Never pair a staging URL with a production service-role key or vice versa.
+Set `SUPABASE_URL` explicitly to the production project for the production manual/scheduled worker. The workflow has no production URL fallback. Do not use this setting for queue acceptance; the legacy E2E workflow input is blocked.
 
 ## 3. Publish the container image and deploy a Manual job first
 
@@ -90,7 +92,7 @@ The workflow builds the container, publishes it to GitHub Container Registry (GH
 
 The first successful deployment creates or updates the Manual Container Apps Job named `engineering-execution-manual`. A separate scheduled job, `engineering-execution-scheduled`, is created only when `enable_schedule` is explicitly checked after validation. Leaving both schedule inputs unchecked never deletes or changes an existing schedule. The workflow prints the deployed job configuration; no execution log will exist until a job is explicitly started.
 
-For an initial worker smoke test, first change the protected GitHub Environment variables/secret to the isolated E2E Supabase project URL and its matching service-role key, then start exactly one job manually:
+To deploy/update the production Manual job without consuming queue items, leave `run_manual_worker` unchecked. To deliberately run one bounded production drain, set `run_manual_worker=true` only after confirming that processing any eligible production queue items is intended. This is not a smoke test and may process real engineering work.
 
 ```bash
 az containerapp job start \
