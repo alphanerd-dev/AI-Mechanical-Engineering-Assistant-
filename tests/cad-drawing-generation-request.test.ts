@@ -60,7 +60,7 @@ describe("CAD drawing generation request parsing", () => {
     });
   });
 
-  it("normalizes stream read failures and releases the request reader", async () => {
+  it("normalizes request stream read failures as invalid JSON", async () => {
     const failedBody = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.error(new Error("simulated stream failure"));
