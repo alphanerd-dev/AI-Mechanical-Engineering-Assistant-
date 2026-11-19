@@ -28,8 +28,8 @@ describe("Azure solver worker deployment configuration", () => {
   });
 
   it("gives the bounded worker enough time for the maximum supported OpenFOAM benchmark", () => {
-    expect(workflow).toContain("--replica-timeout 900");
-    expect(workflow).toContain("EXECUTION_WORKER_MAX_RUNTIME_MS=780000");
+    expect(workflow.split("--replica-timeout 900").length - 1).toBe(2);
+    expect(workflow.split("EXECUTION_WORKER_MAX_RUNTIME_MS=780000").length - 1).toBe(2);
     expect(executionWorker).toContain("EXECUTION_WORKER_MAX_RUNTIME_MS,210_000,1_000,900_000");
   });
 
