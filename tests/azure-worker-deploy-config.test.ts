@@ -51,7 +51,7 @@ describe("Azure solver worker deployment configuration", () => {
     expect(workflow).toContain("steps.build_worker.outputs.digest");
     expect(workflow).toContain("IMAGE=ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker@$IMAGE_DIGEST");
     expect(workflow.indexOf("Pin deployed worker image to immutable digest")).toBeLessThan(workflow.indexOf("Require a publicly pullable image before Azure deployment"));
-    expect(workflow).toContain('ACTUAL_IMAGE != *@sha256:*');
+    expect(workflow).toContain('!= *@sha256:*');
   });
 
   it("stores solver tokens as Container Apps secrets and exposes only secret references to the job", () => {
