@@ -1,4 +1,5 @@
 import {NextResponse} from "next/server";
+import {isDurableExecutionEnabledForProject} from "../../../../src/execution/durable-feature-gate.js";
 import {authorizationFailureStatus,authorizeSupabaseRequest} from "../../../../src/auth/supabase-service.js";
 import {createServiceRoleClient} from "../../../../lib/supabase/service.js";
 import {ExecutionJobStoreError,SupabaseExecutionJobStore} from "../../../../src/execution/supabase-job-store.js";
@@ -15,10 +16,10 @@ async function authorizeJob(request:Request,permission:"PROJECT.READ"|"TASK.EXEC
  }catch{return {response:errorResponse("Engineering authorization is unavailable.",503,"AUTHORIZATION_UNAVAILABLE")};}
 }
 export async function GET(request:Request,context:Context){
- if(process.env.DURABLE_EXECUTION_ENABLED!=="true")return errorResponse("Durable execution is not enabled.",404,"DURABLE_EXECUTION_DISABLED");
+ const projectId=readProjectId(request);
+ if(!isDurableExecutionEnabledForProject(projectId))return errorResponse("Durable execution is not enabled for this project.",404,"DURABLE_EXECUTION_DISABLED");
  const {jobId}=await context.params;
  if(!UUID.test(jobId))return errorResponse("A valid jobId is required.",400,"INVALID_JOB_ID");
- const projectId=readProjectId(request);
  if(!projectId)return errorResponse("projectId is required to authorize this job read.",400,"PROJECT_ID_REQUIRED");
  const authorization=await authorizeJob(request,"PROJECT.READ",projectId);
  if(authorization.response)return authorization.response;
@@ -32,10 +33,10 @@ export async function GET(request:Request,context:Context){
  }
 }
 export async function DELETE(request:Request,context:Context){
- if(process.env.DURABLE_EXECUTION_ENABLED!=="true")return errorResponse("Durable execution is not enabled.",404,"DURABLE_EXECUTION_DISABLED");
+ const projectId=readProjectId(request);
+ if(!isDurableExecutionEnabledForProject(projectId))return errorResponse("Durable execution is not enabled for this project.",404,"DURABLE_EXECUTION_DISABLED");
  const {jobId}=await context.params;
  if(!UUID.test(jobId))return errorResponse("A valid jobId is required.",400,"INVALID_JOB_ID");
- const projectId=readProjectId(request);
  if(!projectId)return errorResponse("projectId is required to authorize this cancellation.",400,"PROJECT_ID_REQUIRED");
  const authorization=await authorizeJob(request,"TASK.EXECUTE",projectId);
  if(authorization.response)return authorization.response;

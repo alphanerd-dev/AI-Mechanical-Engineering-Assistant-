@@ -1,5 +1,6 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from "vitest";
 const PROJECT="20000000-0000-4000-8000-000000000001";
+const OTHER_PROJECT="20000000-0000-4000-8000-000000000002";
 const JOB="10000000-0000-4000-8000-000000000001";
 const mocks=vi.hoisted(()=>({authorize:vi.fn(),submit:vi.fn(),getForProject:vi.fn(),requestCancellation:vi.fn(),constructStore:vi.fn(),constructEngine:vi.fn(),legacyRun:vi.fn()}));
 vi.mock("../src/auth/supabase-service.js",()=>({
@@ -32,8 +33,8 @@ import {IdempotencyConflictError} from "../src/execution/supabase-job-store.js";
 function postRequest(body:unknown,key="test-key-0001"){
  return new Request("http://localhost/api/execution",{method:"POST",headers:{"content-type":"application/json","idempotency-key":key},body:JSON.stringify(body)});
 }
-function routeRequest(method:"GET"|"DELETE"="GET"){
- return new Request(`http://localhost/api/execution/${JOB}?projectId=${PROJECT}`,{method});
+function routeRequest(method:"GET"|"DELETE"="GET",projectId=PROJECT){
+ return new Request(`http://localhost/api/execution/${JOB}?projectId=${projectId}`,{method});
 }
 const fakeJob={id:JOB,status:"QUEUED",request:{id:JOB,capability:"ANALYSIS.SHAFT_TORQUE",backend:"typescript-safe",inputs:{powerKw:5,speedRpm:1500},requestedOutputs:["torqueNm"],timeoutMs:2000,projectId:PROJECT},createdAt:new Date(0).toISOString(),artifactIds:[],evidenceIds:[]};
 
@@ -123,6 +124,63 @@ describe("durable execution API authorization and idempotency",()=>{
   expect(mocks.legacyRun).toHaveBeenCalledWith(expect.objectContaining({capability:"ANALYSIS.SHAFT_TORQUE",projectId:PROJECT}));
   expect(mocks.submit).not.toHaveBeenCalled();
  });
+
+ it("enables durable execution only for the explicitly allowlisted canary project",async()=>{
+  vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
+  vi.stubEnv("DURABLE_EXECUTION_CANARY_PROJECT_ID",PROJECT);
+  const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",backend:"typescript-safe",inputs:{powerKw:5,speedRpm:1500}}));
+  expect(response.status).toBe(202);
+  expect(mocks.authorize).toHaveBeenCalledWith("TASK.EXECUTE",PROJECT,expect.any(Object));
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(mocks.constructEngine).not.toHaveBeenCalled();
+ });
+
+ it("blocks non-TypeScript backends inside the durable canary project",async()=>{
+  vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
+  vi.stubEnv("DURABLE_EXECUTION_CANARY_PROJECT_ID",PROJECT);
+  const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",backend:"fea-worker",inputs:{powerKw:5,speedRpm:1500}}));
+  expect(response.status).toBe(403);
+  expect(mocks.submit).not.toHaveBeenCalled();
+  expect(mocks.constructEngine).not.toHaveBeenCalled();
+ });
+
+ it("preserves synchronous execution for projects outside the canary allowlist",async()=>{
+  vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
+  vi.stubEnv("DURABLE_EXECUTION_CANARY_PROJECT_ID",PROJECT);
+  const response=await POST(postRequest({projectId:OTHER_PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",inputs:{powerKw:5,speedRpm:1500}}));
+  expect(response.status).toBe(200);
+  expect(mocks.constructEngine).toHaveBeenCalledTimes(1);
+  expect(mocks.submit).not.toHaveBeenCalled();
+ });
+
+ it("allows canary status and cancellation but keeps other project job routes closed",async()=>{
+  vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
+  vi.stubEnv("DURABLE_EXECUTION_CANARY_PROJECT_ID",PROJECT);
+  const status=await GET(routeRequest("GET",PROJECT),{params:Promise.resolve({jobId:JOB})});
+  const cancel=await DELETE(routeRequest("DELETE",PROJECT),{params:Promise.resolve({jobId:JOB})});
+  expect(status.status).toBe(200);
+  expect(cancel.status).toBe(200);
+  expect(mocks.authorize).toHaveBeenCalledTimes(2);
+  expect(mocks.getForProject).toHaveBeenCalledWith(JOB,PROJECT);
+  expect(mocks.requestCancellation).toHaveBeenCalledWith(JOB,PROJECT);
+  vi.clearAllMocks();
+  const otherStatus=await GET(routeRequest("GET",OTHER_PROJECT),{params:Promise.resolve({jobId:JOB})});
+  const otherCancel=await DELETE(routeRequest("DELETE",OTHER_PROJECT),{params:Promise.resolve({jobId:JOB})});
+  expect(otherStatus.status).toBe(404);
+  expect(otherCancel.status).toBe(404);
+  expect(mocks.authorize).not.toHaveBeenCalled();
+  expect(mocks.constructStore).not.toHaveBeenCalled();
+ });
+
+ it("fails closed when the configured canary project ID is malformed",async()=>{
+  vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
+  vi.stubEnv("DURABLE_EXECUTION_CANARY_PROJECT_ID","not-a-project-id");
+  const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",inputs:{powerKw:5,speedRpm:1500}}));
+  expect(response.status).toBe(200);
+  expect(mocks.constructEngine).toHaveBeenCalledTimes(1);
+  expect(mocks.submit).not.toHaveBeenCalled();
+ });
+
  it("keeps durable status and cancel endpoints closed until explicit activation",async()=>{
   vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
   const status=await GET(routeRequest("GET"),{params:Promise.resolve({jobId:JOB})});
