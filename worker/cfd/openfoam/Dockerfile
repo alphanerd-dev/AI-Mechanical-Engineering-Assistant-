@@ -16,9 +16,10 @@ RUN sed -i \
     && apt-get update -o Acquire::Retries=5 -o Acquire::https::Timeout=30 \
     && apt-get install -y --no-install-recommends -o Acquire::Retries=5 -o Acquire::https::Timeout=30 ca-certificates curl gnupg python3 software-properties-common \
     && curl --retry 5 --retry-all-errors --connect-timeout 20 -fsSL https://dl.openfoam.org/gpg.key -o /etc/apt/trusted.gpg.d/openfoam.asc \
-    && add-apt-repository -y https://dl.openfoam.org/ubuntu \
-    && apt-get update -o Acquire::Retries=5 -o Acquire::https::Timeout=30 \
-    && apt-get install -y --no-install-recommends -o Acquire::Retries=5 -o Acquire::https::Timeout=30 openfoam14 \
+    # OpenFOAM Foundation documents HTTP for this APT repository: package authenticity is checked using its GPG key above.
+    && add-apt-repository -y "http://dl.openfoam.org/ubuntu main dev" \
+    && apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+    && apt-get install -y --no-install-recommends -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 openfoam14=20261008 \
     && mkdir -p /licenses \
     && cp /usr/share/doc/openfoam14/copyright /licenses/OPENFOAM-COPYRIGHT \
     && rm -rf /var/lib/apt/lists/*
