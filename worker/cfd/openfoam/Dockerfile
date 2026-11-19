@@ -9,6 +9,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 # Prefer HTTPS for Ubuntu mirrors and retry transient package-index/package-download failures.
+# The OpenFOAM Foundation documents HTTP for its APT repository; its GPG key authenticates package metadata.
 RUN sed -i \
       -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
       -e 's|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' \
@@ -16,7 +17,6 @@ RUN sed -i \
     && apt-get update -o Acquire::Retries=5 -o Acquire::https::Timeout=30 \
     && apt-get install -y --no-install-recommends -o Acquire::Retries=5 -o Acquire::https::Timeout=30 ca-certificates curl gnupg python3 software-properties-common \
     && curl --retry 5 --retry-all-errors --connect-timeout 20 -fsSL https://dl.openfoam.org/gpg.key -o /etc/apt/trusted.gpg.d/openfoam.asc \
-    # OpenFOAM Foundation documents HTTP for this APT repository: package authenticity is checked using its GPG key above.
     && add-apt-repository -y "http://dl.openfoam.org/ubuntu main dev" \
     && apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
     && apt-get install -y --no-install-recommends -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 openfoam14=20261008 \
