@@ -420,7 +420,7 @@ jobs:
             "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
             "EXECUTION_WORKER_MODE=drain"
             "EXECUTION_WORKER_MAX_JOBS=$worker_max_jobs"
-            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=780000"
             "EXECUTION_WORKER_LEASE_SECONDS=45"
             "EXECUTION_WORKER_HEARTBEAT_MS=10000"
           )
@@ -491,11 +491,12 @@ jobs:
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --environment "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
               "${trigger_args[@]}" \
-              --replica-timeout 240 \
+              --replica-timeout 900 \
               --replica-retry-limit 1 \
               --parallelism 1 \
               --replica-completion-count 1 \
               --image "$IMAGE" \
+              --replica-timeout 900 \
               --cpu 0.25 \
               --memory 0.5Gi \
               --secrets "${worker_secrets[@]}" \
@@ -646,7 +647,7 @@ jobs:
             "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
             "EXECUTION_WORKER_MODE=drain"
             "EXECUTION_WORKER_MAX_JOBS=5"
-            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=780000"
             "EXECUTION_WORKER_LEASE_SECONDS=45"
             "EXECUTION_WORKER_HEARTBEAT_MS=10000"
           )
