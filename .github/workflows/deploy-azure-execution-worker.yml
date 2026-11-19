@@ -534,7 +534,7 @@ jobs:
               --only-show-errors
           fi
 
-          # The preceding anonymous docker pull verifies that this commit-tagged GHCR image
+          # The preceding anonymous docker pull verifies that this digest-pinned GHCR image
           # is public. Avoid 'az containerapp job registry set --server ghcr.io' here:
           # the current job-registry CLI extension rejects anonymous GHCR and requires
           # credentials even for public images. Do not persist an unnecessary registry token;
@@ -703,6 +703,7 @@ jobs:
             --name "$JOB_NAME" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --image "$IMAGE" \
+            --replica-timeout 900 \
             --cpu 0.25 \
             --memory 0.5Gi \
             --replace-env-vars "${worker_env_vars[@]}" \
