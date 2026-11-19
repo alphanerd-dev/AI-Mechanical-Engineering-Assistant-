@@ -89,7 +89,7 @@ PR #175 exact-head CI run [44512846140](https://github.com/alphanerd-dev/AI-Mech
 
 The post-merge isolated Azure acceptance run [44515123707](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/44515123707) completed with **SUCCESS**. It passed authenticated API build/startup, isolated worker image publication and digest verification, Azure workload identity, existing environment guard, manual job deployment, single-item queue isolation, bounded worker execution, authenticated deterministic result readback and cleanup. This is exact evidence for that isolated path only.
 
-The main Vercel production web deployment remains the previously verified READY deployment at `9bfb57e86e70db84a682d162bba9253e0185c920` (PR #166). PR #175 changed the Azure acceptance workflow; its merge did not deploy a new web application or promote the production worker image. Production durable execution remains disabled.
+Vercel automatically built and assigned the production aliases to deployment `dpl_J3PBNKye43P8oqnC1uviF3zDbjiW`, state **READY**, at main commit `7e17786b9d878da911bd4102a9e5c241e32ba584` after PR #175 merged. The aliases include `ai-mechanical-engineering-assistant.vercel.app`. PR #175 changed the Azure acceptance workflow only; the deployment is a new Vercel build of the same application source, not a new engineering capability. No production Azure worker image was promoted, and production durable execution remains disabled.
 
 ## M0 — Trustworthy decisions, recovery and evidence
 
