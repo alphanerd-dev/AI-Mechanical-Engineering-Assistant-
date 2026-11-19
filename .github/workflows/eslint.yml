@@ -2,7 +2,7 @@ name: ESLint
 
 on:
   push:
-    branches: ["main", "feat/**"]
+    branches: ["main", "feat/**", "implementation/**"]
   pull_request:
     branches: ["main"]
   schedule:

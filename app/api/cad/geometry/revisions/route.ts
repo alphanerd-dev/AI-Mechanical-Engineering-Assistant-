@@ -73,9 +73,10 @@ export async function GET(request: Request) {
     const db = createServiceRoleClient() as unknown as GeometryRevisionDatabase;
     const { data, error } = await db.from("engineering_geometry_revisions").select("*")
       .eq("project_id", projectId).eq("model_identity_id", modelIdentityId)
-      .order("revision_number", { ascending: true }).limit(500);
+      .order("revision_number", { ascending: false }).limit(500);
     if (error || !Array.isArray(data)) return fail("Geometry revision history is unavailable.", 503);
-    return NextResponse.json({ revisions: data, count: data.length });
+    const revisions = [...data].reverse();
+    return NextResponse.json({ revisions, count: revisions.length });
   } catch {
     return fail("Geometry revision history could not be read.", 503);
   }

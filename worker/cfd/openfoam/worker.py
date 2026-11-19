@@ -51,6 +51,13 @@ def detect_openfoam_version() -> str:
     return detect_runtime_version(FOAM_ENV)
 
 
+def initialize_runtime() -> str:
+    """Verify the installed OpenFOAM runtime and publish its version to results."""
+    global FOAM_VERSION
+    FOAM_VERSION = detect_openfoam_version()
+    return FOAM_VERSION
+
+
 def run_tool(
     case_dir: Path,
     tool: str,
@@ -165,43 +172,70 @@ def collect_case_results(
     }
 
 
-def execute_case(request: dict[str, Any]) -> dict[str, Any]:
-    prune_artifacts(ARTIFACT_ROOT)
-    job_id = uuid.uuid4().hex
-    artifact_dir = ARTIFACT_ROOT / job_id
+@dataclass(frozen=True)
+class CaseExecutionContext:
+    request: dict[str, Any]
+    job_id: str
+    artifact_dir: Path
+    timeout_seconds: int
+    started_at: float
+
+
+def run_case_in_temporary_directory(context: CaseExecutionContext) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="openfoam14-", dir="/tmp") as temporary:
+        case_dir = Path(temporary) / "case"
+        case_dir.mkdir()
+        y_samples = write_case(case_dir, context.request)
+        logs, actual_mesh_cells = run_case_tools(
+            case_dir, context.request, context.started_at, context.timeout_seconds
+        )
+        case_results = collect_case_results(case_dir, context.request, y_samples, logs[-1])
+        artifacts = persist_case_artifacts(context.artifact_dir, case_dir, case_results, logs)
+        converged = case_results["converged"]
+        return {
+            "jobId": context.job_id,
+            "status": "COMPLETED",
+            "solver": "OpenFOAM",
+            "solverVersion": FOAM_VERSION,
+            "converged": converged,
+            "meshCells": actual_mesh_cells,
+            "massFluxKgS": case_results["massFluxKgS"],
+            "residuals": case_results["residuals"],
+            "velocityProfile": case_results["profile"],
+            "artifacts": artifacts,
+            "warnings": [] if converged else ["Solver completed but final residuals exceed the requested tolerance."],
+        }
+
+
+def run_case_with_artifact_cleanup(context: CaseExecutionContext) -> dict[str, Any]:
+    try:
+        return run_case_in_temporary_directory(context)
+    except Exception:
+        shutil.rmtree(context.artifact_dir, ignore_errors=True)
+        raise
+
+
+def execute_case(request: dict[str, Any], job_id: str | None = None, prune: bool = True) -> dict[str, Any]:
+    if prune:
+        prune_artifacts(ARTIFACT_ROOT)
+    resolved_job_id = job_id or uuid.uuid4().hex
+    if not re.fullmatch(r"[a-f0-9]{32}", resolved_job_id):
+        raise WorkerError("OpenFOAM job ID must be a 32-character lowercase hexadecimal identifier.")
+    artifact_dir = ARTIFACT_ROOT / resolved_job_id
     artifact_dir.mkdir(parents=True, exist_ok=False)
     timeout = int(request["solver"]["timeoutSeconds"])
     started = time.monotonic()
-
+    context = CaseExecutionContext(
+        request=request,
+        job_id=resolved_job_id,
+        artifact_dir=artifact_dir,
+        timeout_seconds=timeout,
+        started_at=started,
+    )
     try:
-        with tempfile.TemporaryDirectory(prefix="openfoam14-", dir="/tmp") as temporary:
-            case_dir = Path(temporary) / "case"
-            case_dir.mkdir()
-            y_samples = write_case(case_dir, request)
-            logs, actual_mesh_cells = run_case_tools(case_dir, request, started, timeout)
-            case_results = collect_case_results(case_dir, request, y_samples, logs[-1])
-            artifacts = persist_case_artifacts(artifact_dir, case_dir, case_results, logs)
-            converged = case_results["converged"]
-            return {
-                "jobId": job_id,
-                "status": "COMPLETED",
-                "solver": "OpenFOAM",
-                "solverVersion": FOAM_VERSION,
-                "converged": converged,
-                "meshCells": actual_mesh_cells,
-                "massFluxKgS": case_results["massFluxKgS"],
-                "residuals": case_results["residuals"],
-                "velocityProfile": case_results["profile"],
-                "artifacts": artifacts,
-                "warnings": [] if converged else ["Solver completed but final residuals exceed the requested tolerance."],
-            }
+        return run_case_with_artifact_cleanup(context)
     except subprocess.TimeoutExpired as error:
-        shutil.rmtree(artifact_dir, ignore_errors=True)
         raise WorkerTimeout("OpenFOAM execution exceeded the requested wall-clock timeout.") from error
-    except Exception:
-        shutil.rmtree(artifact_dir, ignore_errors=True)
-        raise
-
 
 def parse_artifact_request(path: str) -> tuple[str, str] | None:
     parts = [unquote(part) for part in urlsplit(path).path.split("/") if part]
@@ -353,12 +387,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    global FOAM_VERSION
     if not WORKER_TOKEN:
         raise RuntimeError("OPENFOAM_WORKER_TOKEN must be configured before the worker starts.")
     Path.home().mkdir(parents=True, exist_ok=True)
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
-    FOAM_VERSION = detect_openfoam_version()
+    initialize_runtime()
     server = HTTPServer((HOST, PORT), Handler)
     print(f"OpenFOAM 14 worker listening on {HOST}:{PORT}", flush=True)
     server.serve_forever()

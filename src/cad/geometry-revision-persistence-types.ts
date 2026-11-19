@@ -2,7 +2,7 @@ export type Row = Record<string, unknown>;
 export type Result<T> = { ok: true; value: T } | { ok: false; message: string; status: number };
 export type Completion = {
   id: string; project_id: string; model_identity_id: string; execution_id: string;
-  status: string; artifact_records: unknown[]; evidence_records: unknown[];
+  status: string; specification?: unknown; artifact_records: unknown[]; evidence_records: unknown[];
   validation_receipt: unknown; storage_objects: unknown[]; created_by: string;
 };
 export type CanonicalSolid = { id: string; provenance: Row; objectPath: string };

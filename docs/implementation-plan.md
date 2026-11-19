@@ -1,10 +1,23 @@
 # Implementation Plan and Milestones
 
-**Updated:** 15 November 2026
+**Updated:** 19 November 2026
 
 **Current release status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested chat scope. M2.2–M2.6 CAD/drawing implementation is merged. PR [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) (G2 trusted geometry revision persistence) and PR [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) (durable manufacturing assessments and human decisions) are merged to main. Production Vercel deployment dpl_GWprsLfzpeboh45REeM1gwwhNN5c is **READY** at 9bfb57e86e70db84a682d162bba9253e0185c920; the production alias points to that deployment. The eight additive migrations for geometry revision persistence and manufacturing evidence/decisions have been applied to production and verified in migration history. RLS, service-role privileges, immutable triggers and write-RPC security were checked after migration.
 
-**Current focus:** renderer selection, CAD/CAE artifact workflow validation, stale-source behavior, production CFD worker integration and broader capability validation. The G2 geometry revision and manufacturing evidence/decision implementations are merged, deployed and backed by the production schema.
+**Current focus:** complete the reviewed release gates for PR #168, then validate the initial customer problem and first paid-value workflow before expanding capability breadth. The G2 geometry revision and manufacturing evidence/decision implementations are merged, deployed and backed by the production schema. Renderer selection, further CFD integration and V2.1–V2.5 breadth remain gated by a demonstrated user workflow and evidence.
+
+## Product strategy decision — 19 November 2026
+
+**Decision: retain the product doctrine; narrow the near-term product strategy.** The product should be an independent engineering execution and validation workspace that works with existing engineering tools, not a general engineering chatbot or an attempt to replace SolidWorks, Ansys or Autodesk. The doctrine remains: engineering outcomes, not engineering overhead; AI proposes, deterministic systems execute, applicable checks evaluate, evidence establishes what was done, and engineers retain authority over professional judgment and approval.
+
+**Near-term priority: validate one recurring customer job before adding more platform breadth.** The current entry-point hypothesis is a Mechanical Design Verification Workspace for mechanical design engineers and small product-development/engineering consultancy teams. A bounded shaft-design verification workflow is a candidate, not a claim of production readiness. Validate actual user demand before treating this as a committed market choice.
+
+Customer-validation sequence:
+1. Interview 12–15 target engineers about their most recent real component-sizing or verification task; establish the current workflow, elapsed time, manual work, recurring errors, review process and required deliverables without leading with a product demo.
+2. Recruit 3–5 engineers for real-task pilots and compare time to accepted result, review/rework effort, applicable technical checks, evidence completeness, repeat use and willingness to pay.
+3. Use the assessment's suggested internal decision thresholds: at least 6/15 independently describe the same recurring problem, at least 4 provide real workflow examples, at least 3 agree to real-task testing, measurable net time savings are achieved without weakening acceptance criteria, and at least 2 show credible willingness to pay or enter a paid pilot. These are internal hypotheses, not industry benchmarks.
+
+Do not expand into additional CAD, FEA, CFD, robotics, CAM, PLM or automation breadth solely because a provider is available. Continue only the technical work needed to make the selected workflow reliable, reviewable, evidence-backed and economically useful. Track total cost per accepted engineering outcome; user productivity, time savings, ROI and willingness to pay remain **NOT MEASURED** until real matched trials exist.
 
 This document is the current source of truth for priority, milestone status and exit gates. Historical dated records remain under `docs/plans/`; they preserve what was known at the time and do not override this current status.
 
@@ -44,6 +57,28 @@ Preserve the existing Next.js/React/TypeScript control plane, Supabase project/w
 | Physical perception | Isolated Open3D inspection/ICP registration prototype. | No public scan upload, persistent artifact registry integration or production perception claim. |
 | CI and browser evidence | Core CI includes tests, worker checks, security analysis and production build. The isolated Playwright public UI suite includes the authenticated chat-rendering test. | Each run proves only the assertions that ran on its exact SHA and environment. |
 | Outcome economics | Collection methodology exists. | Engineering time saved, cost per accepted outcome and ROI remain NOT MEASURED until real matched trials exist. |
+
+## Azure execution worker and acceptance status — 18 November 2026
+
+**Existing production worker:** Azure Container Apps Job `engineering-execution-manual` in resource group `rg-engineering-execution`, environment `env-engineering-execution-italynorth` (Italy North). It is a Manual job with 0.25 vCPU, 512 MiB memory, 240-second replica timeout, one retry and parallelism one. The deployed image is still pinned to `c1eee555cd1e6afcc6396d0c0b8aac8b116eb102`. Three historical executions succeeded; the latest log reported one processed queue item. This is evidence of a worker drain, not proof of the current PR's exact image, full authenticated API acceptance, all capabilities, or engineering correctness.
+
+The job's existing Supabase target is production and its privileged credential is referenced by Azure secret name `supabase-service-role-key`; the secret value is not recorded here. **Production `DURABLE_EXECUTION_ENABLED=false` remains unchanged.** The production job was not started, rescheduled, or reconfigured during the 18 November infrastructure review.
+
+**Isolated acceptance implementation:** PR #168 adds a separate manual GitHub Actions workflow, `.github/workflows/azure-execution-queue-e2e.yml`, which creates or updates only the dedicated Manual Azure job `engineering-execution-e2e`. It builds the worker from the exact workflow commit, runs the authenticated Next.js API locally on loopback against the dedicated E2E Supabase project, and tests one deterministic shaft-torque job. The probe checks duplicate idempotency replay, authenticated status readback, the known-answer torque, provenance, lease release, empty queue and scoped cleanup. The script rejects any Supabase target except `mpbrlegwrrrfpeumtqhi` and rejects non-loopback API endpoints.
+
+The workflow is **implemented but not yet executed**. It runs only from `main`, with explicit manual dispatch and the protected `azure-execution-worker` environment. It requires these separate E2E settings in that GitHub Environment:
+- Variables: `AZURE_E2E_SUPABASE_URL` (exact E2E project URL) and `AZURE_E2E_SUPABASE_PUBLISHABLE_KEY`.
+- Secret: `AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY`.
+
+Do not reuse the production Supabase credential for E2E. Do not run the legacy `verify_queue_e2e` path in the production deployment workflow. The three unused Log Analytics workspaces were soft-deleted after no-data checks; `workspace-rgengineeringexecutionOa13` remains because it is attached to the Container Apps environment and receives current worker logs. The unrelated Hello World ACI `execution-worker` is stopped; it is not the engineering worker.
+
+**Next release sequence:** obtain independent human approval for PR #168; merge only through the normal reviewed release path; configure the dedicated E2E GitHub Environment values; run and inspect the isolated Azure acceptance workflow; then update the production worker image to the reviewed main SHA without starting it or enabling a schedule. Keep durable execution disabled until a separate production activation decision and approval. Azure cost/budget status remains unverified; do not assume these resources are free.
+
+## PR #168 exact-head verification — 19 November 2026
+
+PR [#168](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/168), branch `implementation/next-engineering-cycle-2026-11-15`, was verified at source SHA `ac19fff4abfa9fe7f6694a51a82fd2cd92806e2f` before this documentation-only update. Engineering Core CI run [44385392498](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/44385392498) completed successfully: the full npm test suite, architecture graph, Python numerical/HTTP tests, build123d and OCCT worker checks, natural-language CAD generation, independent OpenCascade BREP validation, CalculiX service/analytical smoke, OpenFOAM 14 image/analytical acceptance, bounded execution-worker image build and Next.js production build all passed. The isolated Supabase migration replay job passed; ESLint run [44385392492](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/44385392492) and CodeQL run [44385392208](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/44385392208) also passed. All three current-head Vercel status contexts reported success.
+
+This is repository-CI and preview-deployment evidence at the stated SHA, not proof of production rollout or end-to-end Azure durable execution. PR #168 remains open and unmerged; all 15 inline review threads are resolved, but no independent human reviewer approval is recorded. The isolated Azure E2E workflow is implemented but not run; it requires the protected E2E environment variables/secret and an explicitly authorized Azure run. Production durable execution remains disabled. A subsequent documentation commit requires its own exact-head CI verification.
 
 ## M0 — Trustworthy decisions, recovery and evidence
 

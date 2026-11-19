@@ -6,7 +6,9 @@ This is the first Azure hosting path for the durable execution worker. The Azure
 
 - The deployment workflow only runs by manual dispatch from `main`.
 - Its default is a **Manual** Container Apps Job, not a scheduled job.
-- The workflow does not change `DURABLE_EXECUTION_ENABLED` and does not start the worker automatically.
+- The workflow does not change `DURABLE_EXECUTION_ENABLED`.
+- Deployment does not start a worker by default. Production queue consumption requires the explicit `run_manual_worker=true` input.
+- The legacy queue E2E input in the production deployment workflow remains blocked. Use the separate [Azure isolated execution queue acceptance workflow](../../.github/workflows/azure-execution-queue-e2e.yml), which targets a dedicated manual E2E job and local loopback API; it must never target production.
 - Keep the production API feature flag off until authenticated API-to-worker E2E checks pass.
 - The service-role key is a GitHub Environment secret and is stored as an Azure Container Apps Job secret. Never put it in source, workflow literals, build arguments, image layers, or logs.
 - The image is deliberately published to public GHCR so Azure can pull it anonymously. The project repository is already public; the image contains code only, not runtime secrets.
@@ -80,7 +82,7 @@ Add this Environment secret:
 - `SUPABASE_SERVICE_ROLE_KEY`: the server-side service-role JWT or current `sb_secret_...` key for the intended Supabase project. Enter it directly in GitHub's secret editor; do not paste it into chat or commit it.
 - `PYTHON_WORKER_API_TOKEN`: optional matching bearer token for `PYTHON_WORKER_URL`. Set both Python-worker values or neither. The workflow stores this token as an Azure Container Apps Job secret and exposes it through a `secretref`; never put it in the image or ordinary environment variables.
 
-The default Supabase URL points at the current production project. If preparing a staging run, override `SUPABASE_URL` with the isolated E2E project's URL and set the matching staging key as the environment secret. Never pair a staging URL with a production service-role key or vice versa.
+Set `SUPABASE_URL` explicitly to the production project for the production manual/scheduled worker. The workflow has no production URL fallback. Do not use this setting for queue acceptance; the legacy E2E workflow input is blocked.
 
 ## 3. Publish the container image and deploy a Manual job first
 
@@ -90,7 +92,7 @@ The workflow builds the container, publishes it to GitHub Container Registry (GH
 
 The first successful deployment creates or updates the Manual Container Apps Job named `engineering-execution-manual`. A separate scheduled job, `engineering-execution-scheduled`, is created only when `enable_schedule` is explicitly checked after validation. Leaving both schedule inputs unchecked never deletes or changes an existing schedule. The workflow prints the deployed job configuration; no execution log will exist until a job is explicitly started.
 
-For an initial worker smoke test, first change the protected GitHub Environment variables/secret to the isolated E2E Supabase project URL and its matching service-role key, then start exactly one job manually:
+To deploy/update the production Manual job without consuming queue items, leave `run_manual_worker` unchecked. To deliberately run one bounded production drain, set `run_manual_worker=true` only after confirming that processing any eligible production queue items is intended. This is not a smoke test and may process real engineering work.
 
 ```bash
 az containerapp job start \
@@ -100,12 +102,36 @@ az containerapp job start \
 
 Inspect the execution result and logs in Azure Portal. Restore the production URL/key only after the staging test is finished, and do not enable the five-minute schedule until the authenticated end-to-end criteria below are met. Do not run this smoke command while the job is configured with the production service-role key unless you have explicitly chosen to process any queued production jobs.
 
-## 4. Validate before enabling a schedule
+## 4. Run the isolated Azure queue acceptance workflow
+
+The production deployment workflow deliberately keeps its legacy `verify_queue_e2e` input blocked. Use the separate [Azure isolated execution queue acceptance workflow](../../.github/workflows/azure-execution-queue-e2e.yml) instead. It runs only from `main`, requires an explicit `run_acceptance=true` dispatch, and uses the existing Italy North Container Apps environment without changing the production worker job or `DURABLE_EXECUTION_ENABLED`.
+
+Configure these additional values in the protected GitHub Environment named `azure-execution-worker`:
+
+| Type | Name | Required value |
+| --- | --- | --- |
+| Variable | `AZURE_E2E_SUPABASE_URL` | Exact URL `https://mpbrlegwrrrfpeumtqhi.supabase.co` |
+| Variable | `AZURE_E2E_SUPABASE_PUBLISHABLE_KEY` | Publishable key or legacy anon JWT for the dedicated E2E Supabase project |
+| Secret | `AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY` | Service-role JWT or current `sb_secret_...` key for the dedicated E2E project |
+
+The workflow reuses the existing Azure OIDC variables (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) and the resource-group/environment settings. It rejects any Supabase URL other than the exact E2E project URL and rejects non-service-role credentials. Never paste keys into workflow YAML, source, build arguments, or chat.
+
+The workflow:
+1. Builds the local Next.js application with the E2E Supabase configuration and starts it on `127.0.0.1:3000`.
+2. Builds and publishes the worker image tagged with the exact workflow commit.
+3. Creates or updates only the Manual Container Apps Job `engineering-execution-e2e` in the pre-existing `env-engineering-execution-italynorth` environment. It uses the E2E service-role secret and a one-job drain limit; it never targets `engineering-execution-manual` or the scheduled production job.
+4. Creates a temporary authenticated E2E identity and project through the local API, submits one deterministic shaft-torque job, and confirms idempotent replay does not create a duplicate.
+5. Starts one Azure E2E worker execution and checks the persisted result, exact known-answer torque, provenance, cleared lease, empty queue, and authenticated job-status API readback.
+6. Always attempts to cancel any nonterminal test job and remove the temporary project and identity. If cleanup cannot prove the scope is safe, it preserves the remaining records for manual recovery rather than deleting broadly.
+
+This is a narrow queue-to-result integration acceptance, not proof of retries, lease-expiry recovery, cross-tenant isolation, or general solver correctness. Those require separate acceptance cases. A successful run is still not authorization to enable production durable execution.
+
+## 5. Validate before enabling a schedule
 
 Before starting any production worker:
 
-1. Verify the GitHub deployment succeeded and the image tag matches the commit that was reviewed.
-2. Use an isolated E2E Supabase project to validate queue claiming, successful completion, retries, cancellation, lease recovery, idempotency, and cross-project authorization through the authenticated API and the real container.
+1. Verify the production deployment succeeded and the image tag matches the reviewed commit.
+2. Run the isolated Azure queue acceptance workflow above and inspect its full job logs and cleanup result.
 3. Verify no service-role credential appears in image layers, artifacts, command output, or logs.
 4. Review Azure Cost Management. Set budget alerts at sensible thresholds and check Container Apps and Log Analytics consumption. Budget alerts notify; they are not a hard spending cap.
 

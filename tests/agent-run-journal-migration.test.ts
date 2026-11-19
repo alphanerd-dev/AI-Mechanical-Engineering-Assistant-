@@ -1,0 +1,85 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261115120000_v2_0_31_agent_run_journal.sql"), "utf8").toLowerCase();
+const leastPrivilegeSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261118162500_v2_0_32_agent_run_journal_least_privilege.sql"), "utf8").toLowerCase();
+const approvalFixSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20261118163000_v2_0_33_agent_run_approval_project_id_type_fix.sql"), "utf8").toLowerCase();
+
+describe("V2.0.31 durable agent-run journal migration contract", () => {
+  it("creates a separate project-scoped journal with bounded snapshots and append-only action history", () => {
+    expect(sql).toContain("create table public.engineering_agent_runs");
+    expect(sql).toContain("unique(owner_id, project_id, idempotency_key)");
+    expect(sql).toContain("request_hash");
+    expect(sql).toContain("plan_hash");
+    expect(sql).toContain("action_history jsonb");
+    expect(sql).toContain("current_action jsonb");
+    expect(sql).toContain("next_action_index between 0 and 25");
+  });
+
+  it("keeps journal access server-only and fences all worker RPCs", () => {
+    expect(sql).toContain("enable row level security");
+    expect(sql).toContain("revoke all on table public.engineering_agent_runs from public, anon, authenticated");
+    expect(sql).toContain("grant select, insert on table public.engineering_agent_runs to service_role");
+    expect(sql).toContain("claim_engineering_agent_run");
+    expect(sql).toContain("renew_engineering_agent_run");
+    expect(sql).toContain("lease_token");
+    expect(sql).toContain("lease_expires_at > clock_timestamp()");
+    expect(sql).toContain("if p_run_id is null or p_lease_token is null");
+    expect(sql).toContain("if p_worker_id is null or length(trim(p_worker_id)) < 1");
+    expect(sql).toContain("pg_column_size(p_action) > 32768");
+    expect(sql).toContain("pg_column_size(p_outcome) > 65536");
+    expect(sql).toContain("p_outcome ? 'checkpoint'");
+    expect(sql).toContain("jsonb_typeof(p_outcome->'checkpoint') is distinct from 'object'");
+    expect(sql).toContain("when p_outcome ? 'checkpoint' then p_outcome->'checkpoint'");
+    expect(sql).not.toContain("checkpoint = coalesce(p_outcome->'checkpoint', checkpoint)");
+    expect(sql).toContain("length(p_error) > 4000");
+    const cancellationRpc = sql.slice(sql.indexOf("create or replace function public.request_engineering_agent_run_cancellation"));
+    expect(cancellationRpc).toContain("returns public.engineering_agent_runs");
+    expect(cancellationRpc).toContain("if not found then return null; end if;");
+    expect(sql).not.toContain("create policy");
+  });
+
+  it("removes default service-role write and DDL grants from the journal table", () => {
+    expect(leastPrivilegeSql).toContain(
+      "revoke all on table public.engineering_agent_runs from public, anon, authenticated, service_role"
+    );
+    expect(leastPrivilegeSql).toContain(
+      "grant select, insert on table public.engineering_agent_runs to service_role"
+    );
+    expect(leastPrivilegeSql).not.toContain("grant update");
+    expect(leastPrivilegeSql).not.toContain("grant delete");
+    expect(leastPrivilegeSql).not.toContain("grant truncate");
+  });
+
+  it("matches the audit event's text project scope in the approval gate", () => {
+    expect(approvalFixSql).toContain("approval.project_id = p_project_id::text");
+    expect(approvalFixSql).toContain("approval.event_id = p_approval_evidence_id");
+    expect(approvalFixSql).toContain("approval.metadata->>'planhash' = v_run.plan_hash");
+    expect(approvalFixSql).toContain("approval.action = 'approval_grant'");
+    expect(approvalFixSql).toContain("approval_evidence_required");
+  });
+
+  it("persists action intent before side effects and never auto-replays an ambiguous action", () => {
+    expect(sql).toContain("begin_engineering_agent_action");
+    expect(sql).toContain("checkpoint_engineering_agent_action");
+    expect(sql).toContain("return 'already_checkpointed'");
+    expect(sql).toContain("return 'in_flight'");
+    expect(sql).toContain("reconciliation_required");
+    expect(sql).toContain("worker lease expired while an action was in flight");
+  });
+
+  it("requires project-scoped cancellation and service-role-only function execution", () => {
+    expect(sql).toContain("request_engineering_agent_run_cancellation");
+    expect(sql).toContain("resume_engineering_agent_run_after_approval");
+    expect(sql).toContain("approvalevidenceid");
+    expect(sql).toContain("approval_grant");
+    expect(sql).toContain("approval_evidence_required");
+    expect(sql).toContain("approval.actor_subject = p_approved_by::text");
+    expect(sql).toContain("stale_agent_graph");
+    expect(sql).toContain("where id = p_run_id and project_id = p_project_id for update");
+    expect(sql.match(/create or replace function public\./g)?.length).toBe(6);
+    expect(sql.match(/security definer\s+set search_path = ''/g)?.length).toBe(6);
+    expect(sql).not.toContain("grant execute on function public.claim_engineering_agent_run(uuid,text,integer) to authenticated");
+  });
+});

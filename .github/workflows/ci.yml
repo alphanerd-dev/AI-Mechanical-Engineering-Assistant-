@@ -2,14 +2,14 @@ name: Engineering Core CI
 
 on:
   push:
-    branches: ["main", "feat/**"]
+    branches: ["main", "feat/**", "implementation/**"]
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -130,6 +130,8 @@ jobs:
         run: docker build --tag ai-mechanical-engineering-assistant-fea:1.18 --file worker/fea/calculix/Dockerfile worker
       - name: Test open FEA worker
         run: docker run --rm --entrypoint python ai-mechanical-engineering-assistant-fea:1.18 /app/test_worker.py
+      - name: Test asynchronous CalculiX worker service
+        run: docker run --rm --entrypoint python ai-mechanical-engineering-assistant-fea:1.18 /app/test_service.py
       - name: Smoke test open FEA runtime
         shell: bash
         run: |
@@ -137,7 +139,7 @@ jobs:
           mkdir -p .fea-smoke
           chmod 777 .fea-smoke
           set +e
-          python worker/fea/calculix/smoke_request.py | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,nosuid,size=64m -e FEA_ARTIFACT_DIR=/artifacts -v "$PWD/.fea-smoke:/artifacts:rw" ai-mechanical-engineering-assistant-fea:1.18 > .fea-smoke/response.json
+          python worker/fea/calculix/smoke_request.py | docker run --rm -i --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,nosuid,size=64m --entrypoint python -e FEA_ARTIFACT_DIR=/artifacts -v "$PWD/.fea-smoke:/artifacts:rw" ai-mechanical-engineering-assistant-fea:1.18 /app/worker.py > .fea-smoke/response.json
           status=$?
           set -e
           cat .fea-smoke/response.json
@@ -180,7 +182,7 @@ jobs:
           test -e .openfoam-smoke/.mount-write-check
           rm .openfoam-smoke/.mount-write-check
           set +e
-          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --env "OPENFOAM_WORKER_TOKEN=$TOKEN" --env OPENFOAM_ARTIFACT_DIR=/artifacts --entrypoint python3 ai-mechanical-engineering-assistant-openfoam:14 /app/smoke_request.py
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=2g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=1g --mount type=bind,src="$PWD/.openfoam-smoke",dst=/artifacts --env OPENFOAM_ARTIFACT_DIR=/artifacts --entrypoint python3 ai-mechanical-engineering-assistant-openfoam:14 /app/smoke_async_service.py
           worker_exit=$?
           set -e
           if [[ -s .openfoam-smoke/response.json ]]; then
@@ -192,10 +194,42 @@ jobs:
             echo "::error::OpenFOAM smoke worker exited with status $worker_exit."
             exit "$worker_exit"
           fi
-          test -s .openfoam-smoke/mesh.tar.gz
-          test -s .openfoam-smoke/velocity-field.tar.gz
-          test -s .openfoam-smoke/pressure-field
-          test -s .openfoam-smoke/solver.log
+          OPENFOAM_JOB_ID="$(cat .openfoam-smoke/job-id.txt)"
+          test -s ".openfoam-smoke/smoke-downloads/${OPENFOAM_JOB_ID}/mesh.tar.gz"
+          test -s ".openfoam-smoke/smoke-downloads/${OPENFOAM_JOB_ID}/velocity-field.tar.gz"
+          test -s ".openfoam-smoke/smoke-downloads/${OPENFOAM_JOB_ID}/pressure-field"
+          test -s ".openfoam-smoke/smoke-downloads/${OPENFOAM_JOB_ID}/solver.log"
       - name: Build bounded execution worker container
         run: docker build --tag ai-mechanical-engineering-assistant-execution-worker:ci --file worker/execution/Dockerfile .
       - run: npm run build
+
+  supabase-local-migrations:
+    name: Replay Supabase migrations on an isolated local stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.98.2
+      - name: Initialize local Supabase configuration without touching remote projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f supabase/config.toml ]]; then
+            supabase init
+          fi
+          test -f supabase/config.toml
+          # Use a lowercase Docker-safe project ID; the repository name contains uppercase characters.
+          sed -i -E 's/^project_id = .*/project_id = "engineering-assistant-ci"/' supabase/config.toml
+          grep -Fx 'project_id = "engineering-assistant-ci"' supabase/config.toml
+      - name: Start isolated local Supabase services with diagnostics
+        run: supabase start --debug
+      - name: Replay every migration against an empty local database
+        run: supabase db reset --local --debug
+      - name: Stop local Supabase services
+        if: always()
+        run: supabase stop

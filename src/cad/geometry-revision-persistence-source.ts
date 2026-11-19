@@ -21,7 +21,7 @@ function isAcceptedCompletion(row: Row): row is Completion {
 
 export async function loadCompletion(db: Db, projectId: string, completionId: string): Promise<Result<Completion>> {
   const { data, error } = await db.from("engineering_cad_completions")
-    .select("id, project_id, model_identity_id, execution_id, status, artifact_records, evidence_records, validation_receipt, storage_objects, created_by")
+    .select("id, project_id, model_identity_id, execution_id, status, specification, artifact_records, evidence_records, validation_receipt, storage_objects, created_by")
     .eq("id", completionId).eq("project_id", projectId).maybeSingle();
   if (error || !data) return failure("Accepted CAD completion was not found in this project.", 404);
   const row = data as unknown as Row;

@@ -29,6 +29,10 @@ GMSH_VERSION = "4.15.2"
 ALLOWED_ANALYSIS = "STATIC_STRUCTURAL"
 ALLOWED_ELEMENT_TYPE = "C3D4"
 
+def finite_number(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
 def fail(message: str) -> None:
     print(json.dumps({"success": False, "error": message, "warnings": []}))
     raise SystemExit(1)
@@ -285,6 +289,82 @@ def cantilever_box_reference(length_mm: float, width_mm: float, height_mm: float
         "passed": displacement_passed and reaction_passed,
     }
 
+def require_object(value: object, name: str) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be a JSON object.")
+    return value
+
+
+def require_bounded_number(value: object, name: str, minimum: float, maximum: float) -> float:
+    if not finite_number(value) or not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum:g} and {maximum:g}.")
+    return float(value)
+
+
+def validate_benchmark_identity(request: dict) -> None:
+    if request.get("analysis") != ALLOWED_ANALYSIS:
+        raise ValueError("Only STATIC_STRUCTURAL analysis is supported.")
+    if request.get("benchmark") != BENCHMARK:
+        raise ValueError("The V1.18 reference runtime requires benchmark=cantilever_box.")
+
+
+def validate_material_input(material: dict) -> tuple[float, float]:
+    youngs_modulus = require_bounded_number(material.get("youngsModulusMpa"), "Young's modulus", 1, 1e9)
+    poisson = material.get("poissonRatio")
+    if not finite_number(poisson) or not -1 < poisson < 0.5:
+        raise ValueError("Poisson ratio must be finite and between -1 and 0.5.")
+    return youngs_modulus, float(poisson)
+
+
+def validate_dimensions_input(dimensions: dict) -> tuple[float, float, float]:
+    for axis in ("length", "width", "height"):
+        if not finite_number(dimensions.get(axis)):
+            raise ValueError("All benchmark dimensions must be finite numbers.")
+    length = require_bounded_number(dimensions["length"], "length", 10, 2000)
+    width = require_bounded_number(dimensions["width"], "width", 1, 500)
+    height = require_bounded_number(dimensions["height"], "height", 1, 500)
+    if length < 5 * max(width, height):
+        raise ValueError("Cantilever benchmark length must be at least five times its largest cross-section dimension.")
+    return length, width, height
+
+
+def validate_mesh_resource_request(length: float, width: float, height: float, element_size: float) -> None:
+    estimated_elements = (
+        math.ceil(length / element_size)
+        * math.ceil(width / element_size)
+        * math.ceil(height / element_size)
+        * 6
+    )
+    if not math.isfinite(estimated_elements) or estimated_elements > 200000:
+        raise ValueError("Estimated tetrahedral mesh exceeds the 200000-element worker limit.")
+
+
+def validate_solver_timeout(request: dict) -> int:
+    timeout_ms = request.get("timeoutMs", 30000)
+    if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or not 1000 <= timeout_ms <= 120000:
+        raise ValueError("timeoutMs must be an integer between 1000 and 120000.")
+    return timeout_ms
+
+
+def validate_benchmark_input(request: object) -> dict:
+    body = require_object(request, "Request")
+    validate_benchmark_identity(body)
+    material = require_object(body.get("material", {}), "material")
+    dimensions = require_object(body.get("dimensionsMm"), "dimensionsMm")
+    youngs_modulus, poisson_ratio = validate_material_input(material)
+    length, width, height = validate_dimensions_input(dimensions)
+    total_force = require_bounded_number(body.get("totalForceN"), "Total force", 1e-12, 1e9)
+    element_size = require_bounded_number(body.get("elementSizeMm"), "Element size", 1, 100)
+    validate_mesh_resource_request(length, width, height, element_size)
+    return {
+        "dimensionsMm": {"length": length, "width": width, "height": height},
+        "youngsModulusMpa": youngs_modulus,
+        "poissonRatio": poisson_ratio,
+        "totalForceN": total_force,
+        "elementSizeMm": element_size,
+        "timeoutMs": validate_solver_timeout(body),
+    }
+
 def main():
     raw = sys.stdin.read()
     if len(raw.encode("utf-8")) > MAX_REQUEST_BYTES:
@@ -294,22 +374,16 @@ def main():
     except json.JSONDecodeError:
         fail("Invalid JSON request.")
 
-    if request.get("analysis") != ALLOWED_ANALYSIS:
-        fail("Only STATIC_STRUCTURAL analysis is supported.")
-    if request.get("benchmark") != BENCHMARK:
-        fail("The V1.18 reference runtime requires benchmark=cantilever_box.")
-    material = request.get("material") or {}
-    youngs_modulus_mpa = material.get("youngsModulusMpa")
-    poisson_ratio = material.get("poissonRatio")
-    total_force_n = request.get("totalForceN")
-    dimensions = request.get("dimensionsMm") or {}
-    element_size_mm = request.get("elementSizeMm")
-    if not all(isinstance(value, (int, float)) and math.isfinite(value) and value > 0 for value in (youngs_modulus_mpa, total_force_n, element_size_mm)):
-        fail("Material stiffness, total force and element size must be positive finite numbers.")
-    if not isinstance(poisson_ratio, (int, float)) or not math.isfinite(poisson_ratio) or not -1 < poisson_ratio < 0.5:
-        fail("Poisson ratio is invalid.")
-    if not all(isinstance(dimensions.get(key), (int, float)) and math.isfinite(dimensions[key]) and dimensions[key] > 0 for key in ("length","width","height")):
-        fail("All benchmark dimensions must be positive finite numbers.")
+    try:
+        validated = validate_benchmark_input(request)
+    except ValueError as exc:
+        fail(str(exc))
+    dimensions = validated["dimensionsMm"]
+    youngs_modulus_mpa = validated["youngsModulusMpa"]
+    poisson_ratio = validated["poissonRatio"]
+    total_force_n = validated["totalForceN"]
+    element_size_mm = validated["elementSizeMm"]
+    timeout_ms = validated["timeoutMs"]
 
     artifact_dir = pathlib.Path(os.environ.get("FEA_ARTIFACT_DIR", tempfile.mkdtemp(prefix="fea-artifacts-")))
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -325,9 +399,9 @@ def main():
         )
         write_inp(
             inp_path, nodes, elements, fixed_nodes, load_nodes,
-            float(youngs_modulus_mpa), float(poisson_ratio), float(total_force_n)
+            youngs_modulus_mpa, poisson_ratio, total_force_n
         )
-        completed = run_command(["ccx", "-i", job_name], artifact_dir, float(request.get("timeoutMs", 30000)) / 1000.0)
+        completed = run_command(["ccx", "-i", job_name], artifact_dir, timeout_ms / 1000.0)
     except subprocess.TimeoutExpired:
         fail("CalculiX worker timed out.")
     except Exception as exc:

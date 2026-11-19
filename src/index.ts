@@ -91,6 +91,7 @@ export * from "./agents/action-planner.js";
 export * from "./orchestration/specialist-delegation.js";
 export * from "./orchestration/bounded-autonomy.js";
 export * from "./orchestration/model-directed-autonomy.js";
+export * from "./orchestration/durable-agent-run-journal.js";
 export * from "./auth/index.js";
 export * from "./audit/index.js";
 export * from "./benchmarks/index.js";
@@ -212,3 +213,6 @@ console.log(JSON.stringify(result,null,2));
 // Opt-in reference CAD provider and isolated worker transport.
 export * from "./execution/docker-build123d-transport.js";
 export * from "./providers/build123d-cad.js";
+
+export * from "./drawings/ingestion.js";
+export * from "./drawings/shaft-orthographic.js";

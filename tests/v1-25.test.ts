@@ -70,6 +70,15 @@ describe("V1.25 OpenFOAM request contract", () => {
     }).some(error => error.includes("Reynolds number"))).toBe(true);
   });
 
+  it("rejects unknown request and nested manifest fields before worker dispatch", () => {
+    expect(validateOpenFOAMLaminarChannelRequest({ ...request, arbitraryScript: "not-allowed" }))
+      .toContain("Request contains unsupported fields.");
+    expect(validateOpenFOAMLaminarChannelRequest({ ...request, mesh: { ...request.mesh, elementType: "arbitrary" } }))
+      .toContain("mesh contains unsupported fields.");
+    expect(validateOpenFOAMLaminarChannelRequest({ ...request, solver: { ...request.solver, solverName: "arbitrary" } }))
+      .toContain("solver contains unsupported fields.");
+  });
+
   it("rejects excessive mesh size and unbounded solver settings", () => {
     const errors = validateOpenFOAMLaminarChannelRequest({
       ...request,
@@ -131,6 +140,28 @@ describe("V1.25 independent CFD result validation", () => {
     expect(validation.status).toBe("FAIL");
     expect(validation.blockingReasons.some(reason => reason.includes("profile"))).toBe(true);
     expect(validation.blockingReasons.some(reason => reason.includes("artifact"))).toBe(true);
+  });
+
+  it("rejects Windows, absolute and malformed artifact paths", () => {
+    const unsafePaths = [
+      "../outside/mesh.foam",
+      "/etc/passwd",
+      "C:\\outside\\mesh.foam",
+      "\\\\server\\share\\mesh.foam",
+      "\\root\\mesh.foam",
+      "nested/./mesh.foam",
+      "nested//mesh.foam",
+      "nested/",
+      "invalid" + String.fromCharCode(0) + "path.foam"
+    ];
+    for (const path of unsafePaths) {
+      const result = validResult({
+        artifacts: validResult().artifacts.map((artifact, index) => index === 0 ? { ...artifact, path } : artifact)
+      });
+      const validation = validateOpenFOAMLaminarChannelResult(request, result);
+      expect(validation.status, path).toBe("FAIL");
+      expect(validation.blockingReasons.join(" "), path).toContain("artifact");
+    }
   });
 
   it("returns incomplete when required solver artifacts are absent", () => {

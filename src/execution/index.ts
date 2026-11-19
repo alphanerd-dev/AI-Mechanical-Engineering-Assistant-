@@ -12,3 +12,5 @@ export * from "./build123d-worker.js";
 export * from "./docker-occt-validator.js";
 export * from "./supabase-job-store.js";
 export * from "./durable-worker.js";
+export * from "./calculix-benchmark-worker.js";
+export * from "./openfoam14-worker.js";

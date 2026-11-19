@@ -1,5 +1,8 @@
 import tempfile
 import unittest
+from unittest.mock import patch
+
+import worker
 from pathlib import Path
 
 from worker import (
@@ -31,6 +34,12 @@ class OpenFOAMWorkerContractTests(unittest.TestCase):
                 "timeoutSeconds": 120,
             },
         }
+
+    def test_initialize_runtime_sets_verified_openfoam_version(self):
+        with patch("worker.detect_openfoam_version", return_value="14") as detect:
+            self.assertEqual(worker.initialize_runtime(), "14")
+        detect.assert_called_once_with()
+        self.assertEqual(worker.FOAM_VERSION, "14")
 
     def test_accepts_bounded_laminar_manifest(self):
         self.assertEqual(validate_request(self.request), [])

@@ -13,7 +13,7 @@ type CADArtifact = {
   informationStatus?: string;
   evidenceIds?: string[];
 };
-type CADReadiness = { ready: boolean; status: string; checks: Array<{ name: string; status: string; detail: string }> };
+type CADReadiness = { ready: boolean; status: string; checks: Array<{ name: string; status: string; detail: string }>; capabilities?: { generatedDrawings?: { ready: boolean; status: string; detail: string } } };
 type CADCompletion = {
   id: string;
   status: string;
@@ -75,7 +75,8 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
     setReadiness(Array.isArray(readinessBody.checks) ? {
       ready: readinessBody.ready === true,
       status: typeof readinessBody.status === "string" ? readinessBody.status : "NOT_READY",
-      checks: readinessBody.checks
+      checks: readinessBody.checks,
+      capabilities: readinessBody.capabilities
     } as CADReadiness : undefined);
     if (!modelsResponse.ok) throw new Error(typeof modelsBody.error === "string" ? modelsBody.error : "CAD models could not be loaded.");
     if (!completionsResponse.ok) throw new Error(typeof completionsBody.error === "string" ? completionsBody.error : "CAD completion history could not be loaded.");
@@ -196,6 +197,10 @@ export default function CadWorkspace({ projectId }: { projectId: string }) {
       {readiness?.checks?.length ? <div className="readinessChecks">{readiness.checks.map((check) => <div className="readinessCheck" key={check.name}>
         <span className={statusClass(check.status)}>{check.status}</span><div><strong>{check.name.replaceAll("_", " ")}</strong><p>{check.detail}</p></div>
       </div>)}</div> : <p className="cadSmall">Readiness could not be determined. Refresh to retry the server diagnostic.</p>}
+      {readiness?.capabilities?.generatedDrawings && <div className="readinessChecks"><div className="readinessCheck">
+        <span className={statusClass(readiness.capabilities.generatedDrawings.status)}>{readiness.capabilities.generatedDrawings.status}</span>
+        <div><strong>Source-bound drawings</strong><p>{readiness.capabilities.generatedDrawings.detail}</p></div>
+      </div></div>}
     </section>
     <div className="cadIntro">
       <div>

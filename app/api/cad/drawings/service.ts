@@ -292,15 +292,62 @@ async function fetchDrawingRows(db: Database, projectId: string, modelIdentityId
   return data ?? [];
 }
 
-async function serializeDrawingRow(db: Database, row: Row) {
+function isObjectRecord(value: unknown): value is Row {
+  if (value === null) return false;
+  if (typeof value !== "object") return false;
+  return !Array.isArray(value);
+}
+function hasModelIdentity(value: Row): boolean {
+  return typeof value.model_identity_id === "string";
+}
+function hasRevisionIdentity(value: Row): boolean {
+  return typeof value.revision_id === "string";
+}
+function isGeometryHead(value: unknown): value is Row {
+  if (!isObjectRecord(value)) return false;
+  if (!hasModelIdentity(value)) return false;
+  return hasRevisionIdentity(value);
+}
+function addGeometryHead(heads: Map<string, string>, value: unknown): void {
+  if (!isGeometryHead(value)) return;
+  if (heads.has(value.model_identity_id as string)) return;
+  heads.set(value.model_identity_id as string, value.revision_id as string);
+}
+function buildGeometryHeads(values: unknown[]): Map<string, string> {
+  const heads = new Map<string, string>();
+  for (const value of values) addGeometryHead(heads, value);
+  return heads;
+}
+async function fetchCurrentGeometryHeads(db: Database, projectId: string, modelIdentityIds: string[]): Promise<Map<string, string>> {
+  if (!modelIdentityIds.length) return new Map<string, string>();
+  const { data, error } = await db.rpc("get_current_geometry_revision_heads", {
+    p_project_id: projectId,
+    p_model_identity_ids: modelIdentityIds
+  });
+  if (error) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
+  if (!Array.isArray(data)) fail("Current geometry revision heads are unavailable for drawing staleness checks.", 503);
+  return buildGeometryHeads(data);
+}
+async function serializeDrawingRow(db: Database, row: Row, currentGeometryRevisionId?: string) {
   const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
     .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+  const sourceRevisionId = typeof row.source_geometry_revision_id === "string" ? row.source_geometry_revision_id : null;
+  const generated = sourceRevisionId !== null;
   return {
     id: row.id, projectId: row.project_id, modelIdentityId: row.model_identity_id,
     displayName: row.display_name, format: row.format, mediaType: row.media_type,
     byteSize: row.byte_size, sha256: row.sha256, parserVersion: row.parser_version,
     units: row.units, entityCount: row.entity_count, bounds: row.bounds, warnings: row.warnings,
-    createdAt: row.created_at, signedUrl: !error && data?.signedUrl ? data.signedUrl : null
+    createdAt: row.created_at,
+    sourceGeometryRevisionId: sourceRevisionId,
+    sourceArtifactId: row.source_artifact_id ?? null,
+    sourceArtifactSha256: row.source_artifact_sha256 ?? null,
+    sourceRevisionNumber: row.source_revision_number ?? null,
+    generatorId: row.generator_id ?? null,
+    generatorVersion: row.generator_version ?? null,
+    generationParameters: row.generation_parameters ?? null,
+    isStale: generated ? currentGeometryRevisionId !== sourceRevisionId : null,
+    signedUrl: !error && data?.signedUrl ? data.signedUrl : null
   };
 }
 
@@ -311,7 +358,11 @@ export async function listProjectDrawings(request: Request): Promise<NextRespons
     if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization));
     const db = await createClient();
     const rows = await fetchDrawingRows(db, projectId, modelIdentityId);
-    const drawings = await Promise.all(rows.map((row: Row) => serializeDrawingRow(db, row)));
+    const modelIds = [...new Set(rows.map((row: Row) => row.model_identity_id).filter((value): value is string => typeof value === "string"))];
+    const currentHeads = await fetchCurrentGeometryHeads(db, projectId, modelIds);
+    const drawings = await Promise.all(rows.map((row: Row) => serializeDrawingRow(
+      db, row, typeof row.model_identity_id === "string" ? currentHeads.get(row.model_identity_id) : undefined
+    )));
     return NextResponse.json({ projectId, drawings, signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS }, {
       headers: { "cache-control": "no-store" }
     });

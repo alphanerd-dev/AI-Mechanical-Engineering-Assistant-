@@ -13,8 +13,13 @@ on:
         type: boolean
         required: true
         default: false
+      run_manual_worker:
+        description: "Explicitly start one bounded production worker run; it may process real queued engineering jobs"
+        type: boolean
+        required: true
+        default: false
       verify_queue_e2e:
-        description: "Enqueue a bounded torque test, run one Azure worker item, and verify the persisted result and cleared lease"
+        description: "Legacy queue E2E is blocked until isolated API and worker configuration is available"
         type: boolean
         required: true
         default: false
@@ -48,9 +53,10 @@ jobs:
       AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT || 'env-engineering-execution-jobs' }}
       AZURE_JOB_NAME: ${{ vars.AZURE_JOB_NAME || 'engineering-execution' }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mepmogsqhxxasahwhete.supabase.co' }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       ENABLE_SCHEDULE: ${{ inputs.enable_schedule }}
       DISABLE_SCHEDULE: ${{ inputs.disable_schedule }}
+       RUN_MANUAL_WORKER: ${{ inputs.run_manual_worker }}
       REPLACE_EMPTY_ENVIRONMENTS: ${{ inputs.replace_empty_environments }}
       VERIFY_QUEUE_E2E: ${{ inputs.verify_queue_e2e }}
 
@@ -84,7 +90,11 @@ jobs:
             echo "::error::PYTHON_WORKER_API_TOKEN cannot be set without PYTHON_WORKER_URL."
             exit 1
           fi
-          if [[ "$VERIFY_QUEUE_E2E" == "true" && -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
+          if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
+             echo "::error::Queue E2E is disabled until a dedicated E2E worker and local API are configured. The legacy path targeted production and must not run."
+             exit 1
+           fi
+           if [[ "$VERIFY_QUEUE_E2E" == "true" && -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
             echo "::error::SUPABASE_PUBLISHABLE_KEY is required for the opt-in authenticated queue acceptance test."
             exit 1
           fi
@@ -466,7 +476,7 @@ jobs:
 
           # Execute one bounded manual run when scheduling remains disabled. The worker is
           # configured in drain mode, so it exits after processing up to the bounded job limit.
-          if [[ "$ENABLE_SCHEDULE" != "true" ]]; then
+          if [[ "$RUN_MANUAL_WORKER" == "true" ]]; then
             EXECUTION_NAME="$(az containerapp job start \
               --name "$JOB_NAME" \
               --resource-group "$AZURE_RESOURCE_GROUP" \

@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { canonicalAgentRunDigest } from "./agent-run-journal-digest.js";
+export { canonicalAgentRunDigest } from "./agent-run-journal-digest.js";
 import type {
   AgentActionIdentity, AgentRunJournalStatus, CreateAgentRunInput, AgentRunRecord
 } from "./agent-run-journal-types.js";
@@ -11,48 +12,6 @@ const RUN_STATUSES: readonly AgentRunJournalStatus[] = [
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-function isJsonPrimitive(value: unknown): boolean {
-  if (value === null) return true;
-  if (typeof value === "string") return true;
-  if (typeof value === "boolean") return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  return false;
-}
-function assertJsonArray(value: unknown[], seen: Set<object>): void {
-  if (Object.keys(value).length !== value.length) throw new Error("Agent journal arrays must be dense JSON arrays.");
-  if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal arrays cannot contain symbol keys.");
-  for (const item of value) assertJsonCompatible(item, seen);
-}
-function assertJsonObject(value: object, seen: Set<object>): void {
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) throw new Error("Agent journal payload must use plain JSON objects.");
-  if (Object.getOwnPropertySymbols(value).length > 0) throw new Error("Agent journal payload cannot contain symbol keys.");
-  for (const item of Object.values(value as Record<string, unknown>)) assertJsonCompatible(item, seen);
-}
-function assertJsonCompatible(value: unknown, seen = new Set<object>()): void {
-  if (isJsonPrimitive(value)) return;
-  if (value === null || typeof value !== "object") throw new Error("Agent journal payload must contain finite JSON values only.");
-  if (seen.has(value)) throw new Error("Agent journal payload cannot contain circular references.");
-  seen.add(value);
-  if (Array.isArray(value)) assertJsonArray(value, seen);
-  else assertJsonObject(value, seen);
-  seen.delete(value);
-}
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (isRecord(value)) {
-    return Object.fromEntries(Object.entries(value)
-      .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
-      .map(([key, item]) => [key, canonical(item)]));
-  }
-  return value;
-}
-export function canonicalAgentRunDigest(value: unknown): string {
-  assertJsonCompatible(value);
-  const serialized = JSON.stringify(canonical(value));
-  if (typeof serialized !== "string") throw new Error("Agent journal payload could not be serialized.");
-  return createHash("sha256").update(serialized).digest("hex");
 }
 function validateActionIndex(actionIndex: number): void {
   if (!Number.isInteger(actionIndex)) throw new Error("Agent action index must be an integer.");
@@ -139,28 +98,59 @@ function parseRunStatus(value: unknown): AgentRunJournalStatus | undefined {
   if (typeof value !== "string") return undefined;
   return RUN_STATUSES.includes(value as AgentRunJournalStatus) ? value as AgentRunJournalStatus : undefined;
 }
-export function toAgentRunRecord(value: unknown): AgentRunRecord {
+function requireRunRecord(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw new Error("Persisted agent run is not an object.");
-  if (!hasRunIdentity(value) || !hasRunPayload(value)) throw new Error("Persisted agent run identity or payload is invalid.");
-  const status = parseRunStatus(value.status);
+  if (!hasRunIdentity(value)) throw new Error("Persisted agent run identity is invalid.");
+  if (!hasRunPayload(value)) throw new Error("Persisted agent run payload is invalid.");
+  return value;
+}
+function requireRunStatus(value: unknown): AgentRunJournalStatus {
+  const status = parseRunStatus(value);
   if (!status) throw new Error("Persisted agent run status is invalid.");
+  return status;
+}
+function mapRunIdentity(row: Record<string, unknown>) {
+  return { id: row.id as string, ownerId: row.owner_id as string, projectId: row.project_id as string };
+}
+function mapRunProgress(row: Record<string, unknown>) {
   return {
-    id: value.id as string,
-    ownerId: value.owner_id as string,
-    projectId: value.project_id as string,
-    status,
-    initialGraphRevision: asNumber(value.initial_graph_revision) ?? 0,
-    currentGraphRevision: asNumber(value.current_graph_revision) ?? 0,
-    planHash: asString(value.plan_hash) ?? "",
-    plan: value.plan as Record<string, unknown>,
-    checkpoint: value.checkpoint as Record<string, unknown>,
-    actionHistory: (value.action_history as unknown[]).filter(isRecord),
-    nextActionIndex: asNumber(value.next_action_index) ?? 0,
-    ...(isRecord(value.current_action) ? { currentAction: value.current_action } : {}),
-    ...(asString(value.cancel_requested_at) ? { cancelRequestedAt: asString(value.cancel_requested_at) } : {}),
-    ...(asString(value.error) ? { error: asString(value.error) } : {}),
-    createdAt: asString(value.created_at) ?? new Date(0).toISOString(),
-    updatedAt: asString(value.updated_at) ?? new Date(0).toISOString()
+    status: requireRunStatus(row.status),
+    initialGraphRevision: asNumber(row.initial_graph_revision) ?? 0,
+    currentGraphRevision: asNumber(row.current_graph_revision) ?? 0,
+    nextActionIndex: asNumber(row.next_action_index) ?? 0
+  };
+}
+function mapRunPayload(row: Record<string, unknown>) {
+  return {
+    planHash: asString(row.plan_hash) ?? "",
+    plan: row.plan as Record<string, unknown>,
+    checkpoint: row.checkpoint as Record<string, unknown>,
+    actionHistory: (row.action_history as unknown[]).filter(isRecord)
+  };
+}
+function mapOptionalRunFields(row: Record<string, unknown>): Pick<AgentRunRecord, "currentAction" | "cancelRequestedAt" | "error"> {
+  const optional: Pick<AgentRunRecord, "currentAction" | "cancelRequestedAt" | "error"> = {};
+  if (isRecord(row.current_action)) optional.currentAction = row.current_action;
+  const cancelRequestedAt = asString(row.cancel_requested_at);
+  if (cancelRequestedAt) optional.cancelRequestedAt = cancelRequestedAt;
+  const error = asString(row.error);
+  if (error) optional.error = error;
+  return optional;
+}
+function mapRunTimestamps(row: Record<string, unknown>) {
+  return {
+    createdAt: asString(row.created_at) ?? new Date(0).toISOString(),
+    updatedAt: asString(row.updated_at) ?? new Date(0).toISOString()
+  };
+}
+export function toAgentRunRecord(value: unknown): AgentRunRecord {
+  const row = requireRunRecord(value);
+  return {
+    ...mapRunIdentity(row),
+    ...mapRunProgress(row),
+    ...mapRunPayload(row),
+    ...mapOptionalRunFields(row),
+    ...mapRunTimestamps(row)
   };
 }
 export function isUniqueViolation(error: unknown): boolean {

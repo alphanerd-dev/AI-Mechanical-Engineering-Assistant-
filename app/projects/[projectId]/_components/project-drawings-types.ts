@@ -1,0 +1,20 @@
+export type DrawingRecord = {
+  id: string;
+  projectId: string;
+  modelIdentityId: string | null;
+  displayName: string;
+  format: "PDF" | "SVG" | "DXF";
+  mediaType: string;
+  byteSize: number;
+  sha256: string;
+  parserVersion: string;
+  units: string | null;
+  entityCount: number | null;
+  bounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  warnings: string[];
+  createdAt: string;
+  signedUrl: string | null;
+  isStale?: boolean | null;
+  sourceRevisionNumber?: number | null;
+  generatorId?: string | null;
+};

@@ -1,0 +1,21 @@
+# Non-production Render Blueprint for PR #168 durable execution acceptance.
+# This worker is pinned to the engineering-cycle branch and the dedicated E2E
+# Supabase project. It must not be repointed to Production without a separate
+# release review and approval.
+services:
+  - type: worker
+    name: ai-mechanical-execution-worker-m0-preview
+    runtime: node
+    region: frankfurt
+    plan: starter
+    branch: implementation/next-engineering-cycle-2026-11-15
+    autoDeploy: false
+    buildCommand: npm ci
+    startCommand: npm run worker:execution
+    envVars:
+      - key: SUPABASE_URL
+        value: https://mpbrlegwrrrfpeumtqhi.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: EXECUTION_WORKER_MODE
+        value: continuous

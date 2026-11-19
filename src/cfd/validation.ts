@@ -10,6 +10,12 @@ import {
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PROFILE_NRMSE_TOLERANCE = 0.02;
 const MASS_FLOW_RELATIVE_TOLERANCE = 0.005;
+const ALLOWED_REQUEST_KEYS = new Set([
+  "caseId", "meanVelocityMps", "heightM", "depthM", "densityKgM3",
+  "kinematicViscosityM2PerS", "mesh", "solver"
+]);
+const ALLOWED_MESH_KEYS = new Set(["cellsVertical"]);
+const ALLOWED_SOLVER_KEYS = new Set(["maxIterations", "residualTolerance", "timeoutSeconds"]);
 const REQUIRED_ARTIFACT_KINDS: OpenFOAMRunArtifact["kind"][] = [
   "MESH",
   "VELOCITY_FIELD",
@@ -50,6 +56,28 @@ function validInteger(value: unknown, minimum: number, maximum: number): value i
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
+}
+
+function hasUnsupportedKeys(value: Record<string, unknown>, allowed: Set<string>): boolean {
+  return Object.keys(value).some(key => !allowed.has(key));
+}
+
+function validateRequestKeys(candidate: Record<string, unknown>): string[] {
+  return hasUnsupportedKeys(candidate, ALLOWED_REQUEST_KEYS)
+    ? ["Request contains unsupported fields."]
+    : [];
+}
+
+function validateMeshKeys(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
+  return isRecord(candidate.mesh) && hasUnsupportedKeys(candidate.mesh, ALLOWED_MESH_KEYS)
+    ? ["mesh contains unsupported fields."]
+    : [];
+}
+
+function validateSolverKeys(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
+  return isRecord(candidate.solver) && hasUnsupportedKeys(candidate.solver, ALLOWED_SOLVER_KEYS)
+    ? ["solver contains unsupported fields."]
+    : [];
 }
 
 function validatePhysicalInputs(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
@@ -121,9 +149,12 @@ function validateFlowRegime(candidate: Partial<OpenFOAMLaminarChannelRequest>): 
 }
 
 function validateMeshSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
-  return validInteger(candidate.mesh?.cellsVertical, 20, 200)
-    ? []
-    : ["mesh.cellsVertical must be an integer between 20 and 200."];
+  return [
+    ...validateMeshKeys(candidate),
+    ...(validInteger(candidate.mesh?.cellsVertical, 20, 200)
+      ? []
+      : ["mesh.cellsVertical must be an integer between 20 and 200."])
+  ];
 }
 
 interface IntegerSettingRule {
@@ -146,8 +177,11 @@ function validateResidualTolerance(value: unknown): string[] {
 }
 
 function validateSolverSettings(candidate: Partial<OpenFOAMLaminarChannelRequest>): string[] {
-  const solver = candidate.solver;
+  const solver: Record<string, unknown> = isRecord(candidate.solver) ? candidate.solver : {};
+  const missingSolver = isRecord(candidate.solver) ? [] : ["solver must be an object."];
   return [
+    ...missingSolver,
+    ...validateSolverKeys(candidate),
     ...validateIntegerSetting({
       value: solver?.maxIterations,
       minimum: 50,
@@ -168,6 +202,7 @@ export function validateOpenFOAMLaminarChannelRequest(request: unknown): string[
   if (!isRecord(request)) return ["The OpenFOAM benchmark request must be an object."];
   const candidate = request as Partial<OpenFOAMLaminarChannelRequest>;
   return unique([
+    ...validateRequestKeys(candidate),
     ...(candidate.caseId === "laminar-channel-poiseuille-v1"
       ? []
       : ["Only the versioned laminar-channel Poiseuille benchmark is supported."]),
@@ -219,9 +254,32 @@ export function expectedPoiseuilleMassFluxKgS(
     request.depthM;
 }
 
+function isTrimmedArtifactPath(path: string): boolean {
+  if (path.length === 0) return false;
+  return path === path.trim();
+}
+
+function isRelativePosixArtifactPath(path: string): boolean {
+  if (path.includes("\\")) return false;
+  if (path.includes("\0")) return false;
+  if (path.startsWith("/")) return false;
+  return !/^[a-z]:/i.test(path);
+}
+
+function isSafeArtifactPathSegment(segment: string): boolean {
+  if (segment.length === 0) return false;
+  if (segment === "." || segment === "..") return false;
+  return true;
+}
+
+function hasSafeArtifactPathSegments(path: string): boolean {
+  return path.split("/").every(isSafeArtifactPathSegment);
+}
+
 function isSafeArtifactPath(path: string): boolean {
-  const segments = path.split(/[\\/]/);
-  return Boolean(path.trim()) && !path.startsWith("/") && !segments.includes("..");
+  if (!isTrimmedArtifactPath(path)) return false;
+  if (!isRelativePosixArtifactPath(path)) return false;
+  return hasSafeArtifactPathSegments(path);
 }
 
 function isValidArtifactDigest(digest: string): boolean {

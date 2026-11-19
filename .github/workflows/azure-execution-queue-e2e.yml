@@ -1,0 +1,337 @@
+name: Azure isolated execution queue acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_acceptance:
+        description: "Build and run one isolated queue-to-result acceptance job in Azure (E2E only; production worker is not touched)"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: azure-isolated-execution-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.run_acceptance == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: azure-execution-worker
+    env:
+      IMAGE_TAG: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
+      AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT || 'env-engineering-execution-italynorth' }}
+      AZURE_JOB_NAME: engineering-execution-e2e
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      E2E_SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+      E2E_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
+      EXECUTION_API_BASE_URL: http://127.0.0.1:3000
+
+    steps:
+      - name: Validate isolated target and required configuration
+        shell: bash
+        env:
+          E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          for key in AZURE_RESOURCE_GROUP AZURE_CONTAINERAPPS_ENVIRONMENT AZURE_SUBSCRIPTION_ID AZURE_CLIENT_ID AZURE_TENANT_ID E2E_SUPABASE_URL E2E_SUPABASE_PUBLISHABLE_KEY E2E_SUPABASE_SERVICE_ROLE_KEY; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Missing required GitHub Environment variable or secret: $key"
+              exit 1
+            fi
+          done
+          if [[ "$AZURE_JOB_NAME" != "engineering-execution-e2e" ]]; then
+            echo "::error::The E2E job name is fixed to engineering-execution-e2e."
+            exit 1
+          fi
+          if [[ "$AZURE_CONTAINERAPPS_ENVIRONMENT" != "env-engineering-execution-italynorth" ]]; then
+            echo "::error::The isolated acceptance workflow is restricted to the pre-existing Italy North workload-profile environment."
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          const expectedRef = "mpbrlegwrrrfpeumtqhi";
+          const url = new URL(process.env.E2E_SUPABASE_URL);
+          if (url.protocol !== "https:" || url.hostname !== expectedRef + ".supabase.co" ||
+              url.pathname !== "/" || url.username || url.password || url.search || url.hash) {
+            throw new Error("E2E Supabase URL must be the exact dedicated isolated project URL.");
+          }
+          const publicKey = process.env.E2E_SUPABASE_PUBLISHABLE_KEY;
+          if (!publicKey.startsWith("sb_publishable_")) {
+            if (!publicKey.startsWith("eyJ")) {
+              throw new Error("E2E public credential must be a publishable key or legacy anon JWT.");
+            }
+            let publicPayload;
+            try { publicPayload = JSON.parse(Buffer.from(publicKey.split(".")[1] ?? "", "base64url").toString("utf8")); }
+            catch { throw new Error("E2E legacy public anon JWT is malformed."); }
+            if (publicPayload.role !== "anon") throw new Error("E2E legacy public JWT must carry the anon role.");
+          }
+          const key = process.env.E2E_SUPABASE_SERVICE_ROLE_KEY;
+          if (key.startsWith("sb_secret_")) process.exit(0);
+          if (!key.startsWith("eyJ")) throw new Error("E2E Supabase credential must be a service_role JWT or current sb_secret_ key.");
+          let payload;
+          try { payload = JSON.parse(Buffer.from(key.split(".")[1] ?? "", "base64url").toString("utf8")); }
+          catch { throw new Error("E2E Supabase service-role JWT is malformed."); }
+          if (payload.role !== "service_role") throw new Error("E2E Supabase credential is not service_role.");
+          NODE
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build local authenticated API against isolated Supabase
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+
+      - name: Start loopback-only local API
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+          DURABLE_EXECUTION_ENABLED: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx next start --hostname 127.0.0.1 --port 3000 > /tmp/engineering-e2e-next.log 2>&1 &
+          echo "$!" > /tmp/engineering-e2e-next.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/ -o /dev/null; then
+              echo "Loopback API is ready on 127.0.0.1:3000."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Local Next.js API did not become ready."
+          tail -n 100 /tmp/engineering-e2e-next.log || true
+          exit 1
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build and publish isolated acceptance worker image
+        id: worker_image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: worker/execution/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_TAG }}
+
+      - name: Require a publicly pullable immutable image digest
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.worker_image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Container build did not return a valid immutable SHA-256 digest."
+            exit 1
+          fi
+          IMAGE_REF="ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker@$IMAGE_DIGEST"
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          docker pull "$IMAGE_REF"
+          echo "Isolated worker image: $IMAGE_REF" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sign in to Azure using workload identity federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify the existing Azure environment and deploy isolated manual job
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.worker_image.outputs.digest }}
+          E2E_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Container build did not return a valid immutable SHA-256 digest."
+            exit 1
+          fi
+          IMAGE_REF="ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker@$IMAGE_DIGEST"
+          az extension add --name containerapp --upgrade --only-show-errors
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          ACTIVE_SUBSCRIPTION="$(az account show --query id --output tsv)"
+          if [[ "$ACTIVE_SUBSCRIPTION" != "$AZURE_SUBSCRIPTION_ID" ]]; then
+            echo "::error::Azure CLI is not operating on the configured subscription."
+            exit 1
+          fi
+          az group show --name "$AZURE_RESOURCE_GROUP" --output none
+          ENV_JSON="$(az containerapp env show --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" --output json)"
+          ENV_ID="$(jq -r '.id // empty' <<<"$ENV_JSON")"
+          ENV_LOCATION="$(jq -r '.location // "" | ascii_downcase' <<<"$ENV_JSON")"
+          ENV_STATE="$(jq -r '.properties.provisioningState // ""' <<<"$ENV_JSON")"
+          if [[ -z "$ENV_ID" || "$ENV_LOCATION" != "italynorth" || "$ENV_STATE" != "Succeeded" ]]; then
+            echo "::error::Expected the existing Succeeded Italy North Container Apps environment; refusing to create or replace infrastructure."
+            exit 1
+          fi
+          PROFILE_COUNT="$(az containerapp env workload-profile list --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' --output tsv)"
+          if [[ ! "$PROFILE_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::The selected environment does not expose a workload profile."
+            exit 1
+          fi
+
+          # Refuse a same-named job in another resource group and refuse to touch the production job.
+          if [[ "$AZURE_JOB_NAME" == "engineering-execution-manual" || "$AZURE_JOB_NAME" == "engineering-execution-scheduled" ]]; then
+            echo "::error::The E2E workflow cannot target a production worker job."
+            exit 1
+          fi
+          ALL_JOBS="$(az containerapp job list --output json)"
+          if jq -e --arg name "$AZURE_JOB_NAME" --arg rg "$AZURE_RESOURCE_GROUP"             'any(.[]; .name == $name and ((.resourceGroup // ((.id // "") | split("/") | .[4])) != $rg))'             <<<"$ALL_JOBS" >/dev/null; then
+            echo "::error::A same-named Container Apps Job exists outside the approved resource group."
+            exit 1
+          fi
+
+          WORKER_SECRETS=("e2e-supabase-service-role-key=$E2E_SUPABASE_SERVICE_ROLE_KEY")
+          WORKER_ENV_VARS=(
+            "SUPABASE_URL=$E2E_SUPABASE_URL"
+            "SUPABASE_SERVICE_ROLE_KEY=secretref:e2e-supabase-service-role-key"
+            "EXECUTION_WORKER_MODE=drain"
+            "EXECUTION_WORKER_MAX_JOBS=1"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_LEASE_SECONDS=45"
+            "EXECUTION_WORKER_HEARTBEAT_MS=10000"
+          )
+          EXISTING_JOB="$(az containerapp job show --name "$AZURE_JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output json 2>/dev/null || true)"
+          if [[ -z "$EXISTING_JOB" ]]; then
+            az containerapp job create               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --environment "$ENV_ID"               --trigger-type Manual               --replica-timeout 240               --replica-retry-limit 1               --parallelism 1               --replica-completion-count 1               --image "$IMAGE_REF"               --cpu 0.25               --memory 0.5Gi               --secrets "${WORKER_SECRETS[@]}"               --env-vars "${WORKER_ENV_VARS[@]}"               --only-show-errors
+          else
+            EXISTING_TRIGGER="$(jq -r '.properties.configuration.triggerType // ""' <<<"$EXISTING_JOB")"
+            EXISTING_ENV_ID="$(jq -r '.properties.environmentId // ""' <<<"$EXISTING_JOB")"
+            if [[ "$EXISTING_TRIGGER" != "Manual" || "$EXISTING_ENV_ID" != "$ENV_ID" ]]; then
+              echo "::error::Existing E2E job is not a Manual job in the approved environment; refusing to mutate it."
+              exit 1
+            fi
+            az containerapp job secret set               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --secrets "${WORKER_SECRETS[@]}"               --only-show-errors
+            az containerapp job update               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --image "$IMAGE_REF"               --cpu 0.25               --memory 0.5Gi               --replace-env-vars "${WORKER_ENV_VARS[@]}"               --only-show-errors
+          fi
+
+          DEPLOYED_IMAGE="$(az containerapp job show --name "$AZURE_JOB_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --query 'properties.template.containers[0].image' --output tsv)"
+          if [[ "$DEPLOYED_IMAGE" != "$IMAGE_REF" ]]; then
+            echo "::error::Azure E2E worker image does not match the immutable image digest built by this workflow."
+            exit 1
+          fi
+          echo "Dedicated manual E2E job image: $IMAGE_REF" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dedicated manual E2E job is configured with the isolated Supabase project. Production worker settings were not changed."
+
+      - name: Create authenticated test identity, project and one durable queue item
+        id: setup
+        env:
+          SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          SETUP_JSON="$(node scripts/azure-execution-queue-e2e.mjs setup)"
+          COOKIE_TO_MASK="$(sed -n 's/^AZURE_E2E_COOKIE=//p' "$GITHUB_ENV" | tail -n 1)"
+          if [[ -n "$COOKIE_TO_MASK" ]]; then
+            echo "::add-mask::$COOKIE_TO_MASK"
+            unset COOKIE_TO_MASK
+          fi
+          echo "$SETUP_JSON" | jq .
+          JOB_ID="$(jq -er '.jobId' <<<"$SETUP_JSON")"
+          PROJECT_ID="$(jq -er '.projectId' <<<"$SETUP_JSON")"
+          [[ "$JOB_ID" =~ ^[0-9a-fA-F-]{36}$ && "$PROJECT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Verify isolated queue contains only this acceptance item
+        env:
+          SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/azure-execution-queue-e2e.mjs preflight
+
+      - name: Start one bounded Azure E2E worker execution and monitor it
+        id: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXECUTION_NAME="$(az containerapp job start             --name "$AZURE_JOB_NAME"             --resource-group "$AZURE_RESOURCE_GROUP"             --only-show-errors             --query name             --output tsv)"
+          if [[ -z "$EXECUTION_NAME" ]]; then
+            echo "::error::Azure did not return an execution name."
+            exit 1
+          fi
+          echo "execution_name=$EXECUTION_NAME" >> "$GITHUB_OUTPUT"
+          echo "Started isolated bounded worker execution: $EXECUTION_NAME"
+          STATUS=""
+          for attempt in $(seq 1 60); do
+            STATUS="$(az containerapp job execution show               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --job-execution-name "$EXECUTION_NAME"               --query 'properties.status'               --output tsv 2>/dev/null || true)"
+            case "${STATUS^^}" in
+              SUCCEEDED)
+                echo "Azure isolated worker execution succeeded: $EXECUTION_NAME"
+                break
+                ;;
+              FAILED|STOPPED|CANCELLED|CANCELED)
+                echo "::error::Azure isolated worker execution ended with status '$STATUS'."
+                az containerapp job execution show                   --name "$AZURE_JOB_NAME"                   --resource-group "$AZURE_RESOURCE_GROUP"                   --job-execution-name "$EXECUTION_NAME"                   --output json || true
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+          if [[ "${STATUS^^}" != "SUCCEEDED" ]]; then
+            echo "::error::Timed out waiting for isolated worker execution; last status '$STATUS'."
+            az containerapp job execution show               --name "$AZURE_JOB_NAME"               --resource-group "$AZURE_RESOURCE_GROUP"               --job-execution-name "$EXECUTION_NAME"               --output json || true
+            exit 1
+          fi
+
+      - name: Verify authenticated API readback and deterministic engineering result
+        env:
+          SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/azure-execution-queue-e2e.mjs verify
+
+      - name: Clean up temporary E2E job, project and identity
+        if: ${{ always() }}
+        env:
+          SUPABASE_URL: ${{ vars.AZURE_E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.AZURE_E2E_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.AZURE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${AZURE_E2E_COOKIE:-}" ]]; then
+            echo "::add-mask::${AZURE_E2E_COOKIE}"
+          fi
+          node scripts/azure-execution-queue-e2e.mjs cleanup
+
+      - name: Stop local API
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [[ -f /tmp/engineering-e2e-next.pid ]]; then
+            kill "$(cat /tmp/engineering-e2e-next.pid)" 2>/dev/null || true
+          fi
+          if [[ -f /tmp/engineering-e2e-next.log ]]; then
+            tail -n 60 /tmp/engineering-e2e-next.log || true
+          fi

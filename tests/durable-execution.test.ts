@@ -18,6 +18,25 @@ describe("durable execution attempt handling",()=>{
   const attempt=await new ExecutionEngine([adapter]).executeClaimed(initial);
   expect(attempt.job.status).toBe("FAILED");expect(attempt.job.errorCode).toBe("EXECUTION_TIMEOUT");expect(attempt.retryable).toBe(true);expect(attempt.job.attemptHistory).toHaveLength(1);
  });
+ it("derives stable distinct worker request IDs for external execution retries",async()=>{
+  const ids:string[]=[];
+  const base=job();
+  const request={...base.request,backend:"fea-worker" as const,capability:"ANALYSIS.STATIC_STRUCTURAL"};
+  const adapter:ExecutionBackendAdapter={
+   id:"external-worker-id-test",retrySafe:true,
+   canExecute:()=>true,
+   execute:async(received)=>{ids.push(received.id);return {success:true,outputs:{},warnings:[],artifactIds:[]};}
+  };
+  const engine=new ExecutionEngine([adapter]);
+  await engine.executeClaimed(job({request,attempts:1}));
+  await engine.executeClaimed(job({request,attempts:1}));
+  await engine.executeClaimed(job({request,attempts:2}));
+  expect(ids[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  expect(ids[0]).toBe(ids[1]);
+  expect(ids[2]).not.toBe(ids[0]);
+  expect(ids[0]).not.toBe(request.id);
+ });
+
  it("does not automatically retry a provider-declared failure",async()=>{
   const adapter:ExecutionBackendAdapter={id:"test",retrySafe:true,canExecute:()=>true,execute:async()=>({success:false,outputs:{},warnings:["invalid engineering input"],artifactIds:[]})};
   const attempt=await new ExecutionEngine([adapter]).executeClaimed(job());
