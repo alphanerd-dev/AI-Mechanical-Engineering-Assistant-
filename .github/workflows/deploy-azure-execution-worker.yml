@@ -568,7 +568,7 @@ jobs:
               AZURE_E2E_JOB_ID="$E2E_JOB_ID" AZURE_E2E_PROJECT_ID="$E2E_PROJECT_ID" node scripts/azure-execution-queue-e2e.mjs verify
             fi
           else
-            echo "Skipping immediate manual execution because scheduled mode was explicitly requested."
+            echo "Skipping immediate manual execution because run_manual_worker=false; the promoted job remains Manual and will not start automatically."
           fi
  
       - name: Restore normal Azure manual worker drain limit after acceptance
