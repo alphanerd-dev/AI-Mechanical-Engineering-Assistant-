@@ -23,7 +23,7 @@ RUN sed -i \
     && cp /usr/share/doc/openfoam14/copyright /licenses/OPENFOAM-COPYRIGHT \
     && rm -rf /var/lib/apt/lists/*
 
-RUN printf '%s\\n' \
+RUN printf '%s\n' \
     '#!/usr/bin/env bash' \
     'set -eo pipefail' \
     'source /opt/openfoam14/etc/bashrc' \
