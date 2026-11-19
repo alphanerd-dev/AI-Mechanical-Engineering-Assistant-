@@ -31,7 +31,7 @@ V2.0.34 replaces only that backend check constraint with the same four-backend a
 
 ## Release sequence
 
-1. V2.0.34 and its migration contract test are merged to `main`; apply it only to the dedicated E2E database first and verify its migration ledger before solver-backend acceptance.
+1. V2.0.34 and its migration contract test are merged to `main`. The migration was applied to the dedicated `AI-Mechanical-Engineering-Assistant-E2E` Supabase project on 19 November 2026; migration history records version `20261119171913`, and a direct `pg_constraint` read confirmed the backend check allows exactly `typescript-safe`, `python-worker`, `fea-worker`, and `cfd-worker`. Production schema was not changed.
 2. Merge the Azure workflow wiring after exact-head CI passes. Populate the protected GitHub Environment with `CALCULIX_WORKER_URL` / `OPENFOAM_WORKER_URL` and matching secrets only after the endpoint services are actually deployed and authenticated.
 3. Configure the same backend URL/token pairs in Vercel Production as server-only variables/secrets. Verify variable presence without reading secret values; the current production audit found none of these pairs.
 4. Keep the Azure job Manual and run a controlled acceptance only against a dedicated isolated test project/database first.
