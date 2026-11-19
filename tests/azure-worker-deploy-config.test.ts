@@ -35,6 +35,9 @@ describe("Azure solver worker deployment configuration", () => {
     const updateBlock = workflow.slice(updateStart, updateEnd);
     expect(createBlock.split("--replica-timeout 900").length - 1).toBe(1);
     expect(updateBlock.split("--replica-timeout 900").length - 1).toBe(1);
+    const restoreEnd = workflow.indexOf("Restored the Azure manual worker", updateStart);
+    const restoreStart = workflow.lastIndexOf("az containerapp job update", restoreEnd);
+    expect(workflow.slice(restoreStart, restoreEnd)).toContain("--replica-timeout 900");
     expect(workflow).toContain("ACTUAL_REPLICA_TIMEOUT");
     expect(workflow).toContain("ACTUAL_WORKER_MAX_RUNTIME_MS");
     expect(workflow).toContain("ACTUAL_WORKER_MAX_JOBS");
