@@ -1,5 +1,5 @@
 import { isRecord } from "./durable.js";
-import { isDurableExecutionEnabledForProject } from "../../../src/execution/durable-feature-gate.js";
+import { isDurableExecutionCanaryProject, isDurableExecutionEnabledForProject } from "../../../src/execution/durable-feature-gate.js";
 import { handleDurableExecution } from "./durable-handler.js";
 import { legacySynchronousPost } from "./legacy.js";
 import { jsonError } from "./response.js";
@@ -16,5 +16,8 @@ export async function POST(request: Request) {
     return legacySynchronousPost(request, {});
   }
   if (!isDurableExecutionEnabledForProject(parsedBody.projectId)) return legacySynchronousPost(request, parsedBody);
+  if (isDurableExecutionCanaryProject(parsedBody.projectId) && parsedBody.backend !== "typescript-safe") {
+    return jsonError("The durable canary project is restricted to the typescript-safe backend.", 403, "DURABLE_EXECUTION_CANARY_BACKEND_BLOCKED");
+  }
   return handleDurableExecution(request, parsedBody);
 }
