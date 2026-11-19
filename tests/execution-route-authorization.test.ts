@@ -33,8 +33,8 @@ import {IdempotencyConflictError} from "../src/execution/supabase-job-store.js";
 function postRequest(body:unknown,key="test-key-0001"){
  return new Request("http://localhost/api/execution",{method:"POST",headers:{"content-type":"application/json","idempotency-key":key},body:JSON.stringify(body)});
 }
-function routeRequest(method:"GET"|"DELETE"="GET"){
- return new Request(`http://localhost/api/execution/${JOB}?projectId=${PROJECT}`,{method});
+function routeRequest(method:"GET"|"DELETE"="GET",projectId=PROJECT){
+ return new Request(`http://localhost/api/execution/${JOB}?projectId=${projectId}`,{method});
 }
 const fakeJob={id:JOB,status:"QUEUED",request:{id:JOB,capability:"ANALYSIS.SHAFT_TORQUE",backend:"typescript-safe",inputs:{powerKw:5,speedRpm:1500},requestedOutputs:["torqueNm"],timeoutMs:2000,projectId:PROJECT},createdAt:new Date(0).toISOString(),artifactIds:[],evidenceIds:[]};
 
