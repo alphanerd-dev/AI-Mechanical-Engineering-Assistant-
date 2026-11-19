@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 # The official Ubuntu base image does not include a CA bundle. Seed it from
-# the Node slim build stage before switching Ubuntu APT sources to HTTPS.
+# the Debian buildpack stage before switching Ubuntu APT sources to HTTPS.
 COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 # Prefer HTTPS for Ubuntu mirrors and retry transient package-index/package-download failures.
