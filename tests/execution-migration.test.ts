@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 const sql=readFileSync(resolve(process.cwd(),"supabase/migrations/20261017104855_v2_0_29_durable_execution_jobs.sql"),"utf8").toLowerCase();
 const leaseSql=readFileSync(resolve(process.cwd(),"supabase/migrations/20261017105801_v2_0_30_database_clock_execution_leases.sql"),"utf8").toLowerCase();
+const backendSql=readFileSync(resolve(process.cwd(),"supabase/migrations/20261119190000_v2_0_34_execution_solver_backends.sql"),"utf8").toLowerCase();
 describe("durable execution migration contract",()=>{
  it("stores idempotency, attempt, result, cancellation and provenance state",()=>{
   for(const value of ["idempotency_key","request_hash","attempts","max_attempts","attempt_history","cancel_requested_at","provenance","artifact_ids","evidence_ids"])expect(sql).toContain(value);
@@ -16,15 +17,18 @@ describe("durable execution migration contract",()=>{
   expect(leaseSql).toContain("lease_expires_at = clock_timestamp() + make_interval(secs => p_lease_seconds)");
   expect(leaseSql).toContain("cancel_requested_at is not null");
  });
-
  it("restricts the lease renewal RPC to service_role",()=>{
   expect(leaseSql).toContain("revoke all on function public.renew_engineering_execution_job(uuid, text, uuid, integer) from public, anon, authenticated");
   expect(leaseSql).toContain("grant execute on function public.renew_engineering_execution_job(uuid, text, uuid, integer) to service_role");
  });
-
  it("restricts the claim RPC to service_role",()=>{
   expect(sql).toContain("revoke all on function public.claim_engineering_execution_job(text,integer) from public,anon,authenticated");
   expect(sql).toContain("grant execute on function public.claim_engineering_execution_job(text,integer) to service_role");
   expect(sql).toContain("alter table public.engineering_execution_jobs enable row level security");
+ });
+ it("allows exactly the API-supported durable execution backends",()=>{
+  expect(backendSql).toContain("drop constraint if exists engineering_execution_jobs_backend_check");
+  expect(backendSql).toContain("check (backend in ('typescript-safe', 'python-worker', 'fea-worker', 'cfd-worker'))");
+  expect(backendSql).not.toContain("'cad-worker'");
  });
 });
