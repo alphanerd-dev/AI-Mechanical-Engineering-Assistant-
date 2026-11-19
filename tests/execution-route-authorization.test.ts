@@ -135,6 +135,15 @@ describe("durable execution API authorization and idempotency",()=>{
   expect(mocks.constructEngine).not.toHaveBeenCalled();
  });
 
+ it("blocks non-TypeScript backends inside the durable canary project",async()=>{
+  vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
+  vi.stubEnv("DURABLE_EXECUTION_CANARY_PROJECT_ID",PROJECT);
+  const response=await POST(postRequest({projectId:PROJECT,capability:"ANALYSIS.SHAFT_TORQUE",backend:"fea-worker",inputs:{powerKw:5,speedRpm:1500}}));
+  expect(response.status).toBe(403);
+  expect(mocks.submit).not.toHaveBeenCalled();
+  expect(mocks.constructEngine).not.toHaveBeenCalled();
+ });
+
  it("preserves synchronous execution for projects outside the canary allowlist",async()=>{
   vi.stubEnv("DURABLE_EXECUTION_ENABLED","false");
   vi.stubEnv("DURABLE_EXECUTION_CANARY_PROJECT_ID",PROJECT);
