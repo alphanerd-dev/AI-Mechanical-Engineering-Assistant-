@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS ca-certs
+FROM buildpack-deps:bookworm-scm AS ca-certs
 
 FROM ubuntu:24.04
 
