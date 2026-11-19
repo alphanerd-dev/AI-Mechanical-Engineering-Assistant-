@@ -191,6 +191,7 @@ jobs:
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Build and publish bounded execution worker image
+        id: build_worker
         if: ${{ inputs.image_digest == '' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -198,6 +199,21 @@ jobs:
           file: worker/execution/Dockerfile
           push: true
           tags: ${{ env.IMAGE }}
+
+      - name: Pin deployed worker image to immutable digest
+        if: ${{ inputs.image_digest == '' }}
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.build_worker.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Worker image build did not return a valid immutable SHA-256 digest."
+            exit 1
+          fi
+          IMAGE="ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker@$IMAGE_DIGEST"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "Promoted immutable worker image reference: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Require a publicly pullable image before Azure deployment
         shell: bash
@@ -496,7 +512,6 @@ jobs:
               --parallelism 1 \
               --replica-completion-count 1 \
               --image "$IMAGE" \
-              --replica-timeout 900 \
               --cpu 0.25 \
               --memory 0.5Gi \
               --secrets "${worker_secrets[@]}" \
@@ -512,6 +527,7 @@ jobs:
               --name "$JOB_NAME" \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --image "$IMAGE" \
+              --replica-timeout 900 \
               --cpu 0.25 \
               --memory 0.5Gi \
               --replace-env-vars "${worker_env_vars[@]}" \
@@ -527,25 +543,47 @@ jobs:
           JOB_STATE="$(az containerapp job show \
             --name "$JOB_NAME" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
             --output json)"
-          echo "$JOB_STATE" | jq .
-          ACTUAL_IMAGE="$(jq -er '.image' <<<"$JOB_STATE")"
-          ACTUAL_TRIGGER="$(jq -er '.trigger' <<<"$JOB_STATE")"
+          jq -c '{name:.name,trigger:.properties.configuration.triggerType,image:.properties.template.containers[0].image,replicaTimeout:.properties.configuration.replicaTimeout,workerEnv:[.properties.template.containers[0].env[]? | select(.name=="EXECUTION_WORKER_MAX_RUNTIME_MS" or .name=="EXECUTION_WORKER_MAX_JOBS")],scheduleTriggerConfig:.properties.configuration.scheduleTriggerConfig}' <<<"$JOB_STATE"
+          ACTUAL_IMAGE="$(jq -er '.properties.template.containers[0].image' <<<"$JOB_STATE")"
+          ACTUAL_TRIGGER="$(jq -er '.properties.configuration.triggerType' <<<"$JOB_STATE")"
+          ACTUAL_REPLICA_TIMEOUT="$(jq -er '.properties.configuration.replicaTimeout' <<<"$JOB_STATE")"
+          ACTUAL_WORKER_MAX_RUNTIME_MS="$(jq -er '[.properties.template.containers[0].env[]? | select(.name=="EXECUTION_WORKER_MAX_RUNTIME_MS") | .value][0] // ""' <<<"$JOB_STATE")"
+          ACTUAL_WORKER_MAX_JOBS="$(jq -er '[.properties.template.containers[0].env[]? | select(.name=="EXECUTION_WORKER_MAX_JOBS") | .value][0] // ""' <<<"$JOB_STATE")"
+          ACTUAL_SCHEDULE_TRIGGER_CONFIG="$(jq -c '.properties.configuration.scheduleTriggerConfig' <<<"$JOB_STATE")"
           EXPECTED_TRIGGER="Manual"
           if [[ "$ENABLE_SCHEDULE" == "true" ]]; then
             EXPECTED_TRIGGER="Schedule"
           fi
-          if [[ "$ACTUAL_IMAGE" != "$IMAGE" ]]; then
-            echo "::error::Azure worker image mismatch. Expected '$IMAGE', found '$ACTUAL_IMAGE'."
+          if [[ "$ACTUAL_IMAGE" != "$IMAGE" || "$ACTUAL_IMAGE" != *@sha256:* ]]; then
+            echo "::error::Azure worker image must match the deployed immutable digest. Expected '$IMAGE', found '$ACTUAL_IMAGE'. "
             exit 1
           fi
           if [[ "$ACTUAL_TRIGGER" != "$EXPECTED_TRIGGER" ]]; then
-            echo "::error::Azure worker trigger mismatch. Expected '$EXPECTED_TRIGGER', found '$ACTUAL_TRIGGER'."
+            echo "::error::Azure worker trigger mismatch. Expected '$EXPECTED_TRIGGER', found '$ACTUAL_TRIGGER'. "
             exit 1
           fi
-          echo "Verified Azure worker image: $ACTUAL_IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$ACTUAL_REPLICA_TIMEOUT" != "900" ]]; then
+            echo "::error::Azure replica timeout mismatch. Expected 900 seconds, found '$ACTUAL_REPLICA_TIMEOUT'. "
+            exit 1
+          fi
+          if [[ "$ACTUAL_WORKER_MAX_RUNTIME_MS" != "780000" ]]; then
+            echo "::error::Worker runtime budget mismatch. Expected 780000 ms, found '$ACTUAL_WORKER_MAX_RUNTIME_MS'. "
+            exit 1
+          fi
+          if [[ "$ACTUAL_WORKER_MAX_JOBS" != "$worker_max_jobs" ]]; then
+            echo "::error::Worker max-jobs mismatch. Expected '$worker_max_jobs', found '$ACTUAL_WORKER_MAX_JOBS'. "
+            exit 1
+          fi
+          if [[ "$EXPECTED_TRIGGER" == "Manual" && "$ACTUAL_SCHEDULE_TRIGGER_CONFIG" != "null" ]]; then
+            echo "::error::Manual worker unexpectedly has a schedule trigger configuration."
+            exit 1
+          fi
+          echo "Verified immutable Azure worker image: $ACTUAL_IMAGE" >> "$GITHUB_STEP_SUMMARY"
           echo "Verified Azure worker trigger: $ACTUAL_TRIGGER" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified Azure replica timeout: $ACTUAL_REPLICA_TIMEOUT seconds" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified worker runtime budget: $ACTUAL_WORKER_MAX_RUNTIME_MS ms" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified worker max jobs: $ACTUAL_WORKER_MAX_JOBS" >> "$GITHUB_STEP_SUMMARY"
 
           # Optional production acceptance test: create an ephemeral, authenticated
           # identity/project through the normal app API and enqueue one deterministic job.
