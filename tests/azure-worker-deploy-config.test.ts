@@ -27,10 +27,28 @@ describe("Azure solver worker deployment configuration", () => {
     expect(workflow).toContain("must use HTTPS.");
   });
 
-  it("gives the bounded worker enough time for the maximum supported OpenFOAM benchmark", () => {
-    expect(workflow.split("--replica-timeout 900").length - 1).toBe(2);
-    expect(workflow.split("EXECUTION_WORKER_MAX_RUNTIME_MS=780000").length - 1).toBe(2);
+  it("sets and verifies the long solver timeout on both create and update paths", () => {
+    const createStart = workflow.indexOf("az containerapp job create");
+    const updateStart = workflow.indexOf("az containerapp job update", createStart);
+    const updateEnd = workflow.indexOf("          fi", updateStart);
+    const createBlock = workflow.slice(createStart, updateStart);
+    const updateBlock = workflow.slice(updateStart, updateEnd);
+    expect(createBlock.split("--replica-timeout 900").length - 1).toBe(1);
+    expect(updateBlock.split("--replica-timeout 900").length - 1).toBe(1);
+    expect(workflow).toContain("ACTUAL_REPLICA_TIMEOUT");
+    expect(workflow).toContain("ACTUAL_WORKER_MAX_RUNTIME_MS");
+    expect(workflow).toContain("ACTUAL_WORKER_MAX_JOBS");
+    expect(workflow).toContain("ACTUAL_SCHEDULE_TRIGGER_CONFIG");
+    expect(workflow).toContain("EXECUTION_WORKER_MAX_RUNTIME_MS=780000");
     expect(executionWorker).toContain("EXECUTION_WORKER_MAX_RUNTIME_MS,210_000,1_000,900_000");
+  });
+
+  it("deploys the newly built worker image by immutable digest rather than its mutable commit tag", () => {
+    expect(workflow).toContain("id: build_worker");
+    expect(workflow).toContain("steps.build_worker.outputs.digest");
+    expect(workflow).toContain("IMAGE=ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker@$IMAGE_DIGEST");
+    expect(workflow.indexOf("Pin deployed worker image to immutable digest")).toBeLessThan(workflow.indexOf("Require a publicly pullable image before Azure deployment"));
+    expect(workflow).toContain('ACTUAL_IMAGE != *@sha256:*');
   });
 
   it("stores solver tokens as Container Apps secrets and exposes only secret references to the job", () => {
