@@ -4,7 +4,7 @@ The execution API now separates durable job submission from provider execution.
 
 ## Request lifecycle
 
-- With `DURABLE_EXECUTION_ENABLED=true`, POST /api/execution authorizes TASK.EXECUTE and project membership, validates an allowlisted backend/capability and bounded request body, then durably stores a QUEUED job. With the flag disabled or unset, the existing synchronous flow is preserved.
+- With `DURABLE_EXECUTION_ENABLED=true`, POST /api/execution authorizes TASK.EXECUTE and project membership, validates an allowlisted backend/capability and bounded request body, then durably stores a QUEUED job. With the flag disabled or unset, the existing synchronous flow is preserved unless `DURABLE_EXECUTION_CANARY_PROJECT_ID` is set to one valid project UUID; in that case, only requests for that exact project using the `typescript-safe` backend use durable execution. Other backends are rejected for the canary project, while all other projects retain the synchronous path. GET/DELETE status routes enforce the same project-scoped gate before authorization and storage access. A malformed canary UUID fails closed.
 - A stable Idempotency-Key is required. Same key plus same canonical request returns the existing job; reuse with different input returns 409.
 - GET /api/execution/{jobId}?projectId=... requires PROJECT.READ for the project.
 - DELETE /api/execution/{jobId}?projectId=... requires TASK.EXECUTE. Queued jobs cancel immediately; running jobs record a cancellation request checked by the worker heartbeat.
@@ -19,9 +19,9 @@ Supported API capabilities are intentionally narrow: ANALYSIS.SHAFT_TORQUE on th
 
 Execution SUCCEEDED means the backend completed; it does not mean engineering correctness or physical safety is verified. Capability-specific validators and evidence contracts remain authoritative.
 
-V2.0.29 and V2.0.30, together with the G2/M2 schema migrations, are applied to both the production and dedicated E2E Supabase projects. As of 18 November 2026, all 32 repository migration versions match both remote ledgers. V2.0.31–V2.0.33 add the server-only agent-run journal, its least-privilege ACL correction and the approval-evidence project-ID type fix.
+V2.0.29 and V2.0.30, together with the G2/M2 schema migrations, are applied to both the production and dedicated E2E Supabase projects. V2.0.31–V2.0.33 add the server-only agent-run journal, its least-privilege ACL correction and the approval-evidence project-ID type fix. V2.0.34 (`execution_solver_backends`) is also present in both remote migration ledgers; read-back of `engineering_execution_jobs_backend_check` on both databases confirms the four-backend allowlist.
 
-The production `engineering_execution_jobs` table contains one historical `SUCCEEDED` record and no queued or running jobs. The agent-run journal table is empty. Production `DURABLE_EXECUTION_ENABLED` is deliberately `false`, and no persistent durable execution worker service is deployed. Do not enable the flag until the persistent worker, authenticated orchestration, approval evidence and recovery acceptance gates have passed.
+The production `engineering_execution_jobs` table contains one historical `SUCCEEDED` record and no queued or running jobs. The agent-run journal table is empty. Production `DURABLE_EXECUTION_ENABLED` is deliberately `false`; the immutable Azure execution-worker image is deployed in a Manual Container Apps Job for bounded drains, not as an always-on service. The project-scoped canary gate is code-only until `DURABLE_EXECUTION_CANARY_PROJECT_ID` is explicitly configured. The Vercel Production environment currently has no Python, CalculiX or OpenFOAM worker endpoint pairs. Do not enable global durable execution until authenticated production enqueue/claim/execute/readback, recovery, cancellation, approval evidence and monitoring acceptance gates have passed.
 
 
 ## Bounded solver workers and evidence acceptance (PR #168)
