@@ -17,7 +17,7 @@ function boundedInteger(value:string|undefined,fallback:number,min:number,max:nu
 const mode=process.env.EXECUTION_WORKER_MODE?.trim()||"continuous";
 if(mode!=="continuous"&&mode!=="drain")throw new Error("EXECUTION_WORKER_MODE must be continuous or drain.");
 const maxJobs=boundedInteger(process.env.EXECUTION_WORKER_MAX_JOBS,5,1,100);
-const maxRunMs=boundedInteger(process.env.EXECUTION_WORKER_MAX_RUNTIME_MS,210_000,1_000,240_000);
+const maxRunMs=boundedInteger(process.env.EXECUTION_WORKER_MAX_RUNTIME_MS,210_000,1_000,900_000);
 const client=createExecutionWorkerAdminClient(),store=new SupabaseExecutionJobStore(client),adapters:ExecutionBackendAdapter[]=[new SafeNumericalAdapter()];
 if(process.env.PYTHON_WORKER_URL){
  const token=process.env.PYTHON_WORKER_API_TOKEN?.trim();

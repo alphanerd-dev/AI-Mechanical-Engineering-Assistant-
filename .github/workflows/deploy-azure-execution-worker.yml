@@ -80,6 +80,10 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
           PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+          CALCULIX_WORKER_URL: ${{ vars.CALCULIX_WORKER_URL }}
+          CALCULIX_WORKER_API_TOKEN: ${{ secrets.CALCULIX_WORKER_API_TOKEN }}
+          OPENFOAM_WORKER_URL: ${{ vars.OPENFOAM_WORKER_URL }}
+          OPENFOAM_WORKER_API_TOKEN: ${{ secrets.OPENFOAM_WORKER_API_TOKEN }}
           IMAGE_DIGEST_INPUT: ${{ inputs.image_digest }}
           IMAGE_SOURCE_SHA_INPUT: ${{ inputs.image_source_sha }}
         run: |
@@ -114,6 +118,24 @@ jobs:
             echo "::error::PYTHON_WORKER_API_TOKEN cannot be set without PYTHON_WORKER_URL."
             exit 1
           fi
+          for backend in CALCULIX OPENFOAM; do
+            url_var="${backend}_WORKER_URL"
+            token_var="${backend}_WORKER_API_TOKEN"
+            url="${!url_var:-}"
+            token="${!token_var:-}"
+            if [[ -n "$url" && -z "$token" ]]; then
+              echo "::error::$url_var requires the matching $token_var secret."
+              exit 1
+            fi
+            if [[ -z "$url" && -n "$token" ]]; then
+              echo "::error::$token_var cannot be set without $url_var."
+              exit 1
+            fi
+            if [[ -n "$url" && "$url" != https://* ]]; then
+              echo "::error::$url_var must use HTTPS."
+              exit 1
+            fi
+          done
           if [[ "$VERIFY_QUEUE_E2E" == "true" ]]; then
              echo "::error::Queue E2E is disabled until a dedicated E2E worker and local API are configured. The legacy path targeted production and must not run."
              exit 1
@@ -371,6 +393,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PYTHON_WORKER_URL: ${{ vars.PYTHON_WORKER_URL }}
           PYTHON_WORKER_API_TOKEN: ${{ secrets.PYTHON_WORKER_API_TOKEN }}
+          CALCULIX_WORKER_URL: ${{ vars.CALCULIX_WORKER_URL }}
+          CALCULIX_WORKER_API_TOKEN: ${{ secrets.CALCULIX_WORKER_API_TOKEN }}
+          OPENFOAM_WORKER_URL: ${{ vars.OPENFOAM_WORKER_URL }}
+          OPENFOAM_WORKER_API_TOKEN: ${{ secrets.OPENFOAM_WORKER_API_TOKEN }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           EXECUTION_API_BASE_URL: https://ai-mechanical-engineering-assistant.vercel.app
         run: |
@@ -394,7 +420,7 @@ jobs:
             "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
             "EXECUTION_WORKER_MODE=drain"
             "EXECUTION_WORKER_MAX_JOBS=$worker_max_jobs"
-            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=780000"
             "EXECUTION_WORKER_LEASE_SECONDS=45"
             "EXECUTION_WORKER_HEARTBEAT_MS=10000"
           )
@@ -403,6 +429,20 @@ jobs:
             worker_env_vars+=(
               "PYTHON_WORKER_URL=$PYTHON_WORKER_URL"
               "PYTHON_WORKER_API_TOKEN=secretref:python-worker-api-token"
+            )
+          fi
+          if [[ -n "${CALCULIX_WORKER_URL:-}" ]]; then
+            worker_secrets+=("calculix-worker-api-token=$CALCULIX_WORKER_API_TOKEN")
+            worker_env_vars+=(
+              "CALCULIX_WORKER_URL=$CALCULIX_WORKER_URL"
+              "CALCULIX_WORKER_API_TOKEN=secretref:calculix-worker-api-token"
+            )
+          fi
+          if [[ -n "${OPENFOAM_WORKER_URL:-}" ]]; then
+            worker_secrets+=("openfoam-worker-api-token=$OPENFOAM_WORKER_API_TOKEN")
+            worker_env_vars+=(
+              "OPENFOAM_WORKER_URL=$OPENFOAM_WORKER_URL"
+              "OPENFOAM_WORKER_API_TOKEN=secretref:openfoam-worker-api-token"
             )
           fi
 
@@ -451,11 +491,12 @@ jobs:
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --environment "$AZURE_CONTAINERAPPS_ENVIRONMENT" \
               "${trigger_args[@]}" \
-              --replica-timeout 240 \
+              --replica-timeout 900 \
               --replica-retry-limit 1 \
               --parallelism 1 \
               --replica-completion-count 1 \
               --image "$IMAGE" \
+              --replica-timeout 900 \
               --cpu 0.25 \
               --memory 0.5Gi \
               --secrets "${worker_secrets[@]}" \
@@ -606,7 +647,7 @@ jobs:
             "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key"
             "EXECUTION_WORKER_MODE=drain"
             "EXECUTION_WORKER_MAX_JOBS=5"
-            "EXECUTION_WORKER_MAX_RUNTIME_MS=210000"
+            "EXECUTION_WORKER_MAX_RUNTIME_MS=780000"
             "EXECUTION_WORKER_LEASE_SECONDS=45"
             "EXECUTION_WORKER_HEARTBEAT_MS=10000"
           )
