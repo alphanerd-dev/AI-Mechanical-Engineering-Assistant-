@@ -28,6 +28,7 @@ jobs:
       IMAGE_TAG: ghcr.io/alphanerd-dev/ai-mechanical-engineering-assistant-execution-worker:${{ github.sha }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-engineering-execution' }}
       AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ vars.AZURE_CONTAINERAPPS_JOBS_ENVIRONMENT || 'env-engineering-execution-italynorth' }}
+      AZURE_EXPECTED_LOCATION: ${{ vars.AZURE_LOCATION || 'italynorth' }}
       AZURE_JOB_NAME: engineering-execution-e2e
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -188,10 +189,14 @@ jobs:
           az group show --name "$AZURE_RESOURCE_GROUP" --output none
           ENV_JSON="$(az containerapp env show --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" --output json)"
           ENV_ID="$(jq -r '.id // empty' <<<"$ENV_JSON")"
-          ENV_LOCATION="$(jq -r '.location // "" | ascii_downcase' <<<"$ENV_JSON")"
-          ENV_STATE="$(jq -r '.properties.provisioningState // ""' <<<"$ENV_JSON")"
-          if [[ -z "$ENV_ID" || "$ENV_LOCATION" != "italynorth" || "$ENV_STATE" != "Succeeded" ]]; then
-            echo "::error::Expected the existing Succeeded Italy North Container Apps environment; refusing to create or replace infrastructure."
+          ENV_LOCATION_RAW="$(jq -r '.location // empty' <<<"$ENV_JSON")"
+          ENV_STATE_RAW="$(jq -r '.properties.provisioningState // empty' <<<"$ENV_JSON")"
+          normalize_location() { tr -cd '[:alnum:]' <<<"${1,,}"; }
+          ENV_LOCATION="$(normalize_location "$ENV_LOCATION_RAW")"
+          EXPECTED_LOCATION="$(normalize_location "$AZURE_EXPECTED_LOCATION")"
+          ENV_STATE="${ENV_STATE_RAW,,}"
+          if [[ -z "$ENV_ID" || -z "$EXPECTED_LOCATION" || "$ENV_LOCATION" != "$EXPECTED_LOCATION" || "$ENV_STATE" != "succeeded" ]]; then
+            echo "::error::Existing Container Apps environment failed the safety preflight (id_present=$([[ -n "$ENV_ID" ]] && echo yes || echo no), actual_location=${ENV_LOCATION_RAW:-missing}, expected_location=${AZURE_EXPECTED_LOCATION:-missing}, provisioning_state=${ENV_STATE_RAW:-missing}). Refusing to create or replace infrastructure."
             exit 1
           fi
           PROFILE_COUNT="$(az containerapp env workload-profile list --name "$AZURE_CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" --query 'length(@)' --output tsv)"
