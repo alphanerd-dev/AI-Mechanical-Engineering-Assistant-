@@ -2,12 +2,17 @@ FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl gnupg python3 software-properties-common \
-    && curl -fsSL https://dl.openfoam.org/gpg.key -o /etc/apt/trusted.gpg.d/openfoam.asc \
-    && add-apt-repository -y http://dl.openfoam.org/ubuntu \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends openfoam14 \
+# Prefer HTTPS for Ubuntu mirrors and retry transient package-index/package-download failures.
+RUN sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' \
+      /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update -o Acquire::Retries=5 -o Acquire::https::Timeout=30 \
+    && apt-get install -y --no-install-recommends -o Acquire::Retries=5 -o Acquire::https::Timeout=30 ca-certificates curl gnupg python3 software-properties-common \
+    && curl --retry 5 --retry-all-errors --connect-timeout 20 -fsSL https://dl.openfoam.org/gpg.key -o /etc/apt/trusted.gpg.d/openfoam.asc \
+    && add-apt-repository -y https://dl.openfoam.org/ubuntu \
+    && apt-get update -o Acquire::Retries=5 -o Acquire::https::Timeout=30 \
+    && apt-get install -y --no-install-recommends -o Acquire::Retries=5 -o Acquire::https::Timeout=30 openfoam14 \
     && mkdir -p /licenses \
     && cp /usr/share/doc/openfoam14/copyright /licenses/OPENFOAM-COPYRIGHT \
     && rm -rf /var/lib/apt/lists/*
