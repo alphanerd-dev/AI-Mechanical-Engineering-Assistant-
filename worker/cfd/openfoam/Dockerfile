@@ -1,6 +1,12 @@
+FROM node:22-bookworm-slim AS ca-certs
+
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
+
+# The official Ubuntu base image does not include a CA bundle. Seed it from
+# the Node slim build stage before switching Ubuntu APT sources to HTTPS.
+COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 # Prefer HTTPS for Ubuntu mirrors and retry transient package-index/package-download failures.
 RUN sed -i \
@@ -17,7 +23,7 @@ RUN sed -i \
     && cp /usr/share/doc/openfoam14/copyright /licenses/OPENFOAM-COPYRIGHT \
     && rm -rf /var/lib/apt/lists/*
 
-RUN printf '%s\n' \
+RUN printf '%s\\n' \
     '#!/usr/bin/env bash' \
     'set -eo pipefail' \
     'source /opt/openfoam14/etc/bashrc' \
