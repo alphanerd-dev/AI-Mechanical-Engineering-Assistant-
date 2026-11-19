@@ -21,7 +21,22 @@ Execution SUCCEEDED means the backend completed; it does not mean engineering co
 
 V2.0.29 and V2.0.30, together with the G2/M2 schema migrations, are applied to both the production and dedicated E2E Supabase projects. V2.0.31–V2.0.33 add the server-only agent-run journal, its least-privilege ACL correction and the approval-evidence project-ID type fix. V2.0.34 (`execution_solver_backends`) is also present in both remote migration ledgers; read-back of `engineering_execution_jobs_backend_check` on both databases confirms the four-backend allowlist.
 
-The production `engineering_execution_jobs` table contains one historical `SUCCEEDED` record and no queued or running jobs. The agent-run journal table is empty. Production `DURABLE_EXECUTION_ENABLED` is deliberately `false`; the immutable Azure execution-worker image is deployed in a Manual Container Apps Job for bounded drains, not as an always-on service. The project-scoped canary gate is code-only until `DURABLE_EXECUTION_CANARY_PROJECT_ID` is explicitly configured. The Vercel Production environment currently has no Python, CalculiX or OpenFOAM worker endpoint pairs. Do not enable global durable execution until authenticated production enqueue/claim/execute/readback, recovery, cancellation, approval evidence and monitoring acceptance gates have passed.
+## Production TypeScript-safe canary — 19 November 2026
+
+One production application-to-Azure-worker job completed successfully under the temporary project-scoped canary gate. The global `DURABLE_EXECUTION_ENABLED` flag remained `false` throughout.
+
+- Capability/backend: `ANALYSIS.SHAFT_TORQUE` / `typescript-safe`.
+- Inputs: 5 kW at 1,500 rpm.
+- Result: 31.833333333 N·m using `T = 9550 P(kW) / n(rpm)`.
+- Authenticated enqueue returned HTTP 202; the Azure worker completed one attempt; the persisted job reached `SUCCEEDED`.
+- Authenticated status readback returned HTTP 200. Replaying the same request and idempotency key returned the same job with `idempotentReplay=true`; no duplicate was created.
+- Provenance includes request, input and output digests; the worker lease was cleared. No artifact/evidence IDs were emitted, so execution success must not be represented as engineering validation or approval.
+- Azure [deployment workflow run #44601360200](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/44601360200) succeeded. The worker remains Manual and unscheduled.
+- After acceptance, the canary UUID was blanked and Production redeployed. The authenticated status endpoint then returned HTTP 404 `DURABLE_EXECUTION_DISABLED` for the canary project, confirming the temporary gate is off.
+
+This acceptance is limited to one deterministic TypeScript-safe job. It does not prove Python, FEA, CFD, retry/recovery, cancellation-under-load or cross-project concurrency behavior.
+
+The production `engineering_execution_jobs` table now contains two `SUCCEEDED` records (one historical and one bounded production canary) and no queued or running jobs. The agent-run journal table remains empty. Production `DURABLE_EXECUTION_ENABLED` is deliberately `false`; the immutable Azure execution-worker image remains deployed in a Manual Container Apps Job with no schedule. A project-scoped canary was used for one authenticated TypeScript-safe shaft-torque job, then disabled by blanking `DURABLE_EXECUTION_CANARY_PROJECT_ID` and redeploying Production. Python, CalculiX and OpenFOAM worker endpoint pairs are not configured in Vercel Production. Do not enable global durable execution until broader acceptance covers recovery, cancellation, approval/evidence boundaries, monitoring and cross-project isolation.
 
 
 ## Bounded solver workers and evidence acceptance (PR #168)
