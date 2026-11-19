@@ -483,12 +483,28 @@ jobs:
           # credentials even for public images. Do not persist an unnecessary registry token;
           # let Container Apps pull this verified public image without credentials.
 
-          az containerapp job show \
+          JOB_STATE="$(az containerapp job show \
             --name "$JOB_NAME" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --query '{name:name,trigger:properties.configuration.triggerType,image:properties.template.containers[0].image,replicaTimeout:properties.configuration.replicaTimeout}' \
-            --output json
-          echo "Promoted Azure worker image: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+            --output json)"
+          echo "$JOB_STATE" | jq .
+          ACTUAL_IMAGE="$(jq -er '.image' <<<"$JOB_STATE")"
+          ACTUAL_TRIGGER="$(jq -er '.trigger' <<<"$JOB_STATE")"
+          EXPECTED_TRIGGER="Manual"
+          if [[ "$ENABLE_SCHEDULE" == "true" ]]; then
+            EXPECTED_TRIGGER="Schedule"
+          fi
+          if [[ "$ACTUAL_IMAGE" != "$IMAGE" ]]; then
+            echo "::error::Azure worker image mismatch. Expected '$IMAGE', found '$ACTUAL_IMAGE'."
+            exit 1
+          fi
+          if [[ "$ACTUAL_TRIGGER" != "$EXPECTED_TRIGGER" ]]; then
+            echo "::error::Azure worker trigger mismatch. Expected '$EXPECTED_TRIGGER', found '$ACTUAL_TRIGGER'."
+            exit 1
+          fi
+          echo "Verified Azure worker image: $ACTUAL_IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified Azure worker trigger: $ACTUAL_TRIGGER" >> "$GITHUB_STEP_SUMMARY"
 
           # Optional production acceptance test: create an ephemeral, authenticated
           # identity/project through the normal app API and enqueue one deterministic job.
