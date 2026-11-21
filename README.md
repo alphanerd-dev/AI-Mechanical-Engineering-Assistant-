@@ -4,14 +4,14 @@ A provider-backed Engineering Workspace and Engineering Core, starting with Mech
 
 **Product rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
 
-## Release snapshot — 15 November 2026
+## Release snapshot — 19 November 2026
 
-The current main application is deployed to Vercel production and the deployment is **READY** at commit 9bfb57e86e70db84a682d162bba9253e0185c920 (PR #166 merge). The production alias is [ai-mechanical-engineering-assistant.vercel.app](https://ai-mechanical-engineering-assistant.vercel.app).
+The latest recorded Vercel production application deployment is **READY** at main commit `14b08d0958cf44494f205d96db9d3a0a3a5f4f5c`; the current repository `main` documentation head is `cf69b08df0a2983a29d2768d843b82fd6868bec1`. The production alias is [ai-mechanical-engineering-assistant.vercel.app](https://ai-mechanical-engineering-assistant.vercel.app). The 19 November documentation commits do not by themselves imply a new application deployment.
 
-- PR [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) merged as da81141e7e0a6138d8abdf4c3f39075a6c3ff0d5: trusted immutable geometry revision persistence/read API, server-side canonical BREP digest verification, host-controlled provider provenance, idempotency/concurrency handling and atomic audit.
-- PR [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) merged as 9bfb57e86e70db84a682d162bba9253e0185c920: durable manufacturing readiness snapshots and independent append-only human decisions with four-eyes authorization and atomic audit.
-- The eight additive geometry/manufacturing migrations for these increments have been applied to the production Supabase project and verified in its migration history. RLS, service-role grants, immutable triggers and restricted write RPC privileges were checked after application.
-- The product remains bounded: no native proprietary B-rep kernel, general-purpose CAD/CAE certification, CAM toolpath execution, MES dispatch or machine control is claimed.
+- PRs [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) and [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) delivered trusted immutable geometry revision persistence and durable manufacturing readiness snapshots/independent human decisions; the eight additive migrations were applied to production and verified.
+- PRs [#177](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/177), [#181](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/181) and [#182](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/182) are merged. The immutable Azure execution-worker image is deployed in the production manual Container Apps Job.
+- One authenticated production `ANALYSIS.SHAFT_TORQUE` TypeScript-safe canary job completed, was read back and idempotently replayed without duplication. The project canary was then disabled; `DURABLE_EXECUTION_ENABLED=false` remains in force and the Azure job remains Manual with no schedule.
+- The product remains bounded: no general-purpose autonomous engineering, native proprietary B-rep kernel, general-purpose CAD/CAE certification, CAM toolpath execution, MES dispatch or machine control is claimed. See [Implementation Plan](docs/implementation-plan.md) and [Execution Layer](docs/execution-layer.md) for the exact status and limits.
 
 ## Current repository state
 
@@ -37,6 +37,12 @@ The conversational assistant can explain concepts, discuss options, identify mis
 For registered deterministic operations, use the separate Engineering Core panel. Those workflows retain server-side authorization, typed requests, bounded execution, capability-specific validation and evidence contracts. A successful chat response is not a validated engineering result.
 
 The chat renderer uses assistant-ui, Vercel AI SDK, Streamdown, the Streamdown code plugin, the Streamdown math plugin and KaTeX. A small preprocessing adapter normalizes engineering LaTeX, promotes standalone display equations to proper blocks, preserves fenced code and protects currency values.
+
+## Target product experience
+
+The target direction is a **chat-first engineering workspace**: engineers should be able to state an objective, refine it, receive a typed task proposal, supply missing information, authorize gated actions, monitor execution and review validated evidence in one conversational journey. Specialized CAD, CAE, drawing and approval interfaces remain contextual tools opened when the task requires them.
+
+**This is a target, not the current shipped interaction.** The current chat is conversational and guidance-oriented; registered deterministic workflows still run through the separate Engineering Core surface. Chat-driven task submission and execution are not yet connected end to end. The Engineering Core, capability router, policies, workers and validators remain separate internally even as the user-facing journey is unified.
 
 ## Architecture and trust model
 
@@ -95,7 +101,8 @@ The intended production web application is hosted on Vercel at [ai-mechanical-en
 
 Start with:
 
-- [Product brief](docs/product-brief.md) — current user experience and product scope.
+- [Product brief](docs/product-brief.md) — current capability boundary and target chat-first experience.
+- [Product experience and architecture alignment](docs/product-experience-and-architecture-alignment.md) — 20–21 November UX audit decisions, interaction model, prioritized backlog and framework position.
 - [Architecture and trust boundaries](docs/architecture.md) — control plane, chat, core, workers and evidence.
 - [Architecture decision records](docs/README.md#architecture-decision-records) — accepted renderer, geometry and integrated-workspace direction.
 - [Parallel development programme](docs/parallel-development-programme.md) — coordinated product and geometry workstreams.
