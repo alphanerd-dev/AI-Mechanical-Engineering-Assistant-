@@ -98,8 +98,27 @@ async function main(): Promise<void> {
     "Accepted completion has no digest-bound canonical BREP artifact.");
   const sourceArtifactId = solid.id as string;
   const sourceDigest = solid.provenance.artifactSha256 as string;
-  check(/^[a-f0-9]{64}$/.test(sourceDigest), "Canonical BREP digest is malformed.");
-  console.log("PASS CAD source: independently validated, immutable BREP completion persisted.");
+  check(solid.validationStatus === "PASS" && solid.informationStatus === "VERIFIED" &&
+    /^[a-f0-9]{64}$/.test(sourceDigest),
+    "Canonical BREP is not PASS/VERIFIED or its digest is malformed.");
+  check(Array.isArray(completion.storage_objects) && isRecord(completion.validation_receipt),
+    "Accepted completion lacks its storage manifest or validation receipt.");
+  const solidPath = completion.storage_objects.find((item: unknown) =>
+    typeof item === "string" && item.endsWith("/solid.brep")
+  );
+  check(typeof solidPath === "string" && isRecord(completionBody.signedUrls) &&
+    typeof completionBody.signedUrls[solidPath] === "string",
+    "Accepted completion has no private signed URL for its canonical BREP.");
+  const canonicalResponse = await fetch(completionBody.signedUrls[solidPath] as string, {
+    cache: "no-store", signal: AbortSignal.timeout(60_000)
+  });
+  check(canonicalResponse.ok, "Private canonical BREP could not be retrieved.");
+  const canonicalBytes = new Uint8Array(await canonicalResponse.arrayBuffer());
+  const canonicalDigest = sha256(canonicalBytes);
+  check(canonicalBytes.byteLength > 0 && canonicalDigest === sourceDigest &&
+    completion.validation_receipt.artifactSha256 === sourceDigest,
+    "Exact canonical BREP bytes, artifact metadata and validation receipt do not share the same SHA-256.");
+  console.log("PASS CAD source: exact private BREP bytes match PASS/VERIFIED metadata and validation receipt.");
 
   // Geometry derivation must bind the exact source bytes, revision, converter and tessellation settings.
   const geometryResponse = await api("/api/cad/geometry", {
@@ -135,6 +154,18 @@ async function main(): Promise<void> {
     sha256(glb) === derivative.artifactSha256,
     "Downloaded GLB bytes, format header, length or SHA-256 do not match persisted metadata.");
   console.log("PASS geometry: OCCT derivative, GLB v2, private signed retrieval and exact digest verified.");
+
+  const invalidGeometryResponse = await api("/api/cad/geometry", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      projectId, completionId, sourceArtifactId, operation: "TESSELLATE",
+      linearDeflectionMm: 100, angularDeflectionRad: 0.35
+    })
+  });
+  check(invalidGeometryResponse.status === 400,
+    "Out-of-range tessellation parameters were not rejected with HTTP 400.");
+  console.log("PASS geometry negative case: out-of-range tessellation parameters rejected.");
 
   const derivativeListResponse = await api("/api/cad/geometry?projectId=" + projectId + "&modelIdentityId=" + modelId);
   const derivativeListBody = await json(derivativeListResponse);
@@ -219,13 +250,25 @@ async function main(): Promise<void> {
   }), "spoofed.svg");
   const spoofedResponse = await api("/api/cad/drawings", { method: "POST", body: spoofed });
   check(spoofedResponse.status === 422, "MIME/extension spoofing was not rejected with HTTP 422.");
-  console.log("PASS negative drawing cases: active SVG and MIME/extension spoofing rejected.");
+
+  const malformedPdf = new FormData();
+  malformedPdf.set("projectId", projectId);
+  malformedPdf.set("modelIdentityId", modelId);
+  malformedPdf.set("file", new Blob([new TextEncoder().encode("not a PDF")], {
+    type: "application/pdf"
+  }), "malformed.pdf");
+  const malformedPdfResponse = await api("/api/cad/drawings", { method: "POST", body: malformedPdf });
+  check(malformedPdfResponse.status === 422, "Malformed PDF content was not rejected with HTTP 422.");
+  console.log("PASS negative drawing cases: active SVG, MIME/extension spoofing and malformed PDF rejected.");
 
   // Cross-project and unauthenticated reads must not disclose project artifact inventories.
   const foreignProjectId = randomUUID();
   const foreignRead = await api("/api/cad/drawings?projectId=" + foreignProjectId, {}, true);
   check(foreignRead.status === 403 || foreignRead.status === 404,
     "Cross-project drawing inventory access was not denied.");
+  const foreignGeometryRead = await api("/api/cad/geometry?projectId=" + foreignProjectId, {}, true);
+  check(foreignGeometryRead.status === 403 || foreignGeometryRead.status === 404,
+    "Cross-project geometry inventory access was not denied.");
   const anonymousRead = await api("/api/cad/geometry?projectId=" + projectId, {}, false);
   check(!anonymousRead.ok, "Unauthenticated geometry derivative inventory access was allowed.");
   console.log("PASS authorization: anonymous and cross-project artifact inventory requests denied.");
