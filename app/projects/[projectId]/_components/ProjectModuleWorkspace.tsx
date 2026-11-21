@@ -506,6 +506,7 @@ function renderGeometryDerivativePreview(props: WorkbenchArtifactPreviewProps) {
   return <CADGeometryDerivativePreview
     projectId={props.projectId}
     completionId={entry.completion.id}
+    modelIdentityId={entry.completion.model_identity_id ?? ""}
     sourceArtifactId={entry.artifact.id}
     sourceName={entry.artifact.name}
     sourceKind={geometryKind}
