@@ -90,7 +90,11 @@ function createPreviewProgram(gl: WebGL2RenderingContext, accent: [number, numbe
   }
 }
 
-export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshPreview): {
+export function createStlWebGLRenderer(
+  canvas: HTMLCanvasElement,
+  mesh: STLMeshPreview,
+  onContextStatus?: (error: Error | null) => void,
+): {
   controls: StlViewportControls;
   destroy: () => void;
 } {
@@ -111,6 +115,7 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
   let visible = true;
   let selected = false;
   let contextLost = false;
+  let contextRestoreTimer: number | null = null;
   let lastX = 0;
   let lastY = 0;
 
@@ -209,18 +214,31 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
   const contextLostHandler = (event: Event) => {
     event.preventDefault();
     contextLost = true;
+    onContextStatus?.(new Error("WebGL context lost. Attempting to restore the CAD display."));
+    if (contextRestoreTimer !== null) window.clearTimeout(contextRestoreTimer);
+    contextRestoreTimer = window.setTimeout(() => {
+      if (contextLost) {
+        onContextStatus?.(new Error("WebGL context restoration timed out. Reload the CAD preview to recover."));
+      }
+    }, 5000);
   };
   const contextRestoredHandler = () => {
-    contextLost = false;
+    if (contextRestoreTimer !== null) window.clearTimeout(contextRestoreTimer);
+    contextRestoreTimer = null;
     try {
       initializeResources();
+      contextLost = false;
       draw();
-    } catch {
+      onContextStatus?.(null);
+    } catch (cause) {
       contextLost = true;
+      onContextStatus?.(cause instanceof Error ? cause : new Error("WebGL resources could not be restored."));
     }
   };
 
   const destroy = () => {
+    if (contextRestoreTimer !== null) window.clearTimeout(contextRestoreTimer);
+    contextRestoreTimer = null;
     resizeObserver?.disconnect();
     if (typeof ResizeObserver === "undefined") window.removeEventListener("resize", draw);
     canvas.removeEventListener("pointerdown", pointerDown);
