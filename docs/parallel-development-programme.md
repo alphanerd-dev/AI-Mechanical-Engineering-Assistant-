@@ -13,9 +13,9 @@ The near-term order is: (1) validate the recurring customer problem and first pa
 
 Framework position: selectively use TanStack Query for remote server state and Zustand for ephemeral shared UI state; defer Redux Toolkit and Redis; use FastAPI only for Python services that need a persistent typed API; keep Next.js as the control plane. LangGraph and Temporal remain conditional, not default dependencies. See [Architecture](architecture.md), [Implementation Plan](implementation-plan.md) and [Product Experience and Architecture Alignment](product-experience-and-architecture-alignment.md).
 
-## Current execution snapshot — 15 November 2026
+## Historical execution snapshot — 15 November 2026
 
-This snapshot supersedes the older dated branch/PR status tables below where they conflict. PRs #165 and #166 are merged. The production application is READY at merge commit `9bfb57e86e70db84a682d162bba9253e0185c920`; the eight additive geometry/manufacturing migrations are applied and verified in production. The geometry and manufacturing capabilities are part of the current production release.
+This is a historical snapshot. Its operational and deployment statements are preserved as recorded at the time; use the 21 November alignment section above and the current Implementation Plan for present priorities and status. PRs #165 and #166 are merged. The production application is READY at merge commit `9bfb57e86e70db84a682d162bba9253e0185c920`; the eight additive geometry/manufacturing migrations are applied and verified in production. The geometry and manufacturing capabilities are part of the current production release.
 
 | Workstream | Verified state | Remaining boundary |
 |---|---|---|
@@ -133,7 +133,7 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 
 **Scope**
 - Project workspace and navigation.
-- Conversational chat and separate Engineering Core task interaction.
+- Chat-first task interaction as the target product journey; deterministic Engineering Core workflows remain separate internally behind authenticated policy and execution services.
 - Artifact browser, task history, workflow state and evidence inspection.
 - CAD/CAE viewers and drawing/diagram surfaces as their milestones pass.
 - Responsive desktop and representative Android browser support.
@@ -145,7 +145,7 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 2. Benchmark Babylon.js versus Three.js using identical fixtures; keep VTK.js evaluation separate for scientific fields.
 3. Deliver CAD viewer MVP only after artifact authorization, lineage and stale-state handling pass.
 4. Deliver M3 FEA field visualization with numerical fidelity checks.
-5. Keep chat and deterministic task execution visibly distinct.
+5. Make one conversational journey the primary user experience for planning, progress and results; retain deterministic execution as a separate internal authority, not a competing user-facing submission destination.
 
 **Exit gate:** Authenticated user acceptance on desktop and representative mobile devices; accessibility and responsive checks; correct authorization; safe failure states; no visual surface can alter validation or approval state.
 
