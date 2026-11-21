@@ -336,6 +336,7 @@ function DerivativeReadyState({ state, sourceName, reset }: {
   if (!state.signedUrl || !state.derivative) return null;
   return <>
     <CADDisplayViewport
+      key={state.derivative.artifactId}
       src={state.signedUrl}
       label={sourceName}
       sourceArtifactId={state.derivative.sourceArtifactId}
