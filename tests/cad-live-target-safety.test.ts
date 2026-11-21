@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { assertNonProductionCadSmokeTarget } from "../src/cad/live-smoke-target.js";
+import {
+  assertNonProductionCadSmokeSupabaseTarget,
+  assertNonProductionCadSmokeTarget
+} from "../src/cad/live-smoke-target.js";
 
 describe("CAD live-smoke target safety", () => {
   it.each([
