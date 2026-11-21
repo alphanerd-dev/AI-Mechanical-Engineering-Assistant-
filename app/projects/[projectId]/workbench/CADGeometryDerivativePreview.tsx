@@ -193,27 +193,89 @@ async function readCurrentDerivative(input: PreviewRequest, artifactId: string):
 }
 
 function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; onRefresh: () => void }) {
-  const [state, setState] = useState<State>({ signedUrl: null, derivative: null, error: null, loading: false });
+  const [state, setState] = useState<State>({
+    signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false
+  });
   useEffect(() => {
-    setState({ signedUrl: null, derivative: null, error: null, loading: false });
-  }, [props.completionId, props.sourceArtifactId]);
+    setState({
+      signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false
+    });
+  }, [props.completionId, props.modelIdentityId, props.sourceArtifactId]);
 
   const generate = useCallback(async () => {
-    if (state.loading || props.staleness !== "LATEST_ACCEPTED") return;
+    if (state.loading || state.stale || state.freshnessUnverified ||
+        props.staleness !== "LATEST_ACCEPTED" || !props.modelIdentityId) return;
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const result = await requestDisplayDerivative(props);
-      setState({ ...result, error: null, loading: false });
+      const generated = await requestDisplayDerivative(props);
+      const current = await readCurrentDerivative(props, generated.derivative.artifactId);
+      if (current.kind === "STALE") {
+        throw new StaleCADSourceError("The source model revision changed during tessellation. Create a new accepted CAD completion before generating another preview.");
+      }
+      if (current.kind !== "CURRENT") {
+        throw new DerivativeFreshnessError("The generated derivative could not be confirmed as current. The preview remains hidden.");
+      }
+      setState({
+        signedUrl: current.signedUrl, derivative: current.derivative, error: null, loading: false,
+        stale: false, freshnessUnverified: false
+      });
       props.onRefresh();
     } catch (cause) {
+      const stale = cause instanceof StaleCADSourceError;
+      const freshnessUnverified = cause instanceof DerivativeFreshnessError;
       setState((current) => ({
-        ...current, error: cause instanceof Error ? cause.message : "CAD display derivative generation failed.", loading: false
+        ...current,
+        signedUrl: stale || freshnessUnverified ? null : current.signedUrl,
+        derivative: stale || freshnessUnverified ? null : current.derivative,
+        stale,
+        freshnessUnverified,
+        error: cause instanceof Error ? cause.message : "CAD display derivative generation failed.",
+        loading: false
       }));
     }
-  }, [props, state.loading]);
+  }, [props, state.loading, state.stale, state.freshnessUnverified]);
+
+  const activeDerivativeId = state.derivative?.artifactId ?? null;
+  useEffect(() => {
+    if (!activeDerivativeId || !props.modelIdentityId) return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const current = await readCurrentDerivative(props, activeDerivativeId);
+        if (!active) return;
+        if (current.kind === "CURRENT") {
+          setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
+            ...previous, signedUrl: current.signedUrl, derivative: current.derivative,
+            stale: false, freshnessUnverified: false, error: null
+          } : previous);
+        } else if (current.kind === "STALE") {
+          setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
+            ...previous, signedUrl: null, derivative: null, stale: true, freshnessUnverified: false,
+            error: "The source model revision changed. This display derivative is stale; create a new accepted CAD completion before generating another preview."
+          } : previous);
+        } else {
+          setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
+            ...previous, signedUrl: null, derivative: null, stale: false, freshnessUnverified: true,
+            error: "The current source revision could not be confirmed. The preview is hidden until verification succeeds."
+          } : previous);
+        }
+      } catch {
+        if (!active) return;
+        setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
+          ...previous, signedUrl: null, derivative: null, stale: false, freshnessUnverified: true,
+          error: "The current source revision could not be confirmed. The preview is hidden until verification succeeds."
+        } : previous);
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [activeDerivativeId, props.projectId, props.modelIdentityId, props.sourceArtifactId]);
 
   const reset = useCallback(() => {
-    setState((current) => ({ ...current, signedUrl: null, derivative: null, error: null }));
+    setState((current) => ({
+      ...current, signedUrl: null, derivative: null, error: null, stale: false, freshnessUnverified: false
+    }));
   }, []);
   return { state, generate, reset };
 }
