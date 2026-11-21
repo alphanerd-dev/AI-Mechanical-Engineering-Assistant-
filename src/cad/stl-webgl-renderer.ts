@@ -1,13 +1,17 @@
 import type { STLMeshPreview } from "./stl-preview";
 
 /**
- * Isolated, bounded WebGL fallback for the existing STL-only preview path.
- * R3F/drei are not present in the current lockfile; keeping this renderer behind
- * a small lifecycle API allows a future R3F viewport without changing artifact
- * loading, project authorization, or validation boundaries.
+ * Bounded WebGL renderer for immutable, digest-verified display meshes.
+ * Rendering remains display-only: this module never measures or validates geometry.
  */
 
-export type StlViewportControls = { reset: () => void; rotateLeft: () => void; rotateRight: () => void };
+export type StlViewportControls = {
+  reset: () => void;
+  rotateLeft: () => void;
+  rotateRight: () => void;
+  setVisible: (visible: boolean) => void;
+  setSelected: (selected: boolean) => void;
+};
 type PreviewProgram = { program: WebGLProgram; vertex: WebGLShader; fragment: WebGLShader };
 
 function readThemeRgb(variable: string): [number, number, number] {
@@ -62,11 +66,12 @@ function createPreviewProgram(gl: WebGLRenderingContext, accent: [number, number
   const fragmentSource = [
     "precision mediump float;",
     "varying vec3 v_normal;",
+    "uniform float u_selected;",
     "void main() {",
     "  vec3 light = normalize(vec3(-0.45, 0.75, 1.0));",
     "  float diffuse = max(dot(normalize(v_normal), light), 0.0);",
     "  float shade = 0.32 + 0.68 * diffuse;",
-    `  vec3 base = vec3(${accentSource});`,
+    `  vec3 base = mix(vec3(${accentSource}), vec3(0.96, 0.72, 0.28), u_selected * 0.55);`,
     "  gl_FragColor = vec4(base * shade, 1.0);",
     "}",
   ].join("\n");
@@ -94,32 +99,21 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
   let positionBuffer: WebGLBuffer | null = null;
   let normalBuffer: WebGLBuffer | null = null;
   let resizeObserver: ResizeObserver | null = null;
+  let rotationLocation: WebGLUniformLocation | null = null;
+  let zoomLocation: WebGLUniformLocation | null = null;
+  let selectedLocation: WebGLUniformLocation | null = null;
   let rotationX = -0.42;
   let rotationY = 0.62;
   let zoom = 0.78;
   let dragging = false;
+  let visible = true;
+  let selected = false;
+  let contextLost = false;
   let lastX = 0;
   let lastY = 0;
 
-  const destroy = () => {
-    resizeObserver?.disconnect();
-    if (typeof ResizeObserver === "undefined") window.removeEventListener("resize", draw);
-    canvas.removeEventListener("pointerdown", pointerDown);
-    canvas.removeEventListener("pointermove", pointerMove);
-    canvas.removeEventListener("pointerup", pointerUp);
-    canvas.removeEventListener("pointercancel", pointerUp);
-    canvas.removeEventListener("wheel", wheel);
-    canvas.removeEventListener("keydown", keyDown);
-    if (positionBuffer) gl.deleteBuffer(positionBuffer);
-    if (normalBuffer) gl.deleteBuffer(normalBuffer);
-    if (resources) {
-      gl.deleteProgram(resources.program);
-      gl.deleteShader(resources.vertex);
-      gl.deleteShader(resources.fragment);
-    }
-  };
-
   const draw = () => {
+    if (contextLost || gl.isContextLost()) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     const width = Math.max(1, Math.floor(canvas.clientWidth * ratio));
     const height = Math.max(1, Math.floor(canvas.clientHeight * ratio));
@@ -130,15 +124,55 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
     gl.viewport(0, 0, width, height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    if (!resources) return;
+    if (!resources || !visible) return;
     gl.useProgram(resources.program);
-    gl.uniform2f(rotationLocation!, rotationX, rotationY);
-    gl.uniform1f(zoomLocation!, zoom);
+    if (rotationLocation) gl.uniform2f(rotationLocation, rotationX, rotationY);
+    if (zoomLocation) gl.uniform1f(zoomLocation, zoom);
+    if (selectedLocation) gl.uniform1f(selectedLocation, selected ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, mesh.positions.length / 3);
   };
 
-  let rotationLocation: WebGLUniformLocation | null = null;
-  let zoomLocation: WebGLUniformLocation | null = null;
+  const disposeResources = () => {
+    if (positionBuffer) gl.deleteBuffer(positionBuffer);
+    if (normalBuffer) gl.deleteBuffer(normalBuffer);
+    if (resources) {
+      gl.deleteProgram(resources.program);
+      gl.deleteShader(resources.vertex);
+      gl.deleteShader(resources.fragment);
+    }
+    positionBuffer = null;
+    normalBuffer = null;
+    resources = null;
+    rotationLocation = null;
+    zoomLocation = null;
+    selectedLocation = null;
+  };
+
+  const initializeResources = () => {
+    resources = createPreviewProgram(gl, readThemeRgb("--color-accent"));
+    const positionLocation = gl.getAttribLocation(resources.program, "a_position");
+    const normalLocation = gl.getAttribLocation(resources.program, "a_normal");
+    rotationLocation = gl.getUniformLocation(resources.program, "u_rotation");
+    zoomLocation = gl.getUniformLocation(resources.program, "u_zoom");
+    selectedLocation = gl.getUniformLocation(resources.program, "u_selected");
+    if (positionLocation < 0 || normalLocation < 0 || !rotationLocation || !zoomLocation || !selectedLocation) {
+      throw new Error("The 3D preview shader bindings are incomplete.");
+    }
+    positionBuffer = gl.createBuffer();
+    normalBuffer = gl.createBuffer();
+    if (!positionBuffer || !normalBuffer) throw new Error("WebGL could not allocate mesh buffers.");
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, mesh.positions, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, mesh.normals, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(normalLocation);
+    gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+  };
+
   const reset = () => { rotationX = -0.42; rotationY = 0.62; zoom = 0.78; draw(); };
   const pointerDown = (event: PointerEvent) => {
     dragging = true;
@@ -170,35 +204,44 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
     event.preventDefault();
     draw();
   };
+  const contextLostHandler = (event: Event) => {
+    event.preventDefault();
+    contextLost = true;
+  };
+  const contextRestoredHandler = () => {
+    contextLost = false;
+    try {
+      initializeResources();
+      draw();
+    } catch {
+      contextLost = true;
+    }
+  };
+
+  const destroy = () => {
+    resizeObserver?.disconnect();
+    if (typeof ResizeObserver === "undefined") window.removeEventListener("resize", draw);
+    canvas.removeEventListener("pointerdown", pointerDown);
+    canvas.removeEventListener("pointermove", pointerMove);
+    canvas.removeEventListener("pointerup", pointerUp);
+    canvas.removeEventListener("pointercancel", pointerUp);
+    canvas.removeEventListener("wheel", wheel);
+    canvas.removeEventListener("keydown", keyDown);
+    canvas.removeEventListener("webglcontextlost", contextLostHandler);
+    canvas.removeEventListener("webglcontextrestored", contextRestoredHandler);
+    if (!gl.isContextLost()) disposeResources();
+  };
 
   try {
-    resources = createPreviewProgram(gl, readThemeRgb("--color-accent"));
-    const positionLocation = gl.getAttribLocation(resources.program, "a_position");
-    const normalLocation = gl.getAttribLocation(resources.program, "a_normal");
-    rotationLocation = gl.getUniformLocation(resources.program, "u_rotation");
-    zoomLocation = gl.getUniformLocation(resources.program, "u_zoom");
-    if (positionLocation < 0 || normalLocation < 0 || !rotationLocation || !zoomLocation) {
-      throw new Error("The 3D preview shader bindings are incomplete.");
-    }
-    positionBuffer = gl.createBuffer();
-    normalBuffer = gl.createBuffer();
-    if (!positionBuffer || !normalBuffer) throw new Error("WebGL could not allocate mesh buffers.");
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, mesh.positions, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(positionLocation);
-    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, mesh.normals, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(normalLocation);
-    gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 0, 0);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
+    initializeResources();
     canvas.addEventListener("pointerdown", pointerDown);
     canvas.addEventListener("pointermove", pointerMove);
     canvas.addEventListener("pointerup", pointerUp);
     canvas.addEventListener("pointercancel", pointerUp);
     canvas.addEventListener("wheel", wheel, { passive: false });
     canvas.addEventListener("keydown", keyDown);
+    canvas.addEventListener("webglcontextlost", contextLostHandler);
+    canvas.addEventListener("webglcontextrestored", contextRestoredHandler);
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(draw);
       resizeObserver.observe(canvas);
@@ -211,6 +254,8 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
         reset,
         rotateLeft: () => { rotationY -= 0.14; draw(); },
         rotateRight: () => { rotationY += 0.14; draw(); },
+        setVisible: (nextVisible) => { visible = nextVisible; draw(); },
+        setSelected: (nextSelected) => { selected = nextSelected; draw(); }
       },
       destroy,
     };
