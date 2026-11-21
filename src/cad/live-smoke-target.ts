@@ -39,3 +39,20 @@ export function assertNonProductionCadSmokeTarget(
     "Use the exact branch-scoped non-production preview configured by the protected CI environment; never use production.",
   );
 }
+
+const PRODUCTION_SUPABASE_HOSTS = new Set(["mepmogsqhxxasahwhete.supabase.co"]);
+
+/** Exact-host guard for service-role-backed M2 tests; never accept production Supabase. */
+export function assertNonProductionCadSmokeSupabaseTarget(
+  supabaseUrl: URL,
+  configuredAllowedHost: string,
+): void {
+  const hostname = supabaseUrl.hostname.toLowerCase();
+  const allowedHost = configuredAllowedHost.trim().toLowerCase();
+  if (supabaseUrl.protocol !== "https:" || !allowedHost || allowedHost.includes("*") ||
+      hostname !== allowedHost || PRODUCTION_SUPABASE_HOSTS.has(hostname)) {
+    throw new Error(
+      "Refusing to run write-producing M2 acceptance against an unapproved or production Supabase host.",
+    );
+  }
+}
