@@ -36,6 +36,30 @@ The branch adds:
 
 The live runner intentionally advances the CAD model revision through the service-role REST API to prove that an already persisted derivative becomes `STALE` and cannot be regenerated from the superseded completion. It is safe to run only against the exact allowlisted non-production app and Supabase hosts and a disposable test project. It must never be configured with production credentials.
 
+## Database deployment and security evidence — 21 November 2026
+
+Read-only Supabase checks confirmed that both the dedicated `AI-Mechanical-Engineering-Assistant-E2E` project and the production project contain the M2 migrations `20261113210000_m2_display_derivatives_and_drawings` and `20261115130000_m2_generated_drawing_lineage`, as well as the G2 geometry revision migrations.
+
+The dedicated E2E project is `ACTIVE_HEALTHY`. Its M2 tables were checked directly:
+
+| Table | RLS | anon SELECT | authenticated SELECT | Policies |
+|---|---:|---:|---:|---:|
+| `engineering_cad_display_derivatives` | enabled | denied | allowed | 1 |
+| `engineering_cad_drawings` | enabled | denied | allowed | 1 |
+| `engineering_geometry_revisions` | enabled | denied | denied | 0 |
+
+The geometry-revision table is intentionally server-only: the migration grants table access to `service_role` and no direct `anon`/`authenticated` access. The public `get_current_geometry_revision_heads` SECURITY DEFINER RPC was reviewed: it rejects a missing `auth.uid()`, limits the requested model list, and verifies project membership before returning revision IDs. The Supabase advisor's warning for that RPC is therefore reviewed, not silently ignored. The advisor also reports other server-only tables with RLS and no policies; these are not a reason to add broad client policies.
+
+No Supabase schema changes were made during this closure cycle. Production was inspected read-only; all planned mutation tests remain restricted to the dedicated E2E project.
+
+## Preview worker configuration blocker
+
+The Vercel preview for this branch builds the application, and the global Preview Supabase URL is configured for the dedicated E2E project. However, the branch has no branch-scoped `CAD_WORKER_API_TOKEN` (and no matching worker configuration) in Vercel. Existing worker credentials are scoped to other branches. The preview cannot safely execute the authenticated CAD completion → OCCT workflow until a dedicated non-production worker URL/token is configured for this branch.
+
+Do not copy a secret from another branch, use the production worker/token, or point the test at production to bypass this blocker. The exact approval/configuration required is a branch-scoped non-production `CAD_WORKER_URL` and `CAD_WORKER_API_TOKEN`, with a token dedicated to this acceptance preview.
+
+The GitHub Supabase Preview integration is disabled for new PR branches, but this is not a schema blocker: the separate E2E Supabase project already has the M2 migrations. The remaining blocker is the application-to-worker secret boundary and the protected live-acceptance session/test fixture configuration.
+
 ## Protected live-acceptance configuration
 
 Create/configure the GitHub Environment named `m2-artifact-acceptance` only for this closure workflow.
