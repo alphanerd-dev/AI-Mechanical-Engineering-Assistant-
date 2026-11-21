@@ -15,7 +15,8 @@
     "smoke:cad-live": "tsx scripts/cad-workspace-live-smoke.ts",
     "architecture:graph": "tsx scripts/architecture-graph.ts",
     "architecture:graph:json": "tsx scripts/architecture-graph.ts --json",
-    "test:browserstack": "browserstack-node-sdk playwright test"
+    "test:browserstack": "browserstack-node-sdk playwright test",
+    "smoke:m2-artifacts": "tsx scripts/m2-artifact-workflow-smoke.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
