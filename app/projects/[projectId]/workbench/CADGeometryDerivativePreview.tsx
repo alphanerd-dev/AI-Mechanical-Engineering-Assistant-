@@ -267,9 +267,20 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
         } : previous);
       }
     };
+    const onFocus = () => { void refresh(); };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 30_000);
-    return () => { active = false; window.clearInterval(timer); };
+    const timer = window.setInterval(() => void refresh(), 15_000);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [activeDerivativeId, props.projectId, props.modelIdentityId, props.sourceArtifactId]);
 
   const reset = useCallback(() => {
