@@ -14,10 +14,15 @@ type Derivative = {
   tessellation: { linearDeflectionMm: number; angularDeflectionRad: number };
 };
 
-type State = { signedUrl: string | null; derivative: Derivative | null; error: string | null; loading: boolean };
+type State = { signedUrl: string | null; derivative: Derivative | null; error: string | null; loading: boolean; stale: boolean; freshnessUnverified: boolean };
 type PreviewRequest = {
-  projectId: string; completionId: string; sourceArtifactId: string;
+  projectId: string; modelIdentityId: string; completionId: string; sourceArtifactId: string;
 };
+type DerivativeStatus =
+  | { kind: "CURRENT"; signedUrl: string; derivative: Derivative }
+  | { kind: "STALE" | "UNVERIFIABLE" | "MISSING" };
+class StaleCADSourceError extends Error {}
+class DerivativeFreshnessError extends Error {}
 
 async function postDisplayDerivative(input: PreviewRequest): Promise<Response> {
   return fetch("/api/cad/geometry", {
