@@ -169,7 +169,6 @@ These are architecture recommendations, not evidence that the libraries are inst
 - A successful worker process proves execution only; a capability validator must establish its declared checks.
 - Provider readiness is project/deployment-specific and must be checked at runtime.
 - No user study or matched-task productivity trial was performed as part of the audit. Time saved, ROI, cost per accepted outcome, repeat use and willingness to pay remain **NOT MEASURED**.
-- The candidate Mechanical Design Verification Workspace entry point must be tested through 12–15 interviews and 3–5 real-task pilots as defined in the Implementation Plan. Those internal sample thresholds are hypotheses, not market benchmarks.
 - Keep the product fast for safe, reversible, low-ambiguity work; increase questions, validation and human approval as consequence, ambiguity and uncertainty rise.
 - Preserve the dark engineering visual identity; focus redesign effort on navigation hierarchy, workflow integration, result clarity, mobile/keyboard/screen-reader operation and truthful states rather than decorative restyling.
 
