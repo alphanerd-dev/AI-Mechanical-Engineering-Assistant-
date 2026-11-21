@@ -5,6 +5,14 @@
 **Scope:** Main product development alongside the proprietary Geometry Platform programme  
 **Authority:** This programme coordinates work; the [Implementation Plan](implementation-plan.md) remains authoritative for milestone status and exit gates.
 
+## Product and architecture alignment — 21 November 2026
+
+The 20 November UX audit and 21 November architecture review establish the current product interaction target: **chat-first, task-oriented, evidence-backed engineering workflows**. This is a target direction, not a statement that chat dispatch is already implemented. The current chat remains guidance-oriented and the Engineering Core remains the separate execution surface until the authenticated chat-to-task milestone passes.
+
+The near-term order is: (1) validate the recurring customer problem and first paid-value workflow; (2) unify TaskSpec, task/job/event and result states; (3) integrate chat with host-controlled task proposal, policy, readiness and approval; (4) complete durable progress, recovery and event delivery; (5) add secure attachments and project file lifecycle; (6) complete one accepted CAD and one bounded FEA journey; (7) simplify navigation, protect administrative controls and close accessibility gaps. Keep the proprietary Geometry Platform independent except where a specific operation requires its capability.
+
+Framework position: selectively use TanStack Query for remote server state and Zustand for ephemeral shared UI state; defer Redux Toolkit and Redis; use FastAPI only for Python services that need a persistent typed API; keep Next.js as the control plane. LangGraph and Temporal remain conditional, not default dependencies. See [Architecture](architecture.md), [Implementation Plan](implementation-plan.md) and [Product Experience and Architecture Alignment](product-experience-and-architecture-alignment.md).
+
 ## Current execution snapshot — 15 November 2026
 
 This snapshot supersedes the older dated branch/PR status tables below where they conflict. PRs #165 and #166 are merged. The production application is READY at merge commit `9bfb57e86e70db84a682d162bba9253e0185c920`; the eight additive geometry/manufacturing migrations are applied and verified in production. The geometry and manufacturing capabilities are part of the current production release.
