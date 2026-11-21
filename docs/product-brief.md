@@ -2,7 +2,7 @@
 
 **Product direction:** AI-native Engineering Workspace evolving toward an Engineering Operating System  
 **Initial domain:** Mechanical Engineering  
-**Reviewed:** 15 November 2026
+**Reviewed:** 21 November 2026
 
 ## 1. Vision and promise
 
@@ -20,12 +20,36 @@ A generated answer, completed worker process, stored file or rendered visualizat
 
 ## 2. Primary user experience
 
-The Engineering Workspace contains two complementary but distinct surfaces:
+### Current implementation
 
-1. **Conversational assistant:** an interactive project-scoped chat for explanation, problem framing, conceptual discussion, comparison, missing-input identification and ordinary analytic calculations. It streams responses and renders Markdown, code and engineering equations.
-2. **Engineering Core interaction:** a separate task surface for supported deterministic workflows. It is the explicit route for registered calculations or other capabilities that require typed inputs, execution, validation, evidence and a decision state.
+The current application exposes two distinct paths:
 
-The chat does not currently call privileged engineering tools, run CAD/FEA, execute arbitrary Python/shell, mutate project state or formally validate an engineering result. The assistant must never claim those actions happened merely because it described them.
+1. **Conversational assistant:** a project-scoped chat for explanation, problem framing, conceptual discussion, comparison, missing-input identification and ordinary analytic calculations. It streams responses and renders Markdown, code and engineering equations.
+2. **Engineering Core:** a separate user-facing task surface for registered deterministic workflows that require typed inputs, authorization, execution, validation, evidence and a decision state.
+
+This is the current repository behavior. The chat route does not yet submit privileged engineering tasks, execute CAD/FEA, run arbitrary Python/shell, mutate project state or formally validate a result. The separate Engineering Core is the current execution entry point.
+
+### Target experience
+
+Make the **conversation the default entry point and primary user-facing task journey**. The engineer should be able to begin with an unscoped or project-scoped objective, discuss it, attach relevant inputs, and let the assistant coordinate a supported workflow without first choosing an internal capability module.
+
+For executable engineering requests, the target journey is:
+
+1. Interpret the objective and retrieve only authorized project context.
+2. Ask focused questions for missing or ambiguous critical inputs.
+3. Propose a typed, versioned TaskSpec describing capability, parameters/units, assumptions, inputs, dependencies, outputs, acceptance criteria, resource limits and risk.
+4. Validate that proposal using host-owned schema, project authorization, capability readiness, policy and approval rules.
+5. Persist the task and dispatch only an allowlisted deterministic capability to an isolated worker.
+6. Stream durable progress, blockers, approval requests and recovery state into the originating conversation.
+7. Independently validate outputs, bind them to immutable artifacts/evidence and present the result with its exact limitations and next action.
+
+The user-facing surface should be coherent, but **execution authority must remain separate internally**: chat/model output is advisory; the authenticated control plane, Engineering Core, capability policy, durable store, workers and validators own execution and acceptance. CAD editing, simulation post-processing, drawing inspection, requirements and approval screens remain contextual specialist surfaces rather than competing global destinations.
+
+### Primary navigation direction
+
+The proposed global structure is **Chat, Projects, Tasks, Library and Account**. Tasks is the cross-project monitor for queued, running, completed, failed, blocked and approval-required work, with a link back to its originating conversation. Within a project, keep Conversation primary and expose Context, Results, Activity/Decisions and Project settings as contextual views. On mobile, chat remains full-width; context, result inspection and approval open as full-screen sheets.
+
+Do not expose backend-only reasoning workbenches, completion units, capability registries, provider IDs, worker diagnostics, raw route names or internal enum/UUID values to ordinary users. Show engineering-relevant values, units, assumptions, solver details, mesh quality, validation and evidence through progressive disclosure.
 
 ## 3. Conversational AI implementation
 
@@ -140,6 +164,8 @@ The hybrid strategy is phased. Cross-cutting delivery milestones M2–M5 in the 
 | V2.5 | Electromechanical systems | KiCad, SKiDL and SPICE integrations |
 
 M2's artifact and viewer foundations should precede broad multi-step autonomous workflows that rely on inspecting and linking engineering artifacts. V2.0 should expand in bounded, capability-specific increments rather than enabling unrestricted agent execution. Later V2.x integrations require provider licensing, runtime isolation, representative benchmarks, independent validators, evidence contracts, rollback and demonstrated user value.
+
+**Experience and adoption sequencing:** before expanding V2.x breadth, close the chat-to-task orchestration gap, establish one durable task/event/result lifecycle, add secure chat attachments and project file retrieval, complete at least one accepted CAD workflow and one bounded FEA workflow, then consolidate navigation, administrator-only settings and accessibility. In parallel, validate the proposed Mechanical Design Verification Workspace entry point with real engineers; it remains a customer-discovery hypothesis, not a validated market decision.
 
 ## 11. Acceptance rule
 

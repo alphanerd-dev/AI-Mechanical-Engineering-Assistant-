@@ -1,10 +1,51 @@
 # Implementation Plan and Milestones
 
-**Updated:** 19 November 2026
+**Updated:** 21 November 2026
+
+## Product, UX and architecture alignment — 21 November 2026
+
+**Decision:** preserve the current engineering core and make the user-facing product chat-first. The 20 November UX audit found that the application has credible engineering, persistence, artifact and trust foundations, but the user journey still behaves as a multi-section workspace with a guidance-only chat and separate deterministic task runner. The required correction is an interaction and integration evolution—not a backend rewrite.
+
+### Current state versus target
+
+- **Current:** project-scoped streamed chat supports explanation, intent discussion and ordinary analytic reasoning; registered deterministic workflows use the separate Engineering Core surface. Chat does not dispatch privileged engineering work.
+- **Target:** conversation becomes the default entry point and task/result journey. For executable requests, the assistant proposes a versioned TaskSpec; deterministic host validation checks project scope, schema, capability readiness, risk, budgets and approval; approved work is persisted and dispatched to an allowlisted worker; durable progress and validated evidence return to the originating conversation.
+- **Preserved internal boundary:** chat/model output is not execution authority. The Engineering Core, capability router, policy, durable store, workers, validators and authorized approvers remain distinct internal authorities. Specialist CAD/CAE, drawing, artifact and approval interfaces open contextually when needed.
+- **Product information architecture target:** Chat, Projects, Tasks, Library and Account. Within a project, Conversation remains primary with contextual Context, Results, Activity/Decisions and Project settings. The Tasks view monitors cross-project work and links back to its originating conversation.
+- **Market entry point:** the Mechanical Design Verification Workspace remains a hypothesis for customer discovery, not a validated product-market decision. Keep the 19 November interview/pilot sequence and internal thresholds; do not expand capability breadth solely because a provider exists.
+
+### Dependency-aware implementation order
+
+| Order | Work package | Required output / exit gate |
+|---|---|---|
+| P0 | Customer problem validation and outcome instrumentation | Interview 12–15 target engineers; recruit 3–5 real-task pilots; record current workflow, accepted deliverables, rework and willingness-to-pay evidence. Economic baseline stays NOT MEASURED until matched trials exist. |
+| P0 | Canonical TaskSpec and lifecycle | Versioned task/job/event/artifact/validation/approval/acceptance contracts; deterministic transitions; compatibility mapping to the existing graph, job store and evidence model. |
+| P0 | Chat-to-task orchestration | Narrow authenticated route; model proposes typed TaskSpec; host validates authorization, readiness, scope, policy and approval; non-executable chat remains normal conversation. Exit only after authenticated end-to-end task persistence and policy-negative tests. |
+| P1 | Durable workflow closure | Durable parent/child relationships as needed, outbox/event delivery, idempotency, leases/fencing, bounded retries, cancellation and ambiguous-timeout recovery; refresh-restorable task timeline. Do not add a new orchestration platform without evidence. |
+| P1 | Attachments and project file lifecycle | Secure chat uploads, file-type/size controls, scanning, digest/provenance, project authorization, inventory, preview and download contracts. |
+| P1 | First complete CAD journey | One declared CAD task from chat intent through deterministic build, independent geometry checks, immutable artifact/evidence, download/viewer, stale-source handling and recovery. |
+| P1 | One bounded FEA journey | Supported benchmark/case only; authenticated submission/readback, mesh/result manifest, analytical/reference validation and truthful result visualization. Do not generalize to arbitrary solver decks. |
+| P1 | UX information architecture and accessibility | Simplify navigation to Chat/Projects/Tasks/Library/Account; protect admin/provider settings; fix the observed login link distinguishability/contrast issue; test authenticated key journeys on desktop and representative mobile. |
+| P2 | Broader capability expansion | Multi-CAD, general FEA/CFD, scan-to-CAD, CAM, robotics, ECAD/SPICE, lifecycle and learned surrogates only after capability-specific demand, licensing, isolation, benchmark and evidence gates. |
+
+The sequence is dependency-aware, not a fixed calendar commitment. Engineering AI, calculations, manufacturing and user-experience work can proceed in parallel where their actual contracts permit; the proprietary Geometry Platform is not a prerequisite for unrelated workstreams.
+
+### Framework and infrastructure decisions
+
+- TanStack Query: selectively for remote server-state fetching/caching; not a second source of truth.
+- Zustand: selectively for transient shared workspace UI state.
+- Redux Toolkit: defer; do not add alongside Zustand now.
+- FastAPI: selective Python service boundary only where a persistent typed API is justified.
+- Redis: defer until metrics demonstrate a caching, coordination, rate-limiting or telemetry bottleneck; PostgreSQL remains durable authority.
+- LangGraph: optional future AI reasoning subsystem only; it does not own task execution, authorization or evidence.
+- Temporal: reconsider only when demonstrated workflow complexity makes current PostgreSQL orchestration materially costly to maintain.
+- Next.js remains the application/control plane and routing authority; assistant-ui/Vercel AI SDK retain chat/stream ownership.
+
+Detailed experience decisions and acceptance criteria are in [Product Experience and Architecture Alignment](product-experience-and-architecture-alignment.md). Current source architecture and technology status remain authoritative in [Architecture](architecture.md) and [Engineering Capabilities](engineering-capabilities.md).
 
 **Current release status:** M0 is complete with its stated limitation. M1 is implemented and browser-accepted for its tested chat scope. M2.2–M2.6 CAD/drawing implementation is merged. PRs [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165), [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166), [#177](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/177), [#181](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/181) and [#182](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/182) are merged. The accepted immutable Azure execution-worker image is deployed in the production `engineering-execution-manual` Container Apps Job. On 19 November 2026, one authenticated production `ANALYSIS.SHAFT_TORQUE` TypeScript-safe job was enqueued, executed by one bounded manual Azure drain, persisted as `SUCCEEDED`, read back through the authenticated API, and idempotently replayed without duplication. The project-scoped canary was then disabled; `DURABLE_EXECUTION_ENABLED=false` remains unchanged and the Azure job remains Manual with no schedule. The post-acceptance Vercel production deployment for main commit `14b08d0958cf44494f205d96db9d3a0a3a5f4f5c` is **READY**. The eight additive migrations for geometry revision persistence and manufacturing evidence/decisions have been applied to production and verified in migration history. RLS, service-role privileges, immutable triggers and write-RPC security were checked after migration.
 
-**Current focus:** the isolated Azure queue-to-worker acceptance, fail-closed environment preflight, immutable production image promotion and project-scoped durable-execution gate are complete. One production TypeScript-safe canary passed and was then disabled; the global durable flag and automatic scheduling remain off. Remaining execution acceptance covers retry/lease recovery, cancellation races, evidence/approval boundaries, monitoring and cross-project isolation; FEA/CFD/Python are not production-enabled. The next product priority remains validating the initial customer problem and first paid-value workflow before expanding capability breadth. G2 geometry revisions and manufacturing evidence/decision implementations remain deployed and backed by the production schema. Renderer selection, broader CFD/CAE and V2.1–V2.5 breadth remain gated by demonstrated user need and workflow-specific evidence.
+**Current focus:** validate the initial customer problem and first paid-value workflow; define the canonical TaskSpec/lifecycle; then connect a narrow authenticated chat-to-task path to the existing Engineering Core and durable execution foundation. The 19 November production TypeScript-safe canary passed and was then disabled; the global durable flag and automatic scheduling remain off. Retry/lease recovery, cancellation races, evidence/approval boundaries, monitoring and cross-project isolation remain execution acceptance gaps; FEA/CFD/Python are not production-enabled. G2 geometry revisions and manufacturing evidence/decision implementations remain deployed and backed by the production schema. Renderer selection, broader CFD/CAE and V2.1–V2.5 breadth remain gated by demonstrated user need and workflow-specific evidence.
 
 ## Product strategy decision — 19 November 2026
 

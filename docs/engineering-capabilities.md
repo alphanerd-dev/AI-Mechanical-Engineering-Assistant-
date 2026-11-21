@@ -20,6 +20,8 @@ The UI supports Markdown headings, emphasis, links, code blocks, tables, currenc
 
 **Important boundary:** chat is conversational. It may explain concepts, compare options, identify missing inputs and work through ordinary analytic calculations in its response. It does not execute CAD/FEA, shell/Python, privileged engineering tools, project mutations or formal validations. The separate Engineering Core interaction panel is the explicit route to registered deterministic workflows. The LLM's words are not an evidence or validation record.
 
+**Target experience (21 November 2026):** make the conversation the primary user-facing task journey and return task progress and validated results to the originating chat. This does not move execution authority into the model. The Engineering Core remains the internal deterministic capability boundary, with authenticated policy, durable task state, isolated workers, independent validators and approval gates. Do not change this maturity statement until the chat-to-task route passes authenticated end-to-end acceptance.
+
 The current route defaults to `gemini-3.5-flash-lite`; a valid server-side API key is required for real model responses. A mocked browser stream does not prove live provider credentials, model quality, quota, latency or cost.
 
 ## Deterministic calculations and constraints
