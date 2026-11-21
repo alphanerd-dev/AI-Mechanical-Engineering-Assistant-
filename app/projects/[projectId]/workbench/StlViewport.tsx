@@ -33,9 +33,13 @@ function useStlMesh(src: string) {
   return { mesh: current ? state.mesh : null, error: current ? state.error : null, loading: !current };
 }
 
-function createRendererResult(canvas: HTMLCanvasElement, mesh: STLMeshPreview) {
+function createRendererResult(
+  canvas: HTMLCanvasElement,
+  mesh: STLMeshPreview,
+  onContextStatus: (error: Error | null) => void,
+) {
   try {
-    return { renderer: createStlWebGLRenderer(canvas, mesh), message: null as string | null };
+    return { renderer: createStlWebGLRenderer(canvas, mesh, onContextStatus), message: null as string | null };
   } catch (cause) {
     return { renderer: null, message: cause instanceof Error ? cause.message : "The 3D preview could not be rendered." };
   }
@@ -47,11 +51,16 @@ type RendererMountOptions = {
   src: string;
   controlsRef: { current: StlViewportControls | null };
   onFailure: (failure: { src: string; mesh: STLMeshPreview; message: string }) => void;
+  onRecovery: () => void;
 };
 
-function mountStlRenderer({ canvas, mesh, src, controlsRef, onFailure }: RendererMountOptions) {
+function mountStlRenderer({ canvas, mesh, src, controlsRef, onFailure, onRecovery }: RendererMountOptions) {
   let active = true;
-  const result = createRendererResult(canvas, mesh);
+  const result = createRendererResult(canvas, mesh, (cause) => {
+    if (!active) return;
+    if (cause) onFailure({ src, mesh, message: cause.message });
+    else onRecovery();
+  });
   const renderer = result.renderer;
   controlsRef.current = renderer?.controls ?? null;
   if (result.message) {
@@ -80,7 +89,13 @@ function useStlRenderer(src: string, mesh: STLMeshPreview | null, canvasRef: Ref
     if (!mesh) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    return mountStlRenderer({ canvas, mesh, src, controlsRef, onFailure: setFailure });
+    return mountStlRenderer({
+      canvas, mesh, src, controlsRef,
+      onFailure: setFailure,
+      onRecovery: () => setFailure((current) =>
+        current?.src === src && current.mesh === mesh ? null : current
+      )
+    });
   }, [canvasRef, mesh, src]);
   return { controlsRef, renderError: currentRenderError(failure, src, mesh) };
 }

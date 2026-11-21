@@ -28,6 +28,8 @@ jobs:
         run: node --check tests/e2e/auth-responsive-layout.e2e.mjs
       - name: Validate engineering chat renderer E2E spec syntax
         run: node --check tests/e2e/engineering-chat-rendering.e2e.mjs
+      - name: Validate CAD renderer benchmark syntax
+        run: node --check benchmarks/renderers/benchmark.mjs
       - run: npm ci
       - run: npm test
       - name: Generate architecture dependency graph

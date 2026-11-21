@@ -1,0 +1,84 @@
+name: M2 Artifact and Drawing Acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_disposable_target:
+        description: Confirm that the configured project and Supabase instance are disposable non-production test resources
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m2-artifact-drawing-acceptance
+  cancel-in-progress: false
+
+jobs:
+  authenticated-acceptance:
+    name: Authenticated M2 artifact, drawing and stale-source acceptance
+    if: ${{ inputs.confirm_disposable_target == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: cad-workspace-live-acceptance
+    steps:
+      - name: Checkout selected revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify protected acceptance configuration without printing values
+        shell: bash
+        env:
+          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
+          CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
+          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
+          CAD_WORKSPACE_SUPABASE_URL: https://mpbrlegwrrrfpeumtqhi.supabase.co
+          CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: mpbrlegwrrrfpeumtqhi.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CAD_WORKSPACE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          for key in CAD_WORKSPACE_BASE_URL CAD_WORKSPACE_ALLOWED_HOST CAD_WORKSPACE_PROJECT_ID CAD_WORKSPACE_MODEL_ID CAD_WORKSPACE_COOKIE CAD_WORKSPACE_SUPABASE_URL CAD_WORKSPACE_SUPABASE_ALLOWED_HOST SUPABASE_SERVICE_ROLE_KEY; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Required protected M2 acceptance setting ${key} is missing."
+              exit 1
+            fi
+          done
+          if [[ "${CAD_WORKSPACE_BASE_URL}" != "https://${CAD_WORKSPACE_ALLOWED_HOST}" ]]; then
+            echo "::error::The application URL must exactly match its protected preview-host allowlist."
+            exit 1
+          fi
+          if [[ "${CAD_WORKSPACE_SUPABASE_URL}" != "https://${CAD_WORKSPACE_SUPABASE_ALLOWED_HOST}" ]]; then
+            echo "::error::The Supabase URL must exactly match its protected non-production host allowlist."
+            exit 1
+          fi
+          echo "Protected M2 acceptance settings are present and exact-host matched; values are not printed."
+
+      - name: Run authenticated M2 acceptance
+        env:
+          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
+          CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
+          CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
+          CAD_WORKSPACE_SUPABASE_URL: https://mpbrlegwrrrfpeumtqhi.supabase.co
+          CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: mpbrlegwrrrfpeumtqhi.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CAD_WORKSPACE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run smoke:m2-artifacts
+
+      - name: Summarize acceptance boundary
+        if: always()
+        run: |
+          echo "This workflow is permitted only against the exact allowlisted preview and disposable Supabase project."
+          echo "It never deploys to production, changes production schema, or enables production CAD execution."
