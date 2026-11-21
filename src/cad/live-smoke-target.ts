@@ -27,7 +27,7 @@ export function assertNonProductionCadSmokeTarget(
     throw new Error("Live CAD acceptance requires HTTPS outside local development.");
   }
   if (PRODUCTION_APP_HOSTS.has(hostname)) {
-    throw new Error("Production application hosts are never valid for write-producing CAD/M2 acceptance.");
+    throw new Error("Refusing to run write-producing CAD/M2 acceptance against an unapproved production application host.");
   }
   if (APPROVED_NON_PRODUCTION_HOSTS.has(hostname)) return;
 
