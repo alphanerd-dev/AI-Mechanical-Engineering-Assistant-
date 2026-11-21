@@ -38,3 +38,27 @@ describe("CAD live-smoke target safety", () => {
     },
   );
 });
+
+describe("M2 Supabase acceptance target safety", () => {
+  it("allows the exact isolated E2E Supabase host", () => {
+    expect(() => assertNonProductionCadSmokeSupabaseTarget(
+      new URL("https://mpbrlegwrrrfpeumtqhi.supabase.co"),
+      "mpbrlegwrrrfpeumtqhi.supabase.co",
+    )).not.toThrow();
+  });
+
+  it("rejects the production Supabase host, wildcards and host mismatches", () => {
+    expect(() => assertNonProductionCadSmokeSupabaseTarget(
+      new URL("https://mepmogsqhxxasahwhete.supabase.co"),
+      "mepmogsqhxxasahwhete.supabase.co",
+    )).toThrow(/production Supabase/i);
+    expect(() => assertNonProductionCadSmokeSupabaseTarget(
+      new URL("https://mpbrlegwrrrfpeumtqhi.supabase.co"),
+      "*.supabase.co",
+    )).toThrow(/production Supabase/i);
+    expect(() => assertNonProductionCadSmokeSupabaseTarget(
+      new URL("http://mpbrlegwrrrfpeumtqhi.supabase.co"),
+      "mpbrlegwrrrfpeumtqhi.supabase.co",
+    )).toThrow(/production Supabase/i);
+  });
+});
