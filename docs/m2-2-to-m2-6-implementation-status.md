@@ -32,10 +32,11 @@ The branch adds:
 - `.github/workflows/m2-artifact-acceptance.yml`: manually dispatched workflow bound to the protected `m2-artifact-acceptance` environment. It requires explicit confirmation that the target project and Supabase instance are disposable non-production resources.
 - Exact-host allowlisting for the M2 preview; wildcard host matching is rejected.
 - Viewport body selection/clear-selection and model visibility controls. These are display controls only and do not modify canonical geometry or validation state.
+- The CAD derivative UI now reads the server's CURRENT/STALE state after generation, refreshes its signed URL, rechecks freshness every 15 seconds and on tab focus/visibility, and hides the viewport when stale or freshness cannot be confirmed.
 - Renderer benchmark upgraded to five paired trials, a shared deterministic mechanical assembly fixture with SHA-256, raw frame/pick samples, GPU metadata, picking accuracy, visibility toggles and a synthetic WebGL context-loss/restoration exercise. The fixture is synthetic and does not replace product-derived CAD fixtures or physical-device trials.
 - WebGL 2-only viewport context creation and resource reinitialization after WebGL context restoration.
 
-The live runner intentionally advances the CAD model revision through the service-role REST API to prove that an already persisted derivative becomes `STALE` and cannot be regenerated from the superseded completion. It is safe to run only against the exact allowlisted non-production app and Supabase hosts and a disposable test project. It must never be configured with production credentials.
+The live runner verifies the derivative and drawing audit events against their source/derivative digests and metadata. It intentionally advances the CAD model revision through the service-role REST API to prove that an already persisted derivative becomes `STALE` and cannot be regenerated from the superseded completion. It is safe to run only against the exact allowlisted non-production app and Supabase hosts and a disposable test project. It must never be configured with production credentials.
 
 ## Database deployment and security evidence — 21 November 2026
 
