@@ -366,7 +366,15 @@ async function main(): Promise<void> {
   });
   check(staleRebuildResponse.status === 409,
     "Geometry derivation from a superseded source revision was not rejected with HTTP 409.");
-  console.log("PASS stale source: prior derivative is STALE and re-derivation from superseded source fails closed.");
+  const afterConflictResponse = await api("/api/cad/geometry?projectId=" + projectId + "&modelIdentityId=" + modelId);
+  const afterConflictBody = await json(afterConflictResponse);
+  check(afterConflictResponse.ok && isRecord(afterConflictBody) && Array.isArray(afterConflictBody.derivatives) &&
+    afterConflictBody.derivatives.length === derivativeListBody.derivatives.length &&
+    afterConflictBody.derivatives.filter((item) =>
+      isRecord(item) && item.sourceArtifactId === sourceArtifactId
+    ).every((item) => isRecord(item) && item.state === "STALE"),
+    "A rejected stale-source regeneration created or left a CURRENT derivative for the superseded source.");
+  console.log("PASS stale source: prior derivatives are STALE, regeneration fails closed and no new derivative is written.");
 
   console.log("M2 ARTIFACT / DRAWING / AUTHORIZATION / STALE-SOURCE ACCEPTANCE PASSED.");
   console.log("The test writes only to the explicitly allowlisted disposable preview project; no production records are touched.");
