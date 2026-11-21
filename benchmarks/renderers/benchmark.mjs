@@ -52,12 +52,85 @@ function environment() {
   gl?.getExtension("WEBGL_lose_context")?.loseContext();
   return details;
 }
+function appendCylinder(target, center, radius, height, segments) {
+  const [cx, cy, cz] = center;
+  const half = height / 2;
+  const start = target.positions.length / 3;
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2;
+    const nx = Math.cos(angle);
+    const nz = Math.sin(angle);
+    const x = cx + nx * radius;
+    const z = cz + nz * radius;
+    target.positions.push(x, cy - half, z, x, cy + half, z);
+    target.normals.push(nx, 0, nz, nx, 0, nz);
+    if (index < segments) {
+      const bottom = start + index * 2;
+      const top = bottom + 1;
+      const nextBottom = bottom + 2;
+      const nextTop = bottom + 3;
+      target.indices.push(bottom, nextBottom, nextTop, bottom, nextTop, top);
+    }
+  }
+  const bottomCenter = target.positions.length / 3;
+  target.positions.push(cx, cy - half, cz);
+  target.normals.push(0, -1, 0);
+  const bottomRing = target.positions.length / 3;
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2;
+    target.positions.push(cx + Math.cos(angle) * radius, cy - half, cz + Math.sin(angle) * radius);
+    target.normals.push(0, -1, 0);
+  }
+  const topCenter = target.positions.length / 3;
+  target.positions.push(cx, cy + half, cz);
+  target.normals.push(0, 1, 0);
+  const topRing = target.positions.length / 3;
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2;
+    target.positions.push(cx + Math.cos(angle) * radius, cy + half, cz + Math.sin(angle) * radius);
+    target.normals.push(0, 1, 0);
+  }
+  for (let index = 0; index < segments; index += 1) {
+    const next = (index + 1) % segments;
+    target.indices.push(bottomCenter, bottomRing + index, bottomRing + next);
+    target.indices.push(topCenter, topRing + next, topRing + index);
+  }
+}
+function createMechanicalAssemblyMesh() {
+  const target = { positions: [], normals: [], indices: [] };
+  // One deterministic shaft/flange assembly: shaft, two flanges and twelve fasteners.
+  appendCylinder(target, [0, 0, 0], 0.22, 3.0, 24);
+  appendCylinder(target, [0, -1.25, 0], 0.62, 0.2, 24);
+  appendCylinder(target, [0, 1.25, 0], 0.62, 0.2, 24);
+  for (const y of [-1.25, 1.25]) {
+    for (let bolt = 0; bolt < 6; bolt += 1) {
+      const angle = (bolt / 6) * Math.PI * 2;
+      appendCylinder(target, [Math.cos(angle) * 0.45, y, Math.sin(angle) * 0.45], 0.055, 0.24, 12);
+    }
+  }
+  return {
+    positions: new Float32Array(target.positions),
+    normals: new Float32Array(target.normals),
+    indices: new Uint32Array(target.indices),
+    partsPerAssembly: 15
+  };
+}
+async function sha256Mesh(mesh) {
+  const bytes = new Uint8Array(mesh.positions.byteLength + mesh.normals.byteLength + mesh.indices.byteLength);
+  let offset = 0;
+  for (const array of [mesh.positions, mesh.normals, mesh.indices]) {
+    bytes.set(new Uint8Array(array.buffer, array.byteOffset, array.byteLength), offset);
+    offset += array.byteLength;
+  }
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
+}
 function instancePosition(index, count) {
   const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
   const rows = Math.ceil(count / cols);
   const x = (index % cols) - (cols - 1) / 2;
   const z = Math.floor(index / cols) - (rows - 1) / 2;
-  return [x * 1.35, 0, z * 1.35];
+  return [x * 3.8, 0, z * 3.8];
 }
 function finishSummary({
   engine, started, frames, pickSamples, pickHits, renderMs, initMs, count,
@@ -102,7 +175,7 @@ async function importEngines() {
   const [B, T] = await Promise.all([import(URLS.babylon), import(URLS.three)]);
   return { B, T, importMs: performance.now() - started };
 }
-function createThreeScene(T, canvas, count) {
+function createThreeScene(T, canvas, count, fixture) {
   const startInit = performance.now();
   const renderer = new T.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
   const gl = renderer.getContext();
@@ -118,7 +191,11 @@ function createThreeScene(T, canvas, count) {
   const light = new T.DirectionalLight(0xffffff, 2.2);
   light.position.set(4, 9, 6);
   scene.add(light);
-  const geometry = new T.BoxGeometry(0.9, 0.9, 0.9);
+  const geometry = new T.BufferGeometry();
+  geometry.setAttribute("position", new T.BufferAttribute(fixture.positions, 3));
+  geometry.setAttribute("normal", new T.BufferAttribute(fixture.normals, 3));
+  geometry.setIndex(new T.BufferAttribute(fixture.indices, 1));
+  geometry.computeBoundingSphere();
   const material = new T.MeshStandardMaterial({ color: 0x42c8b4, roughness: 0.55, metalness: 0.1 });
   const mesh = new T.InstancedMesh(geometry, material, count);
   mesh.instanceMatrix.setUsage(T.StaticDrawUsage);
@@ -221,9 +298,9 @@ async function verifyContextRecovery(canvas, render) {
   canvas.removeEventListener("webglcontextrestored", onRestored);
   return { supported: true, contextLostObserved: true, contextRestoredObserved, renderAfterRestore };
 }
-async function runThree(T, canvas, count, durationMs) {
+async function runThree(T, canvas, count, durationMs, fixture) {
   const heapBefore = performance.memory?.usedJSHeapSize ?? null;
-  const setup = createThreeScene(T, canvas, count);
+  const setup = createThreeScene(T, canvas, count, fixture);
   try {
     const sample = await sampleThreeScene({ T, canvas, setup, count, durationMs });
     const contextRecovery = await verifyContextRecovery(canvas, () => setup.renderer.render(setup.scene, setup.camera));
@@ -239,7 +316,7 @@ async function runThree(T, canvas, count, durationMs) {
     setup.material.dispose();
   }
 }
-async function runBabylon(B, canvas, count, durationMs) {
+async function runBabylon(B, canvas, count, durationMs, fixture) {
   const heapBefore = performance.memory?.usedJSHeapSize ?? null;
   const startInit = performance.now();
   const engine = new B.Engine(canvas, false, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false });
@@ -251,7 +328,12 @@ async function runBabylon(B, canvas, count, durationMs) {
   camera.attachControl(canvas, true);
   const light = new B.HemisphericLight("hemisphere", new B.Vector3(0, 1, 0), scene);
   light.intensity = 1.6;
-  const mesh = B.MeshBuilder.CreateBox("instances", { size: 0.9 }, scene);
+  const mesh = new B.Mesh("mechanical-assemblies", scene);
+  const vertexData = new B.VertexData();
+  vertexData.positions = Array.from(fixture.positions);
+  vertexData.normals = Array.from(fixture.normals);
+  vertexData.indices = Array.from(fixture.indices);
+  vertexData.applyToMesh(mesh);
   const material = new B.StandardMaterial("material", scene);
   material.diffuseColor = new B.Color3(0x42 / 255, 0xc8 / 255, 0xb4 / 255);
   mesh.material = material;
@@ -328,8 +410,8 @@ function assertWebGL2Available() {
 async function runEngine(engine, context) {
   setStatus(engine, "Running");
   return engine === "babylon"
-    ? runBabylon(context.B, byId("babylon"), context.count, context.duration)
-    : runThree(context.T, byId("three"), context.count, context.duration);
+    ? runBabylon(context.B, byId("babylon"), context.count, context.duration, context.fixture)
+    : runThree(context.T, byId("three"), context.count, context.duration, context.fixture);
 }
 async function runBothEngines(context) {
   const trials = [];
@@ -380,7 +462,15 @@ function createBenchmarkResult(context, runResults) {
     schemaVersion: 2,
     environment: environment(),
     engineVersions: VERSIONS,
+    fixture: {
+      id: "shaft-flange-fastener-assembly-v1",
+      sha256: context.fixtureSha256,
+      partsPerAssembly: context.fixture.partsPerAssembly,
+      vertices: context.fixture.positions.length / 3,
+      trianglesPerAssembly: context.fixture.indices.length / 3
+    },
     workloadInstances: context.count,
+    totalTriangles: (context.fixture.indices.length / 3) * context.count,
     sampleDurationMsPerEnginePerTrial: context.duration,
     pairedTrials: PAIRED_TRIALS,
     importMs: context.importMs,
@@ -410,8 +500,12 @@ async function run() {
   try {
     assertWebGL2Available();
     const engines = await importEngines();
+    const fixture = createMechanicalAssemblyMesh();
+    const fixtureSha256 = await sha256Mesh(fixture);
     const context = {
       ...engines,
+      fixture,
+      fixtureSha256,
       count: Number(byId("workload").value),
       duration: Number(byId("duration").value)
     };
