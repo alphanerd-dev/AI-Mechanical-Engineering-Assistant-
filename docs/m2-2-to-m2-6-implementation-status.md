@@ -32,7 +32,7 @@ The branch adds:
 - `.github/workflows/m2-artifact-acceptance.yml`: manually dispatched workflow bound to the protected `m2-artifact-acceptance` environment. It requires explicit confirmation that the target project and Supabase instance are disposable non-production resources.
 - Exact-host allowlisting for the M2 preview; wildcard host matching is rejected.
 - Viewport body selection/clear-selection and model visibility controls. These are display controls only and do not modify canonical geometry or validation state.
-- The CAD derivative UI now reads the server's CURRENT/STALE state after generation, refreshes its signed URL, rechecks freshness every 15 seconds and on tab focus/visibility, and hides the viewport when stale or freshness cannot be confirmed.
+- The CAD derivative UI reads the server's CURRENT/STALE state through a targeted, status-only query every 15 seconds and on tab focus/visibility. Ordinary polls do not mint signed URLs; a signed URL is renewed shortly before expiry. The viewport is hidden when stale or freshness cannot be confirmed.
 - Renderer benchmark upgraded to five paired trials, a shared deterministic mechanical assembly fixture with SHA-256, raw frame/pick samples, GPU metadata, picking accuracy, visibility toggles and a synthetic WebGL context-loss/restoration exercise. The fixture is synthetic and does not replace product-derived CAD fixtures or physical-device trials.
 - WebGL 2-only viewport context creation and resource reinitialization after WebGL context restoration.
 
