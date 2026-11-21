@@ -11,12 +11,19 @@ describe("CAD live-smoke target safety", () => {
     "https://ai-mechanical-engineering-assistant-alphanerd-labs.vercel.app",
     "https://ai-mechanical-engineering-assistant-git-main-alphanerd-labs.vercel.app",
     "https://ai-mechanical-engineering-assistant-3lto4c0xa-alphanerd-labs.vercel.app",
-    "https://ai-mechanical-engineering-assistant-eta.vercel.app",
     "https://unknown-production.example.com",
     "https://ai-mechanical-engineering-assistant-m0-preview-2l0m7buag-alphanerd-labs.vercel.app",
   ])("rejects unapproved write target %s before network access", (value) => {
     expect(() => assertNonProductionCadSmokeTarget(new URL(value)))
       .toThrow(/Refusing to run.*unapproved host/i);
+  });
+
+  it("never allows a known production alias even when explicitly allowlisted", () => {
+    const production = new URL("https://ai-mechanical-engineering-assistant.vercel.app");
+    expect(() => assertNonProductionCadSmokeTarget(
+      production,
+      "ai-mechanical-engineering-assistant.vercel.app",
+    )).toThrow(/unapproved host/i);
   });
 
   it("allows only an explicitly configured exact HTTPS M2 preview hostname", () => {
