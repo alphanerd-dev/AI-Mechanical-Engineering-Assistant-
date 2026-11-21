@@ -4,6 +4,12 @@ const APPROVED_NON_PRODUCTION_HOSTS = new Set([
   "ai-mechanical-engineering-assistant-m-git-bd1610-alphanerd-labs.vercel.app",
 ]);
 const LOCAL_DEVELOPMENT_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+const PRODUCTION_APP_HOSTS = new Set([
+  "ai-mechanical-engineering-assistant.vercel.app",
+  "ai-mechanical-engineering-assistant-alphanerd-labs.vercel.app",
+  "ai-mechanical-engineering-assistant-git-main-alphanerd-labs.vercel.app",
+  "ai-mechanical-engineering-assistant-eta.vercel.app",
+]);
 
 /**
  * Live CAD/M2 acceptance writes durable records. Fail closed: allow local
@@ -19,6 +25,9 @@ export function assertNonProductionCadSmokeTarget(
   if (LOCAL_DEVELOPMENT_HOSTS.has(hostname)) return;
   if (baseUrl.protocol !== "https:") {
     throw new Error("Live CAD acceptance requires HTTPS outside local development.");
+  }
+  if (PRODUCTION_APP_HOSTS.has(hostname)) {
+    throw new Error("Production application hosts are never valid for write-producing CAD/M2 acceptance.");
   }
   if (APPROVED_NON_PRODUCTION_HOSTS.has(hostname)) return;
 
