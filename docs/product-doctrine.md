@@ -19,11 +19,13 @@ This is a product direction and acceptance standard, not a claim that every engi
 
 ## What the engineer should experience
 
-> “I stated the problem. I got a checked result and a clear decision.”
+> “I stated the problem. The assistant coordinated the work. I received a result whose status and evidence I can inspect.”
 
-For a supported workflow, the system should resolve available project context, ask material unanswered questions, select an eligible capability, coordinate deterministic execution, run required checks, collect evidence and present the outcome and next decision.
+For a supported workflow, the product should resolve authorized context, ask only material unanswered questions, propose the appropriate deterministic operation, obtain any required approval, coordinate execution, run independent checks, collect evidence and present the outcome in the conversation. The engineer should not need to understand the internal capability map or manually transfer the same objective between chat and a separate task runner.
 
-The conversational assistant is the entry point for discussion and explanation. Formal task execution remains an explicit, separately authorized Engineering Core workflow. Chat text alone is never a validated artifact, approval or evidence record.
+**Current-state qualification:** the deployed product has a conversational, guidance-oriented chat and a separate Engineering Core task surface. The chat-to-task orchestration path is a target and implementation priority; it must not be described as already shipped. The doctrine describes the intended experience, while the Product Brief and Implementation Plan distinguish that target from current behavior.
+
+The conversation is the primary user journey; deterministic execution is a separate internal authority. The model does not execute providers or decide acceptance. The authenticated control plane and Engineering Core validate and persist the task, capability policies authorize it, isolated workers perform deterministic operations, validators establish only the checks they run, and authorized humans make gated decisions.
 
 ## Doctrine hierarchy
 
@@ -33,8 +35,9 @@ Reduce the total work and cost required to produce a usable, defensible engineer
 
 ### 2. Experience rules
 
-- **Intent first:** organize the experience around the engineer's job, not internal services or tool names.
-- **Minimum necessary effort:** reuse trustworthy context and avoid repeated questions, unnecessary setup, duplicate entry and manual handoffs.
+- **Intent first:** organize the experience around the engineer's job, not internal services or tool names; conversation is the default entry point.
+- **One task journey:** planning, missing-input questions, task progress, approval requests and validated results should remain linked to the originating conversation.
+- **Minimum necessary effort:** reuse trustworthy context and avoid repeated questions, unnecessary setup, duplicate entry, module hunting and manual handoffs.
 - **Adaptive rigor:** keep safe, reversible, low-ambiguity work fast; increase checks, explicit questions and approval boundaries when risk, ambiguity, consequence or uncertainty requires it.
 - **Automatic evidence:** produce and attach evidence as a by-product of successful validation wherever the capability supports it.
 - **Decision-ready results:** make status, values/units, checks, evidence, assumptions, limitations, blockers and next action visible.
@@ -115,7 +118,7 @@ A feature that merely adds an AI model, provider, tool, dashboard or configurati
 - Build an integrated but modular engineering workspace: capability domains share project identity, typed task contracts, artifact lineage, authorization, validation, evidence and approval, but are promoted independently against real workflows.
 - Keep geometry kernels and renderers replaceable behind adapters. Canonical engineering artifacts remain authoritative; tessellated/display derivatives are traceable projections and never become engineering truth merely because they render successfully.
 - Treat visualization as an inspection and interaction surface, not as execution, validation, verification or approval. Keep CAD geometry processing, scientific result visualization and 2D drawing rendering as distinct capabilities where their data semantics differ.
-- Separate conversational explanation from registered deterministic execution and formal validation.
+- Keep one conversational user journey while preserving separate deterministic execution, validation, evidence and approval authorities behind the authenticated control plane.
 
 ## Decision rule
 
