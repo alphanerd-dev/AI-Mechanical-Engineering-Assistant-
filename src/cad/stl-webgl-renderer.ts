@@ -64,9 +64,11 @@ function createPreviewProgram(gl: WebGL2RenderingContext, accent: [number, numbe
   ].join("\n");
   const accentSource = accent.map((channel) => channel.toFixed(4)).join(", ");
   const fragmentSource = [
+    "#version 300 es",
     "precision mediump float;",
     "in vec3 v_normal;",
-    "uniform float u_selected;",\n    "out vec4 outColor;",
+    "uniform float u_selected;",
+    "out vec4 outColor;",
     "void main() {",
     "  vec3 light = normalize(vec3(-0.45, 0.75, 1.0));",
     "  float diffuse = max(dot(normalize(v_normal), light), 0.0);",
