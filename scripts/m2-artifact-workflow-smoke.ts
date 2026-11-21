@@ -38,9 +38,10 @@ async function main(): Promise<void> {
 
   const supabaseUrl = new URL(requiredEnv("CAD_WORKSPACE_SUPABASE_URL"));
   const supabaseAllowedHost = requiredEnv("CAD_WORKSPACE_SUPABASE_ALLOWED_HOST").toLowerCase();
+  const productionSupabaseHosts = new Set(["mepmogsqhxxasahwhete.supabase.co"]);
   check(supabaseUrl.protocol === "https:" && supabaseUrl.hostname.toLowerCase() === supabaseAllowedHost &&
-    !supabaseAllowedHost.includes("*"),
-    "The dedicated non-production Supabase host must exactly match its protected allowlist.");
+    !supabaseAllowedHost.includes("*") && !productionSupabaseHosts.has(supabaseAllowedHost),
+    "The dedicated non-production Supabase host must exactly match its protected allowlist and must not be production.");
 
   const projectId = requiredEnv("CAD_WORKSPACE_PROJECT_ID");
   const modelId = requiredEnv("CAD_WORKSPACE_MODEL_ID");
