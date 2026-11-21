@@ -73,6 +73,12 @@ async function main(): Promise<void> {
     });
   };
 
+  // Fail early when the preview's server-side CAD worker is not configured and ready.
+  const readinessResponse = await api("/api/cad/readiness?projectId=" + projectId);
+  const readinessBody = await json(readinessResponse);
+  check(readinessResponse.ok && isRecord(readinessBody) && readinessBody.ready === true,
+    "CAD readiness is not READY on this preview. Inspect the returned readiness checks before attempting CAD execution.");
+
   // The accepted CAD completion creates a fresh canonical BREP and independent OCCT receipt.
   const completionResponse = await api("/api/cad/completions", {
     method: "POST",
