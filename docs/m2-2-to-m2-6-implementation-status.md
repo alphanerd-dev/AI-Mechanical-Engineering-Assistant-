@@ -68,12 +68,12 @@ Create/configure the GitHub Environment named `m2-artifact-acceptance` only for 
 
 Required environment variables:
 
-- `CAD_WORKSPACE_BASE_URL` — exact HTTPS Vercel preview URL.
-- `CAD_WORKSPACE_ALLOWED_HOST` — exact hostname only, no wildcard.
+- `CAD_WORKSPACE_BASE_URL` — `https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app` (exact branch-preview alias verified from Vercel).
+- `CAD_WORKSPACE_ALLOWED_HOST` — `ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app` (exact hostname only, no wildcard).
 - `CAD_WORKSPACE_PROJECT_ID` — disposable project UUID.
 - `CAD_WORKSPACE_MODEL_ID` — disposable CAD model UUID.
-- `CAD_WORKSPACE_SUPABASE_URL` — dedicated non-production Supabase URL.
-- `CAD_WORKSPACE_SUPABASE_ALLOWED_HOST` — exact Supabase hostname, no wildcard.
+- `CAD_WORKSPACE_SUPABASE_URL` — `https://mpbrlegwrrrfpeumtqhi.supabase.co` (dedicated E2E project verified ACTIVE_HEALTHY).
+- `CAD_WORKSPACE_SUPABASE_ALLOWED_HOST` — `mpbrlegwrrrfpeumtqhi.supabase.co` (exact hostname only, no wildcard).
 
 Required environment secrets:
 
