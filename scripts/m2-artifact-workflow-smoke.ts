@@ -64,12 +64,13 @@ async function main(): Promise<void> {
     authorization: "Bearer " + serviceRoleKey,
     "content-type": "application/json"
   };
-  const dbRequest = async (path: string, init: RequestInit = {}) => fetch(new URL("/rest/v1/" + path, supabaseUrl), {
-    ...init,
-    headers: { ...serviceHeaders, ...(init.headers ?? {}) },
-    cache: "no-store",
-    signal: AbortSignal.timeout(30_000)
-  });
+  const dbRequest = async (path: string, init: RequestInit = {}) => {
+    const headers = new Headers(serviceHeaders);
+    new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    return fetch(new URL("/rest/v1/" + path, supabaseUrl), {
+      ...init, headers, cache: "no-store", signal: AbortSignal.timeout(30_000)
+    });
+  };
 
   // The accepted CAD completion creates a fresh canonical BREP and independent OCCT receipt.
   const completionResponse = await api("/api/cad/completions", {
