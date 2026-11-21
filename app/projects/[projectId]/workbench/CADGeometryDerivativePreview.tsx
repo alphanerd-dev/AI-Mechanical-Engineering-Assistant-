@@ -289,7 +289,15 @@ function DerivativeEmptyState({ state, unavailable, unavailableMessage, sourceKi
 }) {
   return <>
     <Box size={28} aria-hidden="true" />
-    <strong>{state.loading ? "Generating display derivative…" : "Canonical geometry ready for preview"}</strong>
+    <strong>{state.loading
+      ? "Generating display derivative…"
+      : state.stale
+        ? "Source revision changed"
+        : state.freshnessUnverified
+          ? "Preview freshness unavailable"
+          : unavailable
+            ? "Preview unavailable"
+            : "Canonical geometry ready for preview"}</strong>
     <p>
       {unavailable
         ? unavailableMessage
