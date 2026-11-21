@@ -1,6 +1,6 @@
 # Architecture and Trust Boundaries
 
-**Reviewed:** 15 November 2026  
+**Reviewed:** 21 November 2026  
 **Status:** Current repository architecture. Production readiness is a separate release and runtime decision.
 
 See the [Product Brief](product-brief.md) for product scope, the [Engineering Capabilities](engineering-capabilities.md) for maturity boundaries, the [Implementation Plan](implementation-plan.md) for milestones and the [architecture decision records](README.md#architecture-decision-records) for accepted architectural direction.
@@ -110,6 +110,57 @@ The current chat is a real streamed application path:
 The chat can explain engineering concepts, compare options, identify missing inputs and perform ordinary analytic calculations in the response. **It does not execute CAD, FEA, shell/Python code, privileged engineering tools, project mutations or formal validation.** The separate Engineering Core interaction panel is the explicit path for supported deterministic workflows. A chat answer is not an accepted engineering artifact.
 
 The browser acceptance test deliberately intercepts the chat request with a deterministic streamed response. It proves the client transport, Markdown/math rendering, controls and responsive layout; it does not prove live Gemini credentials, model quality or live tool execution.
+
+## Target user interaction and control boundary
+
+### User-facing direction: chat-first, task-oriented
+
+The target product experience has one primary conversational journey. A user can state an engineering objective, refine intent, attach source material, receive a typed task proposal, supply missing inputs, authorize gated work, monitor progress and review the accepted result without navigating to a separate generic Engineering Core submission mode.
+
+This changes the **interaction layer**, not the trust architecture:
+
+```text
+Engineer
+  -> Project-aware conversation
+  -> Typed TaskSpec proposal
+  -> Host schema / authorization / capability / risk checks
+  -> Approval gate where required
+  -> Durable task and job records
+  -> Allowlisted deterministic worker
+  -> Independent validation
+  -> Artifact + evidence + approval state
+  -> Result and contextual viewer returned to the conversation
+```
+
+The global navigation target is Chat, Projects, Tasks, Library and Account. Project-scoped context, results, activity/decisions and settings should be contextual rather than parallel top-level engineering modules. Tasks provides a cross-project status monitor and a return link to the originating conversation. Specialist CAD/CAE/drawing/approval surfaces remain available when a workflow needs their richer interaction.
+
+### Current implementation boundary
+
+The current chat is still guidance-oriented and does not invoke privileged engineering capabilities. The Engineering Core remains the separate submission path for registered deterministic workflows. Do not change this status statement until authenticated chat-to-task acceptance is completed on an exact release candidate. The audit's UX recommendations are target design decisions, not evidence that the interaction has shipped.
+
+### State ownership and client framework decisions
+
+Use one authoritative owner for each kind of state:
+
+| State category | Owner / recommended tool | Boundary |
+|---|---|---|
+| Durable identity, project, task/job, approval, artifact and evidence state | Supabase / PostgreSQL | Source of truth; mutations remain server-authorized and policy-controlled. |
+| Remote server-state cache and query lifecycle | TanStack Query, selectively | Client cache of server data only; never a second task/job database. Adopt only where it replaces ad hoc fetch/cache logic. |
+| Shared ephemeral workspace UI state | Zustand, selectively | Current project-view selection, open panels, selected result, viewer tool state and other transient UI preferences. Do not persist accepted engineering facts here. |
+| Isolated component state | React local state | Prefer local state unless multiple distant components genuinely share the state. |
+| Chat thread and streaming lifecycle | assistant-ui + Vercel AI SDK | Preserve the existing chat owner; do not mirror streamed message state into Zustand/Redux without a proven requirement. |
+| Complex form state | Existing React/form conventions with schema validation | Keep request validation contracts aligned with the host's canonical schema. |
+
+**Redux Toolkit is not recommended as an additional store now.** Do not run Redux and Zustand as competing shared-state systems. Reconsider Redux only if measured workflow complexity requires centralized event middleware, strict reducer invariants or advanced debugging and a single-store migration is justified. Next.js App Router remains the routing authority; TanStack Router is not required. TanStack Table/Virtual can be evaluated for genuinely large engineering datasets, not introduced pre-emptively.
+
+### Python service and distributed infrastructure decisions
+
+- **FastAPI: selective adoption.** Use it for persistent Python services that need typed multi-endpoint APIs, OpenAPI contracts, health/readiness, job/status/cancellation endpoints or multiple service consumers. Do not rewrite small bounded workers that are adequately served by their existing process or standard-library HTTP contract. Python services must remain behind authenticated service boundaries and may report execution, not self-certify engineering correctness.
+- **Cross-language contracts:** keep TypeScript and Python request/result schemas versioned and compatibility-tested. Pydantic may define Python request models where FastAPI is selected; it is not a reason to duplicate contract authorities.
+- **Redis: defer pending measured need.** PostgreSQL/Supabase remains authoritative for tasks, jobs, approvals, artifacts and evidence. Redis may later accelerate short-lived cache, rate limiting, ephemeral coordination or high-volume telemetry. Critical events must be durably committed before publication; Redis Pub/Sub is not a durable event log or guaranteed-delivery queue.
+- **Queue discipline:** do not add Redis, BullMQ, Kafka and RabbitMQ as overlapping infrastructure. First measure a bottleneck and select one smallest suitable addition. The current Postgres-backed durable execution foundation remains the default.
+- **LangGraph:** keep it out of the engineering execution authority. Reconsider only for a demonstrable AI reasoning subgraph requiring richer model-state, interrupt/resume or model-routing semantics; it must still emit typed TaskSpecs into host policy.
+- **Temporal:** defer until measured workflow duration, fan-out/fan-in, durable timers, compensation, multi-fleet scheduling or custom recovery complexity exceeds the maintainability of the existing Postgres orchestration.
 
 ## Model and reasoning boundaries
 
