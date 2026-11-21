@@ -227,7 +227,8 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
   });
   useEffect(() => {
     setState({
-      signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false
+      signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false,
+      signedUrlIssuedAt: null, signedUrlTtlSeconds: 300
     });
   }, [completionId, modelIdentityId, sourceArtifactId]);
 
