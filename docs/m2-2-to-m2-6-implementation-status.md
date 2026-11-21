@@ -54,9 +54,13 @@ The geometry-revision table is intentionally server-only: the migration grants t
 
 No Supabase schema changes were made during this closure cycle. Production was inspected read-only; all planned mutation tests remain restricted to the dedicated E2E project.
 
+## Exact-head preview deployment status
+
+The latest READY Vercel preview currently points to commit `00ae0431bf6837b9e8fbac97cd9cfd5cf942de67`, not the latest M2 closure branch head. A manual preview deployment of the exact closure head was attempted through the existing Vercel Git integration, but Vercel returned HTTP 402: the team's `api-deployments-free-per-day` quota is exhausted (retry after 24 hours). No billing/plan changes were made, and no CLI fallback was available because this execution environment does not have a verified local repository checkout. Do not treat the older READY preview as acceptance evidence for the current closure code.
+
 ## Preview worker configuration blocker
 
-The Vercel preview for this branch builds the application, and the global Preview Supabase URL is configured for the dedicated E2E project. However, the branch has no branch-scoped `CAD_WORKER_API_TOKEN` (and no matching worker configuration) in Vercel. Existing worker credentials are scoped to other branches. The preview cannot safely execute the authenticated CAD completion → OCCT workflow until a dedicated non-production worker URL/token is configured for this branch.
+The existing branch preview builds the application, but its latest READY deployment is behind the closure branch head (see exact-head deployment status above). The global Preview Supabase URL is configured for the dedicated E2E project. However, the branch has no branch-scoped `CAD_WORKER_API_TOKEN` (and no matching worker configuration) in Vercel. Existing worker credentials are scoped to other branches. The preview cannot safely execute the authenticated CAD completion → OCCT workflow until a dedicated non-production worker URL/token is configured for this branch.
 
 Do not copy a secret from another branch, use the production worker/token, or point the test at production to bypass this blocker. The exact approval/configuration required is a branch-scoped non-production `CAD_WORKER_URL` and `CAD_WORKER_API_TOKEN`, with a token dedicated to this acceptance preview.
 
