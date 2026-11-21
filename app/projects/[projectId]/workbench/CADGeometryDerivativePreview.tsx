@@ -276,7 +276,9 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
       if (document.visibilityState === "visible") void refresh();
     };
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 15_000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 15_000);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
