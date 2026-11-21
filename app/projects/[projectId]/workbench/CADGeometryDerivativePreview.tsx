@@ -197,6 +197,7 @@ async function readCurrentDerivative(input: PreviewRequest, artifactId: string):
 }
 
 function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; onRefresh: () => void }) {
+  const { projectId, modelIdentityId, completionId, sourceArtifactId } = props;
   const [state, setState] = useState<State>({
     signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false
   });
@@ -204,7 +205,7 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
     setState({
       signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false
     });
-  }, [props.completionId, props.modelIdentityId, props.sourceArtifactId]);
+  }, [completionId, modelIdentityId, sourceArtifactId]);
 
   const generate = useCallback(async () => {
     if (state.loading || state.stale || state.freshnessUnverified ||
@@ -241,11 +242,14 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
 
   const activeDerivativeId = state.derivative?.artifactId ?? null;
   useEffect(() => {
-    if (!activeDerivativeId || !props.modelIdentityId) return;
+    if (!activeDerivativeId || !modelIdentityId) return;
     let active = true;
     const refresh = async () => {
       try {
-        const current = await readCurrentDerivative(props, activeDerivativeId);
+        const current = await readCurrentDerivative(
+          { projectId, modelIdentityId, completionId, sourceArtifactId },
+          activeDerivativeId
+        );
         if (!active) return;
         if (current.kind === "CURRENT") {
           setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
@@ -287,7 +291,7 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [activeDerivativeId, props.projectId, props.modelIdentityId, props.sourceArtifactId]);
+  }, [activeDerivativeId, projectId, modelIdentityId, completionId, sourceArtifactId]);
 
   const reset = useCallback(() => {
     setState((current) => ({
