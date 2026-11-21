@@ -14,12 +14,21 @@ type Derivative = {
   tessellation: { linearDeflectionMm: number; angularDeflectionRad: number };
 };
 
-type State = { signedUrl: string | null; derivative: Derivative | null; error: string | null; loading: boolean; stale: boolean; freshnessUnverified: boolean };
+type State = {
+  signedUrl: string | null;
+  derivative: Derivative | null;
+  error: string | null;
+  loading: boolean;
+  stale: boolean;
+  freshnessUnverified: boolean;
+  signedUrlIssuedAt: number | null;
+  signedUrlTtlSeconds: number;
+};
 type PreviewRequest = {
   projectId: string; modelIdentityId: string; completionId: string; sourceArtifactId: string;
 };
 type DerivativeStatus =
-  | { kind: "CURRENT"; signedUrl: string; derivative: Derivative }
+  | { kind: "CURRENT"; signedUrl: string | null; signedUrlTtlSeconds: number; derivative: Derivative }
   | { kind: "STALE" | "UNVERIFIABLE" | "MISSING" };
 class StaleCADSourceError extends Error {}
 class DerivativeFreshnessError extends Error {}
@@ -171,9 +180,18 @@ async function requestDisplayDerivative(input: PreviewRequest): Promise<{ signed
   return result;
 }
 
-async function readCurrentDerivative(input: PreviewRequest, artifactId: string): Promise<DerivativeStatus> {
+async function readCurrentDerivative(
+  input: PreviewRequest,
+  artifactId: string,
+  includeSignedUrl: boolean
+): Promise<DerivativeStatus> {
   if (!input.modelIdentityId) return { kind: "UNVERIFIABLE" };
-  const query = new URLSearchParams({ projectId: input.projectId, modelIdentityId: input.modelIdentityId });
+  const query = new URLSearchParams({
+    projectId: input.projectId,
+    modelIdentityId: input.modelIdentityId,
+    artifactId,
+    includeSignedUrls: includeSignedUrl ? "true" : "false"
+  });
   const response = await fetch("/api/cad/geometry?" + query.toString(), { cache: "no-store" });
   const body: unknown = await response.json().catch(() => null);
   const record = readDerivativeErrorField(body);
@@ -185,21 +203,27 @@ async function readCurrentDerivative(input: PreviewRequest, artifactId: string):
   if (!derivativeRecord) return { kind: "MISSING" };
   if (derivativeRecord.state === "STALE") return { kind: "STALE" };
   if (derivativeRecord.state !== "CURRENT") return { kind: "UNVERIFIABLE" };
-  if (typeof derivativeRecord.signedUrl !== "string" || !derivativeRecord.signedUrl.trim()) {
-    return { kind: "UNVERIFIABLE" };
-  }
+  const signedUrl = typeof derivativeRecord.signedUrl === "string" && derivativeRecord.signedUrl.trim()
+    ? derivativeRecord.signedUrl
+    : null;
+  if (includeSignedUrl && !signedUrl) return { kind: "UNVERIFIABLE" };
   const derivative = parseDerivativeRecord(derivativeRecord);
   if (!derivative || derivative.artifactId !== artifactId ||
       derivative.sourceArtifactId !== input.sourceArtifactId) {
     return { kind: "UNVERIFIABLE" };
   }
-  return { kind: "CURRENT", signedUrl: derivativeRecord.signedUrl, derivative };
+  const rawTtl = record.signedUrlTtlSeconds;
+  const signedUrlTtlSeconds = typeof rawTtl === "number" && Number.isFinite(rawTtl)
+    ? Math.max(60, rawTtl)
+    : 300;
+  return { kind: "CURRENT", signedUrl, signedUrlTtlSeconds, derivative };
 }
 
 function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; onRefresh: () => void }) {
   const { projectId, modelIdentityId, completionId, sourceArtifactId } = props;
   const [state, setState] = useState<State>({
-    signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false
+    signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false,
+    signedUrlIssuedAt: null, signedUrlTtlSeconds: 300
   });
   useEffect(() => {
     setState({
@@ -213,16 +237,17 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
       const generated = await requestDisplayDerivative(props);
-      const current = await readCurrentDerivative(props, generated.derivative.artifactId);
+      const current = await readCurrentDerivative(props, generated.derivative.artifactId, true);
       if (current.kind === "STALE") {
         throw new StaleCADSourceError("The source model revision changed during tessellation. Create a new accepted CAD completion before generating another preview.");
       }
-      if (current.kind !== "CURRENT") {
+      if (current.kind !== "CURRENT" || !current.signedUrl) {
         throw new DerivativeFreshnessError("The generated derivative could not be confirmed as current. The preview remains hidden.");
       }
       setState({
         signedUrl: current.signedUrl, derivative: current.derivative, error: null, loading: false,
-        stale: false, freshnessUnverified: false
+        stale: false, freshnessUnverified: false,
+        signedUrlIssuedAt: Date.now(), signedUrlTtlSeconds: current.signedUrlTtlSeconds
       });
       props.onRefresh();
     } catch (cause) {
@@ -232,6 +257,7 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
         ...current,
         signedUrl: stale || freshnessUnverified ? null : current.signedUrl,
         derivative: stale || freshnessUnverified ? null : current.derivative,
+        signedUrlIssuedAt: stale || freshnessUnverified ? null : current.signedUrlIssuedAt,
         stale,
         freshnessUnverified,
         error: cause instanceof Error ? cause.message : "CAD display derivative generation failed.",
@@ -246,24 +272,31 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
     let active = true;
     const refresh = async () => {
       try {
+        const refreshSignedUrl = !state.signedUrl || !state.signedUrlIssuedAt ||
+          Date.now() - state.signedUrlIssuedAt >= Math.max(30, state.signedUrlTtlSeconds - 60) * 1000;
         const current = await readCurrentDerivative(
           { projectId, modelIdentityId, completionId, sourceArtifactId },
-          activeDerivativeId
+          activeDerivativeId,
+          refreshSignedUrl
         );
         if (!active) return;
         if (current.kind === "CURRENT") {
           setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
-            ...previous, signedUrl: current.signedUrl, derivative: current.derivative,
+            ...previous,
+            signedUrl: current.signedUrl ?? previous.signedUrl,
+            derivative: current.derivative,
+            signedUrlIssuedAt: current.signedUrl ? Date.now() : previous.signedUrlIssuedAt,
+            signedUrlTtlSeconds: current.signedUrlTtlSeconds,
             stale: false, freshnessUnverified: false, error: null
           } : previous);
         } else if (current.kind === "STALE") {
           setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
-            ...previous, signedUrl: null, derivative: null, stale: true, freshnessUnverified: false,
+            ...previous, signedUrl: null, derivative: null, signedUrlIssuedAt: null, stale: true, freshnessUnverified: false,
             error: "The source model revision changed. This display derivative is stale; create a new accepted CAD completion before generating another preview."
           } : previous);
         } else {
           setState((previous) => previous.derivative?.artifactId === activeDerivativeId ? {
-            ...previous, signedUrl: null, derivative: null, stale: false, freshnessUnverified: true,
+            ...previous, signedUrl: null, derivative: null, signedUrlIssuedAt: null, stale: false, freshnessUnverified: true,
             error: "The current source revision could not be confirmed. The preview is hidden until verification succeeds."
           } : previous);
         }
@@ -291,11 +324,13 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [activeDerivativeId, projectId, modelIdentityId, completionId, sourceArtifactId]);
+  }, [activeDerivativeId, projectId, modelIdentityId, completionId, sourceArtifactId,
+    state.signedUrl, state.signedUrlIssuedAt, state.signedUrlTtlSeconds]);
 
   const reset = useCallback(() => {
     setState((current) => ({
-      ...current, signedUrl: null, derivative: null, error: null, stale: false, freshnessUnverified: false
+      ...current, signedUrl: null, derivative: null, error: null, stale: false, freshnessUnverified: false,
+      signedUrlIssuedAt: null, signedUrlTtlSeconds: 300
     }));
   }, []);
   return { state, generate, reset };

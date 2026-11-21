@@ -214,6 +214,28 @@ async function main(): Promise<void> {
   check(isRecord(listedDerivative) && listedDerivative.state === "CURRENT" &&
     typeof listedDerivative.signedUrl === "string",
     "Newly persisted display derivative is not classified CURRENT in project history.");
+
+  const derivativeArtifactId = derivative.artifactId as string;
+  const statusOnlyUrl = "/api/cad/geometry?" + new URLSearchParams({
+    projectId, modelIdentityId: modelId, artifactId: derivativeArtifactId, includeSignedUrls: "false"
+  }).toString();
+  const statusOnlyResponse = await api(statusOnlyUrl);
+  const statusOnlyBody = await json(statusOnlyResponse);
+  check(statusOnlyResponse.ok && isRecord(statusOnlyBody) &&
+    Array.isArray(statusOnlyBody.derivatives) && statusOnlyBody.derivatives.length === 1 &&
+    isRecord(statusOnlyBody.derivatives[0]) && statusOnlyBody.derivatives[0].state === "CURRENT" &&
+    statusOnlyBody.derivatives[0].signedUrl === null && statusOnlyBody.signedUrlTtlSeconds === 300,
+    "Targeted status-only derivative lookup did not return CURRENT without creating a signed URL.");
+
+  const targetedUrl = "/api/cad/geometry?" + new URLSearchParams({
+    projectId, modelIdentityId: modelId, artifactId: derivativeArtifactId, includeSignedUrls: "true"
+  }).toString();
+  const targetedResponse = await api(targetedUrl);
+  const targetedBody = await json(targetedResponse);
+  check(targetedResponse.ok && isRecord(targetedBody) && Array.isArray(targetedBody.derivatives) &&
+    targetedBody.derivatives.length === 1 && isRecord(targetedBody.derivatives[0]) &&
+    typeof targetedBody.derivatives[0].signedUrl === "string",
+    "Targeted current derivative lookup did not return its short-lived signed URL.");
   await assertAuditEvent("CAD_DISPLAY_DERIVATIVE", derivative.artifactId as string, "EVIDENCE_WRITE", {
     sourceArtifactId,
     sourceArtifactSha256: sourceDigest,

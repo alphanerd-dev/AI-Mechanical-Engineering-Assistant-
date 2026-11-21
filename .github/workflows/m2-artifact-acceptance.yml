@@ -21,8 +21,8 @@ jobs:
     name: Authenticated M2 artifact, drawing and stale-source acceptance
     if: ${{ inputs.confirm_disposable_target == true }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: m2-artifact-acceptance
+    timeout-minutes: 30
+    environment: cad-workspace-live-acceptance
     steps:
       - name: Checkout selected revision
         uses: actions/checkout@v4
@@ -39,13 +39,13 @@ jobs:
       - name: Verify protected acceptance configuration without printing values
         shell: bash
         env:
-          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
-          CAD_WORKSPACE_ALLOWED_HOST: ${{ vars.CAD_WORKSPACE_ALLOWED_HOST }}
+          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
           CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
           CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
           CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
-          CAD_WORKSPACE_SUPABASE_URL: ${{ vars.CAD_WORKSPACE_SUPABASE_URL }}
-          CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: ${{ vars.CAD_WORKSPACE_SUPABASE_ALLOWED_HOST }}
+          CAD_WORKSPACE_SUPABASE_URL: https://mpbrlegwrrrfpeumtqhi.supabase.co
+          CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: mpbrlegwrrrfpeumtqhi.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
@@ -67,13 +67,13 @@ jobs:
 
       - name: Run authenticated M2 acceptance
         env:
-          CAD_WORKSPACE_BASE_URL: ${{ vars.CAD_WORKSPACE_BASE_URL }}
-          CAD_WORKSPACE_ALLOWED_HOST: ${{ vars.CAD_WORKSPACE_ALLOWED_HOST }}
+          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
           CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
           CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
           CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
-          CAD_WORKSPACE_SUPABASE_URL: ${{ vars.CAD_WORKSPACE_SUPABASE_URL }}
-          CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: ${{ vars.CAD_WORKSPACE_SUPABASE_ALLOWED_HOST }}
+          CAD_WORKSPACE_SUPABASE_URL: https://mpbrlegwrrrfpeumtqhi.supabase.co
+          CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: mpbrlegwrrrfpeumtqhi.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npm run smoke:m2-artifacts
 

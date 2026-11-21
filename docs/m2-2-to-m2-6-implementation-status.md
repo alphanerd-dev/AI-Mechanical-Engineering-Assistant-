@@ -64,25 +64,23 @@ The existing branch preview builds the application, but its latest READY deploym
 
 Do not copy a secret from another branch, use the production worker/token, or point the test at production to bypass this blocker. The exact approval/configuration required is a branch-scoped non-production `CAD_WORKER_URL` and `CAD_WORKER_API_TOKEN`, with a token dedicated to this acceptance preview.
 
-The GitHub Supabase Preview integration is disabled for new PR branches, but this is not a schema blocker: the separate E2E Supabase project already has the M2 migrations. The remaining blocker is the application-to-worker secret boundary and the protected live-acceptance session/test fixture configuration.
+The GitHub Supabase Preview integration is disabled for new PR branches, but this is not a schema blocker: the separate E2E Supabase project already has the M2 migrations. The existing protected live-acceptance environment supplies the session and disposable project/model IDs; it still needs the E2E service-role secret. The preview also needs a dedicated non-production CAD worker URL/token.
 
 ## Protected live-acceptance configuration
 
-Create/configure the GitHub Environment named `m2-artifact-acceptance` only for this closure workflow.
+Reuse the existing protected GitHub Environment `cad-workspace-live-acceptance`; the closure workflow is pinned to the exact branch-preview and E2E Supabase hosts below.
 
-Required environment variables:
+Existing environment variables retained:
 
-- `CAD_WORKSPACE_BASE_URL` — `https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app` (exact branch-preview alias verified from Vercel).
-- `CAD_WORKSPACE_ALLOWED_HOST` — `ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app` (exact hostname only, no wildcard).
 - `CAD_WORKSPACE_PROJECT_ID` — disposable project UUID.
 - `CAD_WORKSPACE_MODEL_ID` — disposable CAD model UUID.
-- `CAD_WORKSPACE_SUPABASE_URL` — `https://mpbrlegwrrrfpeumtqhi.supabase.co` (dedicated E2E project verified ACTIVE_HEALTHY).
-- `CAD_WORKSPACE_SUPABASE_ALLOWED_HOST` — `mpbrlegwrrrfpeumtqhi.supabase.co` (exact hostname only, no wildcard).
+
+The workflow pins the exact application preview host and E2E Supabase URL/host in its own protected configuration, rather than accepting arbitrary host values from the environment.
 
 Required environment secrets:
 
-- `CAD_WORKSPACE_COOKIE` — authenticated session for a project member allowed to execute CAD and upload drawings.
-- `SUPABASE_SERVICE_ROLE_KEY` — service-role key for the dedicated non-production Supabase project only.
+- `CAD_WORKSPACE_COOKIE` — existing authenticated session for a project member allowed to execute CAD and upload drawings.
+- `SUPABASE_SERVICE_ROLE_KEY` — add the service-role key for the dedicated non-production Supabase project only.
 
 The runner creates CAD and drawing records and increments the disposable model revision. Do not reuse a production project, production Supabase URL or production service-role key. The workflow does not deploy to production, apply production migrations, enable a worker, or change production runtime flags.
 
