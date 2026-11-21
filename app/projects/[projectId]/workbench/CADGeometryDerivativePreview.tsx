@@ -280,9 +280,10 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
   return { state, generate, reset };
 }
 
-function DerivativeEmptyState({ state, unavailable, sourceKind, generate }: {
+function DerivativeEmptyState({ state, unavailable, unavailableMessage, sourceKind, generate }: {
   state: State;
   unavailable: boolean;
+  unavailableMessage: string;
   sourceKind: "SOLID" | "STEP";
   generate: () => Promise<void>;
 }) {
@@ -291,7 +292,7 @@ function DerivativeEmptyState({ state, unavailable, sourceKind, generate }: {
     <strong>{state.loading ? "Generating display derivative…" : "Canonical geometry ready for preview"}</strong>
     <p>
       {unavailable
-        ? "This completion is historical or its model link is unverifiable. Generate a new accepted completion before creating a current display derivative."
+        ? unavailableMessage
         : "Generate a digest-bound GLB display derivative from the accepted " + sourceKind + " artifact. This operation does not validate or approve geometry."}
     </p>
     {state.error && <p role="alert" className="moduleError"><AlertCircle size={13} />{state.error}</p>}
@@ -323,8 +324,9 @@ function DerivativeReadyState({ state, sourceName, reset }: {
   </>;
 }
 
-export default function CADGeometryDerivativePreview({ projectId, completionId, sourceArtifactId, sourceName, sourceKind, staleness, onRefresh }: {
+export default function CADGeometryDerivativePreview({ projectId, modelIdentityId, completionId, sourceArtifactId, sourceName, sourceKind, staleness, onRefresh }: {
   projectId: string;
+  modelIdentityId: string;
   completionId: string;
   sourceArtifactId: string;
   sourceName: string;
@@ -333,12 +335,26 @@ export default function CADGeometryDerivativePreview({ projectId, completionId, 
   onRefresh: () => void;
 }) {
   const { state, generate, reset } = useCADGeometryDerivative({
-    projectId, completionId, sourceArtifactId, staleness, onRefresh
+    projectId, modelIdentityId, completionId, sourceArtifactId, staleness, onRefresh
   });
-  const unavailable = staleness !== "LATEST_ACCEPTED";
+  const unavailable = staleness !== "LATEST_ACCEPTED" || !modelIdentityId ||
+    state.stale || state.freshnessUnverified;
+  const unavailableMessage = !modelIdentityId
+    ? "This completion has no model identity. Its source revision cannot be checked, so a display derivative cannot be generated."
+    : state.stale
+      ? "The source model revision changed. This derivative is stale; create a new accepted CAD completion before generating another preview."
+      : state.freshnessUnverified
+        ? "The current source revision could not be confirmed. The preview is hidden until verification succeeds."
+        : "This completion is historical or its model link is unverifiable. Generate a new accepted completion before creating a current display derivative.";
   return <div className="viewportEmptyCopy">
     {!state.signedUrl
-      ? <DerivativeEmptyState state={state} unavailable={unavailable} sourceKind={sourceKind} generate={generate} />
+      ? <DerivativeEmptyState
+          state={state}
+          unavailable={unavailable}
+          unavailableMessage={unavailableMessage}
+          sourceKind={sourceKind}
+          generate={generate}
+        />
       : <DerivativeReadyState state={state} sourceName={sourceName} reset={reset} />}
   </div>;
 }
