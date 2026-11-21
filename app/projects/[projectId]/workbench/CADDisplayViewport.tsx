@@ -104,7 +104,10 @@ function mountCADDisplayRenderer(input: CADDisplayRendererInput): () => void {
   const { canvas, mesh, status, root, controlsRef } = input;
   let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
   try {
-    renderer = createStlWebGLRenderer(canvas, mesh);
+    renderer = createStlWebGLRenderer(canvas, mesh, (cause) => {
+      if (cause) reportViewportRenderError(cause, status, root);
+      else clearViewportRenderError(status, root);
+    });
     controlsRef.current = renderer.controls;
   } catch (cause) {
     reportViewportRenderError(cause, status, root);
@@ -147,9 +150,13 @@ function ViewportErrorState({ error, renderErrorRef }: {
   </>;
 }
 
-function ViewportMeta({ mesh, controlsRef }: {
+function ViewportMeta({ mesh, controlsRef, visible, selected, onToggleVisibility, onToggleSelection }: {
   mesh: CADDisplayMeshPreview | null;
   controlsRef: RefObject<StlViewportControls | null>;
+  visible: boolean;
+  selected: boolean;
+  onToggleVisibility: () => void;
+  onToggleSelection: () => void;
 }) {
   if (!mesh) return null;
   return <>
@@ -159,9 +166,15 @@ function ViewportMeta({ mesh, controlsRef }: {
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateLeft()} aria-label="Rotate model left">Rotate left</button>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateRight()} aria-label="Rotate model right">Rotate right</button>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
+        <button type="button" className="button secondaryButton" onClick={onToggleSelection} aria-pressed={selected}>
+          {selected ? "Clear body selection" : "Select body"}
+        </button>
+        <button type="button" className="button secondaryButton" onClick={onToggleVisibility} aria-pressed={!visible}>
+          {visible ? "Hide model" : "Show model"}
+        </button>
       </div>
     </div>
-    <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate</span>
+    <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate · body selection is display-only</span>
   </>;
 }
 
@@ -175,10 +188,25 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   const { mesh, error, loading } = useCADDisplayMesh({ src, sourceArtifactId, sourceArtifactSha256, artifactSha256 });
   const identity = [src, sourceArtifactId, sourceArtifactSha256, artifactSha256].join(":");
   const { rootRef, canvasRef, controlsRef, renderErrorRef } = useCADDisplayRenderer(mesh, identity);
+  const [visible, setVisible] = useState(true);
+  const [selected, setSelected] = useState(false);
+
+  useEffect(() => {
+    controlsRef.current?.setVisible(visible);
+    controlsRef.current?.setSelected(selected);
+  }, [controlsRef, mesh, selected, visible]);
+
   return <div ref={rootRef} className={styles.viewportRoot}>
-    <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label} tabIndex={0} />
+    <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label + (selected ? ", body selected" : "")} tabIndex={0} />
     <ViewportLoadingState loading={loading} mesh={mesh} error={error} />
     <ViewportErrorState error={error} renderErrorRef={renderErrorRef} />
-    <ViewportMeta mesh={mesh} controlsRef={controlsRef} />
+    <ViewportMeta
+      mesh={mesh}
+      controlsRef={controlsRef}
+      visible={visible}
+      selected={selected}
+      onToggleVisibility={() => setVisible((current) => !current)}
+      onToggleSelection={() => setSelected((current) => !current)}
+    />
   </div>;
 }

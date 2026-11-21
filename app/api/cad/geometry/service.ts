@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { persistEngineeringAuditEvent } from "../../../../src/audit/server";
 import { CAD_ARTIFACT_BUCKET, CAD_SIGNED_URL_TTL_SECONDS } from "../../../../src/cad/persistence";
+import { parseCADGeometryDerivativeListQuery, type CADGeometryDerivativeListQuery } from "../../../../src/cad/geometry-derivative-query";
 import { classifyCADDisplayDerivative, validateCADDisplayDerivative, type CADDisplayDerivative } from "../../../../src/cad/display-derivative";
 import { createCADDisplayGLB } from "../../../../src/cad/glb";
 import { validateCADGeometrySource, type CADGeometrySource } from "../../../../src/cad/geometry-kernel-contract";
@@ -663,7 +664,12 @@ function currentSourceForDerivative(row: Row, completion: Row | undefined) {
   };
 }
 
-async function serializeDerivativeRow(db: Database, row: Row, lineage: DerivativeLineage) {
+async function serializeDerivativeRow(
+  db: Database,
+  row: Row,
+  lineage: DerivativeLineage,
+  includeSignedUrl: boolean
+) {
   const derivative = derivativeFromRow(row);
   const model = lineage.models.get(String(row.model_identity_id));
   const completion = lineage.completions.get(String(row.completion_id));
@@ -672,44 +678,54 @@ async function serializeDerivativeRow(db: Database, row: Row, lineage: Derivativ
     currentSourceForDerivative(row, completion),
     model ? { id: String(model.id), revision: Number(model.revision) } : null
   );
-  const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
-    .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
-  return { ...derivative, state, signedUrl: !error && data?.signedUrl ? data.signedUrl : null };
-}
-
-export function parseDerivativeListQuery(request: Request): { projectId: string; modelIdentityId: string | null } {
-  const url = new URL(request.url);
-  const projectId = url.searchParams.get("projectId")?.trim();
-  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim() ?? null;
-  if (!isUuid(projectId)) fail("A registered project UUID and optional model identity UUID are required.", 400);
-  if (modelIdentityId && !isUuid(modelIdentityId)) {
-    fail("A registered project UUID and optional model identity UUID are required.", 400);
+  let signedUrl: string | null = null;
+  if (includeSignedUrl && state === "CURRENT") {
+    const { data, error } = await db.storage.from(CAD_ARTIFACT_BUCKET)
+      .createSignedUrl(String(row.storage_object_path), CAD_SIGNED_URL_TTL_SECONDS);
+    signedUrl = !error && data?.signedUrl ? data.signedUrl : null;
   }
-  return { projectId, modelIdentityId };
+  return { ...derivative, state, signedUrl };
 }
 
-async function fetchDerivativeRows(db: Database, projectId: string, modelIdentityId: string | null) {
+export function parseDerivativeListQuery(request: Request): CADGeometryDerivativeListQuery {
+  return parseCADGeometryDerivativeListQuery(request, fail);
+}
+
+async function fetchDerivativeRows(
+  db: Database,
+  projectId: string,
+  modelIdentityId: string | null,
+  artifactId: string | null
+) {
   let query = db.from("engineering_cad_display_derivatives").select("*")
     .eq("project_id", projectId).order("created_at", { ascending: false }).limit(100);
   if (modelIdentityId) query = query.eq("model_identity_id", modelIdentityId);
+  if (artifactId) query = query.eq("id", artifactId);
   const { data, error } = await query;
   if (error) fail("CAD display derivative history is unavailable.", 503);
   return data ?? [];
 }
 
-async function serializeDerivativeRows(db: Database, projectId: string, rows: Row[]) {
+async function serializeDerivativeRows(
+  db: Database,
+  projectId: string,
+  rows: Row[],
+  includeSignedUrls: boolean
+) {
   const lineage = await loadDerivativeLineage(db, projectId, rows);
-  return Promise.all(rows.map((row) => serializeDerivativeRow(db, row as unknown as Row, lineage)));
+  return Promise.all(rows.map((row) =>
+    serializeDerivativeRow(db, row as unknown as Row, lineage, includeSignedUrls)
+  ));
 }
 
 export async function listCADDisplayDerivatives(request: Request): Promise<NextResponse> {
   try {
-    const { projectId, modelIdentityId } = parseDerivativeListQuery(request);
+    const { projectId, modelIdentityId, artifactId, includeSignedUrls } = parseDerivativeListQuery(request);
     const authorization = await authorizeSupabaseRequest("PROJECT.READ", projectId);
     if (!authorization.allowed) fail(authorization.reason, authorizationFailureStatus(authorization));
     const db = await createClient();
-    const rows = await fetchDerivativeRows(db, projectId, modelIdentityId);
-    const derivatives = await serializeDerivativeRows(db, projectId, rows);
+    const rows = await fetchDerivativeRows(db, projectId, modelIdentityId, artifactId);
+    const derivatives = await serializeDerivativeRows(db, projectId, rows, includeSignedUrls);
     return NextResponse.json({ projectId, derivatives, signedUrlTtlSeconds: CAD_SIGNED_URL_TTL_SECONDS }, {
       headers: { "cache-control": "no-store" }
     });

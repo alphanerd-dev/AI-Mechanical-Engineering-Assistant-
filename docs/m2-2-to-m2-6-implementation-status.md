@@ -1,106 +1,115 @@
-# M2.2–M2.6 implementation status
+# M2.2–M2.6 implementation and acceptance status
 
-**Implementation branch:** `feat/m2-2-to-m2-6-geometry-runtime`  
-**Baseline:** PR #140 geometry/viewer foundation  
-**Implementation PR:** #154 (draft; CodeScene and exact-head verification pending)  
-**Status date:** 13 November 2026
+**Status date:** 21 November 2026  
+**Implementation PR:** [#154](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/154) — merged 14 November 2026  
+**Current baseline:** `main` at `093843568c8e6800f8e0652d57d0e3c3f65369ae`  
+**Closure branch:** `feat/m2-acceptance-closure`
 
-## Engineering boundary
+## Executive status
 
-AI may propose an operation. The application authorizes the project and exact source artifact. A bounded deterministic worker imports and processes the source. The host verifies exact digests and persists display-only derivatives with lineage. Validation, acceptance and human approval remain separate states.
+**M2 implementation is merged. M2 acceptance is not yet complete.** The repository has the shared artifact/display-derivative contracts, bounded OCCT processing, GLB viewport, drawing ingestion and benchmark harness. The exact-head repository checks and production build passed on the merged implementation heads, and the implementation plan records the G2 revision persistence and manufacturing evidence migrations as deployed.
 
-Canonical BREP/STEP source bytes are never overwritten by display derivatives. A successful import or tessellation does not imply geometry validity, manufacturing suitability or approval.
+The M2-specific authenticated browser/database workflow, stale-source integration proof, and paired physical desktop/Android renderer trials remain release gates. The renderer remains deliberately unselected. Do not close M2 or describe the renderer as production-selected until the gates below have evidence.
 
-## M2.2 — Revision-aware artifact lineage and derivative persistence
+The closure branch adds an authenticated M2 acceptance runner and protected manual workflow, plus viewport controls and WebGL 2/context-restoration support. Those branch changes are **implemented but unverified** until exact-head CI and live acceptance complete.
 
-Implemented in this branch:
-- Added an immutable `engineering_cad_display_derivatives` record with project/model/completion identity, exact source digest, model metadata revision, converter/provider version, tessellation settings, units, coordinate frame, private storage path and derivative digest.
-- Added a project-authorized geometry API. It loads an accepted completion, checks project ownership, model revision, source artifact registration and private storage membership, downloads the exact source bytes and independently verifies SHA-256 before processing.
-- Added GLB 2.0 display derivative generation. The GLB embeds source artifact ID/digest, units and coordinate frame in its extras.
-- Persists derivative bytes in the existing private CAD artifact bucket, records metadata in the new table and writes a durable `EVIDENCE_WRITE` audit event.
-- Adds idempotency keyed by source identity/digest, model revision, converter identity/version and tessellation settings. A database trigger serializes derivative insertion against model revision changes to prevent a stale in-flight worker result from being registered as current.
-- Adds a read endpoint that issues short-lived signed URLs and classifies derivatives as CURRENT, STALE or UNVERIFIABLE by comparing current source digest and model revision.
-- Derivative persistence does not modify canonical completion records or validation/approval state.
+## Work-package status
 
-Remaining:
-- The additive migration has not yet been applied to production. Preview/production schema rollout and RLS/storage policy verification remain deployment gates.
-- Model metadata revision is not a geometry revision. Exact source artifact identity and digest remain the geometry lineage anchor.
-- Concurrency and ambiguous-commit reconciliation are handled conservatively, but database/storage integration tests against a provisioned Supabase environment remain required.
+| Work package | Implementation status | Acceptance status |
+|---|---|---|
+| M2.2 — artifact lineage and derivative persistence | Merged in PR #154. Immutable project-scoped derivative records, source digest/revision binding, conversion settings, private storage and signed read URLs are implemented. | Authenticated persistence, private storage, RLS, signed URL and audit-chain E2E remains open. |
+| M2.3 — renderer benchmark | Closure branch now runs five paired trials automatically against the same deterministic SHA-256-bound shaft/flange/fastener mesh, records raw frame/pick samples, GPU metadata, pick accuracy, visibility toggles and synthetic context restoration. | Virtualized runs are not physical hardware evidence. Product-derived CAD fixtures, physical desktop/Android results and the renderer decision remain open. |
+| M2.4 — CAD viewport | Strict GLB v2 parser, digest/lineage verification, read-only viewport, orbit, zoom and reset are merged. | Physical-device interaction, visibility, selection, WebGL 2 and context-loss recovery need acceptance. This closure branch adds whole-body display selection, visibility toggling, WebGL 2-only context creation and context restoration; no face/edge topology mapping is claimed. |
+| M2.5 — OCCT geometry runtime | BREP/STEP import, topology inspection and bounded tessellation through isolated workers are merged; worker build/smoke evidence exists. | Authenticated source-to-derivative workflow, stale-source rejection and representative malformed/resource-bound cases remain to be run together on the exact preview. |
+| M2.6 — drawing ingestion | Authenticated PDF, safe-subset SVG and ASCII DXF upload/list/preview, private storage and metadata are merged. | Authenticated upload/list/download, malformed content, MIME spoofing, unauthorized and cross-project denial remain to be run together. |
 
-## M2.3 — Renderer comparison and selection evidence
+## Closure-branch implementation
 
-Implemented:
-- A static Babylon.js 9.35.0 vs Three.js 0.187.0 WebGL 2 benchmark with identical pre-tessellated workloads, warm/cold ordering rotation, initialization/first-render/frame sampling, picking and JSON export.
-- Five paired trials were executed at 1, 100, 500, 1,000 and 5,000 instances on a virtualized Linux/Chrome browser.
-- Both renderers completed all recorded trials; the 5,000-instance workload showed increased frame time and picking cost.
-- The measurements and limitations were recorded in PR #140.
+The branch adds:
 
-Not concluded:
-- The virtual desktop was refresh/virtualization constrained and does not represent a physical engineering workstation or mid-range Android GPU.
-- No Babylon.js vs Three.js production choice is justified by those observations. Paired trials on representative physical desktop and Android devices remain mandatory.
+- `scripts/m2-artifact-workflow-smoke.ts`: authenticated acceptance of a CAD completion, OCCT tessellation, GLB digest and lineage, private signed download, derivative inventory, PDF/SVG/DXF upload and retrieval, malformed SVG/MIME-spoof rejection, anonymous/cross-project denial, and persisted stale-source classification.
+- `npm run smoke:m2-artifacts`: reproducible entry point for that acceptance runner.
+- `.github/workflows/m2-artifact-acceptance.yml`: manually dispatched workflow bound to the protected `m2-artifact-acceptance` environment. It requires explicit confirmation that the target project and Supabase instance are disposable non-production resources.
+- Exact-host allowlisting for the M2 preview; wildcard host matching is rejected.
+- Viewport body selection/clear-selection and model visibility controls. These are display controls only and do not modify canonical geometry or validation state.
+- The CAD derivative UI reads the server's CURRENT/STALE state through a targeted, status-only query every 15 seconds and on tab focus/visibility. Ordinary polls do not mint signed URLs; a signed URL is renewed shortly before expiry. The viewport is hidden when stale or freshness cannot be confirmed.
+- Renderer benchmark upgraded to five paired trials, a shared deterministic mechanical assembly fixture with SHA-256, raw frame/pick samples, GPU metadata, picking accuracy, visibility toggles and a synthetic WebGL context-loss/restoration exercise. The fixture is synthetic and does not replace product-derived CAD fixtures or physical-device trials.
+- WebGL 2-only viewport context creation and resource reinitialization after WebGL context restoration.
 
-## M2.4 — CAD viewport
+The live runner verifies the derivative and drawing audit events against their source/derivative digests and metadata. It intentionally advances the CAD model revision through the service-role REST API to prove that an already persisted derivative becomes `STALE` and cannot be regenerated from the superseded completion. It is safe to run only against the exact allowlisted non-production app and Supabase hosts and a disposable test project. It must never be configured with production credentials.
 
-Implemented:
-- Reuses the existing isolated custom WebGL viewport lifecycle for lineage-verified GLB display derivatives.
-- Adds bounded GLB v2 parsing: no external buffers, fixed single-mesh profile, strict accessor/buffer checks, finite coordinates/normals, valid index bounds and source-lineage matching.
-- Adds read-only orbit, zoom, reset and keyboard controls for generated BREP/STEP display derivatives.
-- The workbench can request a derivative for a current accepted BREP/STEP artifact and display the returned private signed URL.
+## Database deployment and security evidence — 21 November 2026
 
-Limitations:
-- This is a single-mesh display viewport, not a full assembly scene graph, sectioning system, persistent selection/highlighting, topology-ID mapping or measurement/PMI environment.
-- Existing WebGL context-loss recovery, accessibility and mobile performance need physical-device E2E testing.
-- Babylon.js and Three.js remain benchmark candidates; neither is promoted to the production renderer by this PR.
+Read-only Supabase checks confirmed that both the dedicated `AI-Mechanical-Engineering-Assistant-E2E` project and the production project contain the M2 migrations `20261113210000_m2_display_derivatives_and_drawings` and `20261115130000_m2_generated_drawing_lineage`, as well as the G2 geometry revision migrations.
 
-## M2.5 — OCCT geometry runtime
+The dedicated E2E project is `ACTIVE_HEALTHY`. Its M2 tables were checked directly:
 
-Implemented:
-- Added a fixed OpenCascade worker for BREP and STEP import, topology counts/validity inspection and tessellation with per-vertex normals.
-- Enforces direct-child artifact paths, format/extension agreement, bounded source size, linear/angular deflection bounds, finite mesh buffers, index bounds, 750k vertex cap and 250k triangle cap.
-- Added an isolated Docker transport with network disabled, read-only root and mounts, dropped Linux capabilities, no-new-privileges, resource limits and exact source SHA-256 verification.
-- Added an authenticated HTTPS geometry endpoint to the remote CAD worker. The remote transport is bounded to 4 MiB source artifacts; the local Docker transport accepts up to 100 MiB.
-- Added a provider adapter implementing the existing geometry-kernel contract. It reports operation results only; it does not set validation or approval state.
-- Added unit/protocol tests and actual BREP/STEP import/inspect/tessellate smoke checks to CI.
+| Table | RLS | anon SELECT | authenticated SELECT | Policies |
+|---|---:|---:|---:|---:|
+| `engineering_cad_display_derivatives` | enabled | denied | allowed | 1 |
+| `engineering_cad_drawings` | enabled | denied | allowed | 1 |
+| `engineering_geometry_revisions` | enabled | denied | denied | 0 |
 
-Verification already observed:
-- The first implementation batch passed GitHub Actions run #43504028624, including `npm test`, `npm run build`, OCCT worker protocol tests, and actual generated BREP/STEP import/inspection/tessellation in the pinned build123d runtime.
-- PR #150–#152 verification identified TypeScript, React effect lifecycle, CodeScene complexity and architecture-layer violations. The current branch corrects these by moving HTTP orchestration into the app layer, keeping src domain modules independent of lib infrastructure, splitting geometry/drawing API services, isolating OCCT worker parsing/tessellation, separating GLB header/JSON/binary validation, decomposing SVG/PDF/DXF inspection, separating remote protocol parsing, and extracting focused viewport/drawing hooks. PR #154 reruns all checks against the refactored code; do not treat the batch as verified until exact-head CI and CodeScene pass.
+The geometry-revision table is intentionally server-only: the migration grants table access to `service_role` and no direct `anon`/`authenticated` access. The public `get_current_geometry_revision_heads` SECURITY DEFINER RPC was reviewed: it rejects a missing `auth.uid()`, limits the requested model list, and verifies project membership before returning revision IDs. The Supabase advisor's warning for that RPC is therefore reviewed, not silently ignored. The advisor also reports other server-only tables with RLS and no policies; these are not a reason to add broad client policies.
 
-Remaining:
-- Verify the remote worker endpoint and persistence API together in the current exact-head CI and deployed preview.
-- Add representative real-world STEP assemblies, invalid files, high-face-count models, resource-exhaustion and cancellation tests.
-- No topology healing, repair, Boolean modelling or persistent BREP subshape identity is claimed.
+No Supabase schema changes were made during this closure cycle. Production was inspected read-only; all planned mutation tests remain restricted to the dedicated E2E project.
 
-## M2.6 — Project drawing ingestion and viewer
+## Exact-head preview deployment status
 
-Implemented:
-- Added authenticated project-scoped drawing ingestion and listing APIs.
-- Supports bounded PDF source files, a strict SVG preview subset and ASCII DXF.
-- PDF signature/EOF, SVG active/external content rejection, and DXF parser/entity/bounds checks run before private storage.
-- Stores drawing bytes in the private CAD artifact bucket and immutable metadata in `engineering_cad_drawings`, including SHA-256, model association, media type, parser version, units, bounds and entity count.
-- Adds project/model association, role-gated upload, short-lived signed URLs and durable project-write audit events.
-- Adds a project workbench upload/list/preview panel. Drawing previews remain read-only and do not validate dimensions or drafting standards.
+The latest READY Vercel preview currently points to commit `00ae0431bf6837b9e8fbac97cd9cfd5cf942de67`, not the latest M2 closure branch head. A manual preview deployment of the exact closure head was attempted through the existing Vercel Git integration, but Vercel returned HTTP 402: the team's `api-deployments-free-per-day` quota is exhausted (retry after 24 hours). No billing/plan changes were made, and no CLI fallback was available because this execution environment does not have a verified local repository checkout. Do not treat the older READY preview as acceptance evidence for the current closure code.
 
-Limitations:
-- DWG is unsupported. DXF preview currently supports LINE, CIRCLE, ARC, LWPOLYLINE and TEXT; unsupported entities are reported rather than approximated.
-- PDF uses the browser's native viewer. SVG is restricted to a safe static subset and is sanitized again in the browser.
-- The serverless upload endpoint is limited to 4 MiB; the database record supports larger future direct-to-storage uploads.
+## Preview worker configuration blocker
 
-## Release gates still open
+The existing branch preview builds the application, but its latest READY deployment is behind the closure branch head (see exact-head deployment status above). The global Preview Supabase URL is configured for the dedicated E2E project. However, the branch has no branch-scoped `CAD_WORKER_API_TOKEN` (and no matching worker configuration) in Vercel. Existing worker credentials are scoped to other branches. The preview cannot safely execute the authenticated CAD completion → OCCT workflow until a dedicated non-production worker URL/token is configured for this branch.
 
-1. Run all checks against the final PR head, not an earlier intermediate commit.
-2. Apply the additive Supabase migration to a preview environment and verify table grants, RLS, private storage access, signed URL expiry and audit-chain persistence.
-3. Run authenticated end-to-end tests for BREP/STEP → OCCT → GLB → private storage → signed URL → browser viewport, including stale source and wrong-project denial.
-4. Run drawing upload/list/preview E2E tests for PDF, safe SVG, DXF, malformed files, spoofed MIME, unauthorized users and cross-project access.
-5. Deploy the preview and inspect desktop/mobile UI, console errors, network requests, WebGL fallback and cleanup.
-6. Repeat renderer trials on representative physical desktop and Android devices before selecting Babylon.js or Three.js.
-7. Keep PR #140 and this implementation PR unmerged until the above release gates pass.
+Do not copy a secret from another branch, use the production worker/token, or point the test at production to bypass this blocker. The exact approval/configuration required is a branch-scoped non-production `CAD_WORKER_URL` and `CAD_WORKER_API_TOKEN`, with a token dedicated to this acceptance preview.
+
+The GitHub Supabase Preview integration is disabled for new PR branches, but this is not a schema blocker: the separate E2E Supabase project already has the M2 migrations. The existing protected live-acceptance environment supplies the session and disposable project/model IDs; it still needs the E2E service-role secret. The preview also needs a dedicated non-production CAD worker URL/token.
+
+## Protected live-acceptance configuration
+
+Reuse the existing protected GitHub Environment `cad-workspace-live-acceptance`; the closure workflow is pinned to the exact branch-preview and E2E Supabase hosts below.
+
+Existing environment variables retained:
+
+- `CAD_WORKSPACE_PROJECT_ID` — disposable project UUID.
+- `CAD_WORKSPACE_MODEL_ID` — disposable CAD model UUID.
+
+The workflow pins the exact application preview host and E2E Supabase URL/host in its own protected configuration, rather than accepting arbitrary host values from the environment.
+
+Required environment secrets:
+
+- `CAD_WORKSPACE_COOKIE` — existing authenticated session for a project member allowed to execute CAD and upload drawings.
+- `CAD_WORKSPACE_E2E_SUPABASE_SERVICE_ROLE_KEY` — add the service-role key for the dedicated non-production Supabase project only. The workflow maps this explicitly named E2E secret to the runtime variable; it never falls back to a generic repository-level service-role secret.
+
+The runner creates CAD and drawing records and increments the disposable model revision. Do not reuse a production project, production Supabase URL or production service-role key. The workflow does not deploy to production, apply production migrations, enable a worker, or change production runtime flags.
+
+## Acceptance gates and evidence required
+
+1. **Canonical identity and immutability:** one project authorization path; canonical BREP bytes remain immutable; exact SHA-256 agrees between source record, storage download and validation receipt.
+2. **Derivative lineage:** derivative records bind source artifact ID/digest, model revision, converter identity/version and tessellation settings. The exact private GLB bytes match the derivative digest.
+3. **Private access and audit:** authenticated project member can read; anonymous and wrong-project users cannot; private storage is only accessed with short-lived signed URLs; audit persistence is verified.
+4. **Stale-source behavior:** current derivative reports `CURRENT`; after model revision advancement it reports `STALE`; a new geometry operation using the superseded completion returns conflict and does not register a derivative as current.
+5. **Drawing acceptance:** PDF, safe SVG and ASCII DXF upload/list/download; unsafe SVG, malformed inputs, MIME/extension spoofing, oversized files and unauthorized/cross-project access fail closed.
+6. **Viewport acceptance:** WebGL 2, orbit/pan/zoom, fit/reset, body selection and visibility; no renderer error or horizontal overflow; resources are disposed on unmount; context loss/restoration recovers or reports a safe error.
+7. **Renderer benchmark:** identical pre-tessellated fixtures and replayed interactions; at least five paired runs per workload on representative physical desktop and Android devices; retain raw JSON, device/OS/browser/GPU, frame-time percentiles, picking correctness/latency, memory observations, resource disposal and context recovery. Do not infer device metrics from a virtualized browser.
+8. **Renderer decision:** update the renderer ADR only after mandatory correctness/mobile/recovery gates pass. If the evidence is insufficient or scores are close, explicitly defer selection rather than manufacture a winner.
+9. **Exact-head release checks:** `npm ci`, `npm test`, `npm run build`, `npm run architecture:graph -- --strict`, worker checks, CodeQL/Codacy/CodeScene and relevant authenticated Playwright/browser acceptance on the exact candidate SHA.
+10. **Deployment:** verify the exact Vercel preview SHA and worker revisions/readiness. Production rollout is a separate approval and is not part of M2 acceptance.
+
+## Verification history
+
+- PR #154 merged at merge commit `518b5e1efcedc2ca73d7185776accd3f7be09548`; PR head was `5afbb19a3fcede422f48c4db1dfc7186f932e480`.
+- The implementation plan records successful exact-head CI/security/code-health/build checks on the merged M2 implementation heads and CAD/OCCT regression, worker build/smokes, CAD intent-to-verified-artifact E2E and production build in run [43562679787](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/actions/runs/43562679787).
+- These checks do not substitute for the authenticated M2 derivative/drawing workflow or physical-device renderer benchmark.
+- The M2 closure-branch commits have not yet been verified by CI or live acceptance at the time of this status update.
 
 ## Explicit non-claims
 
-- A green build is not proof of engineering correctness.
-- Tessellation is not validation.
-- A display derivative is not canonical geometry.
-- A signed URL is not public access.
-- A latest accepted completion is not necessarily a latest geometry revision.
-- No solver, manufacturing, approval or drawing-standard validation is inferred from preview success.
+- Tessellation and viewport rendering do not validate engineering geometry.
+- Display derivatives are not canonical CAD artifacts.
+- Whole-body display selection is not stable face/edge topology selection.
+- PDF/SVG/DXF preview does not validate dimensions, drafting standards or manufacturing readiness.
+- A virtualized benchmark is not physical-device evidence.
+- A renderer is not selected until the accepted benchmark decision is recorded.
+- A green build does not prove the complete M2 workflow.
