@@ -15,10 +15,19 @@ describe("CAD live-smoke target safety", () => {
       .toThrow(/Refusing to run.*unapproved host/i);
   });
 
-  it("allows only the exact branch-scoped M0 preview with its isolated CAD worker configuration", () => {
+  it("allows only an explicitly configured exact HTTPS M2 preview hostname", () => {
     expect(() => assertNonProductionCadSmokeTarget(
-      new URL("https://ai-mechanical-engineering-assistant-m-git-bd1610-alphanerd-labs.vercel.app"),
+      new URL("https://ai-mechanical-engineering-assistant-git-feat-m2-acceptance-closure-alphanerd-labs.vercel.app"),
+      "ai-mechanical-engineering-assistant-git-feat-m2-acceptance-closure-alphanerd-labs.vercel.app",
     )).not.toThrow();
+    expect(() => assertNonProductionCadSmokeTarget(
+      new URL("https://attacker.example.com"),
+      "*.example.com",
+    )).toThrow(/unapproved host/i);
+    expect(() => assertNonProductionCadSmokeTarget(
+      new URL("http://ai-mechanical-engineering-assistant-git-feat-m2-acceptance-closure-alphanerd-labs.vercel.app"),
+      "ai-mechanical-engineering-assistant-git-feat-m2-acceptance-closure-alphanerd-labs.vercel.app",
+    )).toThrow(/HTTPS/i);
   });
 
   it.each(["http://localhost:3000", "http://127.0.0.1:3000", "http://[::1]:3000"])(
