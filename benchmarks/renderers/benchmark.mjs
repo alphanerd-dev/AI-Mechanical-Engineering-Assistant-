@@ -126,11 +126,17 @@ async function sha256Mesh(mesh) {
   return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 function instancePosition(index, count) {
-  const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
-  const rows = Math.ceil(count / cols);
-  const x = (index % cols) - (cols - 1) / 2;
-  const z = Math.floor(index / cols) - (rows - 1) / 2;
-  return [x * 3.8, 0, z * 3.8];
+  if (index === 0) return [0, 0, 0];
+  const remaining = count - 1;
+  const cols = Math.max(1, Math.ceil(Math.sqrt(remaining)));
+  const rows = Math.ceil(remaining / cols);
+  const gridIndex = index - 1;
+  const x = (gridIndex % cols) - (cols - 1) / 2;
+  const z = Math.floor(gridIndex / cols) - (rows - 1) / 2;
+  // Half-cell offset leaves the center assembly unobstructed for deterministic picking.
+  const offsetX = x + (x >= 0 ? 0.5 : -0.5);
+  const offsetZ = z + (z >= 0 ? 0.5 : -0.5);
+  return [offsetX * 3.8, 0, offsetZ * 3.8];
 }
 function finishSummary({
   engine, started, frames, pickSamples, pickHits, renderMs, initMs, count,
