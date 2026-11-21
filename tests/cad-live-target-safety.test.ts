@@ -4,6 +4,7 @@ import { assertNonProductionCadSmokeTarget } from "../src/cad/live-smoke-target.
 describe("CAD live-smoke target safety", () => {
   it.each([
     "https://ai-mechanical-engineering-assistant.vercel.app",
+    "https://ai-mechanical-engineering-assistant-eta.vercel.app",
     "https://ai-mechanical-engineering-assistant-alphanerd-labs.vercel.app",
     "https://ai-mechanical-engineering-assistant-git-main-alphanerd-labs.vercel.app",
     "https://ai-mechanical-engineering-assistant-3lto4c0xa-alphanerd-labs.vercel.app",
