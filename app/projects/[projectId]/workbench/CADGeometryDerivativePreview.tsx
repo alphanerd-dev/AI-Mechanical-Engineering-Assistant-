@@ -162,8 +162,34 @@ async function requestDisplayDerivative(input: PreviewRequest): Promise<{ signed
   const response = await postDisplayDerivative(input);
   const body: unknown = await response.json().catch(() => ({}));
   const result = parseDisplayDerivativeResponse(body);
+  if (response.status === 409) throw new StaleCADSourceError(displayDerivativeError(body));
   if (!response.ok || !result) throw new Error(displayDerivativeError(body));
   return result;
+}
+
+async function readCurrentDerivative(input: PreviewRequest, artifactId: string): Promise<DerivativeStatus> {
+  if (!input.modelIdentityId) return { kind: "UNVERIFIABLE" };
+  const query = new URLSearchParams({ projectId: input.projectId, modelIdentityId: input.modelIdentityId });
+  const response = await fetch("/api/cad/geometry?" + query.toString(), { cache: "no-store" });
+  const body: unknown = await response.json().catch(() => null);
+  const record = readDerivativeErrorField(body);
+  if (!response.ok || !record || !Array.isArray(record.derivatives)) {
+    throw new DerivativeFreshnessError("The current CAD source revision could not be verified. The preview is hidden until verification succeeds.");
+  }
+  const row = record.derivatives.find((item) => readDerivativeErrorField(item)?.artifactId === artifactId);
+  const derivativeRecord = readDerivativeErrorField(row);
+  if (!derivativeRecord) return { kind: "MISSING" };
+  if (derivativeRecord.state === "STALE") return { kind: "STALE" };
+  if (derivativeRecord.state !== "CURRENT") return { kind: "UNVERIFIABLE" };
+  if (typeof derivativeRecord.signedUrl !== "string" || !derivativeRecord.signedUrl.trim()) {
+    return { kind: "UNVERIFIABLE" };
+  }
+  const derivative = parseDerivativeRecord(derivativeRecord);
+  if (!derivative || derivative.artifactId !== artifactId ||
+      derivative.sourceArtifactId !== input.sourceArtifactId) {
+    return { kind: "UNVERIFIABLE" };
+  }
+  return { kind: "CURRENT", signedUrl: derivativeRecord.signedUrl, derivative };
 }
 
 function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; onRefresh: () => void }) {
