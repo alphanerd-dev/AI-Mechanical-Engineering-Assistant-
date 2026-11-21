@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "../../../../lib/supabase/service";
 import { authorizationFailureStatus, authorizeSupabaseRequest } from "../../../../src/auth/supabase-service";
 import { persistEngineeringAuditEvent } from "../../../../src/audit/server";
 import { CAD_ARTIFACT_BUCKET, CAD_SIGNED_URL_TTL_SECONDS } from "../../../../src/cad/persistence";
+import { parseCADGeometryDerivativeListQuery, type CADGeometryDerivativeListQuery } from "../../../../src/cad/geometry-derivative-query";
 import { classifyCADDisplayDerivative, validateCADDisplayDerivative, type CADDisplayDerivative } from "../../../../src/cad/display-derivative";
 import { createCADDisplayGLB } from "../../../../src/cad/glb";
 import { validateCADGeometrySource, type CADGeometrySource } from "../../../../src/cad/geometry-kernel-contract";
@@ -686,25 +687,8 @@ async function serializeDerivativeRow(
   return { ...derivative, state, signedUrl };
 }
 
-export function parseDerivativeListQuery(request: Request): {
-  projectId: string;
-  modelIdentityId: string | null;
-  artifactId: string | null;
-  includeSignedUrls: boolean;
-} {
-  const url = new URL(request.url);
-  const projectId = url.searchParams.get("projectId")?.trim();
-  const modelIdentityId = url.searchParams.get("modelIdentityId")?.trim() ?? null;
-  const artifactId = url.searchParams.get("artifactId")?.trim() ?? null;
-  const includeSignedUrls = url.searchParams.get("includeSignedUrls") !== "false";
-  if (!isUuid(projectId)) fail("A registered project UUID and optional model identity UUID are required.", 400);
-  if (modelIdentityId && !isUuid(modelIdentityId)) {
-    fail("A registered project UUID and optional model identity UUID are required.", 400);
-  }
-  if (artifactId && !isUuid(artifactId)) {
-    fail("A valid CAD display derivative artifact UUID is required.", 400);
-  }
-  return { projectId, modelIdentityId, artifactId, includeSignedUrls };
+export function parseDerivativeListQuery(request: Request): CADGeometryDerivativeListQuery {
+  return parseCADGeometryDerivativeListQuery(request, fail);
 }
 
 async function fetchDerivativeRows(

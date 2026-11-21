@@ -46,7 +46,7 @@ jobs:
           CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
           CAD_WORKSPACE_SUPABASE_URL: https://mpbrlegwrrrfpeumtqhi.supabase.co
           CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: mpbrlegwrrrfpeumtqhi.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CAD_WORKSPACE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
           for key in CAD_WORKSPACE_BASE_URL CAD_WORKSPACE_ALLOWED_HOST CAD_WORKSPACE_PROJECT_ID CAD_WORKSPACE_MODEL_ID CAD_WORKSPACE_COOKIE CAD_WORKSPACE_SUPABASE_URL CAD_WORKSPACE_SUPABASE_ALLOWED_HOST SUPABASE_SERVICE_ROLE_KEY; do
@@ -74,7 +74,7 @@ jobs:
           CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
           CAD_WORKSPACE_SUPABASE_URL: https://mpbrlegwrrrfpeumtqhi.supabase.co
           CAD_WORKSPACE_SUPABASE_ALLOWED_HOST: mpbrlegwrrrfpeumtqhi.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CAD_WORKSPACE_E2E_SUPABASE_SERVICE_ROLE_KEY }}
         run: npm run smoke:m2-artifacts
 
       - name: Summarize acceptance boundary

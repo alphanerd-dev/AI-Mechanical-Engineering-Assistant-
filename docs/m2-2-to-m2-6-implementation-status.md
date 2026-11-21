@@ -80,7 +80,7 @@ The workflow pins the exact application preview host and E2E Supabase URL/host i
 Required environment secrets:
 
 - `CAD_WORKSPACE_COOKIE` — existing authenticated session for a project member allowed to execute CAD and upload drawings.
-- `SUPABASE_SERVICE_ROLE_KEY` — add the service-role key for the dedicated non-production Supabase project only.
+- `CAD_WORKSPACE_E2E_SUPABASE_SERVICE_ROLE_KEY` — add the service-role key for the dedicated non-production Supabase project only. The workflow maps this explicitly named E2E secret to the runtime variable; it never falls back to a generic repository-level service-role secret.
 
 The runner creates CAD and drawing records and increments the disposable model revision. Do not reuse a production project, production Supabase URL or production service-role key. The workflow does not deploy to production, apply production migrations, enable a worker, or change production runtime flags.
 

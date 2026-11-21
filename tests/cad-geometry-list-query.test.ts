@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { parseDerivativeListQuery } from "../app/api/cad/geometry/service";
+import { parseCADGeometryDerivativeListQuery } from "../src/cad/geometry-derivative-query";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const modelIdentityId = "22222222-2222-4222-8222-222222222222";
 const artifactId = "33333333-3333-4333-8333-333333333333";
+const fail = (message: string, status: number): never => { throw new Error(status + ": " + message); };
 
 describe("CAD display derivative list query", () => {
   it("preserves the existing full-history and signed-URL defaults", () => {
-    const parsed = parseDerivativeListQuery(
-      new Request("https://example.test/api/cad/geometry?projectId=" + projectId)
+    const parsed = parseCADGeometryDerivativeListQuery(
+      new Request("https://example.test/api/cad/geometry?projectId=" + projectId), fail
     );
     expect(parsed).toEqual({
       projectId,
@@ -25,14 +26,14 @@ describe("CAD display derivative list query", () => {
       artifactId,
       includeSignedUrls: "false"
     });
-    expect(parseDerivativeListQuery(
-      new Request("https://example.test/api/cad/geometry?" + query.toString())
+    expect(parseCADGeometryDerivativeListQuery(
+      new Request("https://example.test/api/cad/geometry?" + query.toString()), fail
     )).toEqual({ projectId, modelIdentityId, artifactId, includeSignedUrls: false });
   });
 
   it("rejects malformed artifact identifiers", () => {
-    expect(() => parseDerivativeListQuery(
-      new Request("https://example.test/api/cad/geometry?projectId=" + projectId + "&artifactId=not-a-uuid")
+    expect(() => parseCADGeometryDerivativeListQuery(
+      new Request("https://example.test/api/cad/geometry?projectId=" + projectId + "&artifactId=not-a-uuid"), fail
     )).toThrow(/artifact UUID/i);
   });
 });
