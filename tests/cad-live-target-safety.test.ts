@@ -28,8 +28,8 @@ describe("CAD live-smoke target safety", () => {
 
   it("allows only an explicitly configured exact HTTPS M2 preview hostname", () => {
     expect(() => assertNonProductionCadSmokeTarget(
-      new URL("https://ai-mechanical-engineering-assistant-git-feat-m2-acceptance-closure-alphanerd-labs.vercel.app"),
-      "ai-mechanical-engineering-assistant-git-feat-m2-acceptance-closure-alphanerd-labs.vercel.app",
+      new URL("https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app"),
+      "ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app",
     )).not.toThrow();
     expect(() => assertNonProductionCadSmokeTarget(
       new URL("https://attacker.example.com"),
