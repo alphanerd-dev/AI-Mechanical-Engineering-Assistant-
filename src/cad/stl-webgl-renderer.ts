@@ -22,7 +22,7 @@ function readThemeRgb(variable: string): [number, number, number] {
   return [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255) as [number, number, number];
 }
 
-function compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
+function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type);
   if (!shader) throw new Error("WebGL could not create a shader.");
   gl.shaderSource(shader, source);
@@ -33,7 +33,7 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string):
   throw new Error(message);
 }
 
-function linkPreviewProgram(gl: WebGLRenderingContext, vertex: WebGLShader, fragment: WebGLShader) {
+function linkPreviewProgram(gl: WebGL2RenderingContext, vertex: WebGLShader, fragment: WebGLShader) {
   const program = gl.createProgram();
   if (!program) throw new Error("WebGL could not create a render program.");
   gl.attachShader(program, vertex);
@@ -47,13 +47,13 @@ function linkPreviewProgram(gl: WebGLRenderingContext, vertex: WebGLShader, frag
   return program;
 }
 
-function createPreviewProgram(gl: WebGLRenderingContext, accent: [number, number, number]): PreviewProgram {
+function createPreviewProgram(gl: WebGL2RenderingContext, accent: [number, number, number]): PreviewProgram {
   const vertexSource = [
-    "attribute vec3 a_position;",
-    "attribute vec3 a_normal;",
+    "#version 300 es\nin vec3 a_position;",
+    "in vec3 a_normal;",
     "uniform vec2 u_rotation;",
     "uniform float u_zoom;",
-    "varying vec3 v_normal;",
+    "out vec3 v_normal;",
     "vec3 rotateX(vec3 p, float a) { float c = cos(a); float s = sin(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }",
     "vec3 rotateY(vec3 p, float a) { float c = cos(a); float s = sin(a); return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }",
     "void main() {",
@@ -65,14 +65,14 @@ function createPreviewProgram(gl: WebGLRenderingContext, accent: [number, number
   const accentSource = accent.map((channel) => channel.toFixed(4)).join(", ");
   const fragmentSource = [
     "precision mediump float;",
-    "varying vec3 v_normal;",
-    "uniform float u_selected;",
+    "in vec3 v_normal;",
+    "uniform float u_selected;",\n    "out vec4 outColor;",
     "void main() {",
     "  vec3 light = normalize(vec3(-0.45, 0.75, 1.0));",
     "  float diffuse = max(dot(normalize(v_normal), light), 0.0);",
     "  float shade = 0.32 + 0.68 * diffuse;",
     `  vec3 base = mix(vec3(${accentSource}), vec3(0.96, 0.72, 0.28), u_selected * 0.55);`,
-    "  gl_FragColor = vec4(base * shade, 1.0);",
+    "  outColor = vec4(base * shade, 1.0);",
     "}",
   ].join("\n");
   const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
@@ -92,8 +92,8 @@ export function createStlWebGLRenderer(canvas: HTMLCanvasElement, mesh: STLMeshP
   controls: StlViewportControls;
   destroy: () => void;
 } {
-  const gl = canvas.getContext("webgl", { antialias: true, alpha: true });
-  if (!gl) throw new Error("WebGL is unavailable in this browser. The CAD source record is still preserved.");
+  const gl = canvas.getContext("webgl2", { antialias: true, alpha: true });
+  if (!gl) throw new Error("WebGL 2 is unavailable in this browser. The CAD source record is still preserved.");
 
   let resources: PreviewProgram | null = null;
   let positionBuffer: WebGLBuffer | null = null;
