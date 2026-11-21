@@ -69,7 +69,7 @@ function appendCylinder(target, center, radius, height, segments) {
       const top = bottom + 1;
       const nextBottom = bottom + 2;
       const nextTop = bottom + 3;
-      target.indices.push(bottom, nextBottom, nextTop, bottom, nextTop, top);
+      target.indices.push(bottom, top, nextTop, bottom, nextTop, nextBottom);
     }
   }
   const bottomCenter = target.positions.length / 3;
@@ -185,7 +185,14 @@ function createThreeScene(T, canvas, count, fixture) {
   const scene = new T.Scene();
   scene.background = new T.Color(0x08111a);
   const camera = new T.PerspectiveCamera(52, (canvas.clientWidth || 960) / (canvas.clientHeight || 540), 0.1, 10000);
-  camera.position.set(Math.max(10, Math.sqrt(count) * 1.7), Math.max(7, Math.sqrt(count) * 1.1), Math.max(10, Math.sqrt(count) * 1.7));
+  const cameraDistance = Math.max(18, Math.sqrt(count) * 6);
+  const cameraBeta = 1.05;
+  const cameraHorizontal = cameraDistance * Math.sin(cameraBeta);
+  camera.position.set(
+    Math.cos(Math.PI / 4) * cameraHorizontal,
+    cameraDistance * Math.cos(cameraBeta),
+    Math.sin(Math.PI / 4) * cameraHorizontal
+  );
   camera.lookAt(0, 0, 0);
   scene.add(new T.HemisphereLight(0xdceefa, 0x1b2a36, 2));
   const light = new T.DirectionalLight(0xffffff, 2.2);
@@ -323,7 +330,8 @@ async function runBabylon(B, canvas, count, durationMs, fixture) {
   if (engine.webGLVersion < 2) { engine.dispose(); throw new Error("Babylon.js did not create a WebGL 2 context."); }
   const scene = new B.Scene(engine);
   scene.clearColor = new B.Color4(8 / 255, 17 / 255, 26 / 255, 1);
-  const camera = new B.ArcRotateCamera("camera", Math.PI / 4, 1.05, Math.max(14, Math.sqrt(count) * 3.2), B.Vector3.Zero(), scene);
+  const camera = new B.ArcRotateCamera("camera", Math.PI / 4, 1.05, Math.max(18, Math.sqrt(count) * 6), B.Vector3.Zero(), scene);
+  camera.fov = 52 * Math.PI / 180;
   camera.lowerRadiusLimit = 1;
   camera.attachControl(canvas, true);
   const light = new B.HemisphericLight("hemisphere", new B.Vector3(0, 1, 0), scene);
