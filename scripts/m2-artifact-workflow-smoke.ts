@@ -307,7 +307,16 @@ async function main(): Promise<void> {
   }), "malformed.pdf");
   const malformedPdfResponse = await api("/api/cad/drawings", { method: "POST", body: malformedPdf });
   check(malformedPdfResponse.status === 422, "Malformed PDF content was not rejected with HTTP 422.");
-  console.log("PASS negative drawing cases: active SVG, MIME/extension spoofing and malformed PDF rejected.");
+
+  const oversizedDrawing = new FormData();
+  oversizedDrawing.set("projectId", projectId);
+  oversizedDrawing.set("modelIdentityId", modelId);
+  oversizedDrawing.set("file", new Blob([new Uint8Array(4 * 1024 * 1024 + 1)], {
+    type: "application/pdf"
+  }), "oversized.pdf");
+  const oversizedResponse = await api("/api/cad/drawings", { method: "POST", body: oversizedDrawing });
+  check(oversizedResponse.status === 413, "Drawing larger than the 4 MiB limit was not rejected with HTTP 413.");
+  console.log("PASS negative drawing cases: active SVG, MIME/extension spoofing, malformed PDF and oversized upload rejected.");
 
   // Cross-project and unauthenticated reads must not disclose project artifact inventories.
   const foreignProjectId = randomUUID();
