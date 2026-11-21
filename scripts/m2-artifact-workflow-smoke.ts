@@ -73,6 +73,32 @@ async function main(): Promise<void> {
     });
   };
 
+  const assertAuditEvent = async (
+    resourceType: string,
+    resourceId: string,
+    action: string,
+    expectedMetadata: Record<string, unknown>
+  ) => {
+    const params = new URLSearchParams({
+      select: "event_id,metadata",
+      project_id: "eq." + projectId,
+      resource_type: "eq." + resourceType,
+      resource_id: "eq." + resourceId,
+      action: "eq." + action,
+      outcome: "eq.SUCCESS"
+    });
+    const response = await dbRequest("engineering_audit_events?" + params.toString());
+    check(response.ok, "Audit event lookup failed for " + resourceType + " " + resourceId + ".");
+    const rows: unknown = await response.json();
+    check(Array.isArray(rows) && rows.length === 1 && isRecord(rows[0]) &&
+      typeof rows[0].event_id === "string" && isRecord(rows[0].metadata),
+      "A unique durable audit event is missing for " + resourceType + " " + resourceId + ".");
+    for (const [key, value] of Object.entries(expectedMetadata)) {
+      check(rows[0].metadata[key] === value,
+        "Audit metadata " + key + " does not match the persisted " + resourceType + " record.");
+    }
+  };
+
   // Fail early when the preview's server-side CAD worker is not configured and ready.
   const readinessResponse = await api("/api/cad/readiness?projectId=" + projectId);
   const readinessBody = await json(readinessResponse);
@@ -183,7 +209,13 @@ async function main(): Promise<void> {
   check(isRecord(listedDerivative) && listedDerivative.state === "CURRENT" &&
     typeof listedDerivative.signedUrl === "string",
     "Newly persisted display derivative is not classified CURRENT in project history.");
-  console.log("PASS lineage: derivative history reports CURRENT for the exact current source revision.");
+  await assertAuditEvent("CAD_DISPLAY_DERIVATIVE", derivative.artifactId as string, "EVIDENCE_WRITE", {
+    sourceArtifactId,
+    sourceArtifactSha256: sourceDigest,
+    artifactSha256: derivative.artifactSha256,
+    modelRevision: derivative.modelRevision
+  });
+  console.log("PASS lineage: derivative history reports CURRENT and its audit event binds source and derivative digests.");
 
   // Upload all supported drawing types and verify their immutable metadata and private bytes.
   const drawings = [
@@ -225,8 +257,13 @@ async function main(): Promise<void> {
     check(stored.ok && sha256(new Uint8Array(await stored.arrayBuffer())) === expectedDigest,
       "Private drawing bytes do not match persisted SHA-256 for " + drawing.filename + ".");
     drawingIds.push(row.id as string);
+    await assertAuditEvent("CAD_DRAWING", row.id as string, "PROJECT_WRITE", {
+      sha256: expectedDigest,
+      format: row.format,
+      byteSize: drawing.bytes.byteLength
+    });
   }
-  console.log("PASS drawings: PDF, safe SVG and ASCII DXF uploaded, inspected, persisted and privately retrieved.");
+  console.log("PASS drawings: PDF, safe SVG and ASCII DXF uploaded, privately retrieved and audit-bound.");
 
   const drawingListResponse = await api("/api/cad/drawings?projectId=" + projectId + "&modelIdentityId=" + modelId);
   const drawingListBody = await json(drawingListResponse);
