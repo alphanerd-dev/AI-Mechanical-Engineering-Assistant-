@@ -12,7 +12,7 @@
 - **Target:** conversation becomes the default entry point and task/result journey. For executable requests, the assistant proposes a versioned TaskSpec; deterministic host validation checks project scope, schema, capability readiness, risk, budgets and approval; approved work is persisted and dispatched to an allowlisted worker; durable progress and validated evidence return to the originating conversation.
 - **Preserved internal boundary:** chat/model output is not execution authority. The Engineering Core, capability router, policy, durable store, workers, validators and authorized approvers remain distinct internal authorities. Specialist CAD/CAE, drawing, artifact and approval interfaces open contextually when needed.
 - **Product information architecture target:** Chat, Projects, Tasks, Library and Account. Within a project, Conversation remains primary with contextual Context, Results, Activity/Decisions and Project settings. The Tasks view monitors cross-project work and links back to its originating conversation.
-- **Market entry point:** the Mechanical Design Verification Workspace remains a hypothesis for customer discovery, not a validated product-market decision. Do not expand capability breadth solely because a provider exists.
+- **Market entry point:** the Mechanical Design Verification Workspace remains a product hypothesis, not a validated product-market decision. Do not expand capability breadth solely because a provider exists.
 
 ### Dependency-aware implementation order
 
