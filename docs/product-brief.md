@@ -165,7 +165,7 @@ The hybrid strategy is phased. Cross-cutting delivery milestones M2–M5 in the 
 
 M2's artifact and viewer foundations should precede broad multi-step autonomous workflows that rely on inspecting and linking engineering artifacts. V2.0 should expand in bounded, capability-specific increments rather than enabling unrestricted agent execution. Later V2.x integrations require provider licensing, runtime isolation, representative benchmarks, independent validators, evidence contracts, rollback and demonstrated user value.
 
-**Experience and adoption sequencing:** before expanding V2.x breadth, close the chat-to-task orchestration gap, establish one durable task/event/result lifecycle, add secure chat attachments and project file retrieval, complete at least one accepted CAD workflow and one bounded FEA workflow, then consolidate navigation, administrator-only settings and accessibility. In parallel, validate the proposed Mechanical Design Verification Workspace entry point with real engineers; it remains a customer-discovery hypothesis, not a validated market decision.
+**Experience and adoption sequencing:** before expanding V2.x breadth, close the chat-to-task orchestration gap, establish one durable task/event/result lifecycle, add secure chat attachments and project file retrieval, complete at least one accepted CAD workflow and one bounded FEA workflow, then consolidate navigation, administrator-only settings and accessibility. The Mechanical Design Verification Workspace remains a product hypothesis, not a validated market decision.
 
 ## 11. Acceptance rule
 
