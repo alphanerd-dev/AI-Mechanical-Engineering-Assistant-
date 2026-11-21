@@ -29,8 +29,12 @@ async function postDisplayDerivative(input: PreviewRequest): Promise<Response> {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      ...input, operation: "TESSELLATE",
-      linearDeflectionMm: 0.1, angularDeflectionRad: 0.35
+      projectId: input.projectId,
+      completionId: input.completionId,
+      sourceArtifactId: input.sourceArtifactId,
+      operation: "TESSELLATE",
+      linearDeflectionMm: 0.1,
+      angularDeflectionRad: 0.35
     }),
     cache: "no-store"
   });
