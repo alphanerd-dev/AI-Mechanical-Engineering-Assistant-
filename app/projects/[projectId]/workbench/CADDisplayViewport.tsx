@@ -104,7 +104,10 @@ function mountCADDisplayRenderer(input: CADDisplayRendererInput): () => void {
   const { canvas, mesh, status, root, controlsRef } = input;
   let renderer: ReturnType<typeof createStlWebGLRenderer> | null = null;
   try {
-    renderer = createStlWebGLRenderer(canvas, mesh);
+    renderer = createStlWebGLRenderer(canvas, mesh, (cause) => {
+      if (cause) reportViewportRenderError(cause, status, root);
+      else clearViewportRenderError(status, root);
+    });
     controlsRef.current = renderer.controls;
   } catch (cause) {
     reportViewportRenderError(cause, status, root);
