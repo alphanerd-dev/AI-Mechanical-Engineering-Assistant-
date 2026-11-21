@@ -183,10 +183,11 @@ async function importEngines() {
 }
 function createThreeScene(T, canvas, count, fixture) {
   const startInit = performance.now();
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
   const renderer = new T.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
   const gl = renderer.getContext();
   if (!(gl instanceof WebGL2RenderingContext)) throw new Error("Three.js did not create a WebGL 2 context.");
-  renderer.setPixelRatio(1);
+  renderer.setPixelRatio(pixelRatio);
   renderer.setSize(canvas.clientWidth || 960, canvas.clientHeight || 540, false);
   const scene = new T.Scene();
   scene.background = new T.Color(0x08111a);
@@ -332,8 +333,10 @@ async function runThree(T, canvas, count, durationMs, fixture) {
 async function runBabylon(B, canvas, count, durationMs, fixture) {
   const heapBefore = performance.memory?.usedJSHeapSize ?? null;
   const startInit = performance.now();
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
   const engine = new B.Engine(canvas, false, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false });
   if (engine.webGLVersion < 2) { engine.dispose(); throw new Error("Babylon.js did not create a WebGL 2 context."); }
+  engine.setHardwareScalingLevel(1 / pixelRatio);
   const scene = new B.Scene(engine);
   scene.clearColor = new B.Color4(8 / 255, 17 / 255, 26 / 255, 1);
   const camera = new B.ArcRotateCamera("camera", Math.PI / 4, 1.05, Math.max(18, Math.sqrt(count) * 6), B.Vector3.Zero(), scene);
