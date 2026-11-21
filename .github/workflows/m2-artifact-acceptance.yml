@@ -39,8 +39,8 @@ jobs:
       - name: Verify protected acceptance configuration without printing values
         shell: bash
         env:
-          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
-          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-m-git-14d632-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-m-git-14d632-alphanerd-labs.vercel.app
           CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
           CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
           CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
@@ -67,8 +67,8 @@ jobs:
 
       - name: Run authenticated M2 acceptance
         env:
-          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
-          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-git-f-a5ad0f-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_BASE_URL: https://ai-mechanical-engineering-assistant-m-git-14d632-alphanerd-labs.vercel.app
+          CAD_WORKSPACE_ALLOWED_HOST: ai-mechanical-engineering-assistant-m-git-14d632-alphanerd-labs.vercel.app
           CAD_WORKSPACE_PROJECT_ID: ${{ vars.CAD_WORKSPACE_PROJECT_ID }}
           CAD_WORKSPACE_MODEL_ID: ${{ vars.CAD_WORKSPACE_MODEL_ID }}
           CAD_WORKSPACE_COOKIE: ${{ secrets.CAD_WORKSPACE_COOKIE }}
