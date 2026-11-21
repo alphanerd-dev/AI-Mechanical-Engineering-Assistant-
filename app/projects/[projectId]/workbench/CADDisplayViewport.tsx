@@ -192,6 +192,11 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   const [selected, setSelected] = useState(false);
 
   useEffect(() => {
+    setVisible(true);
+    setSelected(false);
+  }, [identity]);
+
+  useEffect(() => {
     controlsRef.current?.setVisible(visible);
     controlsRef.current?.setSelected(selected);
   }, [controlsRef, mesh, selected, visible]);
