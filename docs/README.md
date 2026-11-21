@@ -11,6 +11,7 @@ This index points to the current product and operational contracts. It also dist
 - [Architecture and trust boundaries](architecture.md) — system layers, authorization, model boundaries, execution, validation and evidence.
 - [Engineering capabilities and maturity](engineering-capabilities.md) — what is implemented, pilot, experimental or still unavailable.
 - [Product doctrine](product-doctrine.md) — product promise, result states and feature acceptance rules.
+- [Product experience and architecture alignment](product-experience-and-architecture-alignment.md) — UX audit synthesis, chat-first target journey, prioritized delivery sequence and framework decisions.
 - [Outcome baseline](outcome-baseline.md) — methodology for measuring accepted outcomes; do not infer savings from tests or fixtures.
 
 ## Architecture decision records
@@ -26,7 +27,7 @@ This index points to the current product and operational contracts. It also dist
 - [ADR — Integrated engineering workspace strategy](architecture/adr-2026-11-08-integrated-engineering-workspace.md) — modular CAD/CAE/perception/manufacturing/lifecycle domains under shared engineering contracts.
 - [ADR — Bounded LLM operational authority](architecture/adr-2026-11-08-bounded-llm-operational-authority.md) — model-proposed task mutations and capability actions enforced by backend contracts, policies and approval gates.
 
-These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above. The [G2 Production and E2E Schema Audit](geometry-platform/g2-production-schema-audit.md) is a historical pre-G2 production snapshot; its original statement that production had no G2 schema is superseded by the 15 November 2026 implementation/deployment snapshot in the Implementation Plan and Geometry Platform Charter.
+These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above. The 20 November UX audit and 21 November architecture strategy are consolidated in the product experience alignment document; current behavior and target behavior are deliberately distinguished there and in the canonical product/architecture docs. The [G2 Production and E2E Schema Audit](geometry-platform/g2-production-schema-audit.md) is a historical pre-G2 production snapshot; its original statement that production had no G2 schema is superseded by the 15 November 2026 implementation/deployment snapshot in the Implementation Plan and Geometry Platform Charter.
 
 ## Application, chat and acceptance
 
