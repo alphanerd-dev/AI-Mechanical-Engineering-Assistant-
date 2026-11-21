@@ -135,6 +135,11 @@ async function main(): Promise<void> {
     "Canonical BREP is not PASS/VERIFIED or its digest is malformed.");
   check(Array.isArray(completion.storage_objects) && isRecord(completion.validation_receipt),
     "Accepted completion lacks its storage manifest or validation receipt.");
+  const receipt = completion.validation_receipt;
+  check(receipt.artifactSha256 === sourceDigest && receipt.validatorProviderId === "cad.occt" &&
+    typeof receipt.validatorVersion === "string" && isRecord(receipt.validation) &&
+    receipt.validation.valid === true && receipt.validation.solidCount === 1,
+    "The canonical source is not backed by a matching independent OCCT PASS receipt.");
   const solidPath = completion.storage_objects.find((item: unknown) =>
     typeof item === "string" && item.endsWith("/solid.brep")
   );
