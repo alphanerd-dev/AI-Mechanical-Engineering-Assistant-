@@ -352,7 +352,7 @@ function WorkbenchContent({ project, snapshot, tasks, artifacts, models, complet
   const executionState = getTaskExecutionState(tasks.length, completedTasks, runningTasks, failedTasks);
 
   return <div className="workbenchPage">
-    <div className="workbenchSubnav" aria-label="Workbench views"><span aria-current="page">3D / CAD</span><Link href={"/projects/" + project.id + "/fea"}>FEA results</Link><Link href={"/projects/" + project.id + "/pid"}>P&amp;ID / PFD</Link><Link href={"/projects/" + project.id + "/calculations"}>Calculations</Link><Link href={"/projects/" + project.id + "/reports"}>Reports</Link></div>
+    <div className="workbenchSubnav" aria-label="Workbench views"><span aria-current="page">3D / CAD</span><a href="#project-drawings">Project drawings</a><Link href={"/projects/" + project.id + "/fea"}>FEA results</Link><Link href={"/projects/" + project.id + "/pid"}>P&amp;ID / PFD</Link><Link href={"/projects/" + project.id + "/calculations"}>Calculations</Link><Link href={"/projects/" + project.id + "/reports"}>Reports</Link></div>
     <div className="workbenchMetaRow"><span className="modulePill">PROJECT · {project.id.slice(0, 8).toUpperCase()}</span><span>Project revision <strong>R{project.revision}</strong></span><span>Workspace revision <strong>R{snapshot.revision}</strong></span></div>
     <RevisionStateBanner project={project} snapshot={snapshot} />
     <WorkflowStrip tasks={tasks} completedTasks={completedTasks} runningTasks={runningTasks} failedTasks={failedTasks} acceptedCount={acceptedCompletions.length} latestArtifact={latestArtifact} executionState={executionState} />
