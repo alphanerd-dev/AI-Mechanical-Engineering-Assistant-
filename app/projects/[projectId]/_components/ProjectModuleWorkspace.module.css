@@ -223,8 +223,12 @@
 @media (max-width: 760px) {
   .root { padding: 14px 12px calc(88px + env(safe-area-inset-bottom)); }
   .root :global(.modulePageHeader) { display: grid; align-items: start; gap: 12px; }
-  .root :global(.moduleHeaderActions) { width: 100%; }
-  .root :global(.moduleHeaderActions) .button { flex: 1; justify-content: center; }
+  .root :global(.moduleHeaderActions) { width: 100%; min-width: 0; max-width: 100%; flex-shrink: 1; }
+  .root :global(.moduleHeaderActions) .button { flex: 1 1 auto; min-width: 0; justify-content: center; }
+  .root :global(.modulePanelHeader) { flex-wrap: wrap; }
+  .root :global(.modulePanelHeader) > * { min-width: 0; max-width: 100%; }
+  .root :global(.modulePanelHeader) > .moduleHeaderActions { width: 100%; min-width: 0; max-width: 100%; flex: 1 1 100%; flex-shrink: 1; }
+  .root :global(.modulePanelHeader) .moduleHeaderActions .moduleTextLink { white-space: normal; }
   .root :global(.moduleTabs) { margin-right: -12px; padding-right: 12px; }
   .root :global(.moduleTwoColumn) { grid-template-columns: minmax(0, 1fr); }
   .root :global(.workflowStrip) { grid-template-columns: minmax(0, 1fr); }
