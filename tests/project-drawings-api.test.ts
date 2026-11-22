@@ -103,4 +103,33 @@ describe("submitShaftDrawingGeneration", () => {
       .rejects.toThrow("An accepted CAD completion");
     expect(fetchStub).toHaveBeenCalledTimes(1);
   });
+  it("selects the newest accepted completion for the target model", async () => {
+    const newerCompletionId = "f4b3cf1f-37fa-446d-9777-825a6ece24c7";
+    const nextRevisionId = "e07ef560-4a89-4c44-b2d9-a93c47d11298";
+    const priorHeadId = "e07ef560-4a89-4c44-b2d9-a93c47d11297";
+    const fetchStub = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ completions: [
+        acceptedCompletion(),
+        { ...acceptedCompletion(newerCompletionId), created_at: "2026-11-22T07:55:00.000Z" },
+        { ...acceptedCompletion("f4b3cf1f-37fa-446d-9777-825a6ece24c8"), model_identity_id: "00000000-0000-4000-8000-000000000000", created_at: "2026-11-22T08:05:00.000Z" },
+        { ...acceptedCompletion("f4b3cf1f-37fa-446d-9777-825a6ece24c9"), status: "REJECTED", created_at: "2026-11-22T08:10:00.000Z" }
+      ] }))
+      .mockResolvedValueOnce(jsonResponse({
+        revisions: [{ id: priorHeadId, source_completion_id: completionId, revision_number: 1 }],
+        count: 1
+      }))
+      .mockResolvedValueOnce(jsonResponse({ revision: { geometryRevisionId: nextRevisionId }, persisted: true }, 201))
+      .mockResolvedValueOnce(jsonResponse({ drawing: { id: drawingId } }, 201));
+    vi.stubGlobal("fetch", fetchStub);
+
+    await expect(submitShaftDrawingGeneration(projectId, modelIdentityId)).resolves.toBe(drawingId);
+
+    const [, createRevision] = fetchStub.mock.calls[2] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(createRevision.body))).toEqual({
+      projectId,
+      completionId: newerCompletionId,
+      expectedParentRevisionId: priorHeadId
+    });
+  });
+
 });
