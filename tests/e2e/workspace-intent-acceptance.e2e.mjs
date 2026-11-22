@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, isBrowserStackIOS } from "./fixtures/browserstack-test.mjs";
 
@@ -1547,6 +1548,52 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
         };
         await page.goto("/projects/" + projectId);
         await expect(page.locator('canvas[aria-label^="3D CAD display derivative preview"]')).toHaveCount(0);
+
+        // Collect a reproducible headless baseline for the paired Babylon.js/Three.js
+        // microbenchmark. This is CI/SwiftShader evidence, never a substitute for physical trials.
+        await page.goto("/benchmarks/renderers/");
+        await expect(page.getByRole("heading", { name: "CAD viewport renderer benchmark" })).toBeVisible();
+        await page.getByLabel("Workload").selectOption("100");
+        await page.getByLabel("Sample duration").selectOption("1200");
+        await page.getByRole("button", { name: "Run both renderers" }).click();
+        await expect(page.locator("#environment")).toContainText("Completed 5 paired trials", { timeout: 180_000 });
+        const [benchmarkDownload] = await Promise.all([
+          page.waitForEvent("download"),
+          page.getByRole("button", { name: "Export results JSON" }).click()
+        ]);
+        const benchmarkPath = await benchmarkDownload.path();
+        expect(benchmarkPath).toBeTruthy();
+        const benchmark = JSON.parse(await readFile(benchmarkPath, "utf8"));
+        expect(benchmark).toMatchObject({
+          schemaVersion: 2,
+          pairedTrials: 5,
+          engineVersions: { babylon: "9.35.0", three: "0.187.0" },
+          environment: { webgl2: true },
+          aggregates: {
+            babylon: { pairedTrials: 5, contextRecoveryPassed: true },
+            three: { pairedTrials: 5, contextRecoveryPassed: true }
+          }
+        });
+        expect(benchmark.fixture.sha256).toMatch(/^[a-f0-9]{64}$/);
+        expect(benchmark.trials).toHaveLength(5);
+        diagnostics.viewport.rendererBenchmark = {
+          status: "PASS",
+          workloadInstances: benchmark.workloadInstances,
+          fixtureSha256: benchmark.fixture.sha256,
+          webgl2: benchmark.environment.webgl2,
+          gpuRenderer: benchmark.environment.gpuRenderer,
+          babylonMeanP95FrameMs: benchmark.aggregates.babylon.meanP95FrameMs,
+          threeMeanP95FrameMs: benchmark.aggregates.three.meanP95FrameMs,
+          contextRecoveryPassed: {
+            babylon: benchmark.aggregates.babylon.contextRecoveryPassed,
+            three: benchmark.aggregates.three.contextRecoveryPassed
+          },
+          evidenceClass: "HEADLESS_CI_SOFTWARE_WEBGL_NOT_PHYSICAL_DEVICE_ACCEPTANCE"
+        };
+        await testInfo.attach("cad-renderer-benchmark-headless-baseline.json", {
+          path: benchmarkPath,
+          contentType: "application/json"
+        });
       });
     }
 
