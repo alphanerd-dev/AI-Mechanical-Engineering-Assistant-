@@ -205,7 +205,7 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   }, [controlsRef, mesh, selected, visible]);
 
   return <div ref={rootRef} className={styles.viewportRoot}>
-    <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label + (selected ? ", body selected" : "")} tabIndex={0} />
+    <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label + (selected ? ", model highlighted" : "")} tabIndex={0} />
     <ViewportLoadingState loading={loading} mesh={mesh} error={error} />
     <ViewportErrorState error={error} renderErrorRef={renderErrorRef} />
     <ViewportMeta
