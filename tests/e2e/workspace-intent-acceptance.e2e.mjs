@@ -1475,6 +1475,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
 
         const artifactSelector = page.getByLabel("Select CAD artifact");
         await expect(artifactSelector).toBeVisible();
+        await expect(artifactSelector).toBeEnabled();
         const solidOption = artifactSelector.locator("option").filter({ hasText: "SOLID" }).first();
         const solidOptionValue = await solidOption.getAttribute("value");
         expect(solidOptionValue).toBeTruthy();
