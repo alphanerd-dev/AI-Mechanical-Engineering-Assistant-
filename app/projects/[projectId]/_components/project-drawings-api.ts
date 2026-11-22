@@ -118,25 +118,32 @@ async function readCurrentGeometryRevisionHead(
   };
 }
 
-async function appendGeometryRevision(
-  projectId: string,
-  completionId: string,
-  expectedParentRevisionId: string | null
-): Promise<string> {
+interface AppendGeometryRevisionInput {
+  projectId: string;
+  completionId: string;
+  expectedParentRevisionId: string | null;
+}
+
+function geometryRevisionIdFromBody(body: unknown): string | null {
+  const revision = asObjectRecord(asObjectRecord(body)?.revision);
+  if (typeof revision?.geometryRevisionId === "string") return revision.geometryRevisionId;
+  return typeof revision?.id === "string" ? revision.id : null;
+}
+
+function resolveGeometryRevisionId(responseOk: boolean, body: unknown): string {
+  const revisionId = geometryRevisionIdFromBody(body);
+  if (responseOk && revisionId) return revisionId;
+  throw new Error(generatedDrawingError(body));
+}
+
+async function appendGeometryRevision(input: AppendGeometryRevisionInput): Promise<string> {
   const response = await fetch("/api/cad/geometry/revisions", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ projectId, completionId, expectedParentRevisionId })
+    body: JSON.stringify(input)
   });
   const body: unknown = await response.json().catch(() => ({}));
-  const revision = asObjectRecord(asObjectRecord(body)?.revision);
-  const revisionId = typeof revision?.geometryRevisionId === "string"
-    ? revision.geometryRevisionId
-    : typeof revision?.id === "string" ? revision.id : null;
-  if (!response.ok || !revisionId) {
-    throw new Error(generatedDrawingError(body));
-  }
-  return revisionId;
+  return resolveGeometryRevisionId(response.ok, body);
 }
 
 async function ensureCurrentGeometryRevision(
@@ -148,7 +155,11 @@ async function ensureCurrentGeometryRevision(
   if (currentHead.revisionId && currentHead.sourceCompletionId === latestCompletion.id) {
     return currentHead.revisionId;
   }
-  return appendGeometryRevision(projectId, latestCompletion.id, currentHead.revisionId);
+  return appendGeometryRevision({
+    projectId,
+    completionId: latestCompletion.id,
+    expectedParentRevisionId: currentHead.revisionId
+  });
 }
 
 export async function submitShaftDrawingGeneration(
