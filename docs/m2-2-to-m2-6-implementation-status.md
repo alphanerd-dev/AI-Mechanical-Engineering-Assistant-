@@ -113,3 +113,20 @@ The runner creates CAD and drawing records and increments the disposable model r
 - A virtualized benchmark is not physical-device evidence.
 - A renderer is not selected until the accepted benchmark decision is recorded.
 - A green build does not prove the complete M2 workflow.
+
+## Follow-up correction — PR #188 drawing/workbench closure
+
+**22 November 2026:** PR #188 is a focused drawing/workbench correction, not the completion of M2 acceptance. It adds model-scoped accepted-completion selection, geometry-revision creation/reuse before drawing generation, persistent preview state after derivative generation, drawing navigation/accessibility/mobile layout fixes, and sanitized SVG paper-surface rendering with bounded zoom and Pointer Events pinch handling.
+
+The M2 acceptance workflow was corrected on the PR #188 branch to remove obsolete hardcoded preview and Supabase endpoints. It now reads the application URL, exact allowed hostname, E2E Supabase URL and exact allowed hostname from the protected `cad-workspace-live-acceptance` GitHub Environment variables:
+
+- `CAD_WORKSPACE_BASE_URL`
+- `CAD_WORKSPACE_ALLOWED_HOST`
+- `CAD_WORKSPACE_SUPABASE_URL`
+- `CAD_WORKSPACE_SUPABASE_ALLOWED_HOST`
+
+The existing project/model variables and protected session/service-role secrets remain required. URL values must exactly equal their HTTPS host allowlists; wildcard hosts are rejected. Missing configuration fails closed without printing values. The workflow still requires explicit confirmation of a disposable non-production target.
+
+**This workflow correction is implemented but not live-verified yet.** The exact candidate preview must be deployed and its dedicated non-production CAD worker URL/token must be configured before the authenticated smoke runner can execute. The service-role secret must belong only to the dedicated E2E Supabase project. Do not copy production or another branch's worker credentials.
+
+PR #188's automated CI and READY preview evidence apply to its recorded head only. They do not establish the newly updated workflow's run result, physical-device acceptance, or full M2 completion. M2 remains **not accepted** until all gates in this document have corresponding exact-candidate evidence. The renderer remains unselected pending the paired physical desktop/Android benchmark.
