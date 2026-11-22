@@ -68,14 +68,18 @@ The GitHub Supabase Preview integration is disabled for new PR branches, but thi
 
 ## Protected live-acceptance configuration
 
-Reuse the existing protected GitHub Environment `cad-workspace-live-acceptance`; the closure workflow is pinned to the exact branch-preview and E2E Supabase hosts below.
+Reuse the existing protected GitHub Environment `cad-workspace-live-acceptance`. The workflow reads the exact target origins and allowlisted hostnames from protected environment variables; it does not accept arbitrary URLs from dispatch inputs.
 
-Existing environment variables retained:
+Required environment variables:
 
+- `CAD_WORKSPACE_BASE_URL` — exact HTTPS URL of the candidate branch preview.
+- `CAD_WORKSPACE_ALLOWED_HOST` — exact hostname matching that preview URL.
+- `CAD_WORKSPACE_SUPABASE_URL` — exact HTTPS URL of the dedicated E2E Supabase project.
+- `CAD_WORKSPACE_SUPABASE_ALLOWED_HOST` — exact hostname matching that Supabase URL.
 - `CAD_WORKSPACE_PROJECT_ID` — disposable project UUID.
 - `CAD_WORKSPACE_MODEL_ID` — disposable CAD model UUID.
 
-The workflow pins the exact application preview host and E2E Supabase URL/host in its own protected configuration, rather than accepting arbitrary host values from the environment.
+The workflow fails closed if any value is missing, if either URL does not exactly equal its HTTPS hostname allowlist, or if a wildcard hostname is supplied.
 
 Required environment secrets:
 
