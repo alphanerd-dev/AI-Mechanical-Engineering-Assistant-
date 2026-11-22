@@ -1574,6 +1574,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
         validationReceipt: receipt,
         independentlyVerifiedChain: auditBody.chainIntegrity,
         correlatedAuditEvent: diagnostics.auditEvent,
+        viewport: diagnostics.viewport,
       }, null, 2)),
       contentType: "application/json",
     });
