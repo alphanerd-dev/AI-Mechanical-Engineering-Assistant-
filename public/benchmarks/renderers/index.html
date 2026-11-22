@@ -12,7 +12,7 @@
     <header>
       <p class="eyebrow">AI MECHANICAL ENGINEERING ASSISTANT · M2.3</p>
       <h1>CAD viewport renderer benchmark</h1>
-      <p>Equivalent pre-tessellated workloads, WebGL 2 only. This isolated harness does not load user files or modify the product renderer.</p>
+      <p>Identical SHA-256-bound pre-tessellated mechanical assembly workloads, WebGL 2 only. This isolated harness does not load user files or modify the product renderer.</p>
     </header>
     <section class="controls">
       <label>Workload
@@ -50,10 +50,10 @@
       <h2>Run discipline</h2>
       <ul>
         <li>Use the same browser, device, viewport, power mode, workload and warm/cold sequence for both engines.</li>
-        <li>Run at least five paired trials per workload. Close other GPU-heavy tabs and record device/OS/browser/GPU.</li>
+        <li>Each run executes five paired trials and alternates renderer order. Close other GPU-heavy tabs and record device/OS/browser/GPU.</li>
         <li>Renderer import/initialization and first render are timed separately from the steady-state frame sample.</li>
-        <li>This harness tests repeated box instances, orbit, visibility toggles and centre picking. It does not test STEP import, OCCT tessellation, stable BREP topology mapping or production memory limits.</li>
-        <li>Do not choose a production engine from one browser run. Record raw JSON and the device matrix with the decision.</li>
+        <li>This harness tests a deterministic synthetic shaft/flange/fastener assembly, repeated instances, orbit, visibility toggles, picking accuracy and WebGL context restoration. It does not test product-generated STEP/OCCT artifacts or stable BREP topology mapping.</li>
+        <li>Exported JSON retains the fixture digest, raw frame/pick samples, five paired trial results, GPU metadata and context-recovery results. Do not choose a production engine until physical desktop/Android gates pass.</li>
       </ul>
       <p id="environment"></p>
       <p class="warning">Experimental benchmark. It does not prove CAD correctness, engineering validation, mobile stability on untested devices or production suitability.</p>
