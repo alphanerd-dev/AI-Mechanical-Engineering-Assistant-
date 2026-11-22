@@ -122,7 +122,7 @@ function geometryRevisionHeadFromList(revisions: unknown[]): GeometryRevisionHea
 async function readCurrentGeometryRevisionHead(
   scope: ModelCompletionScope
 ): Promise<GeometryRevisionHead> {
-  const query = new URLSearchParams(scope);
+  const query = new URLSearchParams({ projectId: scope.projectId, modelIdentityId: scope.modelIdentityId });
   const response = await fetch("/api/cad/geometry/revisions?" + query.toString(), { cache: "no-store" });
   const body: unknown = await response.json().catch(() => ({}));
   return geometryRevisionHeadFromList(requireGeometryRevisionList(response.ok, body));
