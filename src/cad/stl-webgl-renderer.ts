@@ -267,7 +267,7 @@ export function createStlWebGLRenderer(
     draw();
   };
   const keyDown = (event: KeyboardEvent) => {
-    if (event.key === "Home") { fitToView(); return; }
+    if (event.key === "Home") { event.preventDefault(); fitToView(); return; }
     if (event.key === "+" || event.key === "=") { zoomIn(); event.preventDefault(); return; }
     if (event.key === "-") { zoomOut(); event.preventDefault(); return; }
     const panKeys: Record<string, [number, number]> = {
@@ -318,6 +318,7 @@ export function createStlWebGLRenderer(
     canvas.removeEventListener("pointermove", pointerMove);
     canvas.removeEventListener("pointerup", pointerUp);
     canvas.removeEventListener("pointercancel", pointerUp);
+    canvas.removeEventListener("lostpointercapture", pointerUp);
     canvas.removeEventListener("contextmenu", contextMenu);
     canvas.removeEventListener("wheel", wheel);
     canvas.removeEventListener("keydown", keyDown);
@@ -332,6 +333,7 @@ export function createStlWebGLRenderer(
     canvas.addEventListener("pointermove", pointerMove);
     canvas.addEventListener("pointerup", pointerUp);
     canvas.addEventListener("pointercancel", pointerUp);
+    canvas.addEventListener("lostpointercapture", pointerUp);
     canvas.addEventListener("contextmenu", contextMenu);
     canvas.addEventListener("wheel", wheel, { passive: false });
     canvas.addEventListener("keydown", keyDown);
