@@ -116,6 +116,7 @@
   width: 100%;
   overflow: hidden;
   place-items: center;
+  background: #fff;
   touch-action: none;
   overscroll-behavior: contain;
 }
