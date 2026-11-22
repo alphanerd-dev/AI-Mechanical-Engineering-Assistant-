@@ -34,5 +34,7 @@ describe("CAD viewport E2E safety and acceptance gate", () => {
     expect(acceptance).toContain('getExtension("WEBGL_lose_context")');
     expect(acceptance).toContain('restoreContext()');
     expect(acceptance).toContain('data-render-error');
+    expect(acceptance).toContain('cad-renderer-benchmark-headless-baseline.json');
+    expect(acceptance).toContain('HEADLESS_CI_SOFTWARE_WEBGL_NOT_PHYSICAL_DEVICE_ACCEPTANCE');
   });
 });
