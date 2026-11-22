@@ -126,9 +126,9 @@ Environment secrets:
 - `CAD_WORKSPACE_COOKIE` — authenticated project-member session for the candidate preview.
 - `CAD_WORKSPACE_E2E_SUPABASE_SERVICE_ROLE_KEY` — service-role key for the dedicated non-production Supabase project only.
 
-The workflow fails closed if values are missing, a URL does not exactly match its HTTPS hostname allowlist, or a wildcard hostname is supplied. The current GitHub connector cannot inspect or write protected environment variables/secrets. Do not paste secrets into chat.
+The workflow fails closed if values are missing, a URL does not exactly match its HTTPS hostname allowlist, or a wildcard hostname is supplied. The M2 workflow also requires the explicit `confirm_disposable_target` dispatch input. The current GitHub connector cannot inspect or write protected environment variables/secrets. Do not paste secrets into chat.
 
-The opt-in Playwright workflow uses the protected `e2e-staging` environment, an exact allowlisted preview base URL, dedicated E2E Supabase credentials, test-user credentials and the Vercel automation-bypass secret. It requires explicit `confirm_isolated_environment`, `test_accepted_cad_completion) and `test_cad_viewport` confirmations. The connected GitHub tools do not expose a workflow-dispatch action, so neither manual acceptance workflow has been triggered from this session.
+The opt-in Playwright workflow uses the protected `e2e-staging` environment, an exact allowlisted preview base URL, dedicated E2E Supabase credentials, test-user credentials and the Vercel automation-bypass secret. It requires explicit `confirm_isolated_environment`, `test_accepted_cad_completion` and `test_cad_viewport` confirmations. The connected GitHub tools do not expose a workflow-dispatch action, so neither manual acceptance workflow has been triggered from this session.
 
 ## Acceptance gates still open
 
