@@ -84,6 +84,9 @@ jobs:
           if (viewportSmoke && (suite !== "full" || !acceptedCADSmoke)) {
             throw new Error("CAD viewport acceptance requires the full suite and explicit accepted-CAD execution opt-in.");
           }
+          if (viewportSmoke && process.env.E2E_WEBGL !== "true") {
+            throw new Error("CAD viewport acceptance requires the isolated software WebGL2 browser configuration.");
+          }
           if (url.protocol !== "https:") throw new Error("E2E_BASE_URL must use HTTPS.");
           if (url.username || url.password || url.search || url.hash) {
             throw new Error("E2E_BASE_URL must not include credentials, a query, or a fragment.");
