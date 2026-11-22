@@ -165,6 +165,9 @@ function ViewportMeta({ mesh, controlsRef, visible, selected, onToggleVisibility
       <div className={styles.viewportControls}>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateLeft()} aria-label="Rotate model left">Rotate left</button>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateRight()} aria-label="Rotate model right">Rotate right</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.zoomIn()} aria-label="Zoom in">Zoom in</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.zoomOut()} aria-label="Zoom out">Zoom out</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.fitToView()}>Fit to view</button>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
         <button type="button" className="button secondaryButton" onClick={onToggleSelection} aria-pressed={selected}>
           {selected ? "Clear body selection" : "Select body"}
@@ -174,7 +177,7 @@ function ViewportMeta({ mesh, controlsRef, visible, selected, onToggleVisibility
         </button>
       </div>
     </div>
-    <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate · body selection is display-only</span>
+    <span className={styles.viewportHint}>Drag to orbit · shift/right-drag or two fingers to pan · pinch/scroll to zoom · Home to fit · model highlight is display-only</span>
   </>;
 }
 
