@@ -219,7 +219,7 @@ async function readCurrentDerivative(
   return { kind: "CURRENT", signedUrl, signedUrlTtlSeconds, derivative };
 }
 
-function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; onRefresh: () => void }) {
+function useCADGeometryDerivative(props: PreviewRequest & { staleness: string }) {
   const { projectId, modelIdentityId, completionId, sourceArtifactId } = props;
   const [state, setState] = useState<State>({
     signedUrl: null, derivative: null, error: null, loading: false, stale: false, freshnessUnverified: false,
@@ -250,7 +250,6 @@ function useCADGeometryDerivative(props: PreviewRequest & { staleness: string; o
         stale: false, freshnessUnverified: false,
         signedUrlIssuedAt: Date.now(), signedUrlTtlSeconds: current.signedUrlTtlSeconds
       });
-      props.onRefresh();
     } catch (cause) {
       const stale = cause instanceof StaleCADSourceError;
       const freshnessUnverified = cause instanceof DerivativeFreshnessError;
@@ -390,7 +389,7 @@ function DerivativeReadyState({ state, sourceName, reset }: {
   </>;
 }
 
-export default function CADGeometryDerivativePreview({ projectId, modelIdentityId, completionId, sourceArtifactId, sourceName, sourceKind, staleness, onRefresh }: {
+export default function CADGeometryDerivativePreview({ projectId, modelIdentityId, completionId, sourceArtifactId, sourceName, sourceKind, staleness }: {
   projectId: string;
   modelIdentityId: string;
   completionId: string;
@@ -398,10 +397,9 @@ export default function CADGeometryDerivativePreview({ projectId, modelIdentityI
   sourceName: string;
   sourceKind: "SOLID" | "STEP";
   staleness: "LATEST_ACCEPTED" | "HISTORICAL" | "UNVERIFIABLE";
-  onRefresh: () => void;
 }) {
   const { state, generate, reset } = useCADGeometryDerivative({
-    projectId, modelIdentityId, completionId, sourceArtifactId, staleness, onRefresh
+    projectId, modelIdentityId, completionId, sourceArtifactId, staleness
   });
   const unavailable = staleness !== "LATEST_ACCEPTED" || !modelIdentityId ||
     state.stale || state.freshnessUnverified;
