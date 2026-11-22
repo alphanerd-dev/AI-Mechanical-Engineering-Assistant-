@@ -170,7 +170,7 @@ function ViewportMeta({ mesh, controlsRef, visible, selected, onToggleVisibility
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.fitToView()}>Fit to view</button>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
         <button type="button" className="button secondaryButton" onClick={onToggleSelection} aria-pressed={selected}>
-          {selected ? "Clear body selection" : "Select body"}
+          {selected ? "Clear model highlight" : "Highlight model"}
         </button>
         <button type="button" className="button secondaryButton" onClick={onToggleVisibility} aria-pressed={!visible}>
           {visible ? "Hide model" : "Show model"}
@@ -193,6 +193,11 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   const { rootRef, canvasRef, controlsRef, renderErrorRef } = useCADDisplayRenderer(mesh, identity);
   const [visible, setVisible] = useState(true);
   const [selected, setSelected] = useState(false);
+
+  useEffect(() => {
+    setVisible(true);
+    setSelected(false);
+  }, [identity]);
 
   useEffect(() => {
     controlsRef.current?.setVisible(visible);
