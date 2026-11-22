@@ -251,6 +251,8 @@ function SvgDrawingPreview({ src, label }: { src: string; label: string }) {
       }}
       style={{ touchAction: "none" }}
     >
+      {/* SVG is sanitized into a short-lived local blob URL; Next image optimization cannot improve this payload. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={styles.sanitizedSvgImage}
         src={src}
