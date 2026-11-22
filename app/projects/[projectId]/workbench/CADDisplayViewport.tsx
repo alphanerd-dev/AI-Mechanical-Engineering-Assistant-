@@ -181,23 +181,20 @@ function ViewportMeta({ mesh, controlsRef, visible, selected, onToggleVisibility
   </>;
 }
 
-export default function CADDisplayViewport({ src, label, sourceArtifactId, sourceArtifactSha256, artifactSha256 }: {
+type CADDisplayViewportProps = {
   src: string;
   label: string;
   sourceArtifactId: string;
   sourceArtifactSha256: string;
   artifactSha256: string;
-}) {
+};
+
+function CADDisplayViewportInstance({ src, label, sourceArtifactId, sourceArtifactSha256, artifactSha256 }: CADDisplayViewportProps) {
   const { mesh, error, loading } = useCADDisplayMesh({ src, sourceArtifactId, sourceArtifactSha256, artifactSha256 });
   const identity = [src, sourceArtifactId, sourceArtifactSha256, artifactSha256].join(":");
   const { rootRef, canvasRef, controlsRef, renderErrorRef } = useCADDisplayRenderer(mesh, identity);
   const [visible, setVisible] = useState(true);
   const [selected, setSelected] = useState(false);
-
-  useEffect(() => {
-    setVisible(true);
-    setSelected(false);
-  }, [identity]);
 
   useEffect(() => {
     controlsRef.current?.setVisible(visible);
@@ -217,4 +214,15 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
       onToggleSelection={() => setSelected((current) => !current)}
     />
   </div>;
+}
+
+export default function CADDisplayViewport(props: CADDisplayViewportProps) {
+  // A keyed instance resets display-only state when canonical source identity changes,
+  // without scheduling state updates from an effect or resetting on signed-URL refresh.
+  const sourceIdentity = [
+    props.sourceArtifactId,
+    props.sourceArtifactSha256,
+    props.artifactSha256
+  ].join(":");
+  return <CADDisplayViewportInstance key={sourceIdentity} {...props} />;
 }
