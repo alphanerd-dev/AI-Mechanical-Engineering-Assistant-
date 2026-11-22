@@ -74,7 +74,19 @@ export const test = base.extend({
       }
       browser = await chromium.connect(connectOptions);
     } else {
-      browser = await chromium.launch({ headless: testInfo.project.use.headless !== false });
+      const launchOptions = { headless: testInfo.project.use.headless !== false };
+      if (process.env.E2E_WEBGL === "true") {
+        // CI-only software WebGL2 path for deterministic viewport interaction tests.
+        // This is not physical-device or GPU-performance evidence.
+        launchOptions.args = [
+          "--use-gl=angle",
+          "--use-angle=swiftshader",
+          "--enable-webgl",
+          "--ignore-gpu-blocklist",
+          "--enable-unsafe-swiftshader"
+        ];
+      }
+      browser = await chromium.launch(launchOptions);
     }
 
     try {
