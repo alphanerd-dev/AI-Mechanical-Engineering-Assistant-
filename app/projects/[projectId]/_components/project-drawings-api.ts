@@ -58,61 +58,97 @@ export async function submitDrawingUpload(
   return readDrawingUploadId(response);
 }
 
+type AcceptedCADCompletion = Record<string, unknown> & { id: string };
+
+function isAcceptedCADCompletion(value: unknown, modelIdentityId: string): value is AcceptedCADCompletion {
+  const row = asObjectRecord(value);
+  return row?.status === "ACCEPTED" &&
+    row.model_identity_id === modelIdentityId &&
+    typeof row.id === "string" &&
+    row.id.length > 0;
+}
+
+function completionTimestamp(completion: AcceptedCADCompletion): number {
+  const timestamp = Date.parse(String(completion.created_at ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+async function readLatestAcceptedCompletion(
+  projectId: string,
+  modelIdentityId: string
+): Promise<AcceptedCADCompletion> {
+  const projectQuery = "projectId=" + encodeURIComponent(projectId);
+  const response = await fetch("/api/cad/completions?" + projectQuery, { cache: "no-store" });
+  const body: unknown = await response.json().catch(() => ({}));
+  const completions = asObjectRecord(body)?.completions;
+  if (!response.ok || !Array.isArray(completions)) {
+    throw new Error(generatedDrawingError(body));
+  }
+
+  const latestCompletion = completions
+    .filter((value): value is AcceptedCADCompletion => isAcceptedCADCompletion(value, modelIdentityId))
+    .sort((left, right) => completionTimestamp(right) - completionTimestamp(left))[0];
+  if (!latestCompletion) {
+    throw new Error("An accepted CAD completion for this model is required before generating a preliminary drawing.");
+  }
+  return latestCompletion;
+}
+
+interface GeometryRevisionHead {
+  revisionId: string | null;
+  sourceCompletionId: unknown;
+}
+
+async function readCurrentGeometryRevisionHead(
+  projectId: string,
+  modelIdentityId: string
+): Promise<GeometryRevisionHead> {
+  const query = new URLSearchParams({ projectId, modelIdentityId });
+  const response = await fetch("/api/cad/geometry/revisions?" + query.toString(), { cache: "no-store" });
+  const body: unknown = await response.json().catch(() => ({}));
+  const revisions = asObjectRecord(body)?.revisions;
+  if (!response.ok || !Array.isArray(revisions)) {
+    throw new Error(generatedDrawingError(body));
+  }
+
+  const head = revisions.length ? asObjectRecord(revisions[revisions.length - 1]) : null;
+  return {
+    revisionId: typeof head?.id === "string" ? head.id : null,
+    sourceCompletionId: head?.source_completion_id
+  };
+}
+
+async function appendGeometryRevision(
+  projectId: string,
+  completionId: string,
+  expectedParentRevisionId: string | null
+): Promise<string> {
+  const response = await fetch("/api/cad/geometry/revisions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId, completionId, expectedParentRevisionId })
+  });
+  const body: unknown = await response.json().catch(() => ({}));
+  const revision = asObjectRecord(asObjectRecord(body)?.revision);
+  const revisionId = typeof revision?.geometryRevisionId === "string"
+    ? revision.geometryRevisionId
+    : typeof revision?.id === "string" ? revision.id : null;
+  if (!response.ok || !revisionId) {
+    throw new Error(generatedDrawingError(body));
+  }
+  return revisionId;
+}
+
 async function ensureCurrentGeometryRevision(
   projectId: string,
   modelIdentityId: string
 ): Promise<string> {
-  const projectQuery = "projectId=" + encodeURIComponent(projectId);
-  const completionsResponse = await fetch("/api/cad/completions?" + projectQuery, { cache: "no-store" });
-  const completionsBody: unknown = await completionsResponse.json().catch(() => ({}));
-  const completions = asObjectRecord(completionsBody)?.completions;
-  if (!completionsResponse.ok || !Array.isArray(completions)) {
-    throw new Error(generatedDrawingError(completionsBody));
+  const latestCompletion = await readLatestAcceptedCompletion(projectId, modelIdentityId);
+  const currentHead = await readCurrentGeometryRevisionHead(projectId, modelIdentityId);
+  if (currentHead.revisionId && currentHead.sourceCompletionId === latestCompletion.id) {
+    return currentHead.revisionId;
   }
-
-  const accepted = completions
-    .filter((value): value is Record<string, unknown> => {
-      const row = asObjectRecord(value);
-      return row?.status === "ACCEPTED" && row.model_identity_id === modelIdentityId &&
-        typeof row.id === "string" && row.id.length > 0;
-    })
-    .sort((a, b) => Date.parse(String(b.created_at ?? "")) - Date.parse(String(a.created_at ?? "")));
-  const latestCompletion = accepted[0];
-  if (!latestCompletion || typeof latestCompletion.id !== "string") {
-    throw new Error("An accepted CAD completion for this model is required before generating a preliminary drawing.");
-  }
-
-  const revisionQuery = new URLSearchParams({ projectId, modelIdentityId });
-  const revisionsResponse = await fetch("/api/cad/geometry/revisions?" + revisionQuery.toString(), { cache: "no-store" });
-  const revisionsBody: unknown = await revisionsResponse.json().catch(() => ({}));
-  const revisions = asObjectRecord(revisionsBody)?.revisions;
-  if (!revisionsResponse.ok || !Array.isArray(revisions)) {
-    throw new Error(generatedDrawingError(revisionsBody));
-  }
-  const currentHead = revisions.length ? asObjectRecord(revisions[revisions.length - 1]) : null;
-  const currentHeadId = typeof currentHead?.id === "string" ? currentHead.id : null;
-  if (currentHeadId && currentHead?.source_completion_id === latestCompletion.id) {
-    return currentHeadId;
-  }
-
-  const revisionResponse = await fetch("/api/cad/geometry/revisions", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      projectId,
-      completionId: latestCompletion.id,
-      expectedParentRevisionId: currentHeadId
-    })
-  });
-  const revisionBody: unknown = await revisionResponse.json().catch(() => ({}));
-  const revision = asObjectRecord(asObjectRecord(revisionBody)?.revision);
-  const revisionId = typeof revision?.geometryRevisionId === "string"
-    ? revision.geometryRevisionId
-    : typeof revision?.id === "string" ? revision.id : null;
-  if (!revisionResponse.ok || !revisionId) {
-    throw new Error(generatedDrawingError(revisionBody));
-  }
-  return revisionId;
+  return appendGeometryRevision(projectId, latestCompletion.id, currentHead.revisionId);
 }
 
 export async function submitShaftDrawingGeneration(
