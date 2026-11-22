@@ -511,7 +511,6 @@ function renderGeometryDerivativePreview(props: WorkbenchArtifactPreviewProps) {
     sourceName={entry.artifact.name}
     sourceKind={geometryKind}
     staleness={entry.staleness}
-    onRefresh={props.onRefresh}
   />;
 }
 
