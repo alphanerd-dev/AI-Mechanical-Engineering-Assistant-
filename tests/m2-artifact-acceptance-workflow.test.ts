@@ -36,8 +36,9 @@ describe("M2 authenticated acceptance workflow safety contract", () => {
     expect(workflow).toContain(
       '[[ "${CAD_WORKSPACE_SUPABASE_URL}" != "https://${CAD_WORKSPACE_SUPABASE_ALLOWED_HOST}" ]]'
     );
-    expect(workflow).toContain('[[ "${CAD_WORKSPACE_ALLOWED_HOST}" == *"*"*');
-    expect(workflow).toContain('[[ "${CAD_WORKSPACE_SUPABASE_ALLOWED_HOST}" == *"*"*');
+    expect(workflow).toContain(
+      '[[ "${CAD_WORKSPACE_ALLOWED_HOST}" == *"*"* || "${CAD_WORKSPACE_SUPABASE_ALLOWED_HOST}" == *"*"* ]]'
+    );
   });
 
   it("uses only the dedicated E2E service-role secret and authenticated session", () => {
