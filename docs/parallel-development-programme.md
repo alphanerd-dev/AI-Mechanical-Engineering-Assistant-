@@ -138,7 +138,7 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 
 **Scope**
 - Project workspace and navigation.
-- Chat-first task interaction as the target product journey; deterministic Engineering Core workflows remain separate internally behind authenticated policy and execution services.
+- Task-oriented product interaction with guided/conversational intake; durable task and evidence surfaces remain distinct from the internal deterministic Engineering Core, which stays behind authenticated policy and execution services.
 - Artifact browser, task history, workflow state and evidence inspection.
 - CAD/CAE viewers and drawing/diagram surfaces as their milestones pass.
 - Responsive desktop and representative Android browser support.
