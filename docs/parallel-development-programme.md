@@ -2,14 +2,19 @@
 
 **Status:** Active execution programme  
 **Established:** 8 November 2026  
-**Scope:** Main product development alongside the proprietary Geometry Platform programme  
+**Strategy refresh:** 27 November 2026  
+**Scope:** Focused mechanical design-verification product development alongside separately staged Geometry Platform R&D  
 **Authority:** This programme coordinates work; the [Implementation Plan](implementation-plan.md) remains authoritative for milestone status and exit gates.
 
-## Product and architecture alignment — 21 November 2026
+## Product strategy alignment — 27 November 2026
 
-The 20 November UX audit and 21 November architecture review establish the current product interaction target: **chat-first, task-oriented, evidence-backed engineering workflows**. This is a target direction, not a statement that chat dispatch is already implemented. The current chat remains guidance-oriented and the Engineering Core remains the separate execution surface until the authenticated chat-to-task milestone passes.
+The product is positioned as an **AI-assisted Mechanical Design Verification Workspace** under the promise **Engineering outcomes, not engineering overhead**. The initial commercial release is one customer-validated mechanical design-verification workflow, producing calculations, supported geometry, independent checks and traceable review evidence. The rotating-equipment/shaft workflow is the leading hypothesis, not a locked decision; compare it with at least two other recurring workflows observed in customer discovery.
 
-The near-term order is: (1) unify TaskSpec, task/job/event and result states; (2) integrate chat with host-controlled task proposal, policy, readiness and approval; (3) complete durable progress, recovery and event delivery; (4) add secure attachments and project file lifecycle; (5) complete one accepted CAD and one bounded FEA journey; (6) simplify navigation, protect administrative controls and close accessibility gaps. Keep the proprietary Geometry Platform independent except where a specific operation requires its capability.
+The user experience is task-oriented. Conversation is one intake/clarification method; durable task state, work plan, execution, checks, result package and human review are first-class. Preserve the current separate internal authority of the authenticated control plane, Engineering Core, capability policies, isolated workers, validators and human approvers.
+
+Near-term order: (1) validate the workflow and baseline with engineers and buyers; (2) close M2 authenticated artifact/drawing and viewport acceptance; (3) strengthen calculation/geometry verification evidence; (4) complete one end-to-end selected task; (5) measure a 2–3 partner pilot; (6) commercialise narrowly; then expand only on demonstrated demand and economics.
+
+The Geometry Platform remains an independent, staged R&D stream under its accepted ADR and promotion gates. It may progress without blocking non-geometric calculations, AI capabilities or product UX. It is not a first-release dependency, and existing OCCT/build123d providers remain available to support the product where qualified.
 
 Framework position: selectively use TanStack Query for remote server state and Zustand for ephemeral shared UI state; defer Redux Toolkit and Redis; use FastAPI only for Python services that need a persistent typed API; keep Next.js as the control plane. LangGraph and Temporal remain conditional, not default dependencies. See [Architecture](architecture.md), [Implementation Plan](implementation-plan.md) and [Product Experience and Architecture Alignment](product-experience-and-architecture-alignment.md).
 
@@ -46,7 +51,7 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 
 ## 2. Product invariants
 
-1. **AI proposes; deterministic systems execute; validation decides; evidence proves.**
+1. **AI coordinates; engineering tools execute; independent checks assess; evidence records; engineers approve.**
 2. Chat, planning, execution, validation, verification and human approval remain distinct states.
 3. Reuse the existing project/workspace identity, authorization, capability router, execution workers, artifact/evidence records and persistence. Do not create competing registries or task systems.
 4. Provider adapters isolate vendor/runtime specifics. Product contracts must not expose OCCT, build123d, OpenFOAM, CalculiX, Gmsh or renderer-specific types as universal domain contracts.
@@ -133,7 +138,7 @@ The main application must continue delivering engineering intelligence, CAD/CAE 
 
 **Scope**
 - Project workspace and navigation.
-- Chat-first task interaction as the target product journey; deterministic Engineering Core workflows remain separate internally behind authenticated policy and execution services.
+- Task-oriented product interaction with guided/conversational intake; durable task and evidence surfaces remain distinct from the internal deterministic Engineering Core, which stays behind authenticated policy and execution services.
 - Artifact browser, task history, workflow state and evidence inspection.
 - CAD/CAE viewers and drawing/diagram surfaces as their milestones pass.
 - Responsive desktop and representative Android browser support.
@@ -201,30 +206,29 @@ Geometry-specific fields belong in geometry contracts. Solver-specific fields be
 
 ## 6. Delivery order and concurrency
 
-### Priority 0 — Protect the baseline
-- Preserve G1/G2 schema compatibility and verify all geometry-revision consumers.
-- Continue capability-specific regression, artifact-lineage and audit-integrity testing as the geometry and manufacturing workflows evolve. Production migrations have been applied; do not repeat them.
-- Complete M2.2–M2.6 authenticated artifact/drawing workflows and renderer selection on paired desktop/Android devices.
-- Keep bounded LLM product-route exposure disabled until durable run journaling, per-action idempotency, lease recovery and authenticated acceptance are complete.
+### Priority 0 — Protect the baseline and prove the first workflow
+- Preserve G1/G2 schema compatibility and verify all geometry-revision consumers; do not repeat production migrations.
+- Close M2 authenticated artifact/drawing, stale-source and access-denial acceptance; finish exact-head viewport acceptance and paired physical desktop/Android renderer trials.
+- Establish independent reference/negative test coverage and declared tolerances for calculations and geometry. Treat the 29.63% FEA displacement error against a 30% tolerance as a marginal benchmark pass requiring improvement.
+- Validate and select one recurring design-verification workflow with engineers and buyers before committing to product-specific expansion.
+- Keep durable execution feature-gated until authenticated lifecycle, idempotency, lease recovery, authorization and evidence/approval acceptance are complete.
 
-### Priority 1 — Parallel product foundations
-- WS-D: M2.2–M2.6 CAD, OCCT import/tessellation, drawing ingestion and renderer-neutral viewer foundation are merged; authenticated browser/storage acceptance and renderer selection remain.
-- WS-A: bounded LLM operational authority and typed model-plan validation are merged at the core layer; product-route exposure remains blocked on durable run journal/lease recovery.
-- WS-B: build123d/OCCT CAD and open FEA worker foundations are present; the OpenFOAM 14 Poiseuille worker is present on `main` but remains experimental and is not yet wired to the durable app execution boundary.
-- WS-C: deterministic readiness pilot and durable assessment/decision records are merged and deployed.
-- WS-E: G0/G1/G2 schema, contract and trusted persistence/read APIs are merged and deployed; native algorithm development remains gated on G2 acceptance.
+### Priority 1 — Complete the selected task journey
+- WS-A: bounded intent, clarification and typed planning for the selected workflow; no privileged model bypass.
+- WS-B: supported CAD/calculation/CAE operations needed by that workflow, backed by provider/runtime and independent checks.
+- WS-D: task-oriented intake, progress, review package and contextual evidence; conversation is an input method, not the only interface.
+- WS-C: expose manufacturing readiness only where it materially supports the selected workflow; retain advisory/human-decision boundary.
+- WS-E: maintain the Geometry Platform as a separate non-blocking R&D lane; do not require native algorithms for work supported by current providers.
 
-### Priority 2 — Connected engineering workflows
-- Authenticated CAD/drawing artifact acceptance, stale-source behavior and paired-device renderer benchmark.
-- FEA mesh/result visualization under M3.
-- One CAD-to-CAE workflow with exact source lineage and independent checks.
-- Manufacturing assessment and four-eyes decision acceptance; no CAM/MES dispatch.
-- Attach the experimental CFD worker to the durable execution boundary only after provider/runtime, numerical and artifact acceptance gates.
+### Priority 2 — Design-partner pilot and economics
+- Run matched conventional/product-assisted tasks with 2–3 design partners using consistent acceptance criteria.
+- Measure engineer/reviewer effort, first-pass acceptance, rework, time to reviewable result, repeat use and complete cost components.
+- Fix failures and usability issues revealed by observed use; do not add unrelated providers to compensate for weak adoption.
 
-### Priority 3 — Expand only on evidence
-- Broader multi-CAD, advanced CFD, scan-to-CAD, robotics/dynamics and electromechanical integrations.
-- Native geometry operations promoted individually after conformance.
-- Production automation only with explicit authorization, safety controls and operational acceptance.
+### Priority 3 — Narrow commercialisation and evidence-led expansion
+- Harden onboarding, permissions, support, exports, billing and team workflows around the selected task.
+- Add adjacent CAD/CAE workflows or broader domains only when repeat use, buyer demand, licensing, runtime isolation, benchmark, independent checks and economics justify the increment.
+- Promote native geometry operations individually only after the shared conformance suite passes.
 
 These priorities define sequencing, not fixed calendar dates or a promise to staff every stream simultaneously.
 

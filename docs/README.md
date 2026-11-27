@@ -4,14 +4,15 @@ This index points to the current product and operational contracts. It also dist
 
 ## Canonical product and delivery documents
 
-- [Product brief](product-brief.md) — current user experience, target users, chat/task separation and product scope.
+- [Product brief](product-brief.md) — Mechanical Design Verification Workspace definition, customer hypotheses, initial workflow and release scope.
+- [Customer validation and pilot plan](customer-validation-plan.md) — workflow discovery, interviews, matched-task pilots and paid-pilot gates.
 - [Implementation plan and milestones](implementation-plan.md) — current status, next priorities, dependencies and exit gates.
 - [M2.2–M2.6 implementation status](m2-2-to-m2-6-implementation-status.md) — revision/provenance, renderer benchmark, adapter and drawing-viewer foundations plus explicit promotion gates.
 - [Parallel development programme](parallel-development-programme.md) — coordinated workstreams for Engineering AI, CAD/CAE, manufacturing, product UX and the proprietary Geometry Platform.
 - [Architecture and trust boundaries](architecture.md) — system layers, authorization, model boundaries, execution, validation and evidence.
 - [Engineering capabilities and maturity](engineering-capabilities.md) — what is implemented, pilot, experimental or still unavailable.
-- [Product doctrine](product-doctrine.md) — product promise, result states and feature acceptance rules.
-- [Product experience and architecture alignment](product-experience-and-architecture-alignment.md) — UX audit synthesis, chat-first target journey, prioritized delivery sequence and framework decisions.
+- [Product doctrine](product-doctrine.md) — operating doctrine, engineering authority, evidence, human approval and accepted-outcome economics.
+- [Product experience and architecture alignment](product-experience-and-architecture-alignment.md) — UX audit synthesis, task-oriented journey, conversation-enabled intake, prioritized delivery sequence and framework decisions.
 - [Outcome baseline](outcome-baseline.md) — methodology for measuring accepted outcomes; do not infer savings from tests or fixtures.
 
 ## Architecture decision records
@@ -27,7 +28,7 @@ This index points to the current product and operational contracts. It also dist
 - [ADR — Integrated engineering workspace strategy](architecture/adr-2026-11-08-integrated-engineering-workspace.md) — modular CAD/CAE/perception/manufacturing/lifecycle domains under shared engineering contracts.
 - [ADR — Bounded LLM operational authority](architecture/adr-2026-11-08-bounded-llm-operational-authority.md) — model-proposed task mutations and capability actions enforced by backend contracts, policies and approval gates.
 
-These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above. The 20 November UX audit and 21 November architecture strategy are consolidated in the product experience alignment document; current behavior and target behavior are deliberately distinguished there and in the canonical product/architecture docs. The [G2 Production and E2E Schema Audit](geometry-platform/g2-production-schema-audit.md) is a historical pre-G2 production snapshot; its original statement that production had no G2 schema is superseded by the 15 November 2026 implementation/deployment snapshot in the Implementation Plan and Geometry Platform Charter.
+These ADRs record accepted architectural directions. They do not imply that proposed libraries are installed, that candidate runtimes are production-ready or that planned capabilities have shipped. Current implementation status remains in the canonical documents above. The 20 November UX audit, 21 November architecture strategy and 27 November product strategy review are reflected in the canonical product brief, doctrine, implementation plan and product-experience alignment document. The first workflow remains a customer-validation hypothesis; current behavior and target behavior are deliberately distinguished. The [G2 Production and E2E Schema Audit](geometry-platform/g2-production-schema-audit.md) is a historical pre-G2 production snapshot; its original statement that production had no G2 schema is superseded by the 15 November 2026 implementation/deployment snapshot in the Implementation Plan and Geometry Platform Charter.
 
 ## Application, chat and acceptance
 

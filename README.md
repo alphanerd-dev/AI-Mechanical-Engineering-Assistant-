@@ -1,17 +1,20 @@
 # AI Mechanical Engineering Assistant
 
-A provider-backed Engineering Workspace and Engineering Core, starting with Mechanical Engineering. The project is designed to help engineers move from a problem statement to a usable, traceable result while keeping engineering execution, validation, evidence and approval under explicit control.
+An AI-assisted **Mechanical Design Verification Workspace** that helps mechanical engineers turn requirements and supported engineering inputs into review-ready work packages containing calculations, geometry outputs, explicit checks and traceable evidence—while keeping final engineering approval with the responsible engineer.
 
-**Product rule:** AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.
+**Positioning:** Engineering outcomes, not engineering overhead.
 
-## Release snapshot — 19 November 2026
+**Operating doctrine:** AI coordinates. Engineering tools execute. Independent checks assess. Evidence records. Engineers approve.
 
-The latest recorded Vercel production application deployment is **READY** at main commit `14b08d0958cf44494f205d96db9d3a0a3a5f4f5c`; the current repository `main` documentation head is `cf69b08df0a2983a29d2768d843b82fd6868bec1`. The production alias is [ai-mechanical-engineering-assistant.vercel.app](https://ai-mechanical-engineering-assistant.vercel.app). The 19 November documentation commits do not by themselves imply a new application deployment.
+## Repository and release snapshot — 27 November 2026
 
-- PRs [#165](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/165) and [#166](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/166) delivered trusted immutable geometry revision persistence and durable manufacturing readiness snapshots/independent human decisions; the eight additive migrations were applied to production and verified.
-- PRs [#177](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/177), [#181](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/181) and [#182](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/182) are merged. The immutable Azure execution-worker image is deployed in the production manual Container Apps Job.
-- One authenticated production `ANALYSIS.SHAFT_TORQUE` TypeScript-safe canary job completed, was read back and idempotently replayed without duplication. The project canary was then disabled; `DURABLE_EXECUTION_ENABLED=false` remains in force and the Azure job remains Manual with no schedule.
-- The product remains bounded: no general-purpose autonomous engineering, native proprietary B-rep kernel, general-purpose CAD/CAE certification, CAM toolpath execution, MES dispatch or machine control is claimed. See [Implementation Plan](docs/implementation-plan.md) and [Execution Layer](docs/execution-layer.md) for the exact status and limits.
+The product review inspected main at commit `c1c9de6cd9a940b7d73d557d29a2ec71b158e0e4`. PR [#188](https://github.com/alphanerd-dev/AI-Mechanical-Engineering-Assistant-/pull/188) is open and unmerged. Its description reports 175 test files and 1,006 tests passed, plus exact-head ESLint and CodeQL checks; these are PR-reported results and were not independently rerun by the product review.
+
+**M2 is not accepted.** The authenticated artifact/drawing and opt-in viewport workflows were not dispatched; the branch lacked a dedicated CAD worker URL; the exact-head preview deployment was blocked by a daily deployment quota; and physical desktop/Android renderer trials had not been run. Do not treat an older READY preview or a passing repository test suite as M2 workflow acceptance.
+
+The previously recorded production Vercel deployment at commit `14b08d0958cf44494f205d96db9d3a0a3a5f4f5c` was READY in the earlier release snapshot. The manual Azure execution-worker image is deployed, but production durable execution remains disabled: `DURABLE_EXECUTION_ENABLED=false`, the job remains Manual, and no schedule is configured. A single shaft-torque production canary was previously completed and read back, then disabled. These facts do not establish general production availability for engineering capabilities.
+
+This repository snapshot is a strategic and implementation reference, not proof that every target workflow is live, accepted or production-ready.
 
 ## Current repository state
 
@@ -40,9 +43,9 @@ The chat renderer uses assistant-ui, Vercel AI SDK, Streamdown, the Streamdown c
 
 ## Target product experience
 
-The target direction is a **chat-first engineering workspace**: engineers should be able to state an objective, refine it, receive a typed task proposal, supply missing information, authorize gated actions, monitor execution and review validated evidence in one conversational journey. Specialized CAD, CAE, drawing and approval interfaces remain contextual tools opened when the task requires them.
+The target is a **task-oriented engineering journey**: an engineer starts through a guided request or conversation, supplies supported files and missing inputs, reviews a bounded plan, authorizes gated work, monitors progress and inspects a review-ready package containing calculations, geometry outputs, checks and evidence. Conversation is an input and follow-up method; task state, results and evidence remain first-class and inspectable outside the chat stream.
 
-**This is a target, not the current shipped interaction.** The current chat is conversational and guidance-oriented; registered deterministic workflows still run through the separate Engineering Core surface. Chat-driven task submission and execution are not yet connected end to end. The Engineering Core, capability router, policies, workers and validators remain separate internally even as the user-facing journey is unified.
+**This is a target, not the current shipped interaction.** The current chat is conversational and guidance-oriented; registered deterministic workflows still run through the separate Engineering Core surface. Chat-driven privileged execution is not yet accepted end to end. The Engineering Core, capability router, policies, workers and validators remain separate internally.
 
 ## Architecture and trust model
 
@@ -101,8 +104,9 @@ The intended production web application is hosted on Vercel at [ai-mechanical-en
 
 Start with:
 
-- [Product brief](docs/product-brief.md) — current capability boundary and target chat-first experience.
-- [Product experience and architecture alignment](docs/product-experience-and-architecture-alignment.md) — 20–21 November UX audit decisions, interaction model, prioritized backlog and framework position.
+- [Product brief](docs/product-brief.md) — Mechanical Design Verification Workspace definition, initial workflow hypothesis, scope and release gates.
+- [Customer validation and pilot plan](docs/customer-validation-plan.md) — workflow discovery, matched-task pilot and buyer validation.
+- [Product experience and architecture alignment](docs/product-experience-and-architecture-alignment.md) — task-oriented UX, conversation as an input method, workflow backlog and framework position.
 - [Architecture and trust boundaries](docs/architecture.md) — control plane, chat, core, workers and evidence.
 - [Architecture decision records](docs/README.md#architecture-decision-records) — accepted renderer, geometry and integrated-workspace direction.
 - [Parallel development programme](docs/parallel-development-programme.md) — coordinated product and geometry workstreams.

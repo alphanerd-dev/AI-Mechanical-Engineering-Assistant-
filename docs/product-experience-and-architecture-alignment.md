@@ -1,19 +1,19 @@
 # Product Experience and Architecture Alignment
 
-**Decision date:** 21 November 2026  
-**Inputs:** Product UI/UX audit dated 20 November 2026; Architecture Strategy and Framework Decisions dated 21 November 2026.  
-**Repository baseline:** `cf69b08df0a2983a29d2768d843b82fd6868bec1`  
-**Status:** Target product direction accepted for implementation planning; implementation remains partial and subject to the gates below.
+**Decision date:** 27 November 2026  
+**Inputs:** Product UI/UX audit dated 20 November 2026; Architecture Strategy dated 21 November 2026; Product Review dated 27 November 2026.  
+**Repository baseline reviewed:** `c1c9de6cd9a940b7d73d557d29a2ec71b158e0e4`  
+**Status:** Task-oriented Mechanical Design Verification Workspace direction adopted; first workflow and customer fit remain hypotheses; implementation remains partial and subject to the gates below.
 
 ## Executive decision
 
-Evolve the application into a **chat-first, task-oriented engineering workspace** without rewriting the existing deterministic engineering core.
+Build a **task-oriented Mechanical Design Verification Workspace** without rewriting the existing deterministic engineering core. The first release should complete one customer-validated mechanical design-verification workflow and produce a review-ready package with explicit checks and traceable evidence.
 
-The audit identifies a gap between the product promise and the current experience: the app has a guidance-oriented chat and a separate deterministic task surface, so users still have to navigate modules and transfer context. The target is one conversational task journey in which the engineer states an objective, provides source material, receives a typed plan, resolves missing inputs, authorizes gated actions, monitors work and reviews validated evidence.
+The UX audit identified a gap between the product promise and the current experience: guidance-oriented chat and separate deterministic task surfaces leave users navigating modules and transferring context. The target is one coherent task journey from guided or conversational intake through clarification, bounded planning, authorized execution, independent checks and human review.
 
-This is a change to the user interaction and product information architecture. It is not permission to move engineering execution or acceptance authority into the LLM.
+Conversation is a natural-language input and follow-up method, not the whole product. The durable task, work plan, input set, execution state, result and evidence package are first-class product objects. This changes the user experience, not the authority boundary.
 
-> **AI proposes. Deterministic systems execute. Validation decides. Evidence proves.**
+> **AI coordinates. Engineering tools execute. Independent checks assess. Evidence records. Engineers approve.**
 
 ## Evidence and current-state qualification
 
@@ -35,7 +35,7 @@ These observations must not be generalized beyond the reviewed source revision, 
 
 | Area | Current repository/product state | Target |
 |---|---|---|
-| Entry point | Authenticated project workspace and guidance-oriented chat; project/task destinations remain separate | Start from Chat, including unscoped intent; associate/create a project when the objective requires it without losing the conversation |
+| Entry point | Authenticated project workspace and guidance-oriented chat; project/task destinations remain separate | Start from a guided request or conversation; associate/create a project when the work requires it and keep the durable task visible outside the chat |
 | Task execution | Registered deterministic workflows are submitted through Engineering Core; chat does not invoke privileged capabilities | Chat proposes and coordinates supported tasks through a typed TaskSpec and host policy; workers remain deterministic and isolated |
 | Progress and recovery | Existing durable execution/job primitives are bounded and feature-gated; not all lifecycle states are connected to chat | One durable task/event lifecycle visible from chat, Tasks and contextual result surfaces; reload restores state |
 | Files | CAD/drawing ingestion paths exist for declared formats, but generic chat attachments and file inventory/download are incomplete | Secure attachment, project library, preview, download and provenance contracts |
@@ -78,7 +78,7 @@ Show whether the task needs input, awaits approval, is queued/running, failed, w
 
 ### Global navigation target
 
-- **Chat:** default product entry and conversational task journey.
+- **Chat / Request:** natural-language intake and clarification; not the only way to start or inspect a task.
 - **Projects:** project list, creation, membership and project context.
 - **Tasks:** cross-project queue/history/status monitor, with return links to originating conversations.
 - **Library:** user-authorized files, templates, references and reusable engineering assets.
@@ -144,12 +144,15 @@ These are architecture recommendations, not evidence that the libraries are inst
 
 ## Prioritized delivery backlog
 
+The first priorities close the evidence and product-workflow gap identified in the 27 November review. Chat-to-task work is justified as part of a complete selected workflow, not as a standalone platform milestone.
+
 | Priority | Work item | Acceptance gate |
 |---|---|---|
-| P0-01 | One canonical TaskSpec and lifecycle | Schema, transitions and compatibility tests; host-owned identity/status/approval and policy invariants |
-| P0-02 | Chat-to-task orchestration | Authenticated end-to-end supported task from chat to persisted task; policy-negative cases and no privileged model bypass |
-| P0-03 | Capability readiness | Server-side readiness checks with clear unavailable/unsupported behavior; no mocked success |
-| P0-04 | One task/event/evidence lifecycle | Durable state, refresh restoration and consistent view in Chat and Tasks |
+| P0-01 | Customer/workflow discovery | Compare the shaft candidate with at least two observed workflows; baseline effort, checks, review and buyer urgency; select one with a pilot commitment |
+| P0-02 | M2 acceptance closure | Protected authenticated artifact/drawing workflow, stale-source and access-denial checks, exact-head deployment and paired physical desktop/Android renderer evidence |
+| P0-03 | Calculation and geometry verification protocol | Reference cases, dimensional checks, independent calculations, declared tolerances, negative cases and explicit unsupported checks |
+| P0-04 | One canonical task/evidence lifecycle | Durable task and artifact identity, deterministic transitions, refresh restoration and host-owned approval/policy invariants |
+| P0-05 | Complete the selected engineering task | Guided/conversational intake through authorized execution, independent checks, review package and human decision; no privileged model bypass |
 | P1-01 | Navigation consolidation | Chat, Projects, Tasks, Library and Account; contextual project views |
 | P1-02 | Unscoped conversation and project association | New user can begin chat and attach/create a project without losing context |
 | P1-03 | Attachments and file ingestion | Authorization, type/size limits, scanning, digest, provenance and safe failure |

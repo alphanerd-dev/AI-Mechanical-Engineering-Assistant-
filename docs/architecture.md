@@ -7,7 +7,7 @@ See the [Product Brief](product-brief.md) for product scope, the [Engineering Ca
 
 ## Product invariants
 
-- **AI proposes. Deterministic engineering systems execute. Validation decides. Evidence proves.**
+- **AI coordinates. Engineering tools execute. Independent checks assess. Evidence records. Engineers approve.**
 - **Fast by default. Rigorous when it matters. Explicit when risk increases.**
 - **Never claim success without evidence.**
 
@@ -113,9 +113,9 @@ The browser acceptance test deliberately intercepts the chat request with a dete
 
 ## Target user interaction and control boundary
 
-### User-facing direction: chat-first, task-oriented
+### User-facing direction: task-oriented, conversation-enabled
 
-The target product experience has one primary conversational journey. A user can state an engineering objective, refine intent, attach source material, receive a typed task proposal, supply missing inputs, authorize gated work, monitor progress and review the accepted result without navigating to a separate generic Engineering Core submission mode.
+The target product experience is organised around a durable engineering task and its review package. A user may start through a guided request or conversation, refine intent, attach supported source material, resolve missing inputs, authorize gated work, monitor progress and review checks/evidence without navigating disconnected internal modules. Conversation is an input and follow-up method, not the whole product.
 
 This changes the **interaction layer**, not the trust architecture:
 
@@ -132,7 +132,7 @@ Engineer
   -> Result and contextual viewer returned to the conversation
 ```
 
-The global navigation target is Chat, Projects, Tasks, Library and Account. Project-scoped context, results, activity/decisions and settings should be contextual rather than parallel top-level engineering modules. Tasks provides a cross-project status monitor and a return link to the originating conversation. Specialist CAD/CAE/drawing/approval surfaces remain available when a workflow needs their richer interaction.
+The global navigation target is Chat/Request, Projects, Tasks, Library and Account. Chat/Request supports natural-language intake and clarification; the durable task remains inspectable independently. Project-scoped context, results, activity/decisions and settings should be contextual rather than parallel top-level engineering modules. Tasks provides a cross-project status monitor and a return link to the originating request. Specialist CAD/CAE/drawing/approval surfaces remain available when a workflow needs richer interaction.
 
 ### Current implementation boundary
 
