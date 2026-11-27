@@ -92,6 +92,17 @@ describe("CalculiX cantilever-box benchmark contract", () => {
     expect(validateFEACantileverBoxResult(request, result).status).toBe("PASS");
   });
 
+  it("preserves the original v1 displacement-tolerance contract for stored receipts", () => {
+    const result = referenceResult();
+    const reference = result.benchmarkReference!;
+    reference.referenceId = "cantilever-box-euler-bernoulli-plus-timoshenko-v1";
+    reference.displacementRelativeTolerance = 0.3;
+    reference.displacementRelativeError = 0.29;
+    reference.measuredMaximumDisplacementMm = reference.expectedTipDeflectionMm * 1.29;
+    result.maxDisplacementMm = reference.measuredMaximumDisplacementMm;
+    expect(validateFEACantileverBoxResult(request, result).status).toBe("PASS");
+  });
+
   it("rejects a displacement reference that declares a tolerance above ten percent", () => {
     const result = referenceResult();
     result.benchmarkReference!.displacementRelativeTolerance = 0.11;
