@@ -11,12 +11,12 @@ request={
         "yieldStrengthMpa":250.0
     },
     "dimensionsMm":{
-        "length":100.0,
+        "length":200.0,
         "width":20.0,
         "height":20.0
     },
-    "elementSizeMm":8.0,
+    "elementSizeMm":4.0,
     "totalForceN":1000.0,
-    "timeoutMs":30000
+    "timeoutMs":120000
 }
 sys.stdout.write(json.dumps(request))

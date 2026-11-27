@@ -47,7 +47,7 @@ function referenceResult(): FEAStaticStructuralResult {
     ],
     warnings: [],
     benchmarkReference: {
-      referenceId: "cantilever-box-euler-bernoulli-plus-timoshenko-v1",
+      referenceId: "cantilever-box-euler-bernoulli-plus-timoshenko-v2",
       units: { length: "mm", force: "N", modulus: "MPa", deflection: "mm" },
       sectionSecondMomentMm4: inertia,
       bendingDeflectionMm: bending,
@@ -55,7 +55,7 @@ function referenceResult(): FEAStaticStructuralResult {
       expectedTipDeflectionMm: expected,
       measuredMaximumDisplacementMm: measured,
       displacementRelativeError: Math.abs(measured - expected) / expected,
-      displacementRelativeTolerance: 0.3,
+      displacementRelativeTolerance: 0.1,
       displacementPassed: true,
       expectedSupportReactionN: { x: 0, y: 100, z: 0 },
       measuredSupportReactionN: { x: 0, y: 100, z: 0 },
@@ -90,6 +90,12 @@ describe("CalculiX cantilever-box benchmark contract", () => {
   it("accepts solver results only after independent analytical and reaction checks", () => {
     const result = referenceResult();
     expect(validateFEACantileverBoxResult(request, result).status).toBe("PASS");
+  });
+
+  it("rejects a displacement reference that declares a tolerance above ten percent", () => {
+    const result = referenceResult();
+    result.benchmarkReference!.displacementRelativeTolerance = 0.11;
+    expect(validateFEACantileverBoxResult(request, result).status).toBe("FAIL");
   });
 
   it("rejects a worker result with a tampered analytical reference", () => {

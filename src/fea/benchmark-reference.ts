@@ -1,7 +1,7 @@
 import type { FEABenchmarkReference, FEACantileverBoxBenchmarkRequest, FEAStaticStructuralResult } from "./types.js";
 import { finiteNonNegative, finitePositive, isRecord } from "./benchmark-shared.js";
 
-const REFERENCE_ID = "cantilever-box-euler-bernoulli-plus-timoshenko-v1";
+const REFERENCE_ID = "cantilever-box-euler-bernoulli-plus-timoshenko-v2";
 const AXES = ["x", "y", "z"] as const;
 function hasReferenceId(value: Record<string, unknown>): boolean {
   return value.referenceId === REFERENCE_ID;
@@ -20,7 +20,7 @@ function hasDisplacementMetrics(value: Record<string, unknown>): boolean {
     finiteNonNegative(value.firstOrderShearDeflectionMm) &&
     finiteNonNegative(value.displacementRelativeError) &&
     finitePositive(value.displacementRelativeTolerance) &&
-    value.displacementRelativeTolerance <= 0.3;
+    value.displacementRelativeTolerance <= 0.1;
 }
 function hasReactionVectors(value: Record<string, unknown>): boolean {
   const expected = value.expectedSupportReactionN;
