@@ -48,6 +48,7 @@ class WorkerTests(unittest.TestCase):
     def test_cantilever_reference_matches_closed_form_and_equilibrium(self):
         reference = evaluate_cantilever_reference(0.122765, [0.0, 1000.0, 0.0])
         self.assertGreater(reference["expectedTipDeflectionMm"], reference["bendingDeflectionMm"])
+        self.assertEqual(reference["displacementRelativeTolerance"], 0.10)
         self.assertTrue(reference["displacementPassed"])
         self.assertTrue(reference["reactionPassed"])
         self.assertTrue(reference["passed"])

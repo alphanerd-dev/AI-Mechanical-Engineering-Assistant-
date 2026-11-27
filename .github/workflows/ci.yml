@@ -159,7 +159,9 @@ jobs:
           assert r["mesh"]["elementType"]=="C3D4"
           assert r["maxVonMisesStressMpa"]>=0
           assert r["maxDisplacementMm"]>=0
-          assert r["benchmarkReference"]["referenceId"]=="cantilever-box-euler-bernoulli-plus-timoshenko-v1"
+          assert r["benchmarkReference"]["referenceId"]=="cantilever-box-euler-bernoulli-plus-timoshenko-v2"
+          assert r["benchmarkReference"]["displacementRelativeTolerance"] <= 0.10
+          assert r["benchmarkReference"]["displacementRelativeError"] <= 0.10
           assert r["benchmarkReference"]["passed"] is True, r["benchmarkReference"]
           assert r["benchmarkReference"]["reactionRelativeError"] <= r["benchmarkReference"]["reactionRelativeTolerance"]
           assert len(r["artifacts"])>=4
@@ -169,6 +171,31 @@ jobs:
           test -s .fea-smoke/v1_18_cantilever.dat
           test -s .fea-smoke/v1_18_cantilever.frd
           test -s .fea-smoke/v1_18_cantilever.sta
+      - name: Run three-mesh CalculiX analytical convergence gate
+        shell: bash
+        run: |
+          rm -rf .fea-convergence
+          mkdir -p .fea-convergence
+          chmod 777 .fea-convergence
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit 128 --memory=1g --cpus=2 --tmpfs /tmp:rw,noexec,nosuid,size=512m --mount type=bind,src="$PWD/.fea-convergence",dst=/artifacts --env FEA_ARTIFACT_DIR=/artifacts --entrypoint python ai-mechanical-engineering-assistant-fea:1.18 /app/benchmark_convergence.py --output /artifacts/fea-mesh-convergence.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path(".fea-convergence/fea-mesh-convergence.json").read_text())
+          assert result["passed"] is True, result
+          assert len(result["cases"]) == 3, result
+          assert result["finestMeshRelativeDelta"] <= 0.05, result
+          assert all(item["displacementRelativeError"] <= 0.10 for item in result["cases"]), result
+          print("three-mesh CalculiX analytical convergence evidence validated")
+          PY
+      - name: Upload FEA mesh-convergence evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fea-mesh-convergence-evidence
+          path: .fea-convergence/
+          if-no-files-found: warn
+          retention-days: 30
       - name: Test OpenFOAM worker manifest and case builder
         run: python worker/cfd/openfoam/test_worker.py
       - name: Build isolated OpenFOAM 14 worker image

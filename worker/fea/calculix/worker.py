@@ -243,7 +243,7 @@ def artifact(root: pathlib.Path, path: pathlib.Path, kind: str, media_type: str)
 def cantilever_box_reference(length_mm: float, width_mm: float, height_mm: float,
                             youngs_modulus_mpa: float, poisson_ratio: float,
                             total_force_n: float, measured_max_displacement_mm: float,
-                            reaction_forces_n: list[float], displacement_relative_tolerance: float = 0.30,
+                            reaction_forces_n: list[float], displacement_relative_tolerance: float = 0.10,
                             reaction_relative_tolerance: float = 0.01) -> dict:
     """Independent closed-form check for the documented slender cantilever-box smoke case.
 
@@ -270,7 +270,7 @@ def cantilever_box_reference(length_mm: float, width_mm: float, height_mm: float
     displacement_passed = math.isfinite(displacement_error) and displacement_error <= displacement_relative_tolerance
     reaction_passed = math.isfinite(reaction_error) and reaction_error <= reaction_relative_tolerance
     return {
-        "referenceId": "cantilever-box-euler-bernoulli-plus-timoshenko-v1",
+        "referenceId": "cantilever-box-euler-bernoulli-plus-timoshenko-v2",
         "referenceSource": "closed-form beam equations implemented independently of the CalculiX result parser",
         "units": {"length": "mm", "force": "N", "modulus": "MPa", "deflection": "mm"},
         "sectionSecondMomentMm4": inertia_z,
