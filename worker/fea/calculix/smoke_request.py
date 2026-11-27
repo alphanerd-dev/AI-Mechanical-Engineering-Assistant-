@@ -15,7 +15,7 @@ request={
         "width":20.0,
         "height":20.0
     },
-    "elementSizeMm":4.0,
+    "elementSizeMm":3.0,
     "totalForceN":1000.0,
     "timeoutMs":120000
 }

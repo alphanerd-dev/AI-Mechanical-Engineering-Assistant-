@@ -11,7 +11,7 @@ import subprocess
 import sys
 from typing import Any
 
-MESH_SIZES_MM = (4.0, 3.0, 2.0)
+MESH_SIZES_MM = (3.0, 2.5, 2.0)
 MAX_REFERENCE_ERROR = 0.10
 MAX_FINE_MESH_DELTA = 0.05
 BASE_REQUEST: dict[str, Any] = {
