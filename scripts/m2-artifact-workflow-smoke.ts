@@ -157,6 +157,116 @@ async function main(): Promise<void> {
     "Exact canonical BREP bytes, artifact metadata and validation receipt do not share the same SHA-256.");
   console.log("PASS CAD source: exact private BREP bytes match PASS/VERIFIED metadata and validation receipt.");
 
+  // Persist the immutable geometry revision and generate a drawing from that exact revision.
+  // This exercises the same source-bound revision path used by the Project Drawings UI.
+  const revisionHistoryResponse = await api(
+    "/api/cad/geometry/revisions?projectId=" + projectId + "&modelIdentityId=" + modelId
+  );
+  const revisionHistoryBody = await json(revisionHistoryResponse);
+  check(revisionHistoryResponse.ok && isRecord(revisionHistoryBody) && Array.isArray(revisionHistoryBody.revisions),
+    "Geometry revision history could not be read before drawing generation.");
+  const revisionRows = revisionHistoryBody.revisions;
+  const revisionHead = revisionRows.length ? revisionRows[revisionRows.length - 1] : null;
+  const expectedParentRevisionId = isRecord(revisionHead) && typeof revisionHead.id === "string"
+    ? revisionHead.id
+    : null;
+
+  const revisionCreateResponse = await api("/api/cad/geometry/revisions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId, completionId, expectedParentRevisionId })
+  });
+  const revisionCreateBody = await json(revisionCreateResponse);
+  check((revisionCreateResponse.status === 201 || revisionCreateResponse.status === 200) &&
+    isRecord(revisionCreateBody) && isRecord(revisionCreateBody.revision) &&
+    revisionCreateBody.persisted === true,
+    "Accepted CAD completion could not be persisted as an immutable geometry revision.");
+  const geometryRevision = revisionCreateBody.revision;
+  const geometryRevisionId = typeof geometryRevision.geometryRevisionId === "string"
+    ? geometryRevision.geometryRevisionId
+    : geometryRevision.id;
+  const geometryRevisionNumber = Number(
+    geometryRevision.geometryRevisionNumber ?? geometryRevision.revision_number
+  );
+  const revisionSourceCompletionId = geometryRevision.sourceCompletionId ?? geometryRevision.source_completion_id;
+  const revisionSourceArtifactId = isRecord(geometryRevision.canonicalArtifact)
+    ? geometryRevision.canonicalArtifact.artifactId
+    : geometryRevision.canonical_artifact_id;
+  const revisionSourceDigest = isRecord(geometryRevision.canonicalArtifact)
+    ? geometryRevision.canonicalArtifact.artifactSha256
+    : geometryRevision.canonical_artifact_sha256;
+  check(typeof geometryRevisionId === "string" && /^[0-9a-f-]{36}$/i.test(geometryRevisionId) &&
+    Number.isSafeInteger(geometryRevisionNumber) && geometryRevisionNumber > 0 &&
+    revisionSourceCompletionId === completionId && revisionSourceArtifactId === sourceArtifactId &&
+    revisionSourceDigest === sourceDigest,
+    "Geometry revision does not bind the exact accepted completion and canonical BREP digest.");
+
+  const drawingRequest = {
+    projectId, modelIdentityId: modelId, geometryRevisionId
+  };
+  const generatedDrawingResponse = await api("/api/cad/drawings/generate", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(drawingRequest)
+  });
+  const generatedDrawingBody = await json(generatedDrawingResponse);
+  check((generatedDrawingResponse.status === 201 || generatedDrawingResponse.status === 200) &&
+    isRecord(generatedDrawingBody) && isRecord(generatedDrawingBody.drawing),
+    "Preliminary shaft drawing generation failed for the accepted geometry revision.");
+  const generatedDrawing = generatedDrawingBody.drawing;
+  check(typeof generatedDrawing.id === "string" &&
+    generatedDrawing.format === "SVG" &&
+    generatedDrawing.sourceGeometryRevisionId === geometryRevisionId &&
+    generatedDrawing.sourceArtifactId === sourceArtifactId &&
+    generatedDrawing.sourceArtifactSha256 === sourceDigest &&
+    Number(generatedDrawing.sourceRevisionNumber) === geometryRevisionNumber &&
+    typeof generatedDrawing.sha256 === "string" && /^[a-f0-9]{64}$/.test(generatedDrawing.sha256) &&
+    typeof generatedDrawing.signedUrl === "string",
+    "Generated drawing metadata does not preserve exact geometry revision and BREP lineage.");
+  const generatedDrawingBytesResponse = await fetch(generatedDrawing.signedUrl as string, {
+    cache: "no-store", signal: AbortSignal.timeout(60_000)
+  });
+  check(generatedDrawingBytesResponse.ok, "Private generated drawing URL could not retrieve the SVG.");
+  const generatedDrawingBytes = new Uint8Array(await generatedDrawingBytesResponse.arrayBuffer());
+  check(generatedDrawingBytes.byteLength > 0 && sha256(generatedDrawingBytes) === generatedDrawing.sha256 &&
+    new TextDecoder().decode(generatedDrawingBytes).includes("<svg"),
+    "Generated drawing bytes do not match the persisted SVG SHA-256 metadata.");
+  await assertAuditEvent("CAD_DRAWING", generatedDrawing.id as string, "PROJECT_WRITE", {
+    sha256: generatedDrawing.sha256,
+    sourceGeometryRevisionId: geometryRevisionId,
+    sourceArtifactId,
+    sourceArtifactSha256: sourceDigest,
+    sourceRevisionNumber: geometryRevisionNumber,
+    generatorId: generatedDrawing.generatorId,
+    generatorVersion: generatedDrawing.generatorVersion
+  });
+
+  const replayDrawingResponse = await api("/api/cad/drawings/generate", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(drawingRequest)
+  });
+  const replayDrawingBody = await json(replayDrawingResponse);
+  check(replayDrawingResponse.status === 200 && isRecord(replayDrawingBody) &&
+    isRecord(replayDrawingBody.drawing) &&
+    replayDrawingBody.drawing.id === generatedDrawing.id &&
+    replayDrawingBody.drawing.idempotentReplay === true,
+    "Repeated drawing generation did not resolve to the same persisted drawing without duplication.");
+
+  const generatedDrawingInventoryResponse = await api(
+    "/api/cad/drawings?projectId=" + projectId + "&modelIdentityId=" + modelId
+  );
+  const generatedDrawingInventory = await json(generatedDrawingInventoryResponse);
+  check(generatedDrawingInventoryResponse.ok && isRecord(generatedDrawingInventory) &&
+    Array.isArray(generatedDrawingInventory.drawings) &&
+    generatedDrawingInventory.drawings.some((item: unknown) =>
+      isRecord(item) && item.id === generatedDrawing.id &&
+      item.sourceGeometryRevisionId === geometryRevisionId &&
+      item.sourceArtifactSha256 === sourceDigest && item.isStale === false
+    ),
+    "Generated drawing is missing from the project inventory or is not current against its source revision.");
+  console.log("PASS drawing generation: immutable revision lineage, private SVG digest, audit record, inventory and idempotent replay verified.");
+
   // Geometry derivation must bind the exact source bytes, revision, converter and tessellation settings.
   const geometryResponse = await api("/api/cad/geometry", {
     method: "POST",

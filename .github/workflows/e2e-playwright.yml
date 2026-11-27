@@ -25,6 +25,11 @@ on:
         required: true
         type: boolean
         default: false
+      test_cad_viewport:
+        description: Also exercise OCCT GLB generation, WebGL2 navigation, model visibility/highlight, and context recovery; requires accepted CAD execution
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,6 +51,8 @@ jobs:
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       CONFIRM_ISOLATED_ENVIRONMENT: ${{ inputs.confirm_isolated_environment }}
       E2E_RUN_ACCEPTED_CAD_SMOKE: ${{ inputs.test_accepted_cad_completion }}
+      E2E_RUN_CAD_VIEWPORT_SMOKE: ${{ inputs.test_cad_viewport }}
+      E2E_WEBGL: ${{ inputs.test_cad_viewport && 'true' || 'false' }}
       E2E_ALLOWED_HOSTS: ${{ vars.E2E_ALLOWED_HOSTS }}
       E2E_CANONICAL_BASE_URL: ${{ vars.E2E_CANONICAL_BASE_URL }}
       E2E_SUPABASE_PROJECT_REF: ${{ vars.E2E_SUPABASE_PROJECT_REF }}
@@ -72,6 +79,14 @@ jobs:
           const url = new URL(process.env.E2E_BASE_URL);
           const suite = process.env.E2E_SUITE || "full";
           if (!["full", "public-ui-smoke"].includes(suite)) throw new Error("Unsupported E2E suite.");
+          const acceptedCADSmoke = process.env.E2E_RUN_ACCEPTED_CAD_SMOKE === "true";
+          const viewportSmoke = process.env.E2E_RUN_CAD_VIEWPORT_SMOKE === "true";
+          if (viewportSmoke && (suite !== "full" || !acceptedCADSmoke)) {
+            throw new Error("CAD viewport acceptance requires the full suite and explicit accepted-CAD execution opt-in.");
+          }
+          if (viewportSmoke && process.env.E2E_WEBGL !== "true") {
+            throw new Error("CAD viewport acceptance requires the isolated software WebGL2 browser configuration.");
+          }
           if (url.protocol !== "https:") throw new Error("E2E_BASE_URL must use HTTPS.");
           if (url.username || url.password || url.search || url.hash) {
             throw new Error("E2E_BASE_URL must not include credentials, a query, or a fragment.");

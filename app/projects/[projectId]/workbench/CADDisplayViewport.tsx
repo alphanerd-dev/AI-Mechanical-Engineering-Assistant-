@@ -165,26 +165,31 @@ function ViewportMeta({ mesh, controlsRef, visible, selected, onToggleVisibility
       <div className={styles.viewportControls}>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateLeft()} aria-label="Rotate model left">Rotate left</button>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.rotateRight()} aria-label="Rotate model right">Rotate right</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.zoomIn()} aria-label="Zoom in">Zoom in</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.zoomOut()} aria-label="Zoom out">Zoom out</button>
+        <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.fitToView()}>Fit to view</button>
         <button type="button" className="button secondaryButton" onClick={() => controlsRef.current?.reset()}>Reset view</button>
         <button type="button" className="button secondaryButton" onClick={onToggleSelection} aria-pressed={selected}>
-          {selected ? "Clear body selection" : "Select body"}
+          {selected ? "Clear model highlight" : "Highlight model"}
         </button>
         <button type="button" className="button secondaryButton" onClick={onToggleVisibility} aria-pressed={!visible}>
           {visible ? "Hide model" : "Show model"}
         </button>
       </div>
     </div>
-    <span className={styles.viewportHint}>Drag to orbit · scroll to zoom · arrow keys to rotate · body selection is display-only</span>
+    <span className={styles.viewportHint}>Drag to orbit · shift/right-drag or two fingers to pan · pinch/scroll to zoom · Home to fit · model highlight is display-only</span>
   </>;
 }
 
-export default function CADDisplayViewport({ src, label, sourceArtifactId, sourceArtifactSha256, artifactSha256 }: {
+type CADDisplayViewportProps = {
   src: string;
   label: string;
   sourceArtifactId: string;
   sourceArtifactSha256: string;
   artifactSha256: string;
-}) {
+};
+
+function CADDisplayViewportInstance({ src, label, sourceArtifactId, sourceArtifactSha256, artifactSha256 }: CADDisplayViewportProps) {
   const { mesh, error, loading } = useCADDisplayMesh({ src, sourceArtifactId, sourceArtifactSha256, artifactSha256 });
   const identity = [src, sourceArtifactId, sourceArtifactSha256, artifactSha256].join(":");
   const { rootRef, canvasRef, controlsRef, renderErrorRef } = useCADDisplayRenderer(mesh, identity);
@@ -197,7 +202,7 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
   }, [controlsRef, mesh, selected, visible]);
 
   return <div ref={rootRef} className={styles.viewportRoot}>
-    <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label + (selected ? ", body selected" : "")} tabIndex={0} />
+    <canvas ref={canvasRef} className={styles.viewportCanvas} role="img" aria-label={"3D CAD display derivative preview of " + label + (selected ? ", model highlighted" : "")} tabIndex={0} />
     <ViewportLoadingState loading={loading} mesh={mesh} error={error} />
     <ViewportErrorState error={error} renderErrorRef={renderErrorRef} />
     <ViewportMeta
@@ -209,4 +214,15 @@ export default function CADDisplayViewport({ src, label, sourceArtifactId, sourc
       onToggleSelection={() => setSelected((current) => !current)}
     />
   </div>;
+}
+
+export default function CADDisplayViewport(props: CADDisplayViewportProps) {
+  // A keyed instance resets display-only state when canonical source identity changes,
+  // without scheduling state updates from an effect or resetting on signed-URL refresh.
+  const sourceIdentity = [
+    props.sourceArtifactId,
+    props.sourceArtifactSha256,
+    props.artifactSha256
+  ].join(":");
+  return <CADDisplayViewportInstance key={sourceIdentity} {...props} />;
 }

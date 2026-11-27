@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, isBrowserStackIOS } from "./fixtures/browserstack-test.mjs";
 
@@ -1220,6 +1221,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
     readiness: null,
     readinessAttempts: [],
     auditEvent: null,
+    viewport: null,
     cleanup: null,
   };
   const context = await browser.newContext({ baseURL });
@@ -1465,6 +1467,136 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
       event_hash: auditEvent.event_hash,
       chain_hash: auditEvent.chain_hash,
     };
+
+    if (process.env.E2E_RUN_CAD_VIEWPORT_SMOKE === "true") {
+      await test.step("Generate and exercise the digest-verified WebGL2 CAD viewport", async () => {
+        const workbenchResponse = await page.goto("/projects/" + projectId + "/workbench");
+        expect(workbenchResponse?.status()).toBe(200);
+        await expect(page.getByRole("heading", { name: "Engineering workbench" })).toBeVisible();
+
+        const artifactSelector = page.getByLabel("Select CAD artifact");
+        await expect(artifactSelector).toBeVisible();
+        await expect(artifactSelector).toBeEnabled();
+        const solidOption = artifactSelector.locator("option").filter({ hasText: "SOLID" }).first();
+        const solidOptionValue = await solidOption.getAttribute("value");
+        expect(solidOptionValue).toBeTruthy();
+        await artifactSelector.selectOption(solidOptionValue);
+
+        const generateButton = page.getByRole("button", { name: "Generate 3D preview" });
+        await expect(generateButton).toBeVisible({ timeout: 60_000 });
+        await generateButton.click();
+
+        const canvas = page.locator('canvas[aria-label^="3D CAD display derivative preview"]');
+        await expect(canvas).toBeVisible({ timeout: 180_000 });
+        const webglVersion = await canvas.evaluate((node) => {
+          const gl = node.getContext("webgl2");
+          return gl ? String(gl.getParameter(gl.VERSION)) : null;
+        });
+        expect(webglVersion, "the CAD display must use WebGL 2").toMatch(/^WebGL 2/);
+        const viewportRoot = canvas.locator("xpath=..");
+        await expect(viewportRoot).toHaveAttribute("data-render-error", "false");
+
+        await page.getByRole("button", { name: "Zoom in" }).click();
+        await page.getByRole("button", { name: "Zoom out" }).click();
+        await page.getByRole("button", { name: "Fit to view" }).click();
+        await page.getByRole("button", { name: "Rotate model left" }).click();
+        await page.getByRole("button", { name: "Rotate model right" }).click();
+        await page.getByRole("button", { name: "Highlight model" }).click();
+        await expect(canvas).toHaveAttribute("aria-label", /model highlighted/);
+        await page.getByRole("button", { name: "Clear model highlight" }).click();
+        await page.getByRole("button", { name: "Hide model" }).click();
+        await page.getByRole("button", { name: "Show model" }).click();
+
+        await canvas.evaluate((node) => {
+          const dispatch = (type, pointerId, x, y, options = {}) => node.dispatchEvent(new PointerEvent(type, {
+            bubbles: true, cancelable: true, pointerId, pointerType: "touch",
+            isPrimary: pointerId === 1, clientX: x, clientY: y, button: 0, ...options
+          }));
+          // One-finger orbit, shift-drag pan, and two-finger pinch/pan use the same Pointer Events path.
+          dispatch("pointerdown", 1, 80, 90);
+          dispatch("pointermove", 1, 110, 115);
+          dispatch("pointerup", 1, 110, 115);
+          dispatch("pointerdown", 1, 80, 90, { shiftKey: true });
+          dispatch("pointermove", 1, 100, 105, { shiftKey: true });
+          dispatch("pointerup", 1, 100, 105);
+          dispatch("pointerdown", 2, 100, 100);
+          dispatch("pointerdown", 3, 180, 100);
+          dispatch("pointermove", 3, 195, 100);
+          dispatch("pointermove", 2, 90, 110);
+          dispatch("pointerup", 3, 195, 100);
+          dispatch("pointerup", 2, 90, 110);
+        });
+
+        const canLoseContext = await canvas.evaluate((node) => {
+          const gl = node.getContext("webgl2");
+          const extension = gl?.getExtension("WEBGL_lose_context");
+          if (!extension) return false;
+          window.__cadViewportLoseContext = extension;
+          extension.loseContext();
+          return true;
+        });
+        expect(canLoseContext, "the WebGL2 test context must expose controlled context-loss testing").toBe(true);
+        await expect(viewportRoot).toHaveAttribute("data-render-error", "true", { timeout: 10_000 });
+        await page.evaluate(() => window.__cadViewportLoseContext?.restoreContext());
+        await expect(viewportRoot).toHaveAttribute("data-render-error", "false", { timeout: 15_000 });
+
+        diagnostics.viewport = {
+          status: "PASS",
+          webglVersion,
+          renderer: "Chromium SwiftShader WebGL2",
+          exercised: ["orbit", "shift-drag pan", "two-pointer pinch/pan", "zoom", "fit", "model highlight", "visibility", "context loss and recovery"]
+        };
+        await page.goto("/projects/" + projectId);
+        await expect(page.locator('canvas[aria-label^="3D CAD display derivative preview"]')).toHaveCount(0);
+
+        // Collect a reproducible headless baseline for the paired Babylon.js/Three.js
+        // microbenchmark. This is CI/SwiftShader evidence, never a substitute for physical trials.
+        await page.goto("/benchmarks/renderers/");
+        await expect(page.getByRole("heading", { name: "CAD viewport renderer benchmark" })).toBeVisible();
+        await page.getByLabel("Workload").selectOption("100");
+        await page.getByLabel("Sample duration").selectOption("1200");
+        await page.getByRole("button", { name: "Run both renderers" }).click();
+        await expect(page.locator("#environment")).toContainText("Completed 5 paired trials", { timeout: 180_000 });
+        const [benchmarkDownload] = await Promise.all([
+          page.waitForEvent("download"),
+          page.getByRole("button", { name: "Export results JSON" }).click()
+        ]);
+        const benchmarkPath = await benchmarkDownload.path();
+        expect(benchmarkPath).toBeTruthy();
+        const benchmark = JSON.parse(await readFile(benchmarkPath, "utf8"));
+        expect(benchmark).toMatchObject({
+          schemaVersion: 2,
+          pairedTrials: 5,
+          engineVersions: { babylon: "9.35.0", three: "0.187.0" },
+          environment: { webgl2: true },
+          aggregates: {
+            babylon: { pairedTrials: 5, contextRecoveryPassed: true },
+            three: { pairedTrials: 5, contextRecoveryPassed: true }
+          }
+        });
+        expect(benchmark.fixture.sha256).toMatch(/^[a-f0-9]{64}$/);
+        expect(benchmark.trials).toHaveLength(5);
+        diagnostics.viewport.rendererBenchmark = {
+          status: "PASS",
+          workloadInstances: benchmark.workloadInstances,
+          fixtureSha256: benchmark.fixture.sha256,
+          webgl2: benchmark.environment.webgl2,
+          gpuRenderer: benchmark.environment.gpuRenderer,
+          babylonMeanP95FrameMs: benchmark.aggregates.babylon.meanP95FrameMs,
+          threeMeanP95FrameMs: benchmark.aggregates.three.meanP95FrameMs,
+          contextRecoveryPassed: {
+            babylon: benchmark.aggregates.babylon.contextRecoveryPassed,
+            three: benchmark.aggregates.three.contextRecoveryPassed
+          },
+          evidenceClass: "HEADLESS_CI_SOFTWARE_WEBGL_NOT_PHYSICAL_DEVICE_ACCEPTANCE"
+        };
+        await testInfo.attach("cad-renderer-benchmark-headless-baseline.json", {
+          path: benchmarkPath,
+          contentType: "application/json"
+        });
+      });
+    }
+
     await testInfo.attach("accepted-cad-atomic-audit-evidence.json", {
       body: Buffer.from(JSON.stringify({
         sourceHead: process.env.GITHUB_SHA ?? "not-provided",
@@ -1490,6 +1622,7 @@ test.describe("Non-retriable live accepted CAD acceptance", () => {
         validationReceipt: receipt,
         independentlyVerifiedChain: auditBody.chainIntegrity,
         correlatedAuditEvent: diagnostics.auditEvent,
+        viewport: diagnostics.viewport,
       }, null, 2)),
       contentType: "application/json",
     });

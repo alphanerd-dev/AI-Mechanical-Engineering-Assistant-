@@ -203,14 +203,65 @@ function PdfDrawingPreview({ src, label }: { src: string; label: string }) {
 }
 
 function SvgDrawingPreview({ src, label }: { src: string; label: string }) {
+  const [zoom, setZoom] = useState(1);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDistance = useRef<number | null>(null);
+  const pinchZoom = useRef(1);
+  const distance = (points: Map<number, { x: number; y: number }>) => {
+    const values = Array.from(points.values());
+    if (values.length < 2) return 0;
+    return Math.hypot(values[0].x - values[1].x, values[0].y - values[1].y);
+  };
   return <div className={styles.drawingCanvas}>
+    <div className={styles.drawingToolbar} role="group" aria-label="SVG drawing zoom controls">
+      <button type="button" aria-label="Zoom in drawing" onClick={() => setZoom(value => Math.min(8, value * 1.25))}>Zoom in</button>
+      <button type="button" aria-label="Zoom out drawing" onClick={() => setZoom(value => Math.max(0.25, value / 1.25))}>Zoom out</button>
+      <button type="button" onClick={() => setZoom(1)}>Fit drawing</button>
+      <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+    </div>
     <div
-      className={styles.sanitizedSvgImage}
-      role="img"
-      aria-label={"Sanitized SVG drawing preview of " + label}
-      style={{ backgroundImage: "url(" + JSON.stringify(src) + ")" }}
-    />
-    <footer>Sanitized SVG · preview only</footer>
+      className={styles.sanitizedSvgViewport}
+      onPointerDown={event => {
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (pointers.current.size === 2) {
+          pinchDistance.current = distance(pointers.current);
+          pinchZoom.current = zoom;
+        }
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={event => {
+        if (!pointers.current.has(event.pointerId)) return;
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (pointers.current.size >= 2 && pinchDistance.current) {
+          const nextDistance = distance(pointers.current);
+          if (nextDistance > 0) setZoom(Math.max(0.25, Math.min(8, pinchZoom.current * nextDistance / pinchDistance.current)));
+        }
+      }}
+      onPointerUp={event => {
+        pointers.current.delete(event.pointerId);
+        if (pointers.current.size < 2) pinchDistance.current = null;
+      }}
+      onPointerCancel={event => {
+        pointers.current.delete(event.pointerId);
+        pinchDistance.current = null;
+      }}
+      onLostPointerCapture={event => {
+        pointers.current.delete(event.pointerId);
+        if (pointers.current.size < 2) pinchDistance.current = null;
+      }}
+      style={{ touchAction: "none" }}
+    >
+      {/* SVG is sanitized into a short-lived local blob URL; Next image optimization cannot improve this payload. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className={styles.sanitizedSvgImage}
+        src={src}
+        alt={"Sanitized SVG drawing preview of " + label}
+        draggable={false}
+        style={{ transform: "scale(" + zoom + ")" }}
+      />
+    </div>
+    <footer>Sanitized SVG · preview only · pinch or use zoom controls</footer>
   </div>;
 }
 

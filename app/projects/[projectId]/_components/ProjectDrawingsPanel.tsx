@@ -14,9 +14,9 @@ export default function ProjectDrawingsPanel({ projectId, models }: {
   models: Array<{ id: string; name: string }>;
 }) {
   const state = useProjectDrawings(projectId);
-  return <section className={styles.panel}>
+  return <section id="project-drawings" className={styles.panel} aria-labelledby="project-drawings-heading">
     <header className={styles.header}>
-      <div><h2>Project drawings</h2><p>Upload and inspect PDF, safe-subset SVG and bounded ASCII DXF source drawings.</p></div>
+      <div><h2 id="project-drawings-heading">Project drawings</h2><p>Upload and inspect PDF, safe-subset SVG and bounded ASCII DXF source drawings.</p></div>
       <button type="button" className={styles.secondary} onClick={() => void state.refresh()} disabled={state.loading}>
         <RefreshCw size={13} aria-hidden="true" /> Refresh
       </button>
