@@ -94,49 +94,49 @@ def run_mesh_case(worker_path: pathlib.Path, artifact_root: pathlib.Path, mesh_s
     }
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output", default="/artifacts/fea-mesh-convergence.json")
-    args = parser.parse_args()
-    artifact_root = pathlib.Path(os.environ.get("FEA_ARTIFACT_DIR", "/artifacts")).resolve()
-    artifact_root.mkdir(parents=True, exist_ok=True)
-    worker_path = pathlib.Path(__file__).with_name("worker.py")
-    cases: list[dict[str, Any]] = []
+def run_mesh_cases(worker_path: pathlib.Path, artifact_root: pathlib.Path) -> list[dict[str, Any]]:
+    cases = []
     for mesh_size in MESH_SIZES_MM:
         try:
-            cases.append(run_mesh_case(worker_path, artifact_root, mesh_size))
+            case = run_mesh_case(worker_path, artifact_root, mesh_size)
         except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-            cases.append({
+            case = {
                 "meshSizeMm": mesh_size,
                 "workerExitCode": None,
                 "workerSuccess": False,
                 "referencePassed": False,
                 "error": str(exc)[:500],
                 "artifactDigests": [],
-            })
+            }
+        cases.append(case)
+    return cases
 
+
+def calculate_fine_mesh_delta(cases: list[dict[str, Any]]) -> float | None:
     finest, second_finest = cases[-1], cases[-2]
-    fine_values_valid = finite_number(finest.get("measuredDisplacementMm")) and finite_number(second_finest.get("measuredDisplacementMm"))
-    if fine_values_valid:
-        fine_mesh_delta = abs(
-            float(finest["measuredDisplacementMm"]) - float(second_finest["measuredDisplacementMm"])
-        ) / max(abs(float(finest["measuredDisplacementMm"])), 1e-12)
-    else:
-        fine_mesh_delta = None
+    measured_fine = finest.get("measuredDisplacementMm")
+    measured_medium = second_finest.get("measuredDisplacementMm")
+    if not finite_number(measured_fine) or not finite_number(measured_medium):
+        return None
+    return abs(float(measured_fine) - float(measured_medium)) / max(abs(float(measured_fine)), 1e-12)
 
-    all_cases_passed = all(
-        item.get("workerExitCode") == 0
-        and item.get("workerSuccess") is True
-        and item.get("referencePassed") is True
-        and finite_number(item.get("displacementRelativeError"))
-        and float(item["displacementRelativeError"]) <= MAX_REFERENCE_ERROR
-        and finite_number(item.get("reactionRelativeError"))
-        and float(item["reactionRelativeError"]) <= 0.01
-        for item in cases
+
+def case_passed(case: dict[str, Any]) -> bool:
+    return (
+        case.get("workerExitCode") == 0
+        and case.get("workerSuccess") is True
+        and case.get("referencePassed") is True
+        and finite_number(case.get("displacementRelativeError"))
+        and float(case["displacementRelativeError"]) <= MAX_REFERENCE_ERROR
+        and finite_number(case.get("reactionRelativeError"))
+        and float(case["reactionRelativeError"]) <= 0.01
     )
+
+
+def build_summary(cases: list[dict[str, Any]], fine_mesh_delta: float | None) -> dict[str, Any]:
+    all_cases_passed = all(case_passed(case) for case in cases)
     convergence_passed = fine_mesh_delta is not None and fine_mesh_delta <= MAX_FINE_MESH_DELTA
-    passed = all_cases_passed and convergence_passed
-    summary = {
+    return {
         "benchmark": "cantilever_box",
         "referenceId": "cantilever-box-euler-bernoulli-plus-timoshenko-v2",
         "units": {"length": "mm", "force": "N", "modulus": "MPa", "displacement": "mm"},
@@ -147,14 +147,28 @@ def main() -> int:
         "finestMeshRelativeDelta": fine_mesh_delta,
         "allCasesPassed": all_cases_passed,
         "convergencePassed": convergence_passed,
-        "passed": passed,
+        "passed": all_cases_passed and convergence_passed,
         "cases": cases,
     }
-    output = pathlib.Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
+
+
+def write_summary(output_path: pathlib.Path, summary: dict[str, Any]) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", default="/artifacts/fea-mesh-convergence.json")
+    args = parser.parse_args()
+    artifact_root = pathlib.Path(os.environ.get("FEA_ARTIFACT_DIR", "/artifacts")).resolve()
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    worker_path = pathlib.Path(__file__).with_name("worker.py")
+    cases = run_mesh_cases(worker_path, artifact_root)
+    summary = build_summary(cases, calculate_fine_mesh_delta(cases))
+    write_summary(pathlib.Path(args.output), summary)
     print(json.dumps(summary, separators=(",", ":"), allow_nan=False))
-    return 0 if passed else 1
+    return 0 if summary["passed"] else 1
 
 
 if __name__ == "__main__":
